@@ -1,0 +1,155 @@
+# ai-center — multi-stage Dockerfile
+#
+# Targets:
+#   runtime-source           bun + 源码 + node_modules（默认 compose `ai-center` profile）
+#   runtime-binary           容器内 bun build --compile
+#   runtime-binary-prebuilt  COPY 宿主机 dist/ai-center（`dev:up:prebuilt`）
+#
+# 切换：
+#   AI_CENTER_BUILD_TARGET=runtime-binary-prebuilt
+
+ARG BUN_CI_IMAGE=oven/bun:1.3.14
+ARG DEBIAN_RUNTIME_IMAGE=debian:bookworm-slim
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: deps
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${BUN_CI_IMAGE} AS deps
+
+WORKDIR /app
+
+COPY bun.lock package.json bunfig.toml tsconfig.base.json tsconfig.json ./
+COPY patches ./patches
+COPY apps/ai-center/package.json ./apps/ai-center/
+COPY packages ./packages
+COPY infra ./infra
+
+RUN bun install --frozen-lockfile --production
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: build-source
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${BUN_CI_IMAGE} AS build-source
+
+WORKDIR /app
+
+COPY . .
+COPY --from=deps /app/node_modules ./node_modules
+RUN bun install --frozen-lockfile --production
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: build-binary
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${BUN_CI_IMAGE} AS build-binary
+
+WORKDIR /app
+
+COPY . .
+COPY --from=deps /app/node_modules ./node_modules
+RUN bun install --frozen-lockfile --production
+
+RUN mkdir -p /out && \
+    bun build apps/ai-center/src/main.ts \
+      --compile \
+      --minify \
+      --sourcemap=inline \
+      --external msgpackr-extract \
+      --external bufferutil \
+      --external utf-8-validate \
+      --outfile /out/ai-center
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: runtime-source（compose profile: ai-center）
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${BUN_CI_IMAGE} AS runtime-source
+
+WORKDIR /app
+
+RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
+    && mkdir -p /var/lib/ai-center/local-files \
+    && chown -R ai-center:ai-center /var/lib/ai-center
+
+COPY --from=build-source --chown=ai-center:ai-center /app /app
+
+ENV NODE_ENV=production \
+    TZ=UTC \
+    AI_CENTER_PORT=3000 \
+    AGENTIC_ENGINE_LOCAL_FILE_DIR=/var/lib/ai-center/local-files
+
+EXPOSE 3000
+
+USER ai-center
+WORKDIR /app/apps/ai-center
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health/live || exit 1
+
+CMD ["bun", "run", "src/main.ts"]
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: runtime-binary
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${DEBIAN_RUNTIME_IMAGE} AS runtime-binary
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
+    && mkdir -p /var/lib/ai-center/local-files \
+    && chown -R ai-center:ai-center /var/lib/ai-center
+
+COPY --from=build-binary --chown=ai-center:ai-center /out/ai-center /app/ai-center
+
+ENV NODE_ENV=production \
+    TZ=UTC \
+    AI_CENTER_PORT=3000 \
+    AGENTIC_ENGINE_LOCAL_FILE_DIR=/var/lib/ai-center/local-files
+
+EXPOSE 3000
+
+USER ai-center
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health/live || exit 1
+
+ENTRYPOINT ["/app/ai-center"]
+
+# ════════════════════════════════════════════════════════════════════════════
+# Stage: runtime-binary-prebuilt（compose profile: ai-center-prebuilt）
+# ════════════════════════════════════════════════════════════════════════════
+FROM ${DEBIAN_RUNTIME_IMAGE} AS runtime-binary-prebuilt
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
+    && mkdir -p /var/lib/ai-center/local-files descriptors /app/config \
+    && chown -R ai-center:ai-center /var/lib/ai-center /app/descriptors /app/config
+
+# host 预编译产物 — 须先执行 scripts/build-host-binary.sh
+COPY --chown=ai-center:ai-center dist/ai-center /app/ai-center
+RUN chmod +x /app/ai-center
+
+ENV NODE_ENV=production \
+    TZ=UTC \
+    AI_CENTER_PORT=3000 \
+    AGENTIC_ENGINE_LOCAL_FILE_DIR=/var/lib/ai-center/local-files \
+    AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR=/app/descriptors/ \
+    AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR=/app/descriptors/agents \
+    AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR=/app/descriptors/skills \
+    AGENTIC_ENGINE_GLOBAL_PROMPT_PATH=/app/CUBE.md
+
+EXPOSE 3000
+
+USER ai-center
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+  CMD curl -fsS http://localhost:3000/health/live || exit 1
+
+ENTRYPOINT ["/app/ai-center"]

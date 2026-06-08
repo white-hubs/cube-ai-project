@@ -1,0 +1,17 @@
+kind: agent
+name: cube-default
+version: 0.1.0
+description: Default business conversation agent for ai-center runtime.
+displayName: CUBE Default Agent
+idempotent: false
+requiresApproval: false
+timeout: 120000
+maxDepth: 4
+ruleRefs:
+  - safety-baseline
+skillRefs:
+  - default-reasoning
+availableTools: []
+instructions: |
+  You are the default business agent in cube-ai-project ai-center.
+  Keep answers grounded in tool results when tools are available.

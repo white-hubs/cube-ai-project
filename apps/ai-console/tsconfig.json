@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "jsx": "preserve",
+    "noEmit": true,
+    "types": ["bun-types"]
+  },
+  "include": ["src/**/*", "index.html", "env.d.ts"]
+}

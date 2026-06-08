@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": ["./packages/kb/core/src/*"],
+      "@cube-ai/ai-center/platform/server-base": ["./apps/ai-center/src/platform/server-base/src/index.ts"],
+      "@cube-ai/ai-center/platform/server-base/*": ["./apps/ai-center/src/platform/server-base/src/*"],
+      "@cube-ai/ai-center/platform/server-shared": ["./apps/ai-center/src/platform/server-shared/src/index.ts"],
+      "@cube-ai/ai-center/platform/server-shared/*": ["./apps/ai-center/src/platform/server-shared/src/*"],
+      "@cube-ai/ai-center/platform/server-mock": ["./apps/ai-center/src/platform/server-mock/src/index.ts"],
+      "@cube-ai/ai-center/platform/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"],
+      "@cube-ai/server-base": ["./apps/ai-center/src/platform/server-base/src/index.ts"],
+      "@cube-ai/server-base/*": ["./apps/ai-center/src/platform/server-base/src/*"],
+      "@cube-ai/server-shared": ["./apps/ai-center/src/platform/server-shared/src/index.ts"],
+      "@cube-ai/server-shared/*": ["./apps/ai-center/src/platform/server-shared/src/*"],
+      "@cube-ai/server-mock": ["./apps/ai-center/src/platform/server-mock/src/index.ts"],
+      "@cube-ai/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

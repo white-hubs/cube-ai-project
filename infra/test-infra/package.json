@@ -1,0 +1,25 @@
+{
+  "name": "@cube-ai/test-infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Testcontainers helpers for MySQL / Redis / Qdrant integration tests",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ghcloud-ai-app-stub": "./src/ghcloud-ai-app-stub.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "probe-mysql-wait": "bun run ./scripts/probe-mysql-wait.ts"
+  },
+  "dependencies": {
+    "@testcontainers/mysql": "catalog:",
+    "@testcontainers/qdrant": "catalog:",
+    "@testcontainers/redis": "catalog:",
+    "mysql2": "catalog:",
+    "testcontainers": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,79 @@
+/**
+ * Integration — requires live Redis + MySQL + engine boot (wire-in AGENTIC_ENGINE_* URLs).
+ * Rename to `turn-lock.integration.test.ts` (drop `.skip`) when running locally.
+ *
+ * TEST_PORT P3-05 → 4005 per domains-index.md
+ *
+ * **MIGRATED**: 实际可执行的 testcontainers 版本已落地于
+ *   `packages/engine/test/integration/turn-lock.testcontainers.test.ts`
+ *   （USE_TESTCONTAINERS=1 触发，覆盖 concurrent 409 + lock 释放语义）。
+ * 本 `.skip` 文件保留作为 Phase-1 设计 placeholder（原 prompt 来源）。
+ *
+ * ref: P3-05 §6 · R25
+ */
+import { describe, test, expect } from 'bun:test';
+
+const TEST_PORT = Number(process.env['TEST_PORT'] ?? '4005');
+const BASE = `http://127.0.0.1:${TEST_PORT}`;
+
+describe.skip('turn-lock integration (live stack)', () => {
+  test('second concurrent message → 409 RESOURCE_CONFLICT_SESSION_BUSY', async () => {
+    const create = await fetch(`${BASE}/v1/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agentId: '2000000000000000001',
+        title: 'it',
+        context: {},
+      }),
+    });
+    expect([200, 201]).toContain(create.status);
+    const { id: sessionId } = (await create.json()) as { id: string };
+
+    const url = `${BASE}/v1/sessions/${sessionId}/messages`;
+    const body = JSON.stringify({ prompt: 'hello' });
+    const headers = { 'content-type': 'application/json' };
+
+    const [a, b] = await Promise.all([
+      fetch(url, { method: 'POST', headers, body }),
+      fetch(url, { method: 'POST', headers, body }),
+    ]);
+
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    const busy = a.status === 409 ? a : b;
+    const j = (await busy.json()) as { code?: string };
+    expect(j.code).toBe('RESOURCE_CONFLICT_SESSION_BUSY');
+  });
+
+  test('after first turn completes, second message → 200', async () => {
+    const create = await fetch(`${BASE}/v1/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agentId: '2000000000000000001',
+        title: 'it2',
+        context: {},
+      }),
+    });
+    expect([200, 201]).toContain(create.status);
+    const { id: sessionId } = (await create.json()) as { id: string };
+
+    const url = `${BASE}/v1/sessions/${sessionId}/messages`;
+    const r1 = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: 'one' }),
+    });
+    expect(r1.status).toBe(200);
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    const r2 = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: 'two' }),
+    });
+    expect(r2.status).toBe(200);
+  });
+});

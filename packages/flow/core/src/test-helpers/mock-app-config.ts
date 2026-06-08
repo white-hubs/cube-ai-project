@@ -1,0 +1,59 @@
+import type { AppConfig } from '@cube-ai/server-base'
+import { flowCoreFixturePaths } from './fixture-paths'
+
+export { flowCoreFixturePaths }
+
+export function makeMockAppConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+  const fixtures = flowCoreFixturePaths
+  return {
+    name: '@cube-ai/test',
+    port: 3210,
+    hostname: '0.0.0.0',
+    serverIdleTimeoutMs: 240000,
+    localDev: false,
+    mysqlHost: 'localhost',
+    mysqlPort: 3306,
+    mysqlDatabase: 'ai',
+    mysqlUsername: 'root',
+    mysqlPassword: '',
+    langflowBaseUrl: undefined,
+    langflowApiKey: undefined,
+    langflowBearerToken: undefined,
+    qdrantBaseUrl: 'http://127.0.0.1:6333',
+    qdrantApiKey: undefined,
+    qdrantCollectionName: 'ai_server_documents',
+    qdrantVectorSize: 1024,
+    embeddingBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    embeddingApiKey: 'test-key',
+    embeddingModel: 'doubao-embedding-vision-251215',
+    retrievalScoreThreshold: 0.25,
+    retrievalPrefetchTopK: 20,
+    retrievalRerankEnabled: true,
+    retrievalMaxQueryLength: 200,
+    doclingBaseUrl: 'http://127.0.0.1:5001',
+    doclingApiKey: undefined,
+    doclingTimeoutMs: 300000,
+    doclingEnablePictureDescription: false,
+    ingestionChunkSize: 1000,
+    ingestionChunkOverlap: 200,
+    minioEndpoint: 'http://127.0.0.1:9000',
+    minioAccessKey: 'minioadmin',
+    minioSecretKey: 'minioadmin',
+    minioKbBucket: 'kb-documents',
+    minioRegion: 'us-east-1',
+    minioUsePathStyle: true,
+    superAdminUsername: 'admin',
+    superAdminPassword: 'ChangeMe123!',
+    builtinSystemApiKey: 'sk_cube_builtin_system_test',
+    webhookHmacSecret: undefined,
+    devApiRateLimitPerMin: 60,
+    otelExporterOtlpEndpoint: undefined,
+    otelServiceName: 'cube-ai',
+    paths: {
+      langflowApiAllPath: fixtures.langflowApiAllPath,
+      componentCatalogPath: fixtures.componentCatalogPath,
+      sqlitePath: '/app/data/cube-ai.sqlite',
+    },
+    ...overrides,
+  }
+}

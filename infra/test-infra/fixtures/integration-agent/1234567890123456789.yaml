@@ -1,0 +1,8 @@
+kind: agent
+name: '1234567890123456789'
+description: shared testcontainers integration agent
+idempotent: false
+requiresApproval: false
+timeout: 120000
+maxDepth: 4
+instructions: You are a deterministic integration-test assistant.

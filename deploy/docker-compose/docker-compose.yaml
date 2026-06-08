@@ -1,0 +1,171 @@
+# ai-center — Local Dev Stack (ADR-0009)
+#
+# 默认假设 MySQL / Redis / Qdrant 为外部已有服务（host / 内网 / 云上）。
+# 本机无依赖时用 `--profile deps` 起容器。
+#
+# 用法（仓库根）：
+#   bun run dev:up:deps              # 仅依赖
+#   bun run dev:up                   # deps + ai-center（容器内源码形态）
+#   bun run dev:up:prebuilt          # host 编译二进制 + deps + ai-center-prebuilt
+#   cd apps/ai-center && bun run dev # host 直跑（配合 dev:up:deps）
+#
+# ref:
+#   - scripts/build-host-binary.sh
+#   - deploy/docker-compose/Dockerfile.ai-center
+
+name: cube-ai-project
+
+x-ai-center-base: &ai-center-base
+  env_file:
+    - .env
+  restart: unless-stopped
+  volumes:
+    - ../../descriptors:/app/descriptors:ro
+    - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+x-ai-center-http: &ai-center-http
+  ports:
+    - "${AI_CENTER_HOST_PORT:-3000}:${AI_CENTER_PORT:-3000}"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:${AI_CENTER_PORT:-3000}/health/live || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 45s
+
+x-ai-center-env: &ai-center-env
+  AI_CENTER_PORT: "${AI_CENTER_PORT:-3000}"
+  AI_CENTER_HOSTNAME: "0.0.0.0"
+  AGENTIC_ENGINE_MYSQL_URL: "mysql://${MYSQL_USER:-agentic_engine}:${MYSQL_PASSWORD:-agentic_engine_dev}@${MYSQL_HOST:-host.docker.internal}:${MYSQL_PORT:-3306}/${MYSQL_DB:-agentic_engine}"
+  AGENTIC_ENGINE_REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
+  AGENTIC_ENGINE_QDRANT_URL: "${QDRANT_URL:-http://host.docker.internal:6333}"
+  MYSQL_HOST: "${MYSQL_HOST:-host.docker.internal}"
+  MYSQL_PORT: "${MYSQL_PORT:-3306}"
+  MYSQL_USER: "${MYSQL_USER:-agentic_engine}"
+  MYSQL_USERNAME: "${MYSQL_USERNAME:-${MYSQL_USER:-agentic_engine}}"
+  MYSQL_PASSWORD: "${MYSQL_PASSWORD:-agentic_engine_dev}"
+  MYSQL_DATABASE: "${MYSQL_DATABASE:-${MYSQL_DB:-agentic_engine}}"
+  MYSQL_DB: "${MYSQL_DB:-agentic_engine}"
+  REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
+  QDRANT_URL: "${QDRANT_URL:-http://host.docker.internal:6333}"
+  QDRANT_BASE_URL: "${QDRANT_BASE_URL:-${QDRANT_URL:-http://host.docker.internal:6333}}"
+  AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR: "/app/descriptors/"
+  AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR: "/app/descriptors/agents"
+  AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR: "/app/descriptors/skills"
+  AGENTIC_ENGINE_GLOBAL_PROMPT_PATH: "/app/CUBE.md"
+
+services:
+  mysql:
+    image: mysql:8.4.6
+    container_name: ai-center-mysql
+    restart: unless-stopped
+    profiles: ["deps"]
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-root_dev_only}"
+      MYSQL_DATABASE: "${MYSQL_DB:-agentic_engine}"
+      MYSQL_USER: "${MYSQL_USER:-agentic_engine}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-agentic_engine_dev}"
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_dev_only}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:8-alpine
+    container_name: ai-center-redis
+    restart: unless-stopped
+    profiles: ["deps"]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.17.1
+    container_name: ai-center-qdrant
+    restart: unless-stopped
+    profiles: ["deps"]
+    ports:
+      - "${QDRANT_HTTP_HOST_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_HOST_PORT:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  ai-center:
+    <<: [*ai-center-base, *ai-center-http]
+    profiles: ["ai-center"]
+    container_name: ai-center
+    image: ${AI_CENTER_IMAGE:-cube-ai-project:ai-center-dev}
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile.ai-center
+      target: ${AI_CENTER_BUILD_TARGET:-runtime-source}
+      args:
+        AI_CENTER_VERSION: ${AI_CENTER_VERSION:-dev-local}
+        BUILD_SHA: ${BUILD_SHA:-local}
+        BUILD_CREATED: ${BUILD_CREATED:-2026-01-01T00:00:00Z}
+    environment:
+      <<: *ai-center-env
+
+  # 跳过容器内 bun install / bun build，直接 COPY 宿主机 dist/ai-center。
+  # 启动前须：bun run build:host-binary（或 dev:up:prebuilt 自动执行）
+  ai-center-prebuilt:
+    <<: [*ai-center-base, *ai-center-http]
+    profiles: ["ai-center-prebuilt"]
+    container_name: ai-center-prebuilt
+    image: ${AI_CENTER_PREBUILT_IMAGE:-cube-ai-project:ai-center-prebuilt}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    build:
+      context: ../..
+      dockerfile: deploy/docker-compose/Dockerfile.ai-center
+      target: runtime-binary-prebuilt
+      args:
+        AI_CENTER_VERSION: ${AI_CENTER_VERSION:-dev-local-prebuilt}
+        BUILD_SHA: ${BUILD_SHA:-local}
+        BUILD_CREATED: ${BUILD_CREATED:-2026-01-01T00:00:00Z}
+    environment:
+      <<: *ai-center-env
+      # bun build --compile 与 @dangao/bun-server 的 Bun.SQL 路径不兼容；flow 走 SQLite，engine 仍用 MySQL。
+      CUBE_LOCAL_DEV: "1"
+      CUBE_AI_SQLITE_PATH: "/var/lib/ai-center/flow.sqlite"
+    volumes:
+      - ../../descriptors:/app/descriptors:ro
+      - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
+      - ai-center-prebuilt-data:/var/lib/ai-center
+
+volumes:
+  mysql-data:
+  redis-data:
+  qdrant-data:
+  ai-center-prebuilt-data:

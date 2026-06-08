@@ -1,0 +1,79 @@
+{
+  "name": "golden-prompt-custom-fields",
+  "data": {
+    "nodes": [
+      {
+        "id": "prompt-golden-1",
+        "type": "genericNode",
+        "position": { "x": 120, "y": 80 },
+        "measured": { "width": 320, "height": 240 },
+        "selected": false,
+        "dragging": false,
+        "data": {
+          "id": "prompt-golden-1",
+          "type": "Prompt Template",
+          "node": {
+            "display_name": "Prompt Template",
+            "description": "Create a prompt template with dynamic variables.",
+            "documentation": "",
+            "icon": "braces",
+            "field_order": ["template", "tool_placeholder"],
+            "custom_fields": {
+              "template": ["context", "user_question"]
+            },
+            "outputs": [
+              {
+                "name": "prompt",
+                "display_name": "Prompt",
+                "method": "build_prompt",
+                "types": ["Message"],
+                "selected": "Message",
+                "tool_mode": true,
+                "cache": true,
+                "allows_loop": false,
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "tool_mode": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "name": "code",
+                "required": true,
+                "show": true,
+                "multiline": true,
+                "value": ""
+              },
+              "template": {
+                "_input_type": "PromptInput",
+                "name": "template",
+                "display_name": "Template",
+                "type": "prompt",
+                "value": "Use {context} to answer {user_question}.",
+                "show": true,
+                "required": false,
+                "advanced": false,
+                "tool_mode": false
+              },
+              "tool_placeholder": {
+                "_input_type": "MessageTextInput",
+                "name": "tool_placeholder",
+                "display_name": "Tool Placeholder",
+                "type": "str",
+                "value": "",
+                "show": true,
+                "required": false,
+                "advanced": true,
+                "tool_mode": true,
+                "input_types": ["Message"]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  }
+}

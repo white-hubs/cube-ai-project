@@ -1,0 +1,12 @@
+# Bun monorepo configuration — see https://bun.sh/docs/runtime/bunfig
+
+[install]
+exact = true
+
+[test]
+preload = ["./packages/agent/engine/test-preload.ts"]
+
+[install.scopes]
+# Private Nexus (ghcloud npm-group); @tachu/@dangao published here
+"@tachu" = "http://nexus.guhecloud.com:8888/repository/npm-group/"
+"@dangao" = "http://nexus.guhecloud.com:8888/repository/npm-group/"

@@ -1,0 +1,45 @@
+{
+  "name": "@cube-ai/agent-sdk-client-vue",
+  "version": "0.0.0-m2-skeleton-c",
+  "private": true,
+  "type": "module",
+  "description": "Vue 3 composables on top of @cube-ai/agent-sdk-client. Browser-only.",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target=browser --format=esm --sourcemap=external --external vue --external @cube-ai/agent-sdk-client --external @cube-ai/agent-sdk-client-assistant --external @cube-ai/contracts && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@cube-ai/contracts": "workspace:*",
+    "@cube-ai/agent-sdk-client": "workspace:*",
+    "@cube-ai/agent-sdk-client-assistant": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "catalog:"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "catalog:",
+    "typescript": "catalog:",
+    "vue": "catalog:"
+  }
+}

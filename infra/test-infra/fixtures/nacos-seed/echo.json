@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "kind": "TOOL",
+  "name": "platform.echo",
+  "displayName": "回声工具（示例）",
+  "description": "将输入原样返回。用于验证 DescriptorLoader + DescriptorRegistry 的端到端注册流程。不产生任何副作用。",
+  "isPreset": true,
+  "version": "1.0.0",
+
+  "meta": {
+    "execution": "LOCAL",
+    "consent": "NEVER",
+    "requiresPrincipal": "USER",
+    "timeoutMs": 1000,
+    "idempotent": true,
+    "sideEffects": []
+  },
+
+  "inputSchema": {
+    "type": "object",
+    "required": ["message"],
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "要回声的消息文本",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    }
+  },
+
+  "outputSchema": {
+    "type": "object",
+    "required": ["echo"],
+    "properties": {
+      "echo": {
+        "type": "string",
+        "description": "原样返回的输入消息"
+      },
+      "timestamp": {
+        "type": "integer",
+        "description": "处理时的 epoch ms"
+      }
+    }
+  },
+
+  "requires": {
+    "principal": "USER",
+    "oauthScope": [],
+    "obo": null
+  },
+
+  "execute": "builtin:platform.echo",
+
+  "handler": {
+    "kind": "http",
+    "config": {}
+  },
+
+  "tags": ["example", "debug"],
+  "category": "PLATFORM",
+  "costEstimate": { "category": "IO_LIGHT" }
+}

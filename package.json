@@ -1,0 +1,94 @@
+{
+  "name": "cube-ai-project",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*", "packages/*/*", "infra/*", "infra/*/*"],
+  "catalog": {
+    "zod": "^3.23.8",
+    "typescript": "^5.9.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "@types/bun": "latest",
+    "bun-types": "latest",
+    "reflect-metadata": "^0.2.2",
+    "ioredis": "^5.4.1",
+    "bullmq": "^5.21.0",
+    "mysql2": "^3.11.0",
+    "@qdrant/js-client-rest": "1.17.0",
+    "@happy-dom/global-registrator": "^20.9.0",
+    "fake-indexeddb": "^6.2.5",
+    "@dangao/nacos-client": "^0.1.1",
+    "jose": "^5.9.0",
+    "lru-cache": "^11.0.0",
+    "openapi-fetch": "^0.13.8",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.2.0",
+    "prom-client": "^15.1.3",
+    "yaml": "^2.7.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@aws-sdk/client-s3": "^3.750.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
+    "xlsx": "^0.18.5",
+    "@connectrpc/connect": "^2.0.2",
+    "testcontainers": "^11",
+    "@testcontainers/mysql": "^11",
+    "@testcontainers/qdrant": "^11",
+    "@testcontainers/redis": "^11"
+  },
+  "catalogs": {
+    "bun-server": {
+      "@dangao/bun-server": "^3.1.0"
+    },
+    "otel": {
+      "@opentelemetry/auto-instrumentations-node": "^0.73.0",
+      "@opentelemetry/exporter-logs-otlp-http": "^0.215.0",
+      "@opentelemetry/exporter-metrics-otlp-http": "^0.215.0",
+      "@opentelemetry/exporter-trace-otlp-http": "^0.215.0",
+      "@opentelemetry/instrumentation-pino": "^0.61.0",
+      "@opentelemetry/resources": "^2.7.0",
+      "@opentelemetry/sdk-logs": "^0.215.0",
+      "@opentelemetry/sdk-metrics": "^2.7.0",
+      "@opentelemetry/sdk-node": "^0.215.0",
+      "@opentelemetry/sdk-trace-base": "^2.7.0",
+      "@opentelemetry/semantic-conventions": "^1.40.0"
+    },
+    "tachu": {
+      "@tachu/core": "1.0.0-rc.0",
+      "@tachu/extensions": "1.0.0-rc.0",
+      "@tachu/host-defaults": "1.0.0-rc.0"
+    }
+  },
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "build:host-binary": "bash scripts/build-host-binary.sh",
+    "build:host-binary:x64": "bash scripts/build-host-binary.sh --target=linux-x64",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun scripts/test-all.ts",
+    "test:raw": "bun test",
+    "test:m3": "bun scripts/test-m3.ts",
+    "test:offline": "bun scripts/test-all.ts",
+    "test:integration": "USE_TESTCONTAINERS=1 bun test --timeout 3600000 packages/agent/engine/test/integration/mysql-redis-qdrant.testcontainers.test.ts",
+    "test:containers": "USE_TESTCONTAINERS=1 USE_NACOS_TESTCONTAINERS=1 bun scripts/test-containers.ts",
+    "test:containers:cleanup": "bun scripts/cleanup-testcontainers.ts",
+    "test:containers:ollama": "USE_TESTCONTAINERS=1 RUN_OLLAMA_E2E=1 bun test --timeout 3600000 packages/agent/sdk-client/test/integration/end-to-end-ollama.testcontainers.test.ts",
+    "test:nacos-containers": "USE_NACOS_TESTCONTAINERS=1 bun test --timeout 1800000 packages/agent/engine/test/integration/descriptor-nacos.testcontainers.test.ts",
+    "dev:up:prebuilt": "bash scripts/ensure-compose-env.sh internal-deps && bash scripts/build-host-binary.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center-prebuilt up -d --build --force-recreate",
+    "dev:up": "bash scripts/ensure-compose-env.sh internal-deps && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center up -d --build",
+    "dev:up:deps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps up -d",
+    "dev:down": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center --profile ai-center-prebuilt down",
+    "dev:ps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env ps -a",
+    "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f"
+  },
+  "patchedDependencies": {
+    "@dangao/nacos-client@0.1.1": "patches/@dangao%2Fnacos-client@0.1.1.patch"
+  },
+  "overrides": {
+    "ioredis": "5.10.1"
+  },
+  "devDependencies": {
+    "bun-types": "catalog:",
+    "typescript": "catalog:"
+  }
+}

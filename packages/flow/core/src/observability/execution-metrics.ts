@@ -1,0 +1,151 @@
+import { developerApiAls } from '../developer-api-context'
+import { currentProjectId } from '@cube-ai/server-shared'
+
+export type FlowRunMetric = {
+  flowId: string
+  taskId: string
+  latencyMs: number
+  stream: boolean
+  hadError: boolean
+  apiKeyId?: string
+  projectId?: string | null
+  ttftMs?: number
+  approxOutputChars?: number
+  at: number
+}
+
+const recent: FlowRunMetric[] = []
+const MAX_RECENT = 2000
+
+function pushMetric(m: FlowRunMetric): void {
+  recent.push(m)
+  if (recent.length > MAX_RECENT) recent.splice(0, recent.length - MAX_RECENT)
+}
+
+export function recordFlowExecutionFromSse(ctx: {
+  flowId: string
+  taskId: string
+  startedAtMs: number
+  hadError: boolean
+  ttftMs?: number
+  approxOutputChars?: number
+}): void {
+  const dev = developerApiAls.getStore()
+  const projectId = dev?.projectId ?? currentProjectId()
+  pushMetric({
+    flowId: ctx.flowId,
+    taskId: ctx.taskId,
+    latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
+    stream: true,
+    hadError: ctx.hadError,
+    apiKeyId: dev?.apiKeyId,
+    projectId,
+    ttftMs: ctx.ttftMs,
+    approxOutputChars: ctx.approxOutputChars,
+    at: Date.now(),
+  })
+}
+
+export function recordFlowExecutionSync(ctx: {
+  flowId: string
+  taskId: string
+  startedAtMs: number
+  ok: boolean
+}): void {
+  const dev = developerApiAls.getStore()
+  const projectId = dev?.projectId ?? currentProjectId()
+  pushMetric({
+    flowId: ctx.flowId,
+    taskId: ctx.taskId,
+    latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
+    stream: false,
+    hadError: !ctx.ok,
+    apiKeyId: dev?.apiKeyId,
+    projectId,
+    at: Date.now(),
+  })
+}
+
+export type ExecutionAggregateSlice = {
+  count: number
+  errors: number
+  avgLatencyMs: number
+  avgTtftMs?: number
+  avgApproxOutputChars?: number
+}
+
+export type ExecutionMetricsSnapshot = {
+  recentCount: number
+  byFlow: Record<string, ExecutionAggregateSlice>
+  byApiKey: Record<string, ExecutionAggregateSlice>
+  byProjectId: Record<string, ExecutionAggregateSlice>
+}
+
+type Acc = {
+  count: number
+  err: number
+  sumLat: number
+  sumTtft: number
+  nTtft: number
+  sumChars: number
+  nChars: number
+}
+
+function fold(acc: Record<string, Acc>, key: string, m: FlowRunMetric): void {
+  const a = acc[key] ?? { count: 0, err: 0, sumLat: 0, sumTtft: 0, nTtft: 0, sumChars: 0, nChars: 0 }
+  a.count += 1
+  if (m.hadError) a.err += 1
+  a.sumLat += m.latencyMs
+  if (m.ttftMs != null) {
+    a.sumTtft += m.ttftMs
+    a.nTtft += 1
+  }
+  if (m.approxOutputChars != null) {
+    a.sumChars += m.approxOutputChars
+    a.nChars += 1
+  }
+  acc[key] = a
+}
+
+function toSlices(acc: Record<string, Acc>): Record<string, ExecutionAggregateSlice> {
+  const o: Record<string, ExecutionAggregateSlice> = {}
+  for (const [k, a] of Object.entries(acc)) {
+    o[k] = {
+      count: a.count,
+      errors: a.err,
+      avgLatencyMs: a.count ? a.sumLat / a.count : 0,
+      avgTtftMs: a.nTtft ? a.sumTtft / a.nTtft : undefined,
+      avgApproxOutputChars: a.nChars ? a.sumChars / a.nChars : undefined,
+    }
+  }
+  return o
+}
+
+export function getExecutionMetricsSnapshot(filterProjectId?: string | null): ExecutionMetricsSnapshot {
+  const byFlow: Record<string, Acc> = {}
+  const byApiKey: Record<string, Acc> = {}
+  const byProjectId: Record<string, Acc> = {}
+  const fpid = filterProjectId?.trim() ?? ''
+  const source = fpid ? recent.filter((m) => (m.projectId?.trim() ?? '') === fpid) : recent
+  for (const m of source) {
+    fold(byFlow, m.flowId, m)
+    if (m.apiKeyId) fold(byApiKey, m.apiKeyId, m)
+    fold(byProjectId, m.projectId?.trim() ? m.projectId!.trim() : '_none', m)
+  }
+  return {
+    recentCount: source.length,
+    byFlow: toSlices(byFlow),
+    byApiKey: toSlices(byApiKey),
+    byProjectId: toSlices(byProjectId),
+  }
+}
+
+export function getExecutionMetricsRecent(filterProjectId?: string | null): FlowRunMetric[] {
+  const fpid = filterProjectId?.trim() ?? ''
+  if (!fpid) return [...recent]
+  return recent.filter((m) => (m.projectId?.trim() ?? '') === fpid)
+}
+
+export function resetExecutionMetricsForTests(): void {
+  recent.length = 0
+}

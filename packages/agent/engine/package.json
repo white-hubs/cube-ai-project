@@ -1,0 +1,117 @@
+{
+  "name": "@cube-ai/agent-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent runtime BC host (session/turn/tools/tachu) — M2 anchor package.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./adapters": {
+      "import": "./src/adapters/index.ts",
+      "types": "./src/adapters/index.ts"
+    },
+    "./adapters/tokens": {
+      "import": "./src/adapters/tokens.ts",
+      "types": "./src/adapters/tokens.ts"
+    },
+    "./adapters/memory": {
+      "import": "./src/adapters/memory/index.ts",
+      "types": "./src/adapters/memory/index.ts"
+    },
+    "./adapters/vector": {
+      "import": "./src/adapters/vector/index.ts",
+      "types": "./src/adapters/vector/index.ts"
+    },
+    "./adapters/embedding": {
+      "import": "./src/adapters/embedding/index.ts",
+      "types": "./src/adapters/embedding/index.ts"
+    },
+    "./adapters/safety": {
+      "import": "./src/adapters/safety/index.ts",
+      "types": "./src/adapters/safety/index.ts"
+    },
+    "./adapters/observability": {
+      "import": "./src/adapters/observability/index.ts",
+      "types": "./src/adapters/observability/index.ts"
+    },
+    "./adapters/backend": {
+      "import": "./src/adapters/backend/index.ts",
+      "types": "./src/adapters/backend/index.ts"
+    },
+    "./adapters/provider": {
+      "import": "./src/adapters/provider/index.ts",
+      "types": "./src/adapters/provider/index.ts"
+    },
+    "./adapters/platform": {
+      "import": "./src/adapters/platform/index.ts",
+      "types": "./src/adapters/platform/index.ts"
+    },
+    "./assembler": {
+      "import": "./src/assembler/engine-assembler.ts",
+      "types": "./src/assembler/engine-assembler.ts"
+    },
+    "./bootstrap": {
+      "import": "./src/bootstrap.ts",
+      "types": "./src/bootstrap.ts"
+    },
+    "./otel-setup": {
+      "import": "./src/infra/observability/otel-setup.ts",
+      "types": "./src/infra/observability/otel-setup.ts"
+    }
+  },
+  "scripts": {
+    "dev": "bun run --hot src/main.ts",
+    "start": "bun run src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test --timeout 120000"
+  },
+  "dependencies": {
+    "@cube-ai/bun-server-ext-nacos": "workspace:*",
+    "@cube-ai/bun-server-ext-outbox": "workspace:*",
+    "@cube-ai/bun-server-ext-sse": "workspace:*",
+    "@cube-ai/contracts": "workspace:*",
+    "@cube-ai/embedding": "workspace:*",
+    "@cube-ai/kb-core": "workspace:*",
+    "@cube-ai/llm-core": "workspace:*",
+    "@cube-ai/vector-qdrant": "workspace:*",
+    "@dangao/bun-server": "catalog:bun-server",
+    "@dangao/nacos-client": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/auto-instrumentations-node": "catalog:otel",
+    "@opentelemetry/exporter-logs-otlp-http": "catalog:otel",
+    "@opentelemetry/exporter-metrics-otlp-http": "catalog:otel",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:otel",
+    "@opentelemetry/instrumentation-pino": "catalog:otel",
+    "@opentelemetry/resources": "catalog:otel",
+    "@opentelemetry/sdk-logs": "catalog:otel",
+    "@opentelemetry/sdk-metrics": "catalog:otel",
+    "@opentelemetry/sdk-node": "catalog:otel",
+    "@opentelemetry/sdk-trace-base": "catalog:otel",
+    "@opentelemetry/semantic-conventions": "catalog:otel",
+    "@qdrant/js-client-rest": "catalog:",
+    "@tachu/core": "catalog:tachu",
+    "@tachu/extensions": "catalog:tachu",
+    "@tachu/host-defaults": "catalog:tachu",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
+    "jose": "catalog:",
+    "lru-cache": "catalog:",
+    "mysql2": "catalog:",
+    "openapi-fetch": "catalog:",
+    "pino": "catalog:",
+    "pino-pretty": "catalog:",
+    "prom-client": "catalog:",
+    "reflect-metadata": "catalog:",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cube-ai/test-infra": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

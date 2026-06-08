@@ -1,0 +1,1193 @@
+import { describe, expect, test } from 'bun:test';
+import { ToolDescriptor } from '@cube-ai/contracts';
+import type { LlmProviderPort } from '@cube-ai/contracts';
+import type {
+  AdapterCallContext,
+  ChatRequest,
+  ChatResponse,
+  EngineConfig,
+  ObservabilityEmitter,
+  ProviderAdapter,
+  StreamChunk,
+} from '@tachu/core';
+import type { DescriptorRegistryService } from '../descriptor/descriptor-registry.service';
+import type { ToolService } from '../tools/tool.service';
+import { InMemoryStore } from '@cube-ai/agent-engine/adapters/memory';
+import { EngineFactory } from './engine-factory';
+import { createTurnContextHolder } from './turn-context-holder';
+import { SkillRegistryService } from '../descriptor/skill-registry.service';
+
+function testEngineFactory(
+  provider: ProviderAdapter,
+  observability?: ObservabilityEmitter,
+  descriptorRegistry?: DescriptorRegistryService,
+  toolService?: ToolService,
+  skillRegistry?: SkillRegistryService,
+  localFiles?: ConstructorParameters<typeof EngineFactory>[7],
+  llmProvider?: LlmProviderPort,
+): EngineFactory {
+  const resolvedLlm =
+    llmProvider ?? (provider as CaptureProvider).llmProvider;
+  return new EngineFactory(
+    provider,
+    observability,
+    new InMemoryStore(),
+    createTurnContextHolder(),
+    descriptorRegistry,
+    toolService,
+    skillRegistry,
+    localFiles,
+    undefined,
+    resolvedLlm,
+  );
+}
+
+/**
+ * EngineFactory 单元测试 —— 验证它作为 tachu.Engine 的 session-aware 适配器，
+ * 把 cube-agentic-engine 这边的 session 数据（snapshot、modelCode、principal）
+ * 正确转译成 tachu 的 InputEnvelope/ExecutionContext/SessionScope。
+ *
+ * 这一系列测试只关注 EngineFactory 的"装配契约"，不依赖真实 LLM、不依赖
+ * SSE 链路、不依赖 DI。
+ */
+
+interface CaptureProvider extends ProviderAdapter {
+  capturedMessages: ReadonlyArray<ChatRequest['messages']>;
+  capturedModels: readonly string[];
+  capturedEmbedModels: readonly string[];
+  llmProvider: LlmProviderPort;
+}
+
+function createCaptureProvider(): CaptureProvider {
+  const capturedMessages: ChatRequest['messages'][] = [];
+  const capturedModels: string[] = [];
+  const capturedEmbedModels: string[] = [];
+  const llmProvider: LlmProviderPort = {
+    async chat() {
+      return {
+        content: 'ok',
+        finishReason: 'stop',
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 3 },
+      };
+    },
+    async *chatStream() {
+      yield { type: 'text-delta' as const, delta: 'ok' };
+      yield {
+        type: 'finish' as const,
+        finishReason: 'stop' as const,
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 3 },
+      };
+    },
+    async embed(request) {
+      capturedEmbedModels.push(request.modelCode);
+      return request.input.map((_input, index) => ({
+        dense: index === 0 ? [1, 0, 0] : [0.95, 0.05, 0],
+      }));
+    },
+  };
+  const provider: ProviderAdapter = {
+    id: 'agentic-platform-llm-catalog',
+    name: 'CaptureProvider',
+    async listAvailableModels() {
+      return [];
+    },
+    async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+      capturedMessages.push([...request.messages]);
+      capturedModels.push(request.model);
+      return {
+        content: 'ok',
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      };
+    },
+    async *chatStream(request: ChatRequest, _ctx: AdapterCallContext) {
+      capturedMessages.push([...request.messages]);
+      capturedModels.push(request.model);
+      yield { type: 'text-delta', delta: 'ok' } as const;
+      yield {
+        type: 'finish',
+        finishReason: 'stop',
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      } as const;
+    },
+    async embed(request, _ctx) {
+      capturedEmbedModels.push(request.model);
+      return {
+        embeddings: request.inputs.map((_input, index) => {
+          const base = index === 0 ? [1, 0, 0] : [0.95, 0.05, 0];
+          return base;
+        }),
+      };
+    },
+  };
+  return Object.assign(provider, {
+    llmProvider,
+    get capturedMessages(): ReadonlyArray<ChatRequest['messages']> {
+      return capturedMessages;
+    },
+    get capturedModels(): readonly string[] {
+      return capturedModels;
+    },
+    get capturedEmbedModels(): readonly string[] {
+      return capturedEmbedModels;
+    },
+  }) as CaptureProvider;
+}
+
+async function drain(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
+  const out: StreamChunk[] = [];
+  for await (const chunk of stream) {
+    out.push(chunk);
+    if (chunk.type === 'error') throw chunk.error;
+  }
+  return out;
+}
+
+describe('EngineFactory', () => {
+  test('uses 600s as the default task timeout for long tool-use turns', () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, provider.llmProvider);
+    const config = (
+      factory as unknown as { buildEngineConfig(): EngineConfig }
+    ).buildEngineConfig();
+
+    expect(config.runtime.defaultTaskTimeoutMs).toBe(600_000);
+  });
+
+  test('sets disableSimpleMarkers=true to prevent flow/knowledge short queries hitting strong-simple-short fast-path', () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, provider.llmProvider);
+    const config = (
+      factory as unknown as { buildEngineConfig(): EngineConfig }
+    ).buildEngineConfig();
+
+    expect(config.intent?.disableSimpleMarkers).toBe(true);
+  });
+
+  test('resolveEffectiveRoute reroutes image-bearing turns to an image-capable model', async () => {
+    const provider = createCaptureProvider();
+    provider.listAvailableModels = async () => [
+      {
+        modelName: 'gpt-4o-mini',
+        capabilities: {
+          supportedModalities: ['text'],
+          maxContextTokens: 32_000,
+          supportsStreaming: true,
+          supportsFunctionCalling: true,
+        },
+      },
+      {
+        modelName: 'gpt-4.1-vision',
+        capabilities: {
+          supportedModalities: ['text', 'image'],
+          maxContextTokens: 32_000,
+          supportsStreaming: true,
+          supportsFunctionCalling: true,
+        },
+      },
+    ];
+    const factory = testEngineFactory(provider);
+    const route = await factory.resolveEffectiveRoute({
+      prompt: 'compare',
+      turnModelCode: 'gpt-4o-mini',
+      content: {
+        schema: 'message-content-v1',
+        blocks: [{ type: 'image_ref', attachmentId: 'att_01' }],
+      },
+    });
+    expect(route.effectiveModelCode).toBe('gpt-4.1-vision');
+    expect(route.reason).toBe('IMAGE_CAPABILITY_REROUTE');
+  });
+
+  /** Provider-bound base64 expansion via LocalFileMultimodalResolver + tachu ADR-0024. */
+  test('runStream builds multimodal input parts from local file assets', async () => {
+    const provider = createCaptureProvider();
+    provider.listAvailableModels = async () => [
+      {
+        modelName: 'gpt-4.1-vision',
+        capabilities: {
+          supportedModalities: ['text', 'image'],
+          maxContextTokens: 32_000,
+          supportsStreaming: true,
+          supportsFunctionCalling: true,
+        },
+      },
+    ];
+    const localFiles = {
+      readImageAsset: async () => ({
+        fileId: 'file_01',
+        mimeType: 'image/png',
+        sizeBytes: 3,
+        sha256: 'a'.repeat(64),
+        bytes: new Uint8Array([1, 2, 3]),
+      }),
+    };
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      localFiles as never,
+      provider.llmProvider,
+    );
+    await drain(
+      factory.runStream({
+        sessionId: '2054102360564695080',
+        turnId: '2054102360564695081',
+        tenant: 42,
+        userId: 'u-42',
+        prompt: 'compare',
+        turnModelCode: 'gpt-4.1-vision',
+        content: {
+          schema: 'message-content-v1',
+          blocks: [
+            { type: 'text', text: 'compare' },
+            { type: 'image_ref', attachmentId: 'att_01' },
+          ],
+        },
+        attachments: [
+          { attachmentId: 'att_01', kind: 'image', fileId: 'file_01', mimeType: 'image/png' },
+        ],
+      }),
+    );
+    const firstUserMessage = provider.capturedMessages.at(-1)?.find((message) => message.role === 'user');
+    const content = firstUserMessage?.content;
+    expect(Array.isArray(content)).toBe(true);
+    const parts = content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    // Body keeps the original prompt + an opaque resource token, with the
+    // materialized carrier appended under a `--- References ---` block (ADR-0025).
+    const bodyText = parts.find((p) => p.type === 'text' && p.text?.includes('compare'))?.text ?? '';
+    expect(bodyText).toContain('compare');
+    expect(bodyText).toMatch(/\[\[ref:image:[0-9a-f-]+\]\]/u);
+    expect(bodyText).toContain('--- References ---');
+    const imagePart = parts.find((p) => p.type === 'image_url');
+    expect(imagePart?.image_url?.url).toBe('data:image/png;base64,AQID');
+  });
+
+  test('enables tachu skill activator runtime defaults (ADR-0007)', () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, provider.llmProvider);
+    const config = (
+      factory as unknown as { buildEngineConfig(): EngineConfig }
+    ).buildEngineConfig();
+
+    expect(config.registry.enableVectorIndexing).toBe(false);
+    expect(config.runtime.skillBudget).toBe(0.8);
+    expect(config.runtime.skillActivationMode).toBe('activator');
+    expect(config.runtime.candidateTopK).toBe(20);
+    expect(config.runtime.stickyTtlTurns).toBe(8);
+    expect(config.runtime.stickyMaxSlots).toBe(3);
+    expect(config.runtime.enableSearchSkillsTool).toBe(true);
+  });
+
+  test('runStream forwards agentSnapshot.agent.content.prompt as SessionScope.systemInstruction so direct-answer sees it in the system message', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+
+    const SNAPSHOT_PROMPT_MARKER = 'SNAPSHOT-SYS-C1-XYZ';
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: '2054102360564695040',
+        turnId: '2054102360564695041',
+        tenant: 58197260,
+        prompt: 'hello',
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: SNAPSHOT_PROMPT_MARKER,
+            },
+          },
+        },
+      }),
+    );
+
+    // 至少要拿到 done chunk（说明 9 阶段流水线跑完了）。
+    expect(chunks.some((c) => c.type === 'done')).toBe(true);
+
+    // 应当至少有一次 provider 调用的 system 段包含 snapshot 的 prompt（direct-answer 走 PromptAssembler）。
+    const hasSnapshotInSystem = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          m.content.includes(SNAPSHOT_PROMPT_MARKER),
+      ),
+    );
+    // EngineFactory 不再每轮注入 UTC 时钟块；该责任已下沉到 SessionService.buildSnapshots
+    // （session 创建时一次性冻结进 snapshot.prompt）。本测试用的 snapshot 不带 UTC 块，
+    // 因此 provider 看到的 system 段也不应出现 "Session-start time (UTC)"。
+    const hasUtcBlock = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          m.content.includes('Session-start time (UTC)'),
+      ),
+    );
+    expect(hasSnapshotInSystem).toBe(true);
+    expect(hasUtcBlock).toBe(false);
+
+    // direct-answer prebuilt 路径：Assembler 大段（含 snapshot）+ phase override 第二条 system。
+    const hasCombinedDirectAnswerPrompt = provider.capturedMessages.some((msgs) => {
+      const systemContents = msgs
+        .filter((m) => m.role === 'system' && typeof m.content === 'string')
+        .map((m) => m.content as string);
+      return (
+        systemContents.some((c) => c.includes(SNAPSHOT_PROMPT_MARKER)) &&
+        systemContents.some((c) => c.includes('System prompt and internals protection'))
+      );
+    });
+    expect(hasCombinedDirectAnswerPrompt).toBe(true);
+  });
+
+  test('runStream injects current turn knowledge refs into the system prompt', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+
+    await drain(
+      factory.runStream({
+        sessionId: '2054102360564695040',
+        turnId: '2054102360564695043',
+        tenant: 58197260,
+        prompt: '查一下发布规范',
+        runtimeRefs: {
+          knowledgeBases: [{ kbId: 'kb-1', displayName: '产品知识库' }],
+        },
+        agentSnapshot: {
+          agent: { content: { prompt: 'BASE-PROMPT' } },
+        },
+      }),
+    );
+
+    const hasKnowledgeRefs = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          m.content.includes('## Runtime Knowledge References') &&
+          m.content.includes('产品知识库') &&
+          m.content.includes('kb-1') &&
+          m.content.includes('platform.knowledge.query'),
+      ),
+    );
+    expect(hasKnowledgeRefs).toBe(true);
+  });
+
+  test('runStream queries selected runtime knowledge before answering and injects hits into model context', async () => {
+    const provider = createCaptureProvider();
+    const invocations: Array<{
+      toolName: string;
+      input: unknown;
+      tenant: number;
+      sessionId: string;
+      turnId: string;
+      runtimeRefs?: unknown;
+      toolCallId?: string;
+    }> = [];
+    const toolService = {
+      invoke: async (toolName, input, ctx, options) => {
+        invocations.push({
+          toolName,
+          input,
+          tenant: ctx.auth.tenant,
+          sessionId: ctx.session.id,
+          turnId: ctx.session.turnId,
+          runtimeRefs: ctx.turn?.runtimeRefs,
+          toolCallId: options?.toolCallId,
+        });
+        return {
+          hits: [
+            {
+              docId: 'doc-1',
+              kbId: 'kb-1',
+              title: '视角切换手册',
+              snippet: '切换视角请点击右上角视角按钮。',
+              score: 0.91,
+            },
+          ],
+          truncated: false,
+        };
+      },
+    } satisfies Pick<ToolService, 'invoke'>;
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      toolService as ToolService,
+    );
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: 'SESSION-RUNTIME-KB-1',
+        turnId: 'TURN-RUNTIME-KB-1',
+        tenant: 58197260,
+        prompt: '如何切换视角？',
+        runtimeRefs: {
+          knowledgeBases: [{ kbId: 'kb-1', displayName: '孪生平台知识库' }],
+        },
+        agentSnapshot: {
+          agent: { content: { prompt: 'BASE-PROMPT' } },
+        },
+        nextStreamId: (() => {
+          let n = 0;
+          return () => `stream-${++n}`;
+        })(),
+      }),
+    );
+
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]).toMatchObject({
+      toolName: 'platform.knowledge.query',
+      input: { query: '如何切换视角？', topK: 5 },
+      tenant: 58197260,
+      sessionId: 'SESSION-RUNTIME-KB-1',
+      turnId: 'TURN-RUNTIME-KB-1',
+      runtimeRefs: {
+        knowledgeBases: [{ kbId: 'kb-1', displayName: '孪生平台知识库' }],
+      },
+      toolCallId: 'stream-1',
+    });
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'tool-call-start' &&
+          c.tool === 'platform.knowledge.query' &&
+          c.argumentsPreview.includes('kb-1'),
+      ),
+    ).toBe(true);
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'tool-call-end' &&
+          c.tool === 'platform.knowledge.query' &&
+          c.success === true &&
+          JSON.stringify(c.output).includes('切换视角请点击右上角视角按钮'),
+      ),
+    ).toBe(true);
+    expect(
+      provider.capturedMessages.some((msgs) =>
+        msgs.some(
+          (m) =>
+            m.role === 'system' &&
+            typeof m.content === 'string' &&
+            m.content.includes('## Retrieved Knowledge Context') &&
+            m.content.includes('切换视角请点击右上角视角按钮'),
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test('runStream pins current turn runtime user skill refs', async () => {
+    const provider = createCaptureProvider();
+    const skillRegistry = new SkillRegistryService();
+    const SKILL_MARKER = 'RUNTIME-SKILL-CHART-MARKER';
+    skillRegistry.register({
+      kind: 'skill',
+      name: 'chart-output',
+      version: '1.0.2',
+      description: 'charts',
+      instructions: `Runtime selected skill:\n${SKILL_MARKER}`,
+      trigger: { type: 'semantic' },
+    });
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      skillRegistry,
+    );
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: 'SESSION-RUNTIME-SKILL-1',
+        turnId: 'TURN-RUNTIME-SKILL-1',
+        tenant: 1,
+        prompt: '生成一个图表',
+        runtimeRefs: {
+          userSkills: [{ skillId: 'chart-output', displayName: '图表生成' }],
+        },
+        nextStreamId: (() => {
+          let n = 0;
+          return () => `skill-ref-${++n}`;
+        })(),
+      }),
+    );
+
+    const hasRuntimeSkillInSystem = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          m.content.includes(SKILL_MARKER) &&
+          m.content.includes('## Runtime Skill References'),
+      ),
+    );
+    expect(hasRuntimeSkillInSystem).toBe(true);
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'tool-call-end' &&
+          c.tool === 'runtime.skill.refs' &&
+          c.success === true &&
+          JSON.stringify(c.output).includes('chart-output'),
+      ),
+    ).toBe(true);
+  });
+
+  test('runStream injects inline snapshot skills into system prompt via additionalSkills', async () => {
+    const provider = createCaptureProvider();
+    const skillRegistry = new SkillRegistryService();
+    const SKILL_MARKER = 'ECHARTS-FENCE-CONTRACT-XYZ';
+    skillRegistry.register({
+      kind: 'skill',
+      name: 'chart-output',
+      version: '1.0.2',
+      description: 'charts',
+      instructions: `Output charts using:\n${SKILL_MARKER}`,
+      trigger: { type: 'semantic' },
+    });
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      skillRegistry,
+    );
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-SKILL-SNAPSHOT-1',
+        turnId: '2054102360564695100',
+        tenant: 1,
+        prompt: '随机生成几个图表',
+        agentSnapshot: {
+          agent: { content: { prompt: 'BASE-PROMPT' } },
+          skills: [
+            {
+              name: 'chart-output',
+              versionNo: 1,
+              content: skillRegistry.resolve('chart-output')!,
+            },
+          ],
+        },
+      }),
+    );
+
+    const hasSkillInSystem = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          m.content.includes(SKILL_MARKER) &&
+          m.content.includes('## Skill Discovery'),
+      ),
+    );
+    expect(hasSkillInSystem).toBe(true);
+  });
+
+  test('runStream does not synthesize any session-start UTC block on its own — that responsibility lives in SessionService.buildSnapshots', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+    await drain(
+      factory.runStream({
+        sessionId: '2054102360564695060',
+        turnId: '2054102360564695061',
+        tenant: 58197260,
+        prompt: 'hello',
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: '  \n\t  ',
+            },
+          },
+        },
+      }),
+    );
+    const hasClock = provider.capturedMessages.some((msgs) =>
+      msgs.some(
+        (m) =>
+          m.role === 'system' &&
+          typeof m.content === 'string' &&
+          (m.content.includes('Session-start time (UTC)') ||
+            m.content.includes('Engine-managed time (UTC)')),
+      ),
+    );
+    expect(hasClock).toBe(false);
+  });
+
+  test('turn body modelCode wins over snapshot.modelConfig and is sent to provider as ChatRequest.model on every capability call', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+
+    await drain(
+      factory.runStream({
+        sessionId: '2054102360564695040',
+        turnId: '2054102360564695042',
+        tenant: 58197260,
+        prompt: 'hi',
+        // turn body 显式指定，必须覆盖 snapshot.modelConfig
+        turnModelCode: 'deepseek-v3-2-251201',
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: 'sys',
+              modelConfig: { model: 'snapshot-should-be-overridden' },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(provider.capturedModels.length).toBeGreaterThan(0);
+    expect(provider.capturedModels.every((m) => m === 'deepseek-v3-2-251201')).toBe(true);
+  });
+
+  test('falls back to snapshot.modelConfig.model when turn body omits modelCode', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+
+    await drain(
+      factory.runStream({
+        sessionId: '2054102360564695040',
+        turnId: '2054102360564695043',
+        tenant: 58197260,
+        prompt: 'hi',
+        // 不传 turnModelCode；应该走第 2 档：snapshot
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: 'sys',
+              modelConfig: { model: 'snapshot-default-model' },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(provider.capturedModels.every((m) => m === 'snapshot-default-model')).toBe(true);
+  });
+
+  test('multi-turn: same sessionId across two runStream calls — turn 2 includes turn 1 assistant reply in the assembled prompt (Engine singleton + memory continuity)', async () => {
+    const FIRST_TURN_ANSWER = 'TURN-1-ASSISTANT-CONTENT-MARKER';
+    const capturedMessages: { turn: number; msgs: { role: string; content: unknown }[] }[] = [];
+    let currentTurn = 1;
+    const provider: ProviderAdapter = {
+      id: 'agentic-platform-llm-catalog',
+      name: 'StatefulCaptureProvider',
+      async listAvailableModels() {
+        return [];
+      },
+      async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+        capturedMessages.push({
+          turn: currentTurn,
+          msgs: request.messages.map((m) => ({ role: m.role, content: m.content })),
+        });
+        return {
+          content: FIRST_TURN_ANSWER,
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+      async *chatStream(request: ChatRequest, _ctx: AdapterCallContext) {
+        capturedMessages.push({
+          turn: currentTurn,
+          msgs: request.messages.map((m) => ({ role: m.role, content: m.content })),
+        });
+        yield { type: 'text-delta', delta: FIRST_TURN_ANSWER } as const;
+        yield {
+          type: 'finish',
+          finishReason: 'stop',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        } as const;
+      },
+    };
+    const factory = testEngineFactory(provider);
+
+    // Turn 1
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-MULTI-TURN-1',
+        turnId: '2054102360564695050',
+        tenant: 58197260,
+        prompt: 'first question',
+      }),
+    );
+
+    // Turn 2 — same sessionId，新 turnId
+    currentTurn = 2;
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-MULTI-TURN-1',
+        turnId: '2054102360564695051',
+        tenant: 58197260,
+        prompt: 'follow up question',
+      }),
+    );
+
+    // Turn 2 至少一次 provider 调用的 messages 里出现 assistant 角色 + 第一轮答案 marker
+    const turn2 = capturedMessages.filter((c) => c.turn === 2);
+    const hasFirstAnswerInTurn2 = turn2.some((c) =>
+      c.msgs.some(
+        (m) =>
+          m.role === 'assistant' &&
+          typeof m.content === 'string' &&
+          m.content.includes(FIRST_TURN_ANSWER),
+      ),
+    );
+    expect(hasFirstAnswerInTurn2).toBe(true);
+  });
+
+  test('empty additionalRules/Skills/Tools path runs to done without errors (no snapshot inline parsing yet — TODO next-phase)', async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+    // 完全不传 agentSnapshot：systemInstruction、additionalRules/Skills/Tools 全部走默认
+    // 空值路径。验证 tachu 不会因空数组而崩。
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: '2054102360564695060',
+        turnId: '2054102360564695061',
+        tenant: 58197260,
+        prompt: 'hi',
+      }),
+    );
+    expect(chunks.some((c) => c.type === 'done')).toBe(true);
+  });
+
+  test('falls back to AGENTIC_ENGINE_MODEL env (or hardcoded default) when both turn body and snapshot omit model', async () => {
+    const prevEnv = process.env['AGENTIC_ENGINE_MODEL'];
+    process.env['AGENTIC_ENGINE_MODEL'] = 'env-fallback-model';
+    try {
+      const provider = createCaptureProvider();
+      const factory = testEngineFactory(provider);
+      await drain(
+        factory.runStream({
+          sessionId: '2054102360564695040',
+          turnId: '2054102360564695044',
+          tenant: 58197260,
+          prompt: 'hi',
+          // 不传 turnModelCode；snapshot 也不带 modelConfig
+          agentSnapshot: { agent: { content: { prompt: 'sys' } } },
+        }),
+      );
+      expect(provider.capturedModels.every((m) => m === 'env-fallback-model')).toBe(true);
+    } finally {
+      if (prevEnv === undefined) delete process.env['AGENTIC_ENGINE_MODEL'];
+      else process.env['AGENTIC_ENGINE_MODEL'] = prevEnv;
+    }
+  });
+
+  test('mirrors DescriptorRegistry tools into tachu so complex intent yields tool-use plan (not empty-tool fallback)', async () => {
+    const listDesc = ToolDescriptor.parse({
+      schemaVersion: 1,
+      kind: 'TOOL',
+      name: 'platform.flow.list',
+      displayName: 'List flows',
+      isPreset: true,
+      version: '1.0.0',
+      meta: {
+        execution: 'LOCAL',
+        consent: 'NEVER',
+        requiresPrincipal: 'USER',
+        timeoutMs: 15_000,
+        idempotent: true,
+        sideEffects: [],
+      },
+      inputSchema: { type: 'object', properties: {} },
+      outputSchema: { type: 'object', properties: { flows: { type: 'array' } } },
+      requires: { principal: 'USER', oauthScope: [], obo: null },
+      execute: 'builtin:platform.flow.list',
+    });
+    const mockRegistry = {
+      listAll: () => [listDesc],
+      resolve: (name: string) => (name === 'platform.flow.list' ? listDesc : undefined),
+    } as unknown as DescriptorRegistryService;
+
+    let llmCalls = 0;
+    const planningWarnings: unknown[] = [];
+    const observability: ObservabilityEmitter = {
+      on() {
+        return () => {};
+      },
+      off() {},
+      emit(ev) {
+        if (ev.type === 'warning' && ev.phase === 'planning') {
+          planningWarnings.push(ev.payload);
+        }
+      },
+      setMasker() {},
+    };
+    const provider: ProviderAdapter = {
+      id: 'agentic-platform-llm-catalog',
+      name: 'PhasedIntentProvider',
+      async listAvailableModels() {
+        return [];
+      },
+      async chat(_request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+        llmCalls += 1;
+        if (llmCalls === 1) {
+          return {
+            content: JSON.stringify({
+              complexity: 'complex',
+              intent: '询问当前已配置的流程列表',
+              contextRelevance: 'related',
+            }),
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        }
+        return {
+          content: 'stub final',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+      async *chatStream(request: ChatRequest, ctx: AdapterCallContext) {
+        const r = await provider.chat(request, ctx);
+        if (typeof r.content === 'string') {
+          yield { type: 'text-delta', delta: r.content } as const;
+        }
+        yield {
+          type: 'finish',
+          finishReason: 'stop',
+          usage: r.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        } as const;
+      },
+    };
+
+    const factory = testEngineFactory(provider, observability, mockRegistry);
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: '2054102360564695070',
+        turnId: '2054102360564695071',
+        tenant: 1,
+        prompt: '当前有哪些配置好的流程？',
+      }),
+    );
+
+    expect(
+      planningWarnings.some(
+        (p) =>
+          typeof p === 'object' &&
+          p !== null &&
+          String((p as { reason?: string }).reason ?? '').includes('no matching tool'),
+      ),
+    ).toBe(false);
+    expect(chunks.some((c) => c.type === 'done')).toBe(true);
+    expect(llmCalls).toBeGreaterThan(1);
+  });
+
+  test('skillEmbeddingModelCode overrides env for provider.embed', async () => {
+    const prev = process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'];
+    process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'] = 'env-embedding-model';
+
+    const skillRegistry = new SkillRegistryService();
+    skillRegistry.register({
+      kind: 'skill',
+      name: 'chart-output',
+      version: '1.0.0',
+      description: 'charts echarts',
+      instructions: 'use echarts',
+      trigger: { type: 'semantic' },
+    });
+
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      skillRegistry,
+      undefined,
+      provider.llmProvider,
+    );
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-EMBED-MODEL',
+        turnId: '2054102360564695090',
+        tenant: 1,
+        prompt: '图表',
+        skillEmbeddingModelCode: 'turn-embedding-model',
+      }),
+    );
+
+    expect(provider.capturedEmbedModels).toContain('turn-embedding-model');
+    expect(provider.capturedEmbedModels).not.toContain('env-embedding-model');
+
+    if (prev === undefined) {
+      delete process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'];
+    } else {
+      process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'] = prev;
+    }
+  });
+
+  test('mirrors SkillRegistry skills into tachu registry and skill_activation can surface chart-output', async () => {
+    const skillRegistry = new SkillRegistryService();
+    skillRegistry.register({
+      kind: 'skill',
+      name: 'chart-output',
+      version: '1.0.0',
+      description: 'statistics visualization',
+      instructions: 'Use echarts fenced blocks for statistics visualization.',
+      trigger: { type: 'semantic' },
+    });
+
+    const activationEvents: unknown[] = [];
+    const observability: ObservabilityEmitter = {
+      on() {
+        return () => {};
+      },
+      off() {},
+      emit(ev) {
+        if (ev.type === 'skill_activation') activationEvents.push(ev);
+      },
+      setMasker() {},
+    };
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(
+      provider,
+      observability,
+      undefined,
+      undefined,
+      skillRegistry,
+    );
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-SKILL-RECALL-1',
+        turnId: '2054102360564695080',
+        tenant: 1,
+        prompt: 'statistics visualization',
+      }),
+    );
+
+    const tachuRegistry = (
+      factory as unknown as {
+        tachuRegistry: { get: (kind: 'skill', name: string) => unknown };
+      }
+    ).tachuRegistry;
+    expect(tachuRegistry.get('skill', 'chart-output')).toBeDefined();
+    const payload = (
+      activationEvents[0] as {
+        payload?: {
+          pinned?: Array<{ name: string }>;
+          candidates?: Array<{ name: string }>;
+        };
+      }
+    )?.payload;
+    const pinnedNames = (payload?.pinned ?? []).map((p) => p.name);
+    const candidateNames = (payload?.candidates ?? []).map((c) => c.name);
+    expect(
+      pinnedNames.includes('chart-output') || candidateNames.includes('chart-output'),
+    ).toBe(true);
+  });
+
+  test('refreshes mirrored tachu skills when SkillRegistry signature changes', async () => {
+    const skillRegistry = new SkillRegistryService();
+    skillRegistry.replaceAllFromSnapshot([
+      {
+        kind: 'skill',
+        name: 'chart-output',
+        version: '1.0.0',
+        description: 'statistics visualization',
+        instructions: 'first instructions',
+        trigger: { type: 'semantic' },
+      },
+    ]);
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      skillRegistry,
+    );
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-SKILL-MIRROR-1',
+        turnId: '2054102360564695081',
+        tenant: 1,
+        prompt: 'statistics visualization',
+      }),
+    );
+    skillRegistry.replaceAllFromSnapshot([
+      {
+        kind: 'skill',
+        name: 'chart-output',
+        version: '1.0.0',
+        description: 'statistics visualization',
+        instructions: 'second instructions',
+        trigger: { type: 'semantic' },
+      },
+    ]);
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-SKILL-MIRROR-2',
+        turnId: '2054102360564695082',
+        tenant: 1,
+        prompt: 'statistics visualization',
+      }),
+    );
+
+    const skill = (
+      factory as unknown as {
+        tachuRegistry: {
+          get: (
+            kind: 'skill',
+            name: string,
+          ) => { instructions?: string } | null;
+        };
+      }
+    ).tachuRegistry.get('skill', 'chart-output');
+    expect(skill?.instructions).toBe('second instructions');
+  });
+
+  test('tool-use task is executed through engine ToolService with turn auth context', async () => {
+    const searchDesc = ToolDescriptor.parse({
+      schemaVersion: 1,
+      kind: 'TOOL',
+      name: 'mcp.web-search.search',
+      displayName: 'Web Search',
+      isPreset: false,
+      version: '1.0.0',
+      meta: {
+        execution: 'REMOTE',
+        consent: 'NEVER',
+        requiresPrincipal: 'USER',
+        timeoutMs: 120_000,
+        idempotent: true,
+        sideEffects: ['read:web.search'],
+      },
+      inputSchema: {
+        type: 'object',
+        required: ['query'],
+        properties: { query: { type: 'string', description: 'Search query' } },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { results: { type: 'array', description: 'Search results' } },
+      },
+      requires: { principal: 'USER', oauthScope: [], obo: null },
+      execute: 'mcp:web-search:search',
+      handler: { kind: 'mcp', config: {} },
+      category: 'MCP',
+      tags: ['web', 'search'],
+    });
+    const mockRegistry = {
+      listAll: () => [searchDesc],
+      resolve: (name: string) =>
+        name === 'mcp.web-search.search' ? searchDesc : undefined,
+    } as unknown as DescriptorRegistryService;
+
+    const invocations: Array<{
+      toolName: string;
+      input: unknown;
+      tenant: number;
+      userId?: string;
+      sessionId: string;
+      turnId: string;
+      toolCallId?: string;
+    }> = [];
+    const toolService = {
+      invoke: async (toolName, input, ctx, options) => {
+        invocations.push({
+          toolName,
+          input,
+          tenant: ctx.auth.tenant,
+          userId: ctx.auth.user?.userId,
+          sessionId: ctx.session.id,
+          turnId: ctx.session.turnId,
+          toolCallId: options?.toolCallId,
+        });
+        return { results: [{ title: 'hit', url: 'https://example.test' }] };
+      },
+    } satisfies Pick<ToolService, 'invoke'>;
+
+    let chatCalls = 0;
+    let toolCallIssued = false;
+    const provider: ProviderAdapter = {
+      id: 'agentic-platform-llm-catalog',
+      name: 'ToolCallingProvider',
+      async listAvailableModels() {
+        return [];
+      },
+      async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+        chatCalls += 1;
+        if (!request.tools && chatCalls === 1) {
+          return {
+            content: JSON.stringify({
+              complexity: 'complex',
+              intent: 'Search the web for current context',
+              contextRelevance: 'related',
+            }),
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        }
+        if (
+          request.tools?.some((t) => t.name === 'mcp.web-search.search') &&
+          !toolCallIssued
+        ) {
+          toolCallIssued = true;
+          return {
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [
+              {
+                id: 'call-web-1',
+                name: 'mcp.web-search.search',
+                arguments: { query: 'cube ai' },
+              },
+            ],
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        }
+        return {
+          content: 'Search complete.',
+          finishReason: 'stop',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+      async *chatStream(request: ChatRequest, ctx: AdapterCallContext) {
+        const r = await provider.chat(request, ctx);
+        if (typeof r.content === 'string' && r.content.length > 0) {
+          yield { type: 'text-delta', delta: r.content } as const;
+        }
+        for (const call of r.toolCalls ?? []) {
+          yield { type: 'tool-call-complete', call } as const;
+        }
+        yield {
+          type: 'finish',
+          finishReason: r.finishReason ?? 'stop',
+          usage: r.usage,
+        } as const;
+      },
+    };
+
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      mockRegistry,
+      toolService as ToolService,
+    );
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: '2054102360564695080',
+        turnId: '2054102360564695081',
+        tenant: 42,
+        userId: 'u-42',
+        scopes: ['web.search'],
+        prompt: '最新 cube ai 新闻是什么？',
+      }),
+    );
+
+    expect(chunks.some((c) => c.type === 'done')).toBe(true);
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]).toMatchObject({
+      toolName: 'mcp.web-search.search',
+      input: { query: 'cube ai' },
+      tenant: 42,
+      userId: 'u-42',
+      sessionId: '2054102360564695080',
+      turnId: '2054102360564695081',
+      toolCallId: 'call-web-1',
+    });
+  });
+});

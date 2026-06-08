@@ -1,0 +1,23 @@
+{
+  "name": "@cube-ai/kb-sdk-console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Knowledge document management console — /kb/documents against ai-center.",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

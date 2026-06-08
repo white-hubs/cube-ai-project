@@ -1,0 +1,30 @@
+{
+  "name": "@cube-ai/ai-console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-origin AI console — domain routes /agent /flow /kb /llm",
+  "scripts": {
+    "dev": "bun --hot src/dev-server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "build": "bun build ./index.html --outdir dist --target=browser"
+  },
+  "dependencies": {
+    "@cube-ai/agent-sdk-client": "workspace:*",
+    "@cube-ai/agent-sdk-client-assistant": "workspace:*",
+    "@cube-ai/agent-sdk-client-vue": "workspace:*",
+    "@cube-ai/flow-sdk-client": "workspace:*",
+    "@cube-ai/flow-sdk-console": "workspace:*",
+    "@cube-ai/kb-sdk-client": "workspace:*",
+    "@cube-ai/kb-sdk-console": "workspace:*",
+    "@cube-ai/llm-sdk-console": "workspace:*",
+    "vue": "catalog:",
+    "vue-router": "catalog:"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "catalog:",
+    "typescript": "catalog:",
+    "@types/bun": "catalog:"
+  }
+}

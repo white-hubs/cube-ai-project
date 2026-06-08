@@ -1,0 +1,60 @@
+{
+  "systemTypes": [
+    { "id": 1, "code": "openai", "display_name": "OpenAI", "enabled": 1 }
+  ],
+  "systemProviders": [
+    {
+      "id": 10,
+      "provider_code": "openai-official",
+      "type_code": "openai",
+      "name": "OpenAI Official",
+      "enabled": 1
+    }
+  ],
+  "systemModels": [
+    {
+      "id": 100,
+      "system_provider_id": 10,
+      "model_code": "gpt-4o",
+      "display_name": "GPT-4o",
+      "endpoint_type": "openai",
+      "model_types": "reasoning,tool",
+      "api_base_url": "https://api.openai.com/v1"
+    }
+  ],
+  "matchRules": [
+    {
+      "id": 1000,
+      "match_type": "prefix",
+      "pattern": "gpt-",
+      "endpoint_type": "openai",
+      "model_types": "reasoning",
+      "priority": 10
+    }
+  ],
+  "tenantProviders": [
+    {
+      "id": 500,
+      "tenant": 900001,
+      "system_provider_id": 10,
+      "provider_code": "openai-official",
+      "type_code": "openai",
+      "name": "OpenAI Official",
+      "api_key": "sk-exported",
+      "enabled": 1
+    }
+  ],
+  "tenantModels": [
+    {
+      "id": 600,
+      "tenant": 900001,
+      "tenant_provider_id": 500,
+      "system_model_id": 100,
+      "model_code": "gpt-4o",
+      "display_name": "GPT-4o",
+      "endpoint_type": "openai",
+      "model_types": "reasoning,tool",
+      "enabled": 1
+    }
+  ]
+}

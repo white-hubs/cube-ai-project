@@ -1,0 +1,31 @@
+{
+  "name": "@cube-ai/ai-center",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-process composition root: contracts → infra → llm-core → agent-engine (M2 anchor).",
+  "main": "./src/main.ts",
+  "scripts": {
+    "dev": "bun run --hot src/main.ts",
+    "start": "bun run src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@cube-ai/agent-engine": "workspace:*",
+    "@cube-ai/contracts": "workspace:*",
+    "@cube-ai/embedding": "workspace:*",
+    "@cube-ai/flow-core": "workspace:*",
+    "@cube-ai/kb-core": "workspace:*",
+    "@cube-ai/llm-core": "workspace:*",
+    "@cube-ai/platform-adapter-ghcloud": "workspace:*",
+    "@dangao/bun-server": "catalog:bun-server",
+    "@cube-ai/bun-server-ext-nacos": "workspace:*",
+    "@cube-ai/bun-server-ext-outbox": "workspace:*",
+    "@cube-ai/bun-server-ext-sse": "workspace:*",
+    "reflect-metadata": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

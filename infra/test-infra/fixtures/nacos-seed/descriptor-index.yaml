@@ -1,0 +1,3 @@
+# Nacos 集成测试：index → dataId 列表（与 DescriptorLoader.parseIndexDataIds 对齐）
+dataIds:
+  - echo.json

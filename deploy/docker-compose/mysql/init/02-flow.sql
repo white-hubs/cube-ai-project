@@ -1,0 +1,262 @@
+USE agentic_engine;
+
+CREATE TABLE IF NOT EXISTS `projects` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `name` VARCHAR(255) NOT NULL,
+  `description` TEXT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_projects_tenant_project_id` (`project_id`),
+  KEY `idx_projects_deleted` (`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `flows` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `name` VARCHAR(255) NOT NULL,
+  `description` TEXT NOT NULL,
+  `langflow_flow_id` VARCHAR(128) NULL,
+  `binding_status` VARCHAR(32) NOT NULL DEFAULT 'pending',
+  `cube_revision` BIGINT NOT NULL DEFAULT 0,
+  `lf_snapshot_json` LONGTEXT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_flows_project_deleted` (`project_id`, `deleted`),
+  KEY `idx_flows_project_updated` (`project_id`, `deleted`, `update_time`),
+  KEY `idx_flows_langflow` (`langflow_flow_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `flow_graphs` (
+  `flow_id` VARCHAR(64) NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `graph_json` LONGTEXT NOT NULL,
+  PRIMARY KEY (`flow_id`),
+  KEY `idx_flow_graphs_project_deleted` (`project_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `playground_sessions` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `flow_id` VARCHAR(64) NOT NULL,
+  `session_id` VARCHAR(128) NULL,
+  `title` VARCHAR(255) NULL,
+  `user_id` VARCHAR(64) NULL,
+  `is_default` TINYINT NOT NULL DEFAULT 0,
+  `chat_history` LONGTEXT NULL,
+  `last_message` TEXT NULL,
+  -- 与 SQLite `idx_playground_one_default_per_flow` 一致：仅约束「每 flow 至多一条默认会话」；允许多条 is_default=0
+  `flow_default_scope` VARCHAR(64) GENERATED ALWAYS AS (
+    CASE WHEN `is_default` = 1 AND `deleted` = 0 THEN `flow_id` ELSE NULL END
+  ) STORED,
+  PRIMARY KEY (`id`),
+  KEY `idx_playground_sessions_project_deleted` (`project_id`, `deleted`),
+  KEY `idx_playground_sessions_flow_updated` (`flow_id`, `deleted`, `update_time`),
+  KEY `idx_playground_sessions_remote_session` (`session_id`),
+  UNIQUE KEY `uk_playground_one_default_per_flow` (`flow_default_scope`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `playground_messages` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `session_id` VARCHAR(64) NOT NULL,
+  `role` VARCHAR(32) NOT NULL,
+  `content` LONGTEXT NOT NULL,
+  `seq` BIGINT NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_playground_messages_session_seq` (`session_id`, `deleted`, `seq`),
+  KEY `idx_playground_messages_project_deleted` (`project_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `custom_component_templates` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `display_name` VARCHAR(255) NOT NULL,
+  `dsl_json` LONGTEXT NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_custom_component_templates_project_deleted` (`project_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `api_keys` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `name` VARCHAR(255) NOT NULL,
+  `key_hash` VARCHAR(255) NOT NULL,
+  `key_prefix` VARCHAR(32) NOT NULL,
+  `flow_id` VARCHAR(64) NULL,
+  `scopes_json` TEXT NULL,
+  `access_level` VARCHAR(32) NOT NULL DEFAULT 'project',
+  `last_used_at` DATETIME NULL,
+  `expires_at` DATETIME NULL,
+  `allowed_tools_json` TEXT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_api_keys_project_deleted` (`project_id`, `deleted`),
+  KEY `idx_api_keys_prefix` (`key_prefix`),
+  KEY `idx_api_keys_flow_deleted` (`flow_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `auth_users` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `username` VARCHAR(128) NOT NULL,
+  `password_hash` VARCHAR(255) NOT NULL,
+  `password_algo` VARCHAR(64) NOT NULL,
+  `status` VARCHAR(32) NOT NULL,
+  `role` VARCHAR(32) NOT NULL,
+  `default_project_id` VARCHAR(64) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_auth_users_username` (`username`),
+  KEY `idx_auth_users_deleted` (`deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `oauth_access_tokens` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `token_hash` VARCHAR(255) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `username` VARCHAR(128) NOT NULL,
+  `role` VARCHAR(32) NOT NULL,
+  `scope_json` TEXT NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_oauth_access_tokens_user_deleted` (`user_id`, `deleted`),
+  KEY `idx_oauth_access_tokens_expires` (`expires_at`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `oauth_refresh_tokens` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `token_hash` VARCHAR(255) NOT NULL,
+  `user_id` VARCHAR(64) NOT NULL,
+  `access_token_id` VARCHAR(64) NOT NULL,
+  `expires_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_oauth_refresh_tokens_user_deleted` (`user_id`, `deleted`),
+  KEY `idx_oauth_refresh_tokens_access_token` (`access_token_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `webhook_invocations` (
+  `id` BIGINT(20) UNSIGNED NOT NULL,
+  `project_id` VARCHAR(64) NOT NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `flow_id` VARCHAR(64) NOT NULL,
+  `source` VARCHAR(255) NULL,
+  `payload_json` LONGTEXT NOT NULL,
+  `status` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_webhook_invocations_flow_deleted` (`flow_id`, `deleted`, `create_time`),
+  KEY `idx_webhook_invocations_project_deleted` (`project_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `app_kv` (
+  `kv_key` VARCHAR(255) NOT NULL,
+  `project_id` VARCHAR(64) NULL,
+  `deleted` BIGINT NOT NULL DEFAULT 0,
+  `create_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `creator_id` VARCHAR(64) NULL,
+  `creator_type` VARCHAR(64) NULL,
+  `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_by` VARCHAR(64) NOT NULL DEFAULT 'system',
+  `updater_id` VARCHAR(64) NULL,
+  `updater_type` VARCHAR(64) NULL,
+  `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `value_json` LONGTEXT NOT NULL,
+  PRIMARY KEY (`kv_key`),
+  KEY `idx_app_kv_project_deleted` (`project_id`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

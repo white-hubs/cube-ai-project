@@ -1,0 +1,25 @@
+import type { Middleware } from '@dangao/bun-server';
+
+const DOMAIN_PREFIXES = ['/flow', '/kb', '/llm'] as const;
+
+/**
+ * ADR-0008 domain prefixes: strip `/flow|/kb|/llm` before controller routing
+ * so existing BC controllers stay at legacy paths (`/flows`, `/documents`, …).
+ */
+export function createDomainPathRewriteMiddleware(): Middleware {
+  return async (ctx, next) => {
+    const mutable = ctx as { path: string };
+    const path = mutable.path ?? '';
+    for (const prefix of DOMAIN_PREFIXES) {
+      if (path === prefix) {
+        mutable.path = '/';
+        break;
+      }
+      if (path.startsWith(`${prefix}/`)) {
+        mutable.path = path.slice(prefix.length) || '/';
+        break;
+      }
+    }
+    return next();
+  };
+}

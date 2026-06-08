@@ -1,0 +1,57 @@
+{
+  "name": "@cube-ai/agent-sdk-client-assistant",
+  "version": "0.0.0-m2-skeleton-c",
+  "private": true,
+  "type": "module",
+  "description": "Framework-agnostic application-domain SDK for chatbot/assistant UIs built on top of cube-agentic-engine. Owns: AssistantStore (multi-session, multi-stream), reasoning tree reducer, IDB persistence, ID-replacement, error normalization. ADR-0008.",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./utils": {
+      "import": "./src/utils/index.ts",
+      "types": "./src/utils/index.ts"
+    },
+    "./reasoning-store": {
+      "import": "./src/reasoning-store/index.ts",
+      "types": "./src/reasoning-store/index.ts"
+    }
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      },
+      "./utils": {
+        "import": "./dist/utils/index.js",
+        "types": "./dist/utils/index.d.ts"
+      },
+      "./reasoning-store": {
+        "import": "./dist/reasoning-store/index.js",
+        "types": "./dist/reasoning-store/index.d.ts"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target=browser --format=esm --sourcemap=external --external @cube-ai/agent-sdk-client --external @cube-ai/contracts && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@cube-ai/contracts": "workspace:*",
+    "@cube-ai/agent-sdk-client": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "catalog:",
+    "typescript": "catalog:"
+  }
+}

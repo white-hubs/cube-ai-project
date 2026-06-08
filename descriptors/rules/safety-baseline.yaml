@@ -1,0 +1,12 @@
+kind: rule
+name: safety-baseline
+version: 0.1.0
+description: Baseline safety and non-disclosure rule for engine responses.
+displayName: Safety Baseline
+type: rule
+scope:
+  - safety
+  - output
+content: |
+  Do not reveal secrets, internal tokens, or hidden credentials.
+  If a request asks for restricted or sensitive information, refuse safely and explain why.

@@ -1,0 +1,50 @@
+{
+  "name": "@cube-ai/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single source of truth for Zod schemas (SDK + Mock + Engine + tests).",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./errors": {
+      "import": "./src/errors/index.ts",
+      "types": "./src/errors/index.ts"
+    },
+    "./ids": {
+      "import": "./src/common/ids.ts",
+      "types": "./src/common/ids.ts"
+    },
+    "./session": {
+      "import": "./src/session/index.ts",
+      "types": "./src/session/index.ts"
+    },
+    "./sse": {
+      "import": "./src/sse/index.ts",
+      "types": "./src/sse/index.ts"
+    },
+    "./versioning": {
+      "import": "./src/versioning/index.ts",
+      "types": "./src/versioning/index.ts"
+    },
+    "./platform": {
+      "import": "./src/platform/index.ts",
+      "types": "./src/platform/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}
