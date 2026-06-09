@@ -12,19 +12,13 @@ import { projectContextAls } from '@cube-ai/server-shared';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowExecutionService } from '../flows/flow-execution.service';
 
-const DEFAULT_FLOW_PROJECT_ID = 'default';
-
-function tenantToProjectId(_tenant: number): string {
-  return DEFAULT_FLOW_PROJECT_ID;
-}
-
 @Injectable()
 export class FlowInvokerPortImpl implements FlowInvokerPort {
   constructor(private readonly execution: FlowExecutionService) {}
 
   async invoke(req: FlowInvokeRequest, signal: AbortSignal): Promise<FlowInvokeSyncResponse> {
     void signal;
-    const projectId = tenantToProjectId(req.tenant);
+    const tenantId = String(req.tenant);
     const input =
       typeof req.variables?.['input'] === 'string'
         ? req.variables['input']
@@ -33,7 +27,7 @@ export class FlowInvokerPortImpl implements FlowInvokerPort {
           : '';
     const body = { ...(req.variables ?? {}), input, stream: false };
 
-    return projectContextAls.run({ projectId, bypassProjectIsolation: false }, async () => {
+    return projectContextAls.run({ projectId: tenantId, bypassProjectIsolation: false }, async () => {
       const raw = await this.execution.run(req.flowId, body);
       const result: Record<string, unknown> =
         raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : { value: raw };
@@ -48,9 +42,9 @@ export class FlowCatalogPortImpl implements FlowCatalogPort {
 
   async list(req: FlowCatalogListRequest, signal: AbortSignal): Promise<FlowCatalogListResponse> {
     void signal;
-    const projectId = tenantToProjectId(req.tenant);
-    return projectContextAls.run({ projectId, bypassProjectIsolation: false }, async () => {
-      const rows = await this.crud.repo.listFlows(projectId);
+    const tenantId = String(req.tenant);
+    return projectContextAls.run({ projectId: tenantId, bypassProjectIsolation: false }, async () => {
+      const rows = await this.crud.repo.listFlows(tenantId);
       const keyword = req.keyword?.trim().toLowerCase();
       let flows = rows.map((r) => ({
         flowId: r.id,
