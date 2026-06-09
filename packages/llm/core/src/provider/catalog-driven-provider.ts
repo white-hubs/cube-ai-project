@@ -10,6 +10,7 @@ import type {
 } from '@cube-ai/contracts';
 import { DoubaoMultimodalEmbedProvider } from './doubao-multimodal-embed';
 import { LlmProviderError, OpenAiCompatProvider } from './openai-compat-provider';
+import { AnthropicProvider } from './anthropic-provider';
 import {
   isDoubaoMultimodalEmbed,
   normalizeDashscopeOpenAiBaseUrl,
@@ -92,21 +93,41 @@ export function createInnerProviderFromCatalogRuntimeConfig(cfg: LlmModelRuntime
     case 'ollama':
     case 'dashscope':
     case 'volcengine_ark':
-    case 'openai_image':
-    case 'dashscope_text2image':
       return {
         id: 'openai-compat',
         chat: (req, signal) => openai.chat(req, signal),
         chatStream: (req, signal) => openai.chatStream(req, signal),
         embed: (req, signal) => openai.embed(req, signal),
       };
-    case 'anthropic':
+    case 'anthropic': {
+      const anthropic = new AnthropicProvider({
+        baseURL: cfg.apiBaseUrl,
+        apiKey: cfg.apiKey,
+        model: cfg.modelCode,
+      });
+      return {
+        id: 'anthropic',
+        chat: (req, signal) => anthropic.chat(req, signal),
+        chatStream: (req, signal) => anthropic.chatStream(req, signal),
+        embed: (req, signal) => anthropic.embed(req, signal),
+      };
+    }
+    case 'openai_image':
+    case 'dashscope_text2image':
+      throw new LlmProviderError(
+        'UPSTREAM_LLM_UNAVAILABLE',
+        `image generation endpointType '${cfg.endpointType}' must use ImageGenerationPort, not chat provider`,
+      );
     case 'gemini':
-    case 'geekai':
     case 'jina_rerank':
       throw new LlmProviderError(
         'UPSTREAM_LLM_UNAVAILABLE',
-        `endpointType ${cfg.endpointType} not yet supported in M1 catalog-driven routing`,
+        `endpointType ${cfg.endpointType} not yet supported (out of scope for current workstream)`,
+      );
+    case 'geekai':
+      throw new LlmProviderError(
+        'UPSTREAM_LLM_UNAVAILABLE',
+        `endpointType 'geekai' is an image-only provider; use ImageGenerationPort`,
       );
     default: {
       const exhaustive: never = cfg.endpointType;
