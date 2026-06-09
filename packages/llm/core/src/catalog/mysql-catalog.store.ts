@@ -11,8 +11,6 @@ import {
   TenantLlmProviderRepository,
   type CatalogMysqlPool,
 } from './repositories';
-import { upsertSystemCatalogMysql } from './repositories/seed';
-import { AUTHORITATIVE_SYSTEM_CATALOG_SEED } from './repositories/system-seed.data';
 import { splitModelTypes } from './schema/llm-schema';
 
 function asEndpointType(value: string | null | undefined): LlmEndpointType | null {
@@ -24,13 +22,10 @@ function asEndpointType(value: string | null | undefined): LlmEndpointType | nul
  * MySQL 后端的 `LlmCatalogPort`，直读 ghcloud 真实列式表
  * （`ai_application_tenant_llm_provider` / `ai_application_tenant_llm_model`）。
  * 与 engine/flow 共享同一 MySQL（库 `agentic_engine`）；管理面 CRUD 写入实时可见、多实例一致。
- * 解析逻辑对齐 InMemoryLlmCatalogPort / ghcloud getModelRuntimeConfig。
- */
-/**
- * MySQL 后端的 `LlmCatalogPort`。
- * 当 `CUBE_AI_CATALOG_SEED_SYSTEM=1` 时，首次 ensure() 会执行一次权威系统目录 warm-load
- * （upsert `AUTHORITATIVE_SYSTEM_CATALOG_SEED`）；幂等，多实例安全。
- * 保留 `CUBE_AI_CATALOG_DEV_SEED=1` 仅在 InMemory 分支（engine llm-catalog.module），不影响此类。
+ *
+ * 首次 `ensure()` 执行权威系统目录 warm-load（幂等，多实例安全）；
+ * 显式设 `CUBE_AI_CATALOG_SEED_SYSTEM=0` 可跳过。
+ * dev 占位分支保留在 agent-engine `LlmCatalogModule`（`CUBE_AI_CATALOG_DEV_SEED=1`）。
  */
 export class MysqlLlmCatalogPort implements LlmCatalogPort {
   private tablesReady?: Promise<void>;
@@ -39,10 +34,10 @@ export class MysqlLlmCatalogPort implements LlmCatalogPort {
 
   private ensure(): Promise<void> {
     if (!this.tablesReady) {
-      const shouldSeedSystem = process.env['CUBE_AI_CATALOG_SEED_SYSTEM'] === '1';
-      this.tablesReady = ensureCatalogTables(this.pool).then(async () => {
-        if (shouldSeedSystem) {
-          await upsertSystemCatalogMysql(this.pool, AUTHORITATIVE_SYSTEM_CATALOG_SEED);
+      const doSeed = (process.env['CUBE_AI_CATALOG_SEED_SYSTEM'] ?? '1') !== '0';
+      this.tablesReady = ensureCatalogTables(this.pool).then(() => {
+        if (doSeed) {
+          return seedAuthoritativeSystemCatalogMysql(this.pool);
         }
       });
     }
