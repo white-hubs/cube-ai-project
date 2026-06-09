@@ -87,26 +87,6 @@ export const AUTHORITATIVE_SYSTEM_CATALOG_SEED: SystemCatalogSeed = {
 
   matchRules: [
     {
-      id: '900000000000003001',
-      provider_type_code: null, provider_code: null,
-      match_type: 'contains', pattern: 'doubao',
-      normalized_name: 'Doubao', native_family: null, display_name_template: 'Doubao', group_name: 'Doubao',
-      icon_url: 'builtin:model:doubao', api_base_url: null, endpoint_type: null,
-      channel_profile: null, adapter_key: null,
-      request_schema_json: null, response_schema_json: null, dsl_schema_json: null,
-      model_types: 'reasoning', is_free: true, priority: '100',
-    },
-    {
-      id: '900000000000003002',
-      provider_type_code: null, provider_code: null,
-      match_type: 'contains', pattern: 'embedding',
-      normalized_name: 'Embedding', native_family: null, display_name_template: 'Embedding', group_name: 'Embedding',
-      icon_url: 'builtin:model:embedding', api_base_url: null, endpoint_type: null,
-      channel_profile: null, adapter_key: null,
-      request_schema_json: null, response_schema_json: null, dsl_schema_json: null,
-      model_types: 'embedding', is_free: false, priority: '120',
-    },
-    {
       id: '900000000000003003',
       provider_type_code: null, provider_code: null,
       match_type: 'contains', pattern: 'rerank',
