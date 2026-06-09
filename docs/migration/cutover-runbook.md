@@ -15,8 +15,10 @@
 
 ### 2.1 开发/预发验证
 
+> **WS3 之后（默认启用）：** 无需再设 `USE_GHCLOUD_IDENTITY=1`；只需配 `JWT_KEY_URL` 即可启用 ghcloud 身份。
+> 本地开发/测试无 JWT 服务时，设 `USE_GHCLOUD_IDENTITY=0` 退回 mock 身份。
+
 ```bash
-export USE_GHCLOUD_IDENTITY=1
 export JWT_KEY_URL=http://<oauth-host>/oauth2/jwt.key
 # 请求须带 Authorization: Bearer <JWT> + tenant: <tenantId>
 bun run --filter @cube-ai/ai-center dev
@@ -34,8 +36,7 @@ bun run --filter @cube-ai/ai-center dev
 ### 2.2 回滚（身份）
 
 ```bash
-unset USE_GHCLOUD_IDENTITY
-# 或 USE_GHCLOUD_IDENTITY=0
+export USE_GHCLOUD_IDENTITY=0
 # 重启 ai-center → 恢复 flow opaque token（createFlowAccessTokenReader）
 ```
 
@@ -74,8 +75,9 @@ bun tools/migration/catalog-migrate.ts \
 # 验证映射 → InMemoryCatalogStore（见 catalog-migrate.test.ts）
 bun test tools/migration
 
-# 生产写入：待接 llm-core SQLite/MySQL seed（M6.T4 完整版）
-# bun tools/migration/catalog-migrate.ts --source ... --target sqlite --sqlite /path/to/llm-catalog.db
+# 生产写入：与 engine/flow 同库 MySQL（agentic_engine 的 llm_catalog_* 表）
+# bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:pass@host:3306/agentic_engine
+# （--mysql-url 缺省读 AGENTIC_ENGINE_MYSQL_URL）
 ```
 
 幂等策略（完整版）：按 `id`/`tenant+provider_code`/`tenant+model_code` upsert；重跑前备份目标库。
@@ -106,7 +108,7 @@ bun test tools/migration
 | 层级 | 动作 |
 |---|---|
 | 网关 | 路由切回 `${BASE_API}/aiApplication/...` |
-| 身份 | `USE_GHCLOUD_IDENTITY=0`，重启 ai-center |
+| 身份 | `USE_GHCLOUD_IDENTITY=0` 重启 ai-center → mock 身份（opt-out） |
 | 数据 | 保留 ghcloud MySQL 只读副本；catalog 迁移脚本幂等，可重跑 |
 
 旧链路保留期建议 ≥ 1 个发布周期；监控：HTTP 5xx、P95 延迟、kb retrieval-evaluation 通过率。

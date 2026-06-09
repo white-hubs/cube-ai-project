@@ -5,12 +5,14 @@ import {
   signTestJwt,
 } from '@cube-ai/platform-adapter-ghcloud';
 import {
-  applyAiCenterTestEnv,
-  restoreAiCenterTestEnv,
-  snapshotAiCenterTestEnv,
-} from './test-helpers/ai-center-test-env';
+  shouldRunAiCenterIntegration,
+  startAiCenterIntegrationStack,
+  stopAiCenterIntegrationStack,
+} from './test-helpers/ai-center-integration.harness';
 
-describe('ai-center ghcloud identity e2e', () => {
+const run = shouldRunAiCenterIntegration;
+
+(run ? describe : describe.skip)('ai-center ghcloud identity e2e [testcontainers]', () => {
   let baseUrl = '';
   let app: Application | undefined;
   let server: ReturnType<NonNullable<Application>['getServer']> | undefined;
@@ -20,8 +22,7 @@ describe('ai-center ghcloud identity e2e', () => {
   let bearerToken = '';
 
   beforeAll(async () => {
-    envSnapshot = snapshotAiCenterTestEnv();
-    applyAiCenterTestEnv(`${import.meta.dir}/.tmp-ai-center-identity.sqlite`);
+    ({ envSnapshot } = await startAiCenterIntegrationStack());
 
     const { privateKey, publicKey, jwk } = await createTestJwtKeyPair();
     bearerToken = await signTestJwt(privateKey, {
@@ -54,14 +55,14 @@ describe('ai-center ghcloud identity e2e', () => {
     app = await bootstrap({ port, hostname: '127.0.0.1' });
     server = app.getServer();
     baseUrl = `http://127.0.0.1:${port}`;
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
     await server?.stop?.();
     await jwtServer?.stop(true);
-    restoreAiCenterTestEnv(envSnapshot);
     delete process.env.USE_GHCLOUD_IDENTITY;
     delete process.env.JWT_KEY_URL;
+    await stopAiCenterIntegrationStack(envSnapshot);
   });
 
   it('accepts RS256 JWT via USE_GHCLOUD_IDENTITY=1 middleware chain', async () => {
@@ -74,5 +75,56 @@ describe('ai-center ghcloud identity e2e', () => {
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as unknown;
     expect(Array.isArray(body)).toBe(true);
+  });
+});
+
+// WS3 Task 3.1 — default-on: ghcloud identity should be active unless USE_GHCLOUD_IDENTITY=0
+(run ? describe : describe.skip)('ghcloud identity default-on [testcontainers]', () => {
+  let baseUrl = '';
+  let app: Application | undefined;
+  let server: ReturnType<NonNullable<Application>['getServer']> | undefined;
+  let envSnapshot: Record<string, string | undefined>;
+  let jwtServer: ReturnType<typeof Bun.serve> | undefined;
+
+  beforeAll(async () => {
+    ({ envSnapshot } = await startAiCenterIntegrationStack());
+
+    const { jwk } = await createTestJwtKeyPair();
+
+    jwtServer = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch(req) {
+        if (req.url.endsWith('/jwt.key')) {
+          return Response.json({ keys: [{ ...jwk, alg: 'RS256', use: 'sig' }] });
+        }
+        return new Response('not found', { status: 404 });
+      },
+    });
+
+    // Default-on: applyAiCenterIntegrationTestEnv sets USE_GHCLOUD_IDENTITY=0 for other tests;
+    // here we explicitly delete it to prove the default is ON.
+    delete process.env.USE_GHCLOUD_IDENTITY;
+    process.env.JWT_KEY_URL = `http://127.0.0.1:${jwtServer.port}/jwt.key`;
+
+    const { bootstrap } = await import('./bootstrap');
+
+    const port = 4800 + Math.floor(Math.random() * 100);
+    app = await bootstrap({ port, hostname: '127.0.0.1' });
+    server = app.getServer();
+    baseUrl = `http://127.0.0.1:${port}`;
+  }, 180_000);
+
+  afterAll(async () => {
+    await server?.stop?.();
+    await jwtServer?.stop(true);
+    delete process.env.JWT_KEY_URL;
+    await stopAiCenterIntegrationStack(envSnapshot);
+  });
+
+  it('enables ghcloud identity by default when JWT_KEY_URL is set (USE_GHCLOUD_IDENTITY not set)', async () => {
+    // No JWT provided → ghcloud middleware must reject with 401
+    const resp = await fetch(`${baseUrl}/flow/flows`);
+    expect(resp.status).toBe(401);
   });
 });

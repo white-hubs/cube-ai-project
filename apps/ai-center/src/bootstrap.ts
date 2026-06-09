@@ -133,12 +133,14 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   app.use(createErrorResponseMiddleware(metricsRegistry, errLog));
 
   const useGhcloudIdentity =
-    Bun.env.USE_GHCLOUD_IDENTITY === '1' || process.env.USE_GHCLOUD_IDENTITY === '1';
+    (Bun.env.USE_GHCLOUD_IDENTITY ?? process.env.USE_GHCLOUD_IDENTITY) !== '0';
   const jwtKeyUrl = Bun.env.JWT_KEY_URL?.trim() || process.env.JWT_KEY_URL?.trim() || '';
 
   if (useGhcloudIdentity) {
     if (!jwtKeyUrl) {
-      throw new Error('USE_GHCLOUD_IDENTITY=1 requires JWT_KEY_URL (ghcloud oauth2 jwt.key URL)');
+      throw new Error(
+        'JWT_KEY_URL is required when ghcloud identity is enabled (set USE_GHCLOUD_IDENTITY=0 to disable)',
+      );
     }
     for (const mw of createGhcloudIdentityMiddleware({ jwtKeyUrl })) {
       app.use(mw);
