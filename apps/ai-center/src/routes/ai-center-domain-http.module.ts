@@ -1,6 +1,7 @@
 import { Global, Module, type Container } from '@dangao/bun-server';
 import { LlmCatalogModule } from '@cube-ai/agent-engine/adapters/platform';
 import { LlmCatalogHttpModule } from '@cube-ai/llm-core/http';
+import { LlmCatalogAdminHttpModule } from '@cube-ai/llm-core/http/admin';
 import {
   createEnvFallbackTenantResolver,
   LLM_HTTP_TENANT_RESOLVER_TOKEN,
@@ -10,7 +11,7 @@ import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
 
 @Global()
 @Module({
-  imports: [LlmCatalogModule, LlmCatalogHttpModule, AiCenterKbHttpModule],
+  imports: [LlmCatalogModule, LlmCatalogHttpModule, LlmCatalogAdminHttpModule, AiCenterKbHttpModule],
   providers: [
     {
       provide: LLM_HTTP_TENANT_RESOLVER_TOKEN,

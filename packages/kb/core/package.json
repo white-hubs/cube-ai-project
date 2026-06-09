@@ -27,7 +27,7 @@
     "jszip": "catalog:",
     "mammoth": "catalog:",
     "reflect-metadata": "catalog:",
-    "xlsx": "catalog:"
+    "mysql2": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

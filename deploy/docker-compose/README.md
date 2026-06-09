@@ -21,8 +21,9 @@ bun run dev:up
 
 宿主机 `bun build --compile` 产出 `dist/ai-center`，容器仅 COPY 二进制。
 
-> **说明**：预编译形态下 flow 模块走 `CUBE_LOCAL_DEV`（SQLite），agent-engine 仍连 compose MySQL；
-> 因 `bun build --compile` 与 `@dangao/bun-server` 的 Bun.SQL 路径暂不兼容。
+> **说明**：预编译形态下 flow / kb / agent-engine 均直连 compose MySQL（库 `agentic_engine`）。
+> flow 与 kb 经静态导入的 `mysql2/promise` 适配器初始化，避开 compiled Bun executable 中
+> `@dangao/bun-server` 动态 `createRequire('mysql2/promise')` 解析问题（ADR-0013）。
 
 ```bash
 bun run dev:up:prebuilt

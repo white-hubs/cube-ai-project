@@ -1,5 +1,8 @@
 import './otel-preload';
 import 'reflect-metadata';
+// Keep mysql2 in the compiled graph for direct app-owned adapters. Bun Server's
+// dynamic createRequire('mysql2/promise') path is avoided in prebuilt mode.
+import 'mysql2/promise';
 import { bootstrap, GracefulShutdownService } from './bootstrap';
 
 const startedAt = Date.now();

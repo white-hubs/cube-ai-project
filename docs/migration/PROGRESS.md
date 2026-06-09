@@ -6,9 +6,21 @@
 
 ## 0. You are here（当前指针）
 
-- **当前里程碑**：M6 务实子集 ✅ → cutover 待运维执行
-- **下一步动作**：预发验证 `USE_GHCLOUD_IDENTITY=1` + catalog dry-run → 网关灰度（见 [`cutover-runbook.md`](cutover-runbook.md)）
-- **整体阶段**：`迁移实现完成（验收 81.6%），cutover 待运维`
+- **当前里程碑**：M6 务实子集 ✅ → 真实闭环装配 ✅ → cutover 待运维执行
+- **下一步动作**：用 ghcloud 导出跑 `catalog:migrate --target mysql` 灌真实 provider/model/凭据（写 `llm_catalog_*` 表，同库 agentic_engine）→ 起全栈（deps+kb+flow profile）验证 chat/kb/flow 闭环
+- **整体阶段**：`真实闭环代码已装配；待真实 catalog 数据 + 外部服务接入即可端到端`
+
+### 真实闭环装配（2026-06-08）
+- **provider 默认** = `agentic-platform-llm-catalog`（`llm-provider.module` / `tachu-provider.module` 默认值翻转；`.env` 同步）；仅 `noop` 走空实现。
+- **catalog 真实化（落 MySQL，删 SQLite）**：`LlmCatalogModule` 默认用 `MysqlLlmCatalogPort`（resolve `MYSQL_POOL_TOKEN`，与 engine/flow 同库 agentic_engine 的 `llm_catalog_*` 表）；无 MySQL 时 `CUBE_AI_CATALOG_DEV_SEED=1` 走内置占位种子。`catalog-migrate` 改 `--target mysql`；删除独立 `sqlite-catalog.store`。DDL `mysql/init/03-llm-catalog.sql`。
+- **KB/Flow**：勘察确认代码已 real+wired，无需重写；KB embed 链路修复（见偏差）。
+- **bun-server 3.3.0**：修复 sync `FactoryProvider.inject`（详见偏差），engine jobs/audit/usage/safety 随升级恢复。
+
+### 遗留 TODO（非阻塞闭环）
+- **能力补充清单（终稿，2026-06-09 经 grill 裁决）**：见 [`capability-supplement-plan.md`](capability-supplement-plan.md) + [ADR-0012 addendum](../adr/ADR-0012-addendum-tenant-single-isolation-no-project.md)。摘要：
+  - **上线阻断必补**：① 多租户身份（tenant 单一隔离主键、`USE_GHCLOUD_IDENTITY` 转默认）② 剔除 flow 自有鉴权 ③ 运行时 provider 补全（anthropic + dashscope-text2image + geekai-image）④ KB 平台源文档桥（cube2 content gRPC）⑤ 权威系统级 catalog seed。
+  - **project 整体退役**：删 `projects`/`projectLookup`/`TenantProjectService`/RocketMQ runner；`project_id→tenant_id` 改名。
+  - **明确不做**：gemini 原生/jina_rerank 运行时 provider、cube2 dictionary/ouaa、前端 UI、**engine memory 统一 vector-qdrant（ADR-0005 本不要求）**、**历史数据迁移（fresh-start，含 catalog）**。
 
 ## 1. 里程碑总览
 
@@ -100,7 +112,7 @@
 | # | 约束 | 状态 | 结论/链接 |
 |---|---|---|---|
 | G1 | @tachu/* 私有 Nexus 可达性（M2 编译前置） | ✅ 确认 | 用户确认 `nexus.guhecloud.com` 仓上有 `@tachu/* 1.0.0-rc.0`；拉取失败属本地网络问题（用户侧修复）。M0.T2 仅需配 registry scope |
-| G2 | `@dangao/bun-server` 版本统一（3.1 vs 2.3） | ✅ 定基线 | 用户决策目标 `^3.1`；**Nexus 当前最高 3.0.4**（无 3.1.0），catalog 暂用 `^3.0.4` 直至 Nexus 发布 3.1。flow/kb 适配清单见 M0 附录 A |
+| G2 | `@dangao/bun-server` 版本统一（3.1 vs 2.3） | ✅ 已升 3.3.0 | 当前基线 `^3.3.0`（flow MySQL 走 `driver:'mysql2'` 单二进制可用；sync `FactoryProvider.inject` 已修，见偏差）。flow/kb 适配清单见 M0 附录 A |
 | G3 | `EmbeddingPort` 必须回 `{dense,sparse}`（否则混检失效） | ✅ 已决策 | `LlmProviderPort.embed` 返回 `{dense, sparse?}`；M3 仍建独立 `@cube-ai/embedding` + `EmbeddingPort` 薄层（ADR-0005 约束#4） |
 
 ## 4. 阻塞与偏差（append-only）
@@ -117,6 +129,8 @@
 - [2026-06-06] **偏差** M3.T9 — 根目录 `bun test packages/kb-core` 因 bun 3.0.4 legacy decorator 未读 package bunfig 失败 — 加 `packages/kb-core/bunfig.toml` preload + `bun run test:m3`（按包 cwd 跑）— **`test:offline` 已改走 `test:m3`**
 - [2026-06-06] **偏差** M0.T8 / 测试 — 根目录缺 `tsconfig.json` 导致 legacy decorator 批量失败；`bun test infra` glob 碰撞 — 增根 tsconfig + `scripts/test-all.ts`（per-package cwd）；`bun test` 1626 pass / 0 fail
 - [2026-06-06] **偏差** M5.T5 — ai-center 域前缀路由 + kb/llm HTTP 面 — **已部分修复**：`domain-path-rewrite` + `LlmCatalogHttpModule` + `KbDocumentsSmokeController` + `domain-routes.test.ts`；ai-console 仍为 smoke UI，需 dev API key 头
+- [2026-06-08] **缺陷+修复** 全域 — `@dangao/bun-server` ≤3.2.0 的同步 `@Module` `FactoryProvider` **忽略 `inject` 数组**（工厂只收到 `Container`，源码三版本一致 + 经验探针证实；仅异步 provider 路径 honor inject）。受影响：engine `jobs/audit/usage/safety×2`（位置注入失效→拿到 Container）、kb `vector-store`/`kb-platform`。**处置**：①KB 2 处先改 `container.resolve` 自含写法（subagent）；②升级 `@dangao/bun-server ^3.3.0`（上游已修 + 向后兼容：无 inject 时仍传 Container），engine 4 处自动恢复。探针：`injectHonored:true`、`backwardCompatContainerStillPassed:true`。
+- [2026-06-08] **装配** catalog/provider — `LlmCatalogModule` 接真实 SQLite warm-load（`CUBE_AI_CATALOG_SQLITE_PATH`）/ dev 种子（`CUBE_AI_CATALOG_DEV_SEED`）；provider 默认翻转为 `agentic-platform-llm-catalog`；`.env`/`.env.example` 同步；compose 增补 minio/docling/langflow（profile kb/flow，opt-in）。
 
 ## 5. 会话日志（append-only）
 
@@ -131,3 +145,5 @@
 - [2026-06-06] **M5 完成** — copy+rename `agentic-sdk-*` → `@cube-ai/agent-sdk-client{,-vue,-assistant,-mock}`（`@cube-ai/contracts` import；138 pass agent-sdk 单测）；新建 `flow-sdk-{client,console}`、`kb-sdk-{client,console}`、`llm-sdk-console`（TDD 最小 fetch + `/flow|/kb|/llm` 前缀）；`apps/ai-console` Vue 单 origin 路由 `/agent /flow /kb /llm` smoke 页 + dev auth 头；无 ghcloud gateway façade / 深相对 import。验收：`bun run --filter @cube-ai/agent-sdk-client typecheck` 绿；SDK 单测 138+84+3 pass；`bun run typecheck` 全绿。**决策**：T3 前端工程名=`apps/ai-console`；SDK 路径前缀默认 ADR-0008 域路由（agent 仍 `/v1/*` 对当前 ai-center 根挂载）。**偏差**：域前缀路由后端尚未全挂 ai-center（kb/llm HTTP 面 M6 前 smoke 页预期 error）；SSE 全轮对话冒烟留 M6。下一步：**M6.T1**。
 - [2026-06-06] **M6 务实子集** — `@cube-ai/platform-adapter-ghcloud`（ai-server-base security 种子：JWT RS256+tenant+session HTTP/gRPC；`createGhcloudAccessTokenReader`/`createHostPatReader`）；`USE_GHCLOUD_IDENTITY=1` ai-center 换源；`tools/migration/catalog-migrate.ts` dry-run 骨架；[`cutover-runbook.md`](cutover-runbook.md)。验收：platform-adapter typecheck 绿、**10 pass**（JWT mock 公钥+tenant+catalog migrate）、全仓 typecheck 绿。T3/T5/T6/T7/T9 标 ➖（运维/ M5 前置）。下一步：预发 identity + catalog dry-run → 网关 cutover。
 - [2026-06-06] **M1–M6 验收闭环** — 7 阶段 subagent 真实性核查 + 主 agent 修复域路由/LLM HTTP/KB smoke/assistant DDL/test:offline；**完整度 81.6%**（见 [`verification-report-2026-06-06.md`](verification-report-2026-06-06.md)）。下一步：M5 UI 深化 + M1 provider 补全 + M6 预发 cutover。
+- [2026-06-08] **真实闭环装配** — 3 个只读 subagent 并行勘察确认 KB/Flow 代码已 real+wired，唯一需大改的根是 catalog（此前挂空 InMemory）。主 agent：①catalog 接真实 SQLite warm-load + dev 种子，`sqlite-catalog.store` 导出；②provider 默认 `agentic-platform-llm-catalog`；③`.env`/`.env.example` + compose（minio/docling/langflow opt-in）。subagent 验证 KB（117 pass，修复 bun-server inject 致 embed 崩的真实缺陷）+ Flow（212 pass，无需改）。发现 bun-server sync inject 缺陷 → 升级 3.3.0 修复并向后兼容。验收：全仓 typecheck 绿；llm-core 27 / kb-core 117 / flow-core 212 pass。下一步：灌真实 catalog 数据 + 起外部服务，端到端验证。
+- [2026-06-08] **catalog 落 MySQL（删 SQLite）** — 用户质疑"为何还用 SQLite"。核实 llm-core 此前无 MySQL 持久化（只有 InMemory + 继承自 M6 骨架的 SQLite warm-load），与 ghcloud（catalog 在 MySQL）不对齐。改：新增 `MysqlLlmCatalogPort`（按租户即时查 `llm_catalog_*`，复用 InMemory 解析逻辑）+ `ensureCatalogTables`/`upsertCatalogSeedMysql`；`LlmCatalogModule` 默认 resolve `MYSQL_POOL_TOKEN` 走 MySQL（无则 dev 种子/空）；`catalog-migrate` 改 `--target mysql`（动态 import mysql2，写同库）；删 `sqlite-catalog.store`；DDL `mysql/init/03-llm-catalog.sql`；`.env`/runbook 同步。catalog 与 engine/flow 同库、写入实时可见、多实例一致。

@@ -30,3 +30,7 @@ export const AGENTIC_PLATFORM_LLM_CATALOG_TOKEN = Symbol.for(
 export const AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN = Symbol.for(
   'agentic.adapter.platform.llmProvider',
 );
+
+export const LLM_PROVIDER_ICON_STORE_TOKEN = Symbol.for(
+  'agentic.adapter.platform.llmProviderIconStore',
+);

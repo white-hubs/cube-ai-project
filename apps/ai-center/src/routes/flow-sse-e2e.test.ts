@@ -1,15 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { Application } from '@dangao/bun-server';
 import {
-  applyAiCenterTestEnv,
-  restoreAiCenterTestEnv,
-  snapshotAiCenterTestEnv,
-} from '../test-helpers/ai-center-test-env';
+  shouldRunAiCenterIntegration,
+  startAiCenterIntegrationStack,
+  stopAiCenterIntegrationStack,
+} from '../test-helpers/ai-center-integration.harness';
 
 /** Matches `packages/flow/core/src/mock/handlers/flows.mock.ts` MOCK_FLOW_ID */
 const MOCK_FLOW_ID = '00000000-0000-4000-8000-000000000001';
 
-describe('ai-center flow SSE (ADR-0004)', () => {
+const run = shouldRunAiCenterIntegration;
+
+(run ? describe : describe.skip)('ai-center flow SSE (ADR-0004) [testcontainers]', () => {
   let baseUrl = '';
   let app: Application | undefined;
   let server: ReturnType<NonNullable<Application>['getServer']> | undefined;
@@ -17,8 +19,7 @@ describe('ai-center flow SSE (ADR-0004)', () => {
   let envSnapshot: Record<string, string | undefined>;
 
   beforeAll(async () => {
-    envSnapshot = snapshotAiCenterTestEnv();
-    applyAiCenterTestEnv(`${import.meta.dir}/.tmp-ai-center-flow-sse.sqlite`);
+    ({ envSnapshot } = await startAiCenterIntegrationStack());
     process.env.CUBE_AI_MOCK_FLOWS = '1';
 
     ({ bootstrap } = await import('../bootstrap'));
@@ -27,11 +28,11 @@ describe('ai-center flow SSE (ADR-0004)', () => {
     app = await bootstrap({ port, hostname: '127.0.0.1' });
     server = app.getServer();
     baseUrl = `http://127.0.0.1:${port}`;
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
     await server?.stop?.();
-    restoreAiCenterTestEnv(envSnapshot);
+    await stopAiCenterIntegrationStack(envSnapshot);
   });
 
   const authHeaders = {

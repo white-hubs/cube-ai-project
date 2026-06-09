@@ -5,7 +5,7 @@ import {
   type DatabaseService,
   type OnModuleInit,
 } from '@dangao/bun-server';
-import { KB_SQLITE_SCHEMA } from './kb-sqlite-schema';
+import { KB_MYSQL_SCHEMA } from './kb-mysql-schema';
 
 function splitSqlStatements(schema: string): string[] {
   return schema
@@ -22,7 +22,7 @@ export class KbDatabaseBootstrap implements OnModuleInit {
 
   public async onModuleInit(): Promise<void> {
     await this.databaseService.initialize();
-    for (const sql of splitSqlStatements(KB_SQLITE_SCHEMA)) {
+    for (const sql of splitSqlStatements(KB_MYSQL_SCHEMA)) {
       await this.databaseService.query(sql);
     }
   }

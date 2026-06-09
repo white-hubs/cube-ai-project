@@ -159,8 +159,16 @@ _Avoid_: 让鉴权中心串在 AI 调用链上当网关
 _Avoid_: 在 ghcloud 保留 flow/kb/llm 业务逻辑, 让 ghcloud 持 catalog 权威, L7 入口解析或路由 AI 语义
 
 **host 身份权威 / 三域平级下游**:
-身份/租户权威在 **host**（`apps/ai-center`，经 `platform-adapter-ghcloud` 解析），注入请求上下文；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，各自从上下文消费身份、互不为权威。`agent-engine → flow-core/kb-core` 是**能力调用边**，非身份层级；flow/kb 亦**可直达**（独立 SSE）。身份是**注入式 seam**（本体只读 `currentProjectId()`），收编换源不动本体（ADR-0012 D2/D3）。
+身份/租户权威在 **host**（`apps/ai-center`，经 `platform-adapter-ghcloud` 解析），注入请求上下文；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，各自从上下文消费身份、互不为权威。`agent-engine → flow-core/kb-core` 是**能力调用边**，非身份层级；flow/kb 亦**可直达**（独立 SSE）。身份是**注入式 seam**，收编换源时身份源换 host。
 _Avoid_: 让某域当其它域的身份权威, 把 engine→flow/kb 当身份层级, 收编时改动 flow/kb 本体去换身份源
+
+**能力包无自有鉴权**:
+`flow-core` / `kb-core` 等能力包**不承载任何自己的鉴权概念**——只管核心功能（执行 flow 图 / 文档摄入检索）。鉴权唯一权威 = host 的 `platform-adapter-ghcloud`（JWT/tenant/PAT）。原 cube-ai server 外壳带来的 flow `auth`（OAuth2 用户登录）、`api-keys`（PAT 签发/校验）、`allowed_tools` 工具白名单**全是平台外壳概念、随收编弃**，非 flow 本体概念。flow 调 Langflow 用的 key 属 **Langflow 的鉴权**（外部依赖凭据，见直连 vendor 例外清单），亦非 flow 自有鉴权。agent 运行时调工具的授权/consent 是 **agent-engine 自带 `bc/authz`**（与已弃的 flow `allowed_tools` 是两回事），保留。
+_Avoid_: 让 flow/kb 自管登录/PAT/用户表, 把 cube-ai 外壳的 auth 当 flow 本体功能搬入, 把 flow allowed_tools 与 engine authz 混为一谈
+
+**租户隔离主键 (tenant)**:
+合并后系统的**唯一隔离主键 = tenant**（来自鉴权中心 JWT，经 `platform-adapter-ghcloud` 解析）。**cube-ai 自有的 `project` 概念已整体退役**——既删 ghcloud `ai_center_api_key`（项目 key），也删 flow 的 `projects` 容器表/CRUD 与"自助建 project"流程，并把 flow/kb 本体的物理列 `project_id` 全量改名为 `tenant_id`（含 Qdrant payload 键、access-scope 读符号 `currentProjectId()`→`currentTenantId()`）。**这是对 ADR-0012「换源不动本体」在 project 维度的有意覆盖**：tenant 成为贯穿三域的单一隔离语义，不再有 project 这层中间容器。
+_Avoid_: 保留 cube-ai project 概念, 一个 tenant 下多个 project, tenant→project 目录映射, 把 projectId 当独立于 tenant 的隔离层
 
 ## Relationships
 

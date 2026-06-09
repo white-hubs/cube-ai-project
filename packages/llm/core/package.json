@@ -16,6 +16,10 @@
       "import": "./src/http/llm-catalog-http.module.ts",
       "types": "./src/http/llm-catalog-http.module.ts"
     },
+    "./http/admin": {
+      "import": "./src/http/llm-catalog-admin.module.ts",
+      "types": "./src/http/llm-catalog-admin.module.ts"
+    },
     "./http/tenant": {
       "import": "./src/http/request-tenant.ts",
       "types": "./src/http/request-tenant.ts"
@@ -32,6 +36,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@cube-ai/test-infra": "workspace:*",
+    "mysql2": "catalog:",
     "typescript": "catalog:"
   }
 }

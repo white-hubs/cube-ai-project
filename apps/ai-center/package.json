@@ -23,9 +23,11 @@
     "@cube-ai/bun-server-ext-nacos": "workspace:*",
     "@cube-ai/bun-server-ext-outbox": "workspace:*",
     "@cube-ai/bun-server-ext-sse": "workspace:*",
+    "mysql2": "catalog:",
     "reflect-metadata": "catalog:"
   },
   "devDependencies": {
+    "@cube-ai/test-infra": "workspace:*",
     "typescript": "catalog:"
   }
 }

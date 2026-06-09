@@ -1,4 +1,4 @@
-import { Module } from '@dangao/bun-server';
+import { Module, type Container } from '@dangao/bun-server';
 import { EMBEDDING_PORT_TOKEN, type EmbeddingPort } from '@cube-ai/contracts/platform';
 import { QdrantClient, QdrantCollectionService } from '@cube-ai/vector-qdrant';
 import { loadAppConfig, APP_CONFIG_TOKEN } from '../../config/app.config';
@@ -32,8 +32,8 @@ function createQdrantClient(config: typeof appConfig): QdrantClient {
     QdrantVectorRepository,
     {
       provide: EmbeddingProvider,
-      useFactory: (embeddingPort: EmbeddingPort) => new EmbeddingProviderAdapter(embeddingPort),
-      inject: [EMBEDDING_PORT_TOKEN],
+      useFactory: (container: Container) =>
+        new EmbeddingProviderAdapter(container.resolve(EMBEDDING_PORT_TOKEN) as EmbeddingPort),
     },
     RetrievalService,
     VectorizationService,

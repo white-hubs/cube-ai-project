@@ -6,6 +6,7 @@ export {
 export {
   applyMinimalMysqlSchema,
   applyGrantsMysqlSchema,
+  applyAiCenterDomainMysqlSchemas,
 } from './apply-schema';
 export { startEngineIntegrationProcess } from './engine-subprocess';
 export type { EngineIntegrationProcess } from './engine-subprocess';

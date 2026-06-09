@@ -39,7 +39,7 @@
   },
   "catalogs": {
     "bun-server": {
-      "@dangao/bun-server": "^3.1.0"
+      "@dangao/bun-server": "^3.3.0"
     },
     "otel": {
       "@opentelemetry/auto-instrumentations-node": "^0.73.0",
@@ -79,7 +79,8 @@
     "dev:up:deps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps up -d",
     "dev:down": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center --profile ai-center-prebuilt down",
     "dev:ps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env ps -a",
-    "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f"
+    "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f",
+    "catalog:migrate": "bun tools/migration/catalog-migrate.ts"
   },
   "patchedDependencies": {
     "@dangao/nacos-client@0.1.1": "patches/@dangao%2Fnacos-client@0.1.1.patch"

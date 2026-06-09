@@ -31,11 +31,12 @@
 | ADR-0010 | [收编路线图 —— 另起并行新系统，copy 实现串联，C1 先行验证 port seam](./ADR-0010-consolidation-roadmap.md) | Accepted |
 | ADR-0011 | [包命名哲学 —— 包边界=seam 非 responsibility，路径派生包名，SDK 按「面」命名](./ADR-0011-package-naming-philosophy.md) | Accepted |
 | ADR-0012 | [运行时单一真源（agent-engine）+ 三域平级下游 + host 身份；assistant 弃迁、flow/kb 整套收编](./ADR-0012-runtime-single-source-and-three-domain-topology.md) | Accepted |
+| ADR-0013 | [领域关系型持久化统一 MySQL —— 绝对禁止 SQLite](./ADR-0013-unified-mysql-persistence-no-sqlite-runtime.md) | Accepted |
 
 ## 未决问题（贯穿）
 
 - Langflow 何时从「直连 vendor 例外清单」收口（候选：LF `base_url` 指向 LLM 网关）—— ADR-0003 / 0004
 - Cube 线性引擎 与 Langflow 的终局归属（自研取代 / LF 长期主引擎 / 双轨）—— ADR-0004
 - 是否需要 `ToolInvokerPort` 把工具执行暴露给外部消费者 —— ADR-0006
-- 整体切换时新旧系统的有状态数据迁移/双写方案（MySQL / Redis / Qdrant）—— ADR-0010
+- 整体切换时新旧系统的有状态数据迁移/双写方案（MySQL / Redis / Qdrant）—— ADR-0010 / ADR-0013（kb MySQL cutover）
 - assistant 产品价值是否以 agent-engine preset 重建 —— ADR-0012

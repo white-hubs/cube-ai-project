@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { Application } from '@dangao/bun-server';
 import {
-  applyAiCenterTestEnv,
-  restoreAiCenterTestEnv,
-  snapshotAiCenterTestEnv,
-} from './test-helpers/ai-center-test-env';
+  shouldRunAiCenterIntegration,
+  startAiCenterIntegrationStack,
+  stopAiCenterIntegrationStack,
+} from './test-helpers/ai-center-integration.harness';
 
-describe('ai-center health', () => {
+const run = shouldRunAiCenterIntegration;
+
+(run ? describe : describe.skip)('ai-center health [testcontainers]', () => {
   let baseUrl = '';
   let app: Application | undefined;
   let server: ReturnType<NonNullable<Application>['getServer']> | undefined;
@@ -14,8 +16,7 @@ describe('ai-center health', () => {
   let envSnapshot: Record<string, string | undefined>;
 
   beforeAll(async () => {
-    envSnapshot = snapshotAiCenterTestEnv();
-    applyAiCenterTestEnv(`${import.meta.dir}/.tmp-ai-center-flow.sqlite`);
+    ({ envSnapshot } = await startAiCenterIntegrationStack());
 
     ({ bootstrap } = await import('./bootstrap'));
 
@@ -23,11 +24,11 @@ describe('ai-center health', () => {
     app = await bootstrap({ port, hostname: '127.0.0.1' });
     server = app.getServer();
     baseUrl = `http://127.0.0.1:${port}`;
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
     await server?.stop?.();
-    restoreAiCenterTestEnv(envSnapshot);
+    await stopAiCenterIntegrationStack(envSnapshot);
   });
 
   it('GET /health/live returns 200 UP', async () => {

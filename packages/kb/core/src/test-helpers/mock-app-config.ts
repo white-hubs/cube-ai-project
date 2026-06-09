@@ -6,10 +6,9 @@ export function makeMockAppConfig(overrides: Partial<AppConfig> = {}): AppConfig
     port: 3210,
     hostname: '0.0.0.0',
     serverIdleTimeoutMs: 240000,
-    localDev: false,
     mysqlHost: 'localhost',
     mysqlPort: 3306,
-    mysqlDatabase: 'ai',
+    mysqlDatabase: 'agentic_engine',
     mysqlUsername: 'root',
     mysqlPassword: '',
     langflowBaseUrl: undefined,
@@ -48,7 +47,6 @@ export function makeMockAppConfig(overrides: Partial<AppConfig> = {}): AppConfig
     paths: {
       langflowApiAllPath: '/app/data/langflow-api-all.json',
       componentCatalogPath: '/app/data/cube-component-catalog.json',
-      sqlitePath: '/app/data/cube-ai.sqlite',
     },
     ...overrides,
   }

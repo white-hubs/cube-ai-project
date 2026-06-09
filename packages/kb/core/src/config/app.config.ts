@@ -1,7 +1,6 @@
 export interface AppPaths {
   langflowApiAllPath: string;
   componentCatalogPath: string;
-  sqlitePath: string;
 }
 
 export interface AppConfig {
@@ -9,7 +8,6 @@ export interface AppConfig {
   port: number;
   hostname?: string;
   serverIdleTimeoutMs: number;
-  localDev: boolean;
   mysqlHost: string;
   mysqlPort: number;
   mysqlDatabase: string;
@@ -83,10 +81,9 @@ function buildAppConfigFromEnv(): AppConfig {
     port: envNumber('KB_PORT', 3322),
     hostname: envString('KB_HOSTNAME', '0.0.0.0'),
     serverIdleTimeoutMs: envNumber('SERVER_IDLE_TIMEOUT_MS', 240_000),
-    localDev: envBool('CUBE_LOCAL_DEV', false),
     mysqlHost: envString('MYSQL_HOST', '127.0.0.1'),
     mysqlPort: envNumber('MYSQL_PORT', 3306),
-    mysqlDatabase: envString('MYSQL_DATABASE', 'ai'),
+    mysqlDatabase: envString('MYSQL_DATABASE', envString('MYSQL_DB', 'agentic_engine')),
     mysqlUsername: envString('MYSQL_USERNAME', 'root'),
     mysqlPassword: envString('MYSQL_PASSWORD', ''),
     qdrantBaseUrl: envString('QDRANT_BASE_URL', 'http://127.0.0.1:6333'),
@@ -126,12 +123,6 @@ function buildAppConfigFromEnv(): AppConfig {
     paths: {
       langflowApiAllPath: '/app/data/langflow-api-all.json',
       componentCatalogPath: '/app/data/cube-component-catalog.json',
-      sqlitePath:
-        Bun.env.CUBE_AI_SQLITE_PATH?.trim() ||
-        process.env.CUBE_AI_SQLITE_PATH?.trim() ||
-        Bun.env.CUBE_LOCAL_SQLITE_PATH?.trim() ||
-        process.env.CUBE_LOCAL_SQLITE_PATH?.trim() ||
-        '/app/data/cube-ai.sqlite',
     },
   };
 }

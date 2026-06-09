@@ -7,7 +7,8 @@ import { AGENTIC_PROVIDER_TOKEN } from '../tokens';
 import { LlmProviderPortBridge } from './llm-provider-port-bridge';
 import { NoopLLMProviderAdapter } from './noop-tachu-provider';
 
-const providerKind = process.env['AGENTIC_ENGINE_PROVIDER'] ?? 'llm-core';
+// 与 llm-provider.module 保持一致：默认目录驱动，仅 'noop' 走空实现。
+const providerKind = process.env['AGENTIC_ENGINE_PROVIDER'] ?? 'agentic-platform-llm-catalog';
 
 @Module({
   providers: [

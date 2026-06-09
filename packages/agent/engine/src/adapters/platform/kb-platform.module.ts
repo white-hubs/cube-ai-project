@@ -1,4 +1,4 @@
-import { Module } from '@dangao/bun-server';
+import { Module, type Container } from '@dangao/bun-server';
 import {
   AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN,
   AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN,
@@ -39,22 +39,20 @@ function resolveKbEmbeddingTenant(): number {
   providers: [
     {
       provide: EMBEDDING_PORT_TOKEN,
-      useFactory: (provider: LlmProviderPort) =>
+      useFactory: (container: Container) =>
         new LlmProviderEmbeddingPort({
-          provider,
+          provider: container.resolve(AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN) as LlmProviderPort,
           modelCode: resolveKbEmbeddingModel(),
           tenant: resolveKbEmbeddingTenant(),
           dimension: resolveKbEmbeddingDimension(),
         }),
-      inject: [AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN],
     },
     KnowledgeQueryPortImpl,
     {
       provide: AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN,
-      useFactory: (impl: KnowledgeQueryPortImpl) => impl,
-      inject: [KnowledgeQueryPortImpl],
+      useExisting: KnowledgeQueryPortImpl,
     },
   ],
-  exports: [AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN, RetrievalService],
+  exports: [AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN, EMBEDDING_PORT_TOKEN, RetrievalService],
 })
 export class KbPlatformModule {}

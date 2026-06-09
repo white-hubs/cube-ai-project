@@ -30,6 +30,7 @@
     "@dangao/bun-server": "catalog:bun-server",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
+    "mysql2": "catalog:",
     "reflect-metadata": "catalog:",
     "zod": "catalog:"
   },
