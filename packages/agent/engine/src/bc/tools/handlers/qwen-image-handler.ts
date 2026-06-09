@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@dangao/bun-server';
 import type { ImageGenerationPort } from '@cube-ai/contracts';
-import { AGENTIC_PLATFORM_IMAGE_GENERATION_TOKEN } from '@cube-ai/contracts';
+import { AGENTIC_PLATFORM_IMAGE_GENERATION_TOKEN } from '@cube-ai/contracts/platform';
 import { AgenticEngineError } from '../../../infra/errors/agentic-error';
 import type { ToolHandlerCtx } from '../tool-context';
 import type { ToolHandler } from './base-handler';
