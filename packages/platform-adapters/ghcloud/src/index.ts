@@ -30,3 +30,6 @@ export {
   type GhcloudIdentityMiddlewareOptions,
 } from './readers'
 export { createTestJwtKeyPair, signTestJwt, type TestJwtKeyPair } from './test-helpers/jwt-test-keys'
+export { getFileOperateClient, getFileCoreClient, type Cube2FileClients } from './cube2-file-client'
+export { getKnowledgeBaseClient, type Cube2ContentClients } from './cube2-content-client'
+export { Cube2ProviderIconStore } from './cube2-provider-icon-store'
