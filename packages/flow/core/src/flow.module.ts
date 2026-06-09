@@ -118,6 +118,15 @@ function resolveLlmProvider(c: Container): LlmProviderPort {
     ComponentSchemaService,
     CustomComponentTemplatesService,
   ],
-  exports: [APP_CONFIG_TOKEN, FlowsService, FlowFilesService, FLOW_REPOSITORY_TOKEN, SqliteFlowRepository],
+  exports: [
+    APP_CONFIG_TOKEN,
+    FlowsService,
+    FlowFilesService,
+    FlowCrudService,
+    FlowLangflowSyncService,
+    CustomComponentTemplatesService,
+    FLOW_REPOSITORY_TOKEN,
+    SqliteFlowRepository,
+  ],
 })
 export class FlowModule {}

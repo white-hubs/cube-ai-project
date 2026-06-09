@@ -6,9 +6,9 @@
 
 ## 0. You are here（当前指针）
 
-- **当前里程碑**：M6 务实子集 ✅ → 真实闭环装配 ✅ → cutover 待运维执行
-- **下一步动作**：用 ghcloud 导出跑 `catalog:migrate --target mysql` 灌真实 provider/model/凭据（写 `llm_catalog_*` 表，同库 agentic_engine）→ 起全栈（deps+kb+flow profile）验证 chat/kb/flow 闭环
-- **整体阶段**：`真实闭环代码已装配；待真实 catalog 数据 + 外部服务接入即可端到端`
+- **当前里程碑**：M6 务实子集 ✅ → 真实闭环装配 ✅ → **能力补充清单 §1 上线阻断 5/5 ✅** → **project + flow 自有鉴权彻底退役 ✅** → cutover 待运维执行
+- **下一步动作**：① （可选）刷真实 catalog seed/迁移数据；② 真实 host JWT/租户端到端联调（testcontainers e2e 在线跑）；③ 从 `ai-application` 排查 SDK 0 成本迁移可行性（进行中）
+- **整体阶段**：`上线阻断能力已补齐、project 概念退役完成（fresh-start）；typecheck 全绿、test:offline 1670 pass/0 fail；待真实环境端到端联调 + SDK 消费面对齐`
 
 ### 真实闭环装配（2026-06-08）
 - **provider 默认** = `agentic-platform-llm-catalog`（`llm-provider.module` / `tachu-provider.module` 默认值翻转；`.env` 同步）；仅 `noop` 走空实现。
@@ -16,11 +16,31 @@
 - **KB/Flow**：勘察确认代码已 real+wired，无需重写；KB embed 链路修复（见偏差）。
 - **bun-server 3.3.0**：修复 sync `FactoryProvider.inject`（详见偏差），engine jobs/audit/usage/safety 随升级恢复。
 
-### 遗留 TODO（非阻塞闭环）
-- **能力补充清单（终稿，2026-06-09 经 grill 裁决）**：见 [`capability-supplement-plan.md`](capability-supplement-plan.md) + [ADR-0012 addendum](../adr/ADR-0012-addendum-tenant-single-isolation-no-project.md)。摘要：
-  - **上线阻断必补**：① 多租户身份（tenant 单一隔离主键、`USE_GHCLOUD_IDENTITY` 转默认）② 剔除 flow 自有鉴权 ③ 运行时 provider 补全（anthropic + dashscope-text2image + geekai-image）④ KB 平台源文档桥（cube2 content gRPC）⑤ 权威系统级 catalog seed。
-  - **project 整体退役**：删 `projects`/`projectLookup`/`TenantProjectService`/RocketMQ runner；`project_id→tenant_id` 改名。
-  - **明确不做**：gemini 原生/jina_rerank 运行时 provider、cube2 dictionary/ouaa、前端 UI、**engine memory 统一 vector-qdrant（ADR-0005 本不要求）**、**历史数据迁移（fresh-start，含 catalog）**。
+### 能力补充清单执行（终稿 2026-06-09 grill 裁决 → 同日实现）
+> 决策依据：[`capability-supplement-plan.md`](capability-supplement-plan.md) + [ADR-0012 addendum](../adr/ADR-0012-addendum-tenant-single-isolation-no-project.md) + [实现计划](2026-06-09-capability-supplement-implementation-plan.md)。
+> 执行方式：主 agent（Opus 4.8）调度 Sonnet 4.6 subagent（`cursor-agent --model claude-4.6-sonnet-medium-thinking`）串行落地，逐项独立验收。
+
+- **上线阻断必补 5/5 ✅**（提交 `491b2b3`→`6789b2e`）：
+  - [x] ⑤ 权威系统级 catalog seed（WS1：`b70ba27`）
+  - [x] ③ 运行时 provider 补全 anthropic + dashscope-text2image + geekai-image + `ImageGenerationPort` + 去误路由（WS2：`611f213`/`3112295`/`3064f03`/`1e3b068`/`570d04c`）
+  - [x] ① 多租户身份（`USE_GHCLOUD_IDENTITY` 默认开、tenant 注入、删 projectLookup）（WS3 `ba0ecdd` + WS4B/4C `0ad540c`/`78870ab`）
+  - [x] ④ KB 平台源文档桥 cube2 content gRPC（WS5：`d5e3f53`/`9cb72a2`）
+  - [x] ② 剔除 flow 自有鉴权（WS4A `362ca06` + 彻底退役 `6789b2e`）
+- **project 整体退役 ✅**（WS4 4A–4E + 彻底退役收尾 `6789b2e`，净删 1397 行）：删 `projects`/`api_keys`/`auth_users`/`oauth_*` 表与整套仓储面、`projectLookup`、`tenantToProjectId` 桩；`project_id→tenant_id` 全量改名（含 Qdrant payload 键、`createTenantContextMiddleware`、header `x-tenant-id`、host-PAT `access_level 'tenant'`）；删 RocketMQ runner（确认不做）。零容忍 grep 收敛=0。
+- **明确不做**（不变）：gemini 原生/jina_rerank 运行时 provider、cube2 dictionary/ouaa、前端 UI、engine memory 统一 vector-qdrant（ADR-0005 本不要求）、历史数据迁移（fresh-start，含 catalog）。
+- **可后补（待触发）**：SDK 覆盖面对齐旧 app 消费需求（**进行中：从 ai-application 排查 0 成本迁移**）、cube2 `file_ref` gRPC。
+- **验收**：`bun run typecheck` 全 23 包绿；`bun run test:offline` 1670 pass / 45 skip / 0 fail；组合根边界测试（ADR-0002）7 pass。
+
+### flow-studio 复刻 + SDK 补面（2026-06-09，落 [ADR-0014](../adr/ADR-0014-flow-editor-projection-layer-studio.md)）
+> 把 ai-application 的 flow-editor 投影层（editorFlowJson → CubeFlowGraph DSL v2）复刻进新包 `@cube-ai/flow-studio`，换源到本仓库既有权威，暴露 editor-model SDK。WS0–WS8 全绿。
+- **WS0–WS2**：脚手架 + DDL `mysql/init/05-flow-studio.sql`（4 表 `flow_studio_*`、`tenant INT`→`tenant_id VARCHAR(64)`）+ seed；copy 编译核（runtime-mapper/flow-component/llm-wire-adapter，换源 llm-core/flow-core，`inferWireDefaults` 提纯）；4 ORM → `mysql2/promise` 仓储（ADR-0013，无 SQLite）。
+- **WS3 换源（核心）**：`flow.service.ts`（~2400 行）copy + 换源 —— catalog→llm-core `TenantLlm*Repository`、identity→`tenantContextAls`（tenant number→string）、删 project、remote `AiCenterClient`→`FlowEngineBridge`（进程内委派 flow-core `Flows/FlowCrud/FlowLangflowSync/FlowFiles/CustomComponentTemplates`）、KB 映射层删除（编辑器文档 id 即 kb-core 文档 id，恒等映射）。**忠实路径（ADR-0014 D1）**：编译期回调凭据 `aiCenterBaseUrl=selfBaseUrl`、`aiCenterApiKey=builtinSystemApiKey`、`aiCenterProjectId=tenantId`。
+- **WS4 控制器 + 挂载**：`FlowStudioController`（内部 `/studio`，经 ADR-0008 域前缀重写对外 `/flow/studio/*`）+ `FlowStudioHttpModule`（异步仓储单例 + 代理懒解析 + flow-core/llm-core 服务装配），挂载 `ai-center-domain-http.module`；flow-core `FlowModule` 增导出 3 服务。
+- **WS5/WS7 SDK 补面**：`flow-sdk-client` 加 editor-model 面（create/save/get/delete/validate/debug/runStream/uploadFile/listComponents/listFlowsPage）；`flow-sdk-console` 加 publish/monitor/references/by-resource；`llm-sdk-console`（18 方法）+ `kb-sdk-client/console`（searchByDocuments/Directory + documents/directories）。
+- **WS6 golden**：agent/smart-router/多模态/文生图/knowledge-retrieval 各一例 `editorFlowJson → CubeFlowGraph`，断言无 unsupportedNodes + 每个内联 `cube_dsl` 经 flow-core `CustomComponentTemplatesService.validateDsl` 接受（进程内引擎可消费）。
+- **WS8 验收**：全仓 `bun run typecheck` 24 包绿；`flow-studio` 53 pass（含 6 编译回归 + 5 golden）；`flow-sdk-client/console`、`llm-sdk-console`、`kb-sdk-client/console` 单测绿；ADR-0002 组合根边界 7 pass；ai-center assemble 冒烟 OK（模块图有效）。
+- **下游（ghcloud 仓库，登记不执行）**：前端 app 把 `@ghcloud/cube-ai-application-service` 换成 `@cube-ai/{flow,kb}-sdk-* / llm-sdk-console`；平台库浏览保持直连 cube2。
+- **遗留（非阻断）**：runtime 调试输出解析（debugFlow 的 `RunResponse.raw` 形状）与 flow-core run 结果对齐为后续项；remote-sync/controller 单测（saveFlow synced-graph、FlowController）保留在 `ws3-wip/*.wip` 作为 WS6 之外的参考。
 
 ## 1. 里程碑总览
 
@@ -147,3 +167,4 @@
 - [2026-06-06] **M1–M6 验收闭环** — 7 阶段 subagent 真实性核查 + 主 agent 修复域路由/LLM HTTP/KB smoke/assistant DDL/test:offline；**完整度 81.6%**（见 [`verification-report-2026-06-06.md`](verification-report-2026-06-06.md)）。下一步：M5 UI 深化 + M1 provider 补全 + M6 预发 cutover。
 - [2026-06-08] **真实闭环装配** — 3 个只读 subagent 并行勘察确认 KB/Flow 代码已 real+wired，唯一需大改的根是 catalog（此前挂空 InMemory）。主 agent：①catalog 接真实 SQLite warm-load + dev 种子，`sqlite-catalog.store` 导出；②provider 默认 `agentic-platform-llm-catalog`；③`.env`/`.env.example` + compose（minio/docling/langflow opt-in）。subagent 验证 KB（117 pass，修复 bun-server inject 致 embed 崩的真实缺陷）+ Flow（212 pass，无需改）。发现 bun-server sync inject 缺陷 → 升级 3.3.0 修复并向后兼容。验收：全仓 typecheck 绿；llm-core 27 / kb-core 117 / flow-core 212 pass。下一步：灌真实 catalog 数据 + 起外部服务，端到端验证。
 - [2026-06-08] **catalog 落 MySQL（删 SQLite）** — 用户质疑"为何还用 SQLite"。核实 llm-core 此前无 MySQL 持久化（只有 InMemory + 继承自 M6 骨架的 SQLite warm-load），与 ghcloud（catalog 在 MySQL）不对齐。改：新增 `MysqlLlmCatalogPort`（按租户即时查 `llm_catalog_*`，复用 InMemory 解析逻辑）+ `ensureCatalogTables`/`upsertCatalogSeedMysql`；`LlmCatalogModule` 默认 resolve `MYSQL_POOL_TOKEN` 走 MySQL（无则 dev 种子/空）；`catalog-migrate` 改 `--target mysql`（动态 import mysql2，写同库）；删 `sqlite-catalog.store`；DDL `mysql/init/03-llm-catalog.sql`；`.env`/runbook 同步。catalog 与 engine/flow 同库、写入实时可见、多实例一致。
+- [2026-06-09] **能力补充清单 grill + 全量实现** — `/grill-with-docs` 逐项裁决产出 [`capability-supplement-plan.md`](capability-supplement-plan.md) + [ADR-0012 addendum](../adr/ADR-0012-addendum-tenant-single-isolation-no-project.md)；据此写 [实现计划](2026-06-09-capability-supplement-implementation-plan.md)。主 agent（Opus 4.8）调度 Sonnet 4.6 subagent（`cursor-agent --model claude-4.6-sonnet-medium-thinking`）串行执行 5 工作流 WS1–WS5 + project/flow 鉴权彻底退役收尾，逐项独立验收。**产出**：上线阻断 5/5 完成；project 概念 + flow auth/api_keys/oauth/allowed_tools 彻底退役（含死代码仓储面 + 包内 init_mysql.sql + 命名 + host-PAT access_level 字面量，净删 1397 行）。**修复**：WS2 引入的 ADR-0002 组合根边界回归（image token 经 `@cube-ai/contracts/platform` 子路径，`570d04c`）。**验收**：全仓 typecheck 绿、test:offline 1670 pass/0 fail、两条零容忍退役 grep=0、边界测试 7 pass。下一步：从 `ai-application` 排查 SDK 0 成本迁移可行性。

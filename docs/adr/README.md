@@ -32,6 +32,7 @@
 | ADR-0011 | [包命名哲学 —— 包边界=seam 非 responsibility，路径派生包名，SDK 按「面」命名](./ADR-0011-package-naming-philosophy.md) | Accepted |
 | ADR-0012 | [运行时单一真源（agent-engine）+ 三域平级下游 + host 身份；assistant 弃迁、flow/kb 整套收编](./ADR-0012-runtime-single-source-and-three-domain-topology.md) | Accepted |
 | ADR-0013 | [领域关系型持久化统一 MySQL —— 绝对禁止 SQLite](./ADR-0013-unified-mysql-persistence-no-sqlite-runtime.md) | Accepted |
+| ADR-0014 | [flow-editor 投影层临时复刻为 `packages/flow/studio`（B→C 北极星）](./ADR-0014-flow-editor-projection-layer-studio.md) | Accepted |
 
 ## 未决问题（贯穿）
 

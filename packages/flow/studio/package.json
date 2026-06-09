@@ -1,0 +1,36 @@
+{
+  "name": "@cube-ai/flow-studio",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Flow Studio — replicated ai-application flow-editor projection layer (editorFlowJson → CubeFlowGraph). See ADR-0014.",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./http": {
+      "import": "./src/http/index.ts",
+      "types": "./src/http/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 180000"
+  },
+  "dependencies": {
+    "@cube-ai/contracts": "workspace:*",
+    "@cube-ai/flow-core": "workspace:*",
+    "@cube-ai/kb-core": "workspace:*",
+    "@cube-ai/llm-core": "workspace:*",
+    "@dangao/bun-server": "catalog:bun-server",
+    "@opentelemetry/api": "catalog:",
+    "mysql2": "catalog:",
+    "reflect-metadata": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

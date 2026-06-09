@@ -6,12 +6,13 @@ import {
   createEnvFallbackTenantResolver,
   LLM_HTTP_TENANT_RESOLVER_TOKEN,
 } from '@cube-ai/llm-core/http/tenant';
+import { FlowStudioHttpModule } from '@cube-ai/flow-studio/http';
 import { TenantContextService } from '../../../../packages/agent/engine/src/infra/tenant-guard/tenant-context.service';
 import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
 
 @Global()
 @Module({
-  imports: [LlmCatalogModule, LlmCatalogHttpModule, LlmCatalogAdminHttpModule, AiCenterKbHttpModule],
+  imports: [LlmCatalogModule, LlmCatalogHttpModule, LlmCatalogAdminHttpModule, AiCenterKbHttpModule, FlowStudioHttpModule],
   providers: [
     {
       provide: LLM_HTTP_TENANT_RESOLVER_TOKEN,

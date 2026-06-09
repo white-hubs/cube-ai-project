@@ -30,3 +30,56 @@ export async function flowRequestJson<T>(
   }
   return (await res.json()) as T;
 }
+
+function resolveUrl(config: FlowSdkConfig, path: string): string {
+  const prefix = config.pathPrefix ?? '/flow';
+  return `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
+}
+
+async function resolveHeaders(config: FlowSdkConfig): Promise<Record<string, string>> {
+  return typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
+}
+
+/** Raw request returning the {@link Response} unread — used for SSE / streaming endpoints (run-stream). */
+export async function flowRequestRaw(
+  config: FlowSdkConfig,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Response> {
+  const fetchImpl = config.fetchImpl ?? fetch;
+  const res = await fetchImpl(resolveUrl(config, path), {
+    method,
+    headers: {
+      accept: 'text/event-stream',
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      ...(await resolveHeaders(config)),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    throw new Error(`flow-sdk-client ${method} ${path}: HTTP ${res.status}`);
+  }
+  return res;
+}
+
+/** Multipart upload (FormData) — used for flow file uploads. Content-Type set by the runtime. */
+export async function flowRequestMultipart<T>(
+  config: FlowSdkConfig,
+  path: string,
+  form: FormData,
+): Promise<T> {
+  const fetchImpl = config.fetchImpl ?? fetch;
+  const res = await fetchImpl(resolveUrl(config, path), {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      ...(await resolveHeaders(config)),
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`flow-sdk-client POST ${path}: HTTP ${res.status}`);
+  }
+  return (await res.json()) as T;
+}

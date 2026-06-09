@@ -32,6 +32,11 @@ export interface AppConfig {
   langflowBaseUrl?: string
   langflowApiKey?: string
   langflowBearerToken?: string
+  /**
+   * 本服务自身的对外基址（Langflow 运行时回调本 ai-center 时使用，如 flow-studio 编译出的
+   * knowledge-retrieval 节点 `api_url = {selfBaseUrl}/search/by-documents`）。环境变量 CUBE_SELF_BASE_URL。
+   */
+  selfBaseUrl?: string
   qdrantBaseUrl: string
   qdrantApiKey?: string
   qdrantCollectionName: string
@@ -91,6 +96,7 @@ export interface AppConfigFile {
   langflowBaseUrl?: string
   langflowApiKey?: string
   langflowBearerToken?: string
+  selfBaseUrl?: string
   qdrantBaseUrl?: string
   qdrantApiKey?: string
   qdrantCollectionName?: string
@@ -342,6 +348,11 @@ async function _resolveAppConfig(): Promise<AppConfig> {
     fileConfig.langflowBearerToken ??
     process.env.LANGFLOW_BEARER_TOKEN ??
     undefined
+  const selfBaseUrl =
+    getCliArg('self-base-url') ??
+    fileConfig.selfBaseUrl ??
+    process.env.CUBE_SELF_BASE_URL?.trim() ??
+    undefined
   const qdrantBaseUrl =
     cliQdrantBaseUrl ?? fileConfig.qdrantBaseUrl ?? process.env.QDRANT_BASE_URL ?? 'http://127.0.0.1:6333'
   const qdrantApiKey =
@@ -501,6 +512,7 @@ async function _resolveAppConfig(): Promise<AppConfig> {
     langflowBaseUrl,
     langflowApiKey,
     langflowBearerToken,
+    selfBaseUrl,
     qdrantBaseUrl,
     qdrantApiKey,
     qdrantCollectionName,

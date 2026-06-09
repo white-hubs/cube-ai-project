@@ -1,0 +1,1602 @@
+import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { sessionContextHolder } from '@ghcloud/ai-server-base'
+import { FlowController } from '../controllers/flow.controller'
+import { FlowService } from './flow.service'
+import type { FlowComponentCatalogItem } from './flow-component.service'
+import type { FlowRuntimeContext } from './flow-runtime-mapper'
+
+interface SyncedGraphPayload {
+  nodes: Array<Record<string, unknown>>
+  edges?: Array<Record<string, unknown>>
+}
+
+describe('FlowService', () => {
+  const originalGetContext = sessionContextHolder.getContext.bind(sessionContextHolder)
+
+  afterEach(() => {
+    ;(sessionContextHolder.getContext as unknown as { mockRestore?: () => void }).mockRestore?.()
+    sessionContextHolder.getContext = originalGetContext
+  })
+
+  function makeFlowService(): FlowService {
+    return new FlowService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    )
+  }
+
+  function catalogItem(
+    componentKey: string,
+    mappingTarget: string,
+    protocolSchema: Record<string, unknown>,
+  ): FlowComponentCatalogItem {
+    return {
+      id: `builtin:${componentKey}`,
+      componentKey,
+      componentName: componentKey,
+      componentGroup: 'test',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'direct-node',
+      mappingTarget,
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: { fields: [] },
+      protocolSchema,
+      executionPolicy: null,
+    }
+  }
+
+  function compileGraphForTest(
+    editorFlowJson: Parameters<FlowService['createFlow']>[0]['editorFlowJson'],
+    componentMap = new Map<string, FlowComponentCatalogItem>([
+      ['chat-input', catalogItem('chat-input', 'cube.lf.ChatInput', { inputs: [], outputs: ['message'] })],
+      ['prompt-template', catalogItem('prompt-template', 'cube.lf.Prompt Template', { inputs: [], outputs: ['prompt'] })],
+      ['notify', catalogItem('notify', 'cube.lf.Notify', { inputs: ['message'], outputs: ['result'] })],
+      ['language-model', catalogItem('language-model', 'cube.lf.CustomComponent', { inputs: ['input'], outputs: ['message'] })],
+    ]),
+    runtimeContext: FlowRuntimeContext = {},
+  ): SyncedGraphPayload {
+    const service = makeFlowService()
+    const compiled = (service as unknown as {
+      buildCubeFlowGraph: (
+        editorFlow: NonNullable<Parameters<FlowService['createFlow']>[0]['editorFlowJson']>,
+        componentMap: Map<string, FlowComponentCatalogItem>,
+        runtimeContext?: FlowRuntimeContext,
+      ) => { graph: SyncedGraphPayload }
+    }).buildCubeFlowGraph(editorFlowJson!, componentMap, runtimeContext)
+    return compiled.graph
+  }
+
+  test('compile injects hidden multimodal merge for any-length ChatInput ancestor chain before language-model', () => {
+    const graph = compileGraphForTest({
+      schemaVersion: 'ai-application-flow/v1',
+      nodes: [
+        { id: 'chat-1', componentKey: 'chat-input', position: { x: 0, y: 0 }, data: { config: {} } },
+        { id: 'middle-1', componentKey: 'prompt-template', position: { x: 240, y: 0 }, data: { config: { template: '${input}' } } },
+        { id: 'middle-2', componentKey: 'notify', position: { x: 480, y: 0 }, data: { config: {} } },
+        { id: 'llm-1', componentKey: 'language-model', position: { x: 720, y: 0 }, data: { config: {} } },
+      ],
+      edges: [
+        { id: 'e-chat-middle1', source: 'chat-1', target: 'middle-1', sourcePort: 'o-message', targetPort: 'i-input' },
+        { id: 'e-middle1-middle2', source: 'middle-1', target: 'middle-2', sourcePort: 'o-prompt', targetPort: 'i-message' },
+        { id: 'e-middle2-llm', source: 'middle-2', target: 'llm-1', sourcePort: 'o-result', targetPort: 'i-input' },
+      ],
+      metadata: {},
+    }, undefined, {
+      languageModelRuntimeByNodeId: new Map([
+        [
+          'llm-1',
+          {
+            providerType: 'openai_compatible',
+            apiBaseUrl: 'https://api.example.com/v1',
+            chatUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            modelCode: 'gpt-4o',
+            supportsMultimodalInput: true,
+          },
+        ],
+      ]),
+    })
+
+    const mergeNode = graph.nodes.find((node) => String(node.id).startsWith('__aiapp_mm_merge__chat-1__llm-1'))
+    expect(mergeNode).toBeTruthy()
+    if (!mergeNode) {
+      return
+    }
+    expect(mergeNode.cubeType).toBe('cube.lf.CustomComponent')
+    const dsl = (mergeNode.config as Record<string, unknown>).cube_dsl as Record<string, unknown>
+    expect((dsl.metadata as { name?: string }).name).toBe('AiApplicationMultimodalMessageMerge')
+    expect(((dsl.workflow as { blocks?: Array<{ action?: string }> }).blocks ?? [])[0]?.action).toBe('message_merge')
+
+    const edges = graph.edges ?? []
+    expect(edges.some((edge) => edge.id === 'e-middle2-llm')).toBe(false)
+    expect(edges.some((edge) => edge.source === 'chat-1' && edge.target === mergeNode.id && String(edge.targetPort).endsWith('/original_message'))).toBe(true)
+    expect(edges.some((edge) => edge.source === 'middle-2' && edge.target === mergeNode.id && String(edge.targetPort).endsWith('/text'))).toBe(true)
+    expect(edges.some((edge) => edge.source === mergeNode.id && edge.target === 'llm-1' && String(edge.targetPort).endsWith('/input'))).toBe(true)
+  })
+
+  test('compile does not inject hidden multimodal merge for non-vision language-model', () => {
+    const graph = compileGraphForTest({
+      schemaVersion: 'ai-application-flow/v1',
+      nodes: [
+        { id: 'chat-1', componentKey: 'chat-input', position: { x: 0, y: 0 }, data: { config: {} } },
+        { id: 'middle-1', componentKey: 'prompt-template', position: { x: 240, y: 0 }, data: { config: { template: '${input}' } } },
+        { id: 'llm-1', componentKey: 'language-model', position: { x: 480, y: 0 }, data: { config: {} } },
+      ],
+      edges: [
+        { id: 'e-chat-middle', source: 'chat-1', target: 'middle-1', sourcePort: 'o-message', targetPort: 'i-input' },
+        { id: 'e-middle-llm', source: 'middle-1', target: 'llm-1', sourcePort: 'o-prompt', targetPort: 'i-input' },
+      ],
+      metadata: {},
+    }, undefined, {
+      languageModelRuntimeByNodeId: new Map([
+        [
+          'llm-1',
+          {
+            providerType: 'openai_compatible',
+            apiBaseUrl: 'https://api.example.com/v1',
+            chatUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            modelCode: 'gpt-4o-mini',
+            supportsMultimodalInput: false,
+          },
+        ],
+      ]),
+    })
+
+    expect(graph.nodes.some((node) => String(node.id).startsWith('__aiapp_mm_merge__'))).toBe(false)
+    expect((graph.edges ?? []).some((edge) => edge.id === 'e-middle-llm')).toBe(true)
+  })
+
+  test('compile keeps direct ChatInput to language-model path without hidden merge', () => {
+    const graph = compileGraphForTest({
+      schemaVersion: 'ai-application-flow/v1',
+      nodes: [
+        { id: 'chat-1', componentKey: 'chat-input', position: { x: 0, y: 0 }, data: { config: {} } },
+        { id: 'llm-1', componentKey: 'language-model', position: { x: 240, y: 0 }, data: { config: {} } },
+      ],
+      edges: [
+        { id: 'e-chat-llm', source: 'chat-1', target: 'llm-1', sourcePort: 'o-message', targetPort: 'i-input' },
+      ],
+      metadata: {},
+    })
+
+    expect(graph.nodes.some((node) => String(node.id).startsWith('__aiapp_mm_merge__'))).toBe(false)
+    expect((graph.edges ?? []).some((edge) => edge.id === 'e-chat-llm')).toBe(true)
+  })
+
+  test('compile rejects ambiguous multimodal source when one language-model has multiple ChatInput ancestors', () => {
+    expect(() =>
+      compileGraphForTest({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          { id: 'chat-a', componentKey: 'chat-input', position: { x: 0, y: 0 }, data: { config: {} } },
+          { id: 'chat-b', componentKey: 'chat-input', position: { x: 0, y: 120 }, data: { config: {} } },
+          { id: 'middle-1', componentKey: 'notify', position: { x: 260, y: 0 }, data: { config: {} } },
+          { id: 'llm-1', componentKey: 'language-model', position: { x: 520, y: 0 }, data: { config: {} } },
+        ],
+        edges: [
+          { id: 'e-a-middle', source: 'chat-a', target: 'middle-1', sourcePort: 'o-message', targetPort: 'i-message' },
+          { id: 'e-b-middle', source: 'chat-b', target: 'middle-1', sourcePort: 'o-message', targetPort: 'i-message' },
+          { id: 'e-middle-llm', source: 'middle-1', target: 'llm-1', sourcePort: 'o-result', targetPort: 'i-input' },
+        ],
+        metadata: {},
+      }, undefined, {
+        languageModelRuntimeByNodeId: new Map([
+          [
+            'llm-1',
+            {
+              providerType: 'openai_compatible',
+              apiBaseUrl: 'https://api.example.com/v1',
+              chatUrl: 'https://api.example.com/v1/chat/completions',
+              apiKey: 'sk-test',
+              modelCode: 'gpt-4o',
+              supportsMultimodalInput: true,
+            },
+          ],
+        ]),
+      }),
+    ).toThrow('多模态输入来源不唯一')
+  })
+
+  test('compile warns when ChatInput reaches non-vision language-model because images will be ignored', async () => {
+    const service = new FlowService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'model-text-1',
+          tenant: 1001,
+          tenant_provider_id: 'provider-openai-1',
+          system_model_id: null,
+          model_code: 'gpt-4-text',
+          display_name: 'GPT Text',
+          group_name: 'Text',
+          sort_order: '1',
+          remark: null,
+          icon_url: null,
+          api_base_url: null,
+          endpoint_type: 'openai',
+          request_schema_json: null,
+          response_schema_json: null,
+          dsl_schema_json: '{"nodeKind":"language_model"}',
+          model_types: 'reasoning,tool',
+          is_free: false,
+          supports_test: true,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'provider-openai-1',
+          tenant: 1001,
+          provider_code: 'openai',
+          type_code: 'openai',
+          name: 'OpenAI',
+          api_base_url: 'https://api.example.com/v1',
+          api_key: 'sk-test',
+          enabled: true,
+          remark: null,
+          icon_url: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    )
+    const componentMap = new Map<string, FlowComponentCatalogItem>([
+      ['chat-input', catalogItem('chat-input', 'cube.lf.ChatInput', { inputs: [], outputs: ['message'] })],
+      ['prompt-template', catalogItem('prompt-template', 'cube.lf.Prompt Template', { inputs: ['input'], outputs: ['prompt'] })],
+      ['language-model', catalogItem('language-model', 'cube.lf.CustomComponent', { inputs: ['input'], outputs: ['message'] })],
+    ])
+
+    const compiled = await (service as unknown as {
+      buildCompiledFlow: (
+        editorFlow: NonNullable<Parameters<FlowService['createFlow']>[0]['editorFlowJson']>,
+        componentMap: Map<string, FlowComponentCatalogItem>,
+      ) => Promise<{ extraIssues: Array<{ code: string; level: string; message: string; nodeId?: string }> }>
+    }).buildCompiledFlow({
+      schemaVersion: 'ai-application-flow/v1',
+      nodes: [
+        { id: 'chat-1', componentKey: 'chat-input', position: { x: 0, y: 0 }, data: { config: {} } },
+        { id: 'prompt-1', componentKey: 'prompt-template', position: { x: 240, y: 0 }, data: { config: { template: '${input}' } } },
+        { id: 'llm-text-1', componentKey: 'language-model', position: { x: 480, y: 0 }, data: { config: { modelId: 'model-text-1' } } },
+      ],
+      edges: [
+        { id: 'e-chat-prompt', source: 'chat-1', target: 'prompt-1', sourcePort: 'o-message', targetPort: 'i-input' },
+        { id: 'e-prompt-llm', source: 'prompt-1', target: 'llm-text-1', sourcePort: 'o-prompt', targetPort: 'i-input' },
+      ],
+      metadata: {},
+    }, componentMap)
+
+    expect(compiled.extraIssues).toContainEqual({
+      code: 'FLOW_MULTIMODAL_INPUT_IGNORED',
+      level: 'warning',
+      message: '当前语言模型不具备视觉输入能力；如果 ChatInput 上传了图片，图片不会传入该模型',
+      nodeId: 'llm-text-1',
+    })
+  })
+
+  test('language model template upsert separates text and vision DSL templates', async () => {
+    const createCustomComponentTemplate = mock(async ({ displayName, dsl }: { displayName: string; dsl: Record<string, unknown> }) => {
+      const input = (dsl.inputs as Array<{ kind?: string }>)[0]
+      return { id: `${displayName.includes('Vision') ? 'vision' : 'text'}-${input?.kind}` }
+    })
+    const service = makeFlowService()
+    const result = await (service as unknown as {
+      ensureLanguageModelCubeAiTemplates: (
+        client: {
+          validateCustomComponentTemplateDsl: (body: { dsl: Record<string, unknown> }) => Promise<unknown>
+          listCustomComponentTemplates: () => Promise<{ templates: Array<{ id?: string; displayName?: string }> }>
+          createCustomComponentTemplate: (body: { displayName: string; dsl: Record<string, unknown> }) => Promise<{ id?: string }>
+        },
+        editorFlow: NonNullable<Parameters<FlowService['createFlow']>[0]['editorFlowJson']>,
+        languageModelRuntimeByNodeId: FlowRuntimeContext['languageModelRuntimeByNodeId'],
+      ) => Promise<Record<string, string | undefined>>
+    }).ensureLanguageModelCubeAiTemplates(
+      {
+        validateCustomComponentTemplateDsl: mock(async () => ({})),
+        listCustomComponentTemplates: mock(async () => ({ templates: [] })),
+        createCustomComponentTemplate,
+      },
+      {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          { id: 'llm-text', componentKey: 'language-model', data: { config: { modelId: 'm-text' } } },
+          { id: 'llm-vision', componentKey: 'language-model', data: { config: { modelId: 'm-vision' } } },
+        ],
+        edges: [],
+        metadata: {},
+      },
+      new Map([
+        [
+          'llm-text',
+          {
+            providerType: 'openai_compatible',
+            apiBaseUrl: 'https://api.example.com/v1',
+            chatUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            modelCode: 'gpt-text',
+            supportsMultimodalInput: false,
+          },
+        ],
+        [
+          'llm-vision',
+          {
+            providerType: 'openai_compatible',
+            apiBaseUrl: 'https://api.example.com/v1',
+            chatUrl: 'https://api.example.com/v1/chat/completions',
+            apiKey: 'sk-test',
+            modelCode: 'gpt-vision',
+            supportsMultimodalInput: true,
+          },
+        ],
+      ]),
+    )
+
+    expect(result.openaiText).toBe('text-message_text')
+    expect(result.openaiVision).toBe('vision-handle')
+    expect(createCustomComponentTemplate).toHaveBeenCalledTimes(2)
+  })
+
+  test('rejects oversized editor graph when creating flow', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const insertRow = mock(async () => {})
+    const service = new FlowService(
+      {
+        existsNameForTenant: mock(async () => false),
+        insertRow,
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    )
+
+    await expect(service.createFlow({
+      name: '超大流程',
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: Array.from({ length: 201 }, (_, index) => ({
+          id: `node-${index}`,
+          componentKey: 'chat-input',
+        })),
+        edges: [],
+        metadata: {},
+      },
+    })).rejects.toThrow('流程节点不能超过 200 个')
+
+    expect(insertRow).not.toHaveBeenCalled()
+  })
+
+  test('saveFlow maps knowledge-retrieval to executable custom component during remote sync', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const knowledgeComponent: FlowComponentCatalogItem = {
+      id: 'builtin:knowledge-retrieval',
+      componentKey: 'knowledge-retrieval',
+      componentName: 'Knowledge Retrieval',
+      componentGroup: '知识库',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'preset-node',
+      mappingTarget: 'KnowledgeRetrieval',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: {
+        fields: [],
+      },
+      protocolSchema: { inputs: ['query'], outputs: ['SEARCH_RESULTS'] },
+      executionPolicy: { runnable: true },
+    }
+
+    let currentFlow = {
+      id: '9001',
+      tenant: 1001,
+      name: '知识检索流程',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: null,
+      component_snapshot_json: null,
+      compile_status: 'draft',
+      compile_error: null,
+      compile_revision: '0',
+      remote_flow_id: null,
+      remote_binding_status: 'draft',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    let syncedGraph: SyncedGraphPayload | null = null
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => currentFlow),
+        existsNameForTenant: mock(async () => false),
+        updateRow: mock(async (_id: string, patch: Record<string, unknown>) => {
+          currentFlow = {
+            ...currentFlow,
+            ...patch,
+          }
+        }),
+      } as never,
+      {
+        replaceForFlow: mock(async () => {}),
+        listByFlowId: mock(async () => []),
+      } as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[knowledgeComponent.componentKey, knowledgeComponent]])),
+      } as never,
+      {} as never,
+      {} as never,
+      {
+        findByBizDocumentId: mock(async () => ({
+          id: '77',
+          tenant: 1001,
+          biz_document_id: 'biz-doc-1',
+          biz_document_name: '知识文档 1',
+          biz_directory_id: 'biz-dir-1',
+          ai_center_document_id: 'doc-remote-1',
+          ai_center_project_id: 'project-1',
+          upload_status: 'uploaded',
+          last_segmented_at: null,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+      {
+        createProjectClient: mock(async () => ({
+          getConfig: () => ({ baseUrl: 'https://ai-center.example.com' }),
+          createFlow: mock(async () => ({ id: 'remote-flow-1' })),
+          updateFlow: mock(async (_flowId: string, request: Record<string, unknown>) => {
+            syncedGraph = request.graph as SyncedGraphPayload
+            return { id: 'remote-flow-1' }
+          }),
+        })),
+      } as never,
+      {
+        getByTenant: mock(async () => ({
+          id: '1',
+          tenant: 1001,
+          project_id: 'project-1',
+          project_name: '租户项目',
+          project_description: null,
+          ai_center_api_key_id: null,
+          ai_center_api_key: 'tenant-key-1',
+          enabled: true,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+    )
+
+    const result = await service.saveFlow('9001', {
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          {
+            id: 'node-kr',
+            componentKey: 'knowledge-retrieval',
+            label: '知识检索',
+            position: { x: 120, y: 80 },
+            data: {
+              config: {
+                documentIds: ['biz-doc-1'],
+                topK: 4,
+              },
+            },
+          },
+        ],
+        edges: [],
+        metadata: {},
+      },
+    })
+
+    expect(result.remoteBindingStatus).toBe('linked')
+    expect(result.remoteFlowId).toBe('remote-flow-1')
+    expect(syncedGraph).toBeTruthy()
+    const syncedGraphSnapshot = syncedGraph as unknown as SyncedGraphPayload
+    const syncedNodes = syncedGraphSnapshot.nodes
+    const firstSynced = syncedNodes[0]
+    if (firstSynced === undefined) {
+      throw new Error('expected at least one synced node')
+    }
+    expect(firstSynced.cubeType).toBe('cube.lf.CustomComponent')
+    expect((firstSynced.config as Record<string, unknown>).knowledge_sources_runtime_json).toBe(
+      JSON.stringify([{ document_id: 'doc-remote-1', top_k: 4, min_score: 0.4 }]),
+    )
+  })
+
+  test('runFlowForEngine wraps runFlow result in engine envelope', async () => {
+    const service = new FlowService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    )
+    const runResult = { raw: { session_id: 'session-1' } }
+    service.runFlow = mock(async () => runResult) as never
+
+    const result = await service.runFlowForEngine('9001', { input: 'hello' })
+
+    expect(service.runFlow).toHaveBeenCalledWith('9001', { input: 'hello' })
+    expect(result.scheduled).toBe(true)
+    expect(result.jobId).toMatch(/^\d+$/)
+    expect(result.remoteFlowRunId).toBe('session-1')
+    expect(result.estimatedDurationMs).toBe(0)
+    expect(result.statusUrl).toBe(`/v1/jobs/${result.jobId}`)
+  })
+
+  test('saveFlow marks dashscope image models as compile_failed for language-model nodes', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const languageModelComponent: FlowComponentCatalogItem = {
+      id: 'builtin:language-model',
+      componentKey: 'language-model',
+      componentName: 'Language Model',
+      componentGroup: '基础',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'preset-node',
+      mappingTarget: 'cube.lf.CustomComponent',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: {
+        fields: [],
+      },
+      protocolSchema: { inputs: ['input'], outputs: ['message'] },
+      executionPolicy: { runnable: true },
+    }
+
+    let currentFlow = {
+      id: 'flow-1',
+      tenant: 1001,
+      name: '图像模型流程',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: null,
+      component_snapshot_json: null,
+      compile_status: 'draft',
+      compile_error: null,
+      compile_revision: '0',
+      remote_flow_id: null,
+      remote_binding_status: 'draft',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => currentFlow),
+        existsNameForTenant: mock(async () => false),
+        updateRow: mock(async (_id: string, patch: Record<string, unknown>) => {
+          currentFlow = {
+            ...currentFlow,
+            ...patch,
+          }
+        }),
+      } as never,
+      {
+        replaceForFlow: mock(async () => {}),
+        listByFlowId: mock(async () => []),
+      } as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[languageModelComponent.componentKey, languageModelComponent]])),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'model-image-1',
+          tenant: 1001,
+          tenant_provider_id: 'provider-1',
+          system_model_id: null,
+          model_code: 'qwen-image-2.0-pro',
+          display_name: 'Qwen Image 2.0 Pro',
+          group_name: 'image',
+          sort_order: '0',
+          remark: null,
+          icon_url: null,
+          api_base_url: 'https://dashscope.aliyuncs.com',
+          endpoint_type: 'dashscope_text2image',
+          dsl_schema_json: '{"nodeKind":"image_generation","interactionMode":"async","primaryInput":"prompt"}',
+          model_types: 'image_generation',
+          is_free: false,
+          supports_test: true,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'provider-1',
+          tenant: 1001,
+          system_provider_id: null,
+          provider_code: 'aliyun-bailian',
+          type_code: 'dashscope',
+          name: '阿里云百炼',
+          icon_url: null,
+          api_key: 'sk-runtime',
+          api_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+          enabled: true,
+          is_custom: false,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    )
+
+    const result = await service.saveFlow('flow-1', {
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          {
+            id: 'node-llm-1',
+            componentKey: 'language-model',
+            position: { x: 10, y: 10 },
+            data: {
+              config: {
+                modelId: 'model-image-1',
+              },
+            },
+          },
+        ],
+        edges: [],
+        metadata: {},
+      },
+    })
+
+    expect(result.compileStatus).toBe('compile_failed')
+    expect(result.compileError).toContain('当前模型的 DSL 能力为文生图')
+  })
+
+  test('saveFlow compiles image-generation node with dashscope image model', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const imageGenerationComponent: FlowComponentCatalogItem = {
+      id: 'builtin:image-generation',
+      componentKey: 'image-generation',
+      componentName: '图像生成',
+      componentGroup: '基础',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'preset-node',
+      mappingTarget: 'cube.lf.CustomComponent',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: { fields: [] },
+      protocolSchema: { inputs: ['prompt'], outputs: ['imageUrl'] },
+      executionPolicy: { runnable: true },
+    }
+
+    let currentFlow = {
+      id: 'flow-2',
+      tenant: 1001,
+      name: '文生图流程',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: null,
+      component_snapshot_json: null,
+      compile_status: 'draft',
+      compile_error: null,
+      compile_revision: '0',
+      remote_flow_id: null,
+      remote_binding_status: 'draft',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => currentFlow),
+        existsNameForTenant: mock(async () => false),
+        updateRow: mock(async (_id: string, patch: Record<string, unknown>) => {
+          currentFlow = {
+            ...currentFlow,
+            ...patch,
+          }
+        }),
+      } as never,
+      {
+        replaceForFlow: mock(async () => {}),
+        listByFlowId: mock(async () => []),
+      } as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[imageGenerationComponent.componentKey, imageGenerationComponent]])),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'model-image-1',
+          tenant: 1001,
+          tenant_provider_id: 'provider-1',
+          system_model_id: null,
+          model_code: 'qwen-image-2.0-pro',
+          display_name: 'Qwen Image 2.0 Pro',
+          group_name: 'image',
+          sort_order: '0',
+          remark: null,
+          icon_url: null,
+          api_base_url: 'https://dashscope.aliyuncs.com',
+          endpoint_type: 'dashscope_text2image',
+          dsl_schema_json:
+            '{"nodeKind":"image_generation","interactionMode":"async","primaryInput":"prompt","outputs":[{"key":"imageUrl","type":"string"}]}',
+          model_types: 'image_generation',
+          is_free: false,
+          supports_test: true,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'provider-1',
+          tenant: 1001,
+          system_provider_id: null,
+          provider_code: 'aliyun-bailian',
+          type_code: 'dashscope',
+          name: '阿里云百炼',
+          icon_url: null,
+          api_key: 'sk-runtime',
+          api_base_url: 'https://dashscope.aliyuncs.com',
+          enabled: true,
+          is_custom: false,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {} as never,
+      {
+        createProjectClient: mock(async () => ({
+          getConfig: () => ({ baseUrl: 'https://ai-center.example.com' }),
+          createFlow: mock(async () => ({ id: 'remote-flow-image' })),
+          updateFlow: mock(async () => ({ id: 'remote-flow-image' })),
+          listCustomComponentTemplates: mock(async () => ({ templates: [] })),
+          createCustomComponentTemplate: mock(async () => ({ id: 'tpl-image-1' })),
+          validateCustomComponentTemplateDsl: mock(async () => ({})),
+        })),
+      } as never,
+      {
+        getByTenant: mock(async () => ({
+          id: '1',
+          tenant: 1001,
+          project_id: 'project-1',
+          project_name: '租户项目',
+          project_description: null,
+          ai_center_api_key_id: null,
+          ai_center_api_key: 'tenant-key-1',
+          enabled: true,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+    )
+
+    const result = await service.saveFlow('flow-2', {
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          {
+            id: 'node-image-1',
+            componentKey: 'image-generation',
+            position: { x: 10, y: 10 },
+            data: {
+              config: {
+                modelId: 'model-image-1',
+                prompt: '一只可爱的猫',
+              },
+            },
+          },
+        ],
+        edges: [],
+        metadata: {},
+      },
+    })
+
+    expect(result.compileStatus).not.toBe('compile_failed')
+    expect(result.compileError ?? '').not.toContain('文生图')
+  })
+
+  test('saveFlow compiles image-generation node with openai_image model', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const imageGenerationComponent: FlowComponentCatalogItem = {
+      id: 'builtin:image-generation',
+      componentKey: 'image-generation',
+      componentName: '图像生成',
+      componentGroup: '基础',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'preset-node',
+      mappingTarget: 'cube.lf.CustomComponent',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: { fields: [] },
+      protocolSchema: { inputs: ['prompt'], outputs: ['imageUrl'] },
+      executionPolicy: { runnable: true },
+    }
+
+    let currentFlow = {
+      id: 'flow-openai-image',
+      tenant: 1001,
+      name: 'OpenAI 文生图',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: null,
+      component_snapshot_json: null,
+      compile_status: 'draft',
+      compile_error: null,
+      compile_revision: '0',
+      remote_flow_id: null,
+      remote_binding_status: 'draft',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => currentFlow),
+        existsNameForTenant: mock(async () => false),
+        updateRow: mock(async (_id: string, patch: Record<string, unknown>) => {
+          currentFlow = { ...currentFlow, ...patch }
+        }),
+      } as never,
+      { replaceForFlow: mock(async () => {}), listByFlowId: mock(async () => []) } as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[imageGenerationComponent.componentKey, imageGenerationComponent]])),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'model-openai-image-1',
+          tenant: 1001,
+          tenant_provider_id: 'provider-openai',
+          system_model_id: null,
+          model_code: 'dall-e-3',
+          display_name: 'DALL·E 3',
+          group_name: 'image',
+          sort_order: '0',
+          remark: null,
+          icon_url: null,
+          api_base_url: 'https://api.openai.com',
+          endpoint_type: 'openai_image',
+          dsl_schema_json:
+            '{"nodeKind":"image_generation","interactionMode":"sync","primaryInput":"prompt","outputs":[{"key":"imageUrl","type":"string"}]}',
+          model_types: 'image_generation',
+          is_free: false,
+          supports_test: true,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'provider-openai',
+          tenant: 1001,
+          system_provider_id: null,
+          provider_code: 'openai-official',
+          type_code: 'openai',
+          name: 'OpenAI',
+          icon_url: null,
+          api_key: 'sk-runtime',
+          api_base_url: 'https://api.openai.com',
+          enabled: true,
+          is_custom: false,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {} as never,
+      {
+        createProjectClient: mock(async () => ({
+          getConfig: () => ({ baseUrl: 'https://ai-center.example.com' }),
+          createFlow: mock(async () => ({ id: 'remote-flow-openai-image' })),
+          updateFlow: mock(async () => ({ id: 'remote-flow-openai-image' })),
+          listCustomComponentTemplates: mock(async () => ({ templates: [] })),
+          createCustomComponentTemplate: mock(async () => ({ id: 'tpl-openai-image-1' })),
+          validateCustomComponentTemplateDsl: mock(async () => ({})),
+        })),
+      } as never,
+      {
+        getByTenant: mock(async () => ({
+          id: '1',
+          tenant: 1001,
+          project_id: 'project-1',
+          project_name: '租户项目',
+          project_description: null,
+          ai_center_api_key_id: null,
+          ai_center_api_key: 'tenant-key-1',
+          enabled: true,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+    )
+
+    const result = await service.saveFlow('flow-openai-image', {
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          {
+            id: 'node-openai-image-1',
+            componentKey: 'image-generation',
+            position: { x: 10, y: 10 },
+            data: {
+              config: {
+                modelId: 'model-openai-image-1',
+                prompt: 'a cute cat',
+                size: '1024x1024',
+              },
+            },
+          },
+        ],
+        edges: [],
+        metadata: {},
+      },
+    })
+
+    expect(result.compileStatus).not.toBe('compile_failed')
+    expect(result.compileError ?? '').not.toContain('文生图')
+    if (currentFlow.compiled_flow_json == null) {
+      throw new Error('expected compiled_flow_json')
+    }
+    const compiled = JSON.parse(currentFlow.compiled_flow_json) as {
+      nodes?: Array<{ config?: Record<string, unknown> }>
+    }
+    const imageNode = compiled.nodes?.find((n) => n.config?.model_code === 'dall-e-3')
+    expect(imageNode?.config?.generation_url).toBe('https://api.openai.com/v1/images/generations')
+    const dsl = imageNode?.config?.cube_dsl as { metadata?: { name?: string } }
+    expect(dsl?.metadata?.name).toBe('AiApplicationImageGenerationOpenAI')
+  })
+
+  test('saveFlow compiles image-generation node with volcengine_ark Seedream model', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const imageGenerationComponent: FlowComponentCatalogItem = {
+      id: 'builtin:image-generation',
+      componentKey: 'image-generation',
+      componentName: '图像生成',
+      componentGroup: '基础',
+      componentType: 'processor',
+      componentVersion: '1.0.0',
+      mappingType: 'preset-node',
+      mappingTarget: 'cube.lf.CustomComponent',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: { fields: [] },
+      protocolSchema: { inputs: ['prompt'], outputs: ['imageUrl'] },
+      executionPolicy: { runnable: true },
+    }
+
+    let currentFlow = {
+      id: 'flow-ark-seedream',
+      tenant: 1001,
+      name: '火山 Seedream 文生图',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: null,
+      component_snapshot_json: null,
+      compile_status: 'draft',
+      compile_error: null,
+      compile_revision: '0',
+      remote_flow_id: null,
+      remote_binding_status: 'draft',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => currentFlow),
+        existsNameForTenant: mock(async () => false),
+        updateRow: mock(async (_id: string, patch: Record<string, unknown>) => {
+          currentFlow = { ...currentFlow, ...patch }
+        }),
+      } as never,
+      { replaceForFlow: mock(async () => {}), listByFlowId: mock(async () => []) } as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[imageGenerationComponent.componentKey, imageGenerationComponent]])),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'model-ark-seedream-1',
+          tenant: 1001,
+          tenant_provider_id: 'provider-ark',
+          system_model_id: null,
+          model_code: 'doubao-seedream-5-0-260128',
+          display_name: 'Seedream 5.0',
+          group_name: 'image',
+          sort_order: '0',
+          remark: null,
+          icon_url: null,
+          api_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+          endpoint_type: 'openai_image',
+          request_schema_json:
+            '{"requestShape":"openai_images_generation","endpointPath":"/images/generations","method":"POST","modelField":"model","fields":[{"key":"size","label":"尺寸","type":"string"}]}',
+          response_schema_json: '{"responseShape":"openai_images_generation","resultMapping":{"imageUrl":"data[0].url"}}',
+          dsl_schema_json:
+            '{"nodeKind":"image_generation","interactionMode":"sync","primaryInput":"prompt","outputs":[{"key":"imageUrl","type":"string"}]}',
+          model_types: 'image_generation',
+          is_free: false,
+          supports_test: true,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {
+        findByIdForTenant: mock(async () => ({
+          id: 'provider-ark',
+          tenant: 1001,
+          system_provider_id: '900000000000001008',
+          provider_code: 'volcengine-ark',
+          type_code: 'volcengine_ark',
+          name: '火山方舟',
+          icon_url: null,
+          api_key: 'ark-runtime-key',
+          api_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+          enabled: true,
+          is_custom: false,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: null,
+        })),
+      } as never,
+      {} as never,
+      {
+        createProjectClient: mock(async () => ({
+          getConfig: () => ({ baseUrl: 'https://ai-center.example.com' }),
+          createFlow: mock(async () => ({ id: 'remote-flow-ark-seedream' })),
+          updateFlow: mock(async () => ({ id: 'remote-flow-ark-seedream' })),
+          listCustomComponentTemplates: mock(async () => ({ templates: [] })),
+          createCustomComponentTemplate: mock(async () => ({ id: 'tpl-ark-seedream-1' })),
+          validateCustomComponentTemplateDsl: mock(async () => ({})),
+        })),
+      } as never,
+      {
+        getByTenant: mock(async () => ({
+          id: '1',
+          tenant: 1001,
+          project_id: 'project-1',
+          project_name: '租户项目',
+          project_description: null,
+          ai_center_api_key_id: null,
+          ai_center_api_key: 'tenant-key-1',
+          enabled: true,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+    )
+
+    const result = await service.saveFlow('flow-ark-seedream', {
+      editorFlowJson: {
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [
+          {
+            id: 'node-ark-seedream-1',
+            componentKey: 'image-generation',
+            position: { x: 10, y: 10 },
+            data: {
+              config: {
+                modelId: 'model-ark-seedream-1',
+                prompt: '一只猫',
+                size: '1024x1024',
+              },
+            },
+          },
+        ],
+        edges: [],
+        metadata: {},
+      },
+    })
+
+    expect(result.compileStatus).not.toBe('compile_failed')
+    if (currentFlow.compiled_flow_json == null) {
+      throw new Error('expected compiled_flow_json')
+    }
+    const compiled = JSON.parse(currentFlow.compiled_flow_json) as {
+      nodes?: Array<{ config?: Record<string, unknown> }>
+    }
+    const imageNode = compiled.nodes?.find((n) => n.config?.model_code === 'doubao-seedream-5-0-260128')
+    expect(imageNode?.config?.generation_url).toBe('https://ark.cn-beijing.volces.com/api/v3/images/generations')
+    expect(imageNode?.config?.size).toBe('2k')
+    const dsl = imageNode?.config?.cube_dsl as { metadata?: { name?: string } }
+    expect(dsl?.metadata?.name).toBe('AiApplicationImageGenerationOpenAI')
+  })
+
+  test('debugFlow returns compact input and output without raw execution payload', async () => {
+    sessionContextHolder.getContext = mock(() => ({
+      uri: '/test',
+      host: 'localhost',
+      domain: null,
+      authorization: null,
+      tenant: 1001,
+      terminal: null,
+    })) as typeof originalGetContext
+
+    const chatInputComponent: FlowComponentCatalogItem = {
+      id: 'builtin:chat-input',
+      componentKey: 'chat-input',
+      componentName: '聊天输入',
+      componentGroup: '基础节点',
+      componentType: 'trigger',
+      componentVersion: '1.0.0',
+      mappingType: 'direct-node',
+      mappingTarget: 'cube.lf.ChatInput',
+      iconUrl: null,
+      enabled: true,
+      isBuiltin: true,
+      presentationSchema: null,
+      protocolSchema: { inputs: [], outputs: ['message'] },
+      executionPolicy: null,
+    }
+    const flow = {
+      id: 'debug-flow-1',
+      tenant: 1001,
+      name: '调试流程',
+      description: null,
+      editor_flow_json: JSON.stringify({
+        schemaVersion: 'ai-application-flow/v1',
+        nodes: [{ id: 'input-1', componentKey: 'chat-input' }],
+        edges: [],
+        metadata: {},
+      }),
+      compiled_flow_json: '{}',
+      component_snapshot_json: null,
+      compile_status: 'compiled',
+      compile_error: null,
+      compile_revision: '1',
+      remote_flow_id: 'remote-debug-flow-1',
+      remote_binding_status: 'linked',
+      published_release_id: null,
+      published_revision: null,
+      last_compiled_time: null,
+      last_synced_time: null,
+      enabled: true,
+      remark: null,
+      create_by: 'system',
+      creator_id: null,
+      creator_type: null,
+      create_time: new Date(),
+      update_by: 'system',
+      updater_id: null,
+      updater_type: null,
+      update_time: new Date(),
+      deleted: '0',
+    }
+
+    const service = new FlowService(
+      {
+        findByIdScoped: mock(async () => flow),
+      } as never,
+      {} as never,
+      {} as never,
+      {
+        getCatalogMap: mock(async () => new Map([[chatInputComponent.componentKey, chatInputComponent]])),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        createProjectClient: mock(async () => ({
+          runFlow: mock(async () => ({
+            raw: {
+              session_id: 'session-1',
+              outputs: [
+                {
+                  outputs: [
+                    {
+                      results: {
+                        message: {
+                          data: {
+                            type: 'text/markdown',
+                            content: '# 总结\n\n- 已完成',
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          })),
+        })),
+      } as never,
+      {
+        getByTenant: mock(async () => ({
+          id: '1',
+          tenant: 1001,
+          project_id: 'project-1',
+          project_name: '租户项目',
+          project_description: null,
+          ai_center_api_key_id: null,
+          ai_center_api_key: 'tenant-key-1',
+          enabled: true,
+          remark: null,
+          create_by: 'system',
+          creator_id: null,
+          creator_type: null,
+          create_time: new Date(),
+          update_by: 'system',
+          updater_id: null,
+          updater_type: null,
+          update_time: new Date(),
+          deleted: '0',
+        })),
+      } as never,
+    )
+
+    const result = await service.debugFlow('debug-flow-1', { input: 'hello' })
+    const keys = Object.keys(result)
+
+    expect(result.ok).toBe(true)
+    expect(result.mode).toBe('remote-run')
+    expect(result.input).toBe('hello')
+    expect(result.outputText).toBe('# 总结\n\n- 已完成')
+    expect(result.outputCount).toBe(1)
+    expect(keys).not.toContain('compiledGraph')
+    expect(keys).not.toContain('trace')
+    expect(keys).not.toContain('request')
+    expect(keys).not.toContain('response')
+    expect(keys).not.toContain('variables')
+    expect(keys).not.toContain('startedAt')
+    expect(keys).not.toContain('finishedAt')
+  })
+})
+
+describe('FlowController', () => {
+  test('runFlow keeps existing service response without engine caller header', async () => {
+    const serviceResult = { raw: { session_id: 'session-ordinary' } }
+    const runFlow = mock(async () => serviceResult)
+    const runFlowForEngine = mock(async () => ({
+      scheduled: true,
+      jobId: '1',
+      estimatedDurationMs: 0,
+      statusUrl: '/v1/jobs/1',
+    }))
+    const controller = new FlowController({ runFlow, runFlowForEngine } as never)
+
+    const result = await controller.runFlow('9001', { input: 'hello' }, { getHeader: () => null } as never)
+
+    expect(result).toBe(serviceResult)
+    expect(runFlow).toHaveBeenCalledWith('9001', { input: 'hello' })
+    expect(runFlowForEngine).not.toHaveBeenCalled()
+  })
+
+  test('runFlow preserves structured multimodal input for service execution', async () => {
+    const serviceResult = { raw: { session_id: 'session-files' } }
+    const runFlow = mock(async () => serviceResult)
+    const runFlowForEngine = mock(async () => ({
+      scheduled: true,
+      jobId: '1',
+      estimatedDurationMs: 0,
+      statusUrl: '/v1/jobs/1',
+    }))
+    const controller = new FlowController({ runFlow, runFlowForEngine } as never)
+    const body = {
+      input: {
+        query: 'describe image',
+        files: [{ file_path: 'flow-1/image.png', name: 'image.png', mime: 'image/png' }],
+      },
+      sessionId: 'session-files',
+    }
+
+    const result = await controller.runFlow('9001', body, { getHeader: () => null } as never)
+
+    expect(result).toBe(serviceResult)
+    expect(runFlow).toHaveBeenCalledWith('9001', body)
+    expect(runFlowForEngine).not.toHaveBeenCalled()
+  })
+
+  test('uploadFlowFile reads multipart file and delegates to service', async () => {
+    const uploaded = { file_path: 'flow-1/image.png', name: 'image.png', mime: 'image/png' }
+    const uploadFlowFile = mock(async () => uploaded)
+    const controller = new FlowController({ uploadFlowFile } as never)
+    const form = new FormData()
+    const file = new File([new Uint8Array([1, 2, 3])], 'image.png', { type: 'image/png' })
+    form.set('file', file)
+
+    const result = await controller.uploadFlowFile('9001', { getBody: async () => form } as never)
+
+    expect(result).toBe(uploaded)
+    expect(uploadFlowFile).toHaveBeenCalledWith('9001', file)
+  })
+
+  test('runFlow uses engine envelope path when engine caller header is present', async () => {
+    const engineResult = {
+      scheduled: true,
+      jobId: '1',
+      remoteFlowRunId: 'session-engine',
+      estimatedDurationMs: 0,
+      statusUrl: '/v1/jobs/1',
+    }
+    const runFlow = mock(async () => ({ raw: { session_id: 'ordinary' } }))
+    const runFlowForEngine = mock(async () => engineResult)
+    const headers = new Headers({ 'X-Engine-Caller': 'cube-agentic-engine' })
+    const controller = new FlowController({ runFlow, runFlowForEngine } as never)
+
+    const result = await controller.runFlow('9001', { input: 'hello' }, { getHeader: (key: string) => headers.get(key) } as never)
+
+    expect(result).toBe(engineResult)
+    expect(runFlowForEngine).toHaveBeenCalledWith('9001', { input: 'hello' })
+    expect(runFlow).not.toHaveBeenCalled()
+  })
+})
