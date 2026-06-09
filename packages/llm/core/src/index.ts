@@ -17,3 +17,6 @@ export * from './provider/doubao-multimodal-embed';
 export * from './provider/catalog-provider-routing';
 export * from './provider/catalog-driven-provider';
 export * from './provider/noop-provider';
+export * from './provider/image/dashscope-text2image-provider';
+export * from './provider/image/geekai-nano-banana-provider';
+export * from './provider/image/catalog-image-provider';
