@@ -4,4 +4,6 @@ export * from './flow-catalog';
 export * from './knowledge-query';
 export * from './llm-catalog';
 export * from './llm-provider';
+export * from './provider-icon';
 export * from './embedding';
+export * from './image-generation';
