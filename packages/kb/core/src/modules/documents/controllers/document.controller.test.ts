@@ -43,7 +43,7 @@ class FakeDocumentService {
 describe('DocumentController', () => {
   test('parses optional chunking options from upload form data', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
     const formData = new FormData()
     formData.set('file', new File(['hello'], 'note.txt', { type: 'text/plain' }))
     formData.set('directoryId', '12')
@@ -69,7 +69,7 @@ describe('DocumentController', () => {
 
   test('parses optional chunking options from reindex body', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
 
     await controller.reindex({
       getBody: async () => ({
@@ -95,7 +95,7 @@ describe('DocumentController', () => {
 
   test('parses upload preview request from multipart form data', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
     const formData = new FormData()
     formData.set('file', new File(['hello'], 'preview.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))
     formData.set('separator', '\\n\\n')
@@ -117,7 +117,7 @@ describe('DocumentController', () => {
 
   test('previews existing document by id without chunking body', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
 
     await controller.previewById('77')
 
@@ -126,7 +126,7 @@ describe('DocumentController', () => {
 
   test('lists document chunks and updates a chunk text', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
 
     await controller.listChunks('13')
     await controller.updateChunk('13', '13-2', {
@@ -139,7 +139,7 @@ describe('DocumentController', () => {
 
   test('updates chunk with keyword add/remove payload', async () => {
     const documentService = new FakeDocumentService()
-    const controller = new DocumentController(documentService as never)
+    const controller = new DocumentController(documentService as never, null as never)
 
     await controller.updateChunk('14', '14-1', {
       text: 'body',

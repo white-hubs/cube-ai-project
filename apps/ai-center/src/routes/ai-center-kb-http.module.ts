@@ -5,7 +5,6 @@ import {
   LoggerModule,
   Module,
   type Container,
-  type DatabaseModuleOptions,
 } from '@dangao/bun-server';
 import {
   AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN,
@@ -18,45 +17,11 @@ import {
   AiKbModule,
   APP_CONFIG_TOKEN as KB_APP_CONFIG_TOKEN,
   KbDatabaseBootstrap,
+  PLATFORM_KB_SOURCE_PORT_TOKEN,
+  createKbMysqlDatabaseServiceFromEnv,
   loadAppConfigSync as loadKbAppConfigSync,
 } from '@cube-ai/kb-core';
-
-function buildDatabaseOptionsFromEnv(): DatabaseModuleOptions {
-  const raw = (Bun.env.CUBE_LOCAL_DEV ?? process.env.CUBE_LOCAL_DEV ?? '').trim().toLowerCase();
-  const localDev = raw === '1' || raw === 'true' || raw === 'yes';
-  if (localDev) {
-    const sqlitePath =
-      Bun.env.CUBE_AI_SQLITE_PATH?.trim() ||
-      process.env.CUBE_AI_SQLITE_PATH?.trim() ||
-      'cube-ai.local.sqlite';
-    return {
-      database: {
-        type: 'sqlite',
-        config: { path: sqlitePath },
-      },
-      enableHealthCheck: false,
-    };
-  }
-  return {
-    database: {
-      type: 'mysql',
-      config: {
-        host: process.env.MYSQL_HOST ?? 'localhost',
-        port: Number(process.env.MYSQL_PORT ?? '3306'),
-        database: process.env.MYSQL_DATABASE ?? 'cube_ai',
-        user: process.env.MYSQL_USER ?? 'root',
-        password: process.env.MYSQL_PASSWORD ?? '',
-      },
-    },
-    pool: {
-      maxConnections: 10,
-      connectionTimeout: 30000,
-      retryCount: 3,
-      retryDelay: 1000,
-    },
-    enableHealthCheck: true,
-  };
-}
+import { Cube2PlatformKbSourcePort } from '../platform/cube2-platform-kb-source.port';
 
 function resolveKbEmbeddingModel(
   kbConfig: ReturnType<typeof loadKbAppConfigSync>,
@@ -81,7 +46,7 @@ function resolveKbEmbeddingTenant(): number {
   providers: [
     {
       provide: DATABASE_SERVICE_TOKEN,
-      useFactory: () => new DatabaseService(buildDatabaseOptionsFromEnv()),
+      useFactory: () => createKbMysqlDatabaseServiceFromEnv(),
     },
     {
       provide: DatabaseService,
@@ -104,7 +69,11 @@ function resolveKbEmbeddingTenant(): number {
         });
       },
     },
+    {
+      provide: PLATFORM_KB_SOURCE_PORT_TOKEN,
+      useFactory: () => new Cube2PlatformKbSourcePort(),
+    },
   ],
-  exports: [DATABASE_SERVICE_TOKEN, DatabaseService, KB_APP_CONFIG_TOKEN, EMBEDDING_PORT_TOKEN],
+  exports: [DATABASE_SERVICE_TOKEN, DatabaseService, KB_APP_CONFIG_TOKEN, EMBEDDING_PORT_TOKEN, PLATFORM_KB_SOURCE_PORT_TOKEN],
 })
 export class AiCenterKbHttpModule {}

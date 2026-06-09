@@ -18,6 +18,7 @@ import { MockableEndpoint } from '@/infra/mock-endpoint'
 import { DocumentService } from '../services/document.service'
 import type { ChunkingOptions, TableChunkMode, TextChunkMode } from '../../common/document-types'
 import { projectContextAls } from '@/infra/access-scope'
+import { PlatformSourceImportService } from '../../ingestion/platform-source-import.service'
 
 function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
   if (value === null || value === undefined || value === '') {
@@ -172,7 +173,10 @@ const documentChunkListItemOpenApiProperties = {
 
 @Controller('/documents')
 export class DocumentController {
-  public constructor(private readonly documentService: DocumentService) {}
+  public constructor(
+    private readonly documentService: DocumentService,
+    private readonly platformSourceImportService: PlatformSourceImportService,
+  ) {}
 
   @POST('/preview')
   @ApiOperation({
@@ -607,5 +611,56 @@ export class DocumentController {
       tableChunkMode: payload.tableChunkMode,
       textChunkMode: payload.textChunkMode,
     }))
+  }
+
+  @POST('/import-from-platform')
+  @ApiOperation({
+    summary: '从平台知识库导入源文档',
+    description: '从 cube2 平台知识库（by platformKbId）拉取源文档并摄入到指定目录（directoryId）。',
+    operationId: 'importDocumentsFromPlatform',
+  })
+  @ApiBody({
+    description: '平台导入参数',
+    required: true,
+    schema: {
+      type: 'object',
+      properties: {
+        platformKbId: { type: 'string', description: '平台知识库外部 ID' },
+        directoryId: { type: 'string', description: '本地知识库目录主键（目标目录）' },
+      },
+      required: ['platformKbId', 'directoryId'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: '导入结果',
+    schema: {
+      type: 'object',
+      properties: {
+        imported: { type: 'number', description: '成功导入数量' },
+        errors: { type: 'number', description: '失败数量' },
+        errorDetails: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              externalId: { type: 'string' },
+              error: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  })
+  public async importFromPlatform(
+    @Body() body: { platformKbId?: string; directoryId?: string },
+  ) {
+    if (!body?.platformKbId || typeof body.platformKbId !== 'string') {
+      throw new BadRequestException('platformKbId is required')
+    }
+    if (!body?.directoryId || typeof body.directoryId !== 'string') {
+      throw new BadRequestException('directoryId is required')
+    }
+    return this.platformSourceImportService.importFromPlatformKb(body.platformKbId, body.directoryId)
   }
 }
