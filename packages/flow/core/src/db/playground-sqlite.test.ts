@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { FlowRepository, ProjectRepository } from './sqlite'
+import { FlowRepository } from './sqlite'
 
 describe('playground sqlite', () => {
   test('default session, messages, archive on graph', () => {
@@ -11,9 +11,7 @@ describe('playground sqlite', () => {
       mkdirSync(dir, { recursive: true })
       const dbPath = join(dir, 't.sqlite')
       const repo = FlowRepository.open(dbPath)
-      const projects = new ProjectRepository(repo.db).listProjects()
-      const projectId = projects[0]?.id ?? ''
-      if (!projectId) throw new Error('expected default project')
+      const projectId = 'test-tenant'
       const flowId = crypto.randomUUID()
       const now = new Date().toISOString()
       repo.createFlow(

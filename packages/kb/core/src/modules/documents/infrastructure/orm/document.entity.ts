@@ -9,7 +9,7 @@ export class DocumentEntity {
 
   @Column({ nullable: true })
   /** 平台项目隔离 */
-  project_id!: string | null
+  tenant_id!: string | null
 
   @Column({ nullable: true })
   /** 软删除标记：deleted != null 表示已删除（具体含义以数据库为准） */

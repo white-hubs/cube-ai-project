@@ -9,7 +9,7 @@ import { normalizeEmbeddingText } from './embedding-text-normalizer'
 import { resolveChunkRetrievalProfile } from '../../vector-store/infrastructure/embeddings/retrieval-profile'
 
 export interface IngestDocumentParams {
-  document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'project_id'>
+  document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'tenant_id'>
   file: File
   chunkingOptions?: ChunkingOptions
 }
@@ -41,7 +41,7 @@ export class IngestionService {
 
   private mapParsedChunks(
     parsed: ParsedDocumentContent,
-    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'project_id'>,
+    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'tenant_id'>,
   ): TextChunkRecord[] {
     return (parsed.chunks ?? []).map((chunk) => ({
       chunkId: `${document.id}-${chunk.chunkIndex}`,
@@ -55,7 +55,7 @@ export class IngestionService {
         embeddingText: chunk.embeddingText,
         headingPath: chunk.headingPath,
       }),
-      tenantId: document.project_id,
+      tenantId: document.tenant_id,
       sourceType: parsed.sourceType,
       fileName: document.name,
       sectionId: chunk.sectionId,
@@ -93,7 +93,7 @@ export class IngestionService {
   private rechunkParsedChunks(
     chunks: ParsedDocumentChunk[],
     chunkingOptions: ChunkingOptions,
-    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'project_id'>,
+    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'tenant_id'>,
     sourceType: string,
   ): TextChunkRecord[] {
     const sectionOrderMap = new Map<string, number>()
@@ -128,7 +128,7 @@ export class IngestionService {
           chunkIndex,
           text: displayText,
           embeddingText,
-          tenantId: document.project_id,
+          tenantId: document.tenant_id,
           sourceType,
           fileName: document.name,
           sectionId: chunk.sectionId,
@@ -196,7 +196,7 @@ export class IngestionService {
           text: parsed.text,
           sourceType: parsed.sourceType,
           fileName: params.document.name,
-          tenantId: params.document.project_id,
+          tenantId: params.document.tenant_id,
           chunkingOptions: params.chunkingOptions,
         })).map((chunk) => ({
           ...chunk,

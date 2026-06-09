@@ -7,7 +7,7 @@ export class ImportJobEntity {
   id!: string
 
   @Column({ nullable: true })
-  project_id!: string | null
+  tenant_id!: string | null
 
   @Column({ nullable: true })
   deleted!: bigint | null

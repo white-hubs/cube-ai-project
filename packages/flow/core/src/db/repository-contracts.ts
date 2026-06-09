@@ -21,7 +21,7 @@ export const PROJECT_REPOSITORY_TOKEN = Symbol('ProjectRepository')
 export interface FlowRepository {
   createFlow(
     tenantId: string,
-    row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null },
+    row: Omit<FlowRow, 'lf_snapshot_json' | 'tenant_id'> & { lf_snapshot_json?: string | null },
     graphJson: string,
   ): Awaitable<void>
   updateFlowMeta(
@@ -71,7 +71,7 @@ export interface FlowRepository {
   getCustomComponentTemplate(id: string, tenantId?: string | null): Awaitable<CustomComponentTemplateRow | null>
   insertCustomComponentTemplate(
     tenantId: string,
-    row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>,
+    row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'tenant_id' | keyof AuditColumns>,
   ): Awaitable<void>
   updateCustomComponentTemplate(
     tenantId: string,
@@ -113,7 +113,7 @@ export interface FlowRepository {
   insertWebhookInvocation(row: {
     id: string
     flow_id: string
-    project_id: string
+    tenant_id: string
     source: string | null
     payload_json: string
     status: string
@@ -132,7 +132,7 @@ export interface ProjectRepository {
   getProject(idOrTenantKey: string): Awaitable<ProjectRow | null>
   /** 分配唯一租户 `project_id`（`prj_` + 21 位 Base62）。`name` 保留供将来扩展，当前未参与生成。 */
   allocateUniqueTenantProjectId(name: string): Awaitable<string>
-  insertProject(row: { id: string; project_id: string; name: string; description: string }): Awaitable<void>
+  insertProject(row: { id: string; tenant_id: string; name: string; description: string }): Awaitable<void>
   updateProject(internalId: string, patch: Partial<Pick<ProjectRow, 'name' | 'description'>>): Awaitable<void>
   deleteProject(internalId: string): Awaitable<void>
   countProjects(): Awaitable<number>

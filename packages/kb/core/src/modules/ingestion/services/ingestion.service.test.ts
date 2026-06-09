@@ -221,7 +221,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.pdf', { type: 'application/pdf' })
     const chunks = await service.previewDocumentChunks({
-      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', project_id: 'p8' },
+      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', tenant_id: 'p8' },
       file,
     } as never)
 
@@ -243,7 +243,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.pdf', { type: 'application/pdf' })
     const result = await service.ingestDocument({
-      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', project_id: 'p8' },
+      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', tenant_id: 'p8' },
       file,
     })
 
@@ -318,7 +318,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.pdf', { type: 'application/pdf' })
     const result = await service.ingestDocument({
-      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', project_id: 'p8' },
+      document: { id: "11", name: 'demo.pdf', mime_type: 'application/pdf', tenant_id: 'p8' },
       file,
       chunkingOptions: {
         separator: '###',
@@ -366,7 +366,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.txt', { type: 'text/plain' })
     const result = await service.ingestDocument({
-      document: { id: "11", name: 'demo.txt', mime_type: 'text/plain', project_id: 'p8' },
+      document: { id: "11", name: 'demo.txt', mime_type: 'text/plain', tenant_id: 'p8' },
       file,
     })
 
@@ -390,7 +390,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.txt', { type: 'text/plain' })
     const result = await service.ingestDocument({
-      document: { id: "11", name: 'demo.txt', mime_type: 'text/plain', project_id: 'p8' },
+      document: { id: "11", name: 'demo.txt', mime_type: 'text/plain', tenant_id: 'p8' },
       file,
     })
 
@@ -417,7 +417,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'sdk.txt', { type: 'text/plain' })
     const result = await service.ingestDocument({
-      document: { id: "14", name: 'sdk.txt', mime_type: file.type, project_id: 'p8' },
+      document: { id: "14", name: 'sdk.txt', mime_type: file.type, tenant_id: 'p8' },
       file,
       chunkingOptions: { chunkSize: 256, chunkOverlap: 20, textChunkMode: 'block' } as never,
     })
@@ -451,7 +451,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const result = await service.ingestDocument({
-      document: { id: "12", name: 'demo.xlsx', mime_type: file.type, project_id: 'p8' },
+      document: { id: "12", name: 'demo.xlsx', mime_type: file.type, tenant_id: 'p8' },
       file,
       chunkingOptions: { separator: '###', chunkSize: 80, chunkOverlap: 0 } as never,
     })
@@ -484,7 +484,7 @@ describe('IngestionService', () => {
 
     const file = new File(['hello'], 'demo.vtt', { type: 'text/vtt' })
     const result = await service.ingestDocument({
-      document: { id: "13", name: 'demo.vtt', mime_type: file.type, project_id: 'p8' },
+      document: { id: "13", name: 'demo.vtt', mime_type: file.type, tenant_id: 'p8' },
       file,
       chunkingOptions: { separator: '\n\n', chunkSize: 80, chunkOverlap: 0 } as never,
     })

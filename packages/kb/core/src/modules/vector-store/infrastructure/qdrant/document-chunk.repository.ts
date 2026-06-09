@@ -33,7 +33,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
 
   private scopeFilter(): { sql: string; params: unknown[] } {
     const pid = this.getTenantId()
-    if (pid) return { sql: 'project_id = ?', params: [pid] }
+    if (pid) return { sql: 'tenant_id = ?', params: [pid] }
     return { sql: '', params: [] }
   }
 
@@ -111,13 +111,13 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
       return
     }
 
-    const project_id = this.getTenantId()
+    const tenant_id = this.getTenantId()
     const audit = this.getAuditInfo()
     const now = formatMysqlDateTimeShanghai()
 
     for (const chunk of chunks) {
       const payload: Partial<DocumentChunkEntity> = {
-        project_id,
+        tenant_id,
         deleted: 0n,
         create_by: audit.by,
         creator_id: audit.id,
@@ -343,7 +343,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
     let sql = `UPDATE ${this.tableName} AS dc INNER JOIN (${innerSql}) AS t ON dc.document_id = t.document_id AND dc.chunk_id = t.chunk_id SET dc.recall_count = dc.recall_count + t.delta WHERE (dc.deleted IS NULL OR dc.deleted = 0)`
     const pid = this.getTenantId()
     if (pid) {
-      sql += ' AND dc.project_id = ?'
+      sql += ' AND dc.tenant_id = ?'
       joinParams.push(pid)
     }
     await this.executeQuery(sql, joinParams.map((value) => this.normalizeSqlValue(value)))

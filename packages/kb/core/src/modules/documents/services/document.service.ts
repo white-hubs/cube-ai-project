@@ -172,7 +172,7 @@ export class DocumentService {
   }
 
   private async buildUpdatedChunkRecord(
-    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'project_id'>,
+    document: Pick<DocumentEntity, 'id' | 'name' | 'mime_type' | 'tenant_id'>,
     chunkId: string,
     text: string,
     keywordMutations?: { keywordsAdd?: string[]; keywordsRemove?: string[] },
@@ -202,7 +202,7 @@ export class DocumentService {
       chunkIndex: existing.chunk_index,
       text,
       embeddingText: headingPath.length > 0 ? `${headingPath.join('\n')}\n${text}` : text,
-      tenantId: document.project_id,
+      tenantId: document.tenant_id,
       sourceType: document.mime_type,
       fileName: document.name,
       sectionId: existing.section_id,
@@ -358,7 +358,7 @@ export class DocumentService {
         id: '0',
         name: file.name,
         mime_type: file.type || 'application/octet-stream',
-        project_id: null,
+        tenant_id: null,
       },
       file,
       chunkingOptions: this.resolveChunkingOptions(chunkingOptions),

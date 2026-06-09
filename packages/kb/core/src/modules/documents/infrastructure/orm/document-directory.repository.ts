@@ -31,7 +31,7 @@ export class DocumentDirectoryRepositoryOrm extends BaseRepository<DocumentDirec
 
   private scopeFilter(): { sql: string; params: unknown[] } {
     const pid = this.getTenantId()
-    if (pid) return { sql: 'project_id = ?', params: [pid] }
+    if (pid) return { sql: 'tenant_id = ?', params: [pid] }
     return { sql: '', params: [] }
   }
 
@@ -44,12 +44,12 @@ export class DocumentDirectoryRepositoryOrm extends BaseRepository<DocumentDirec
     description?: string | null
     icon?: string | null
   }): Promise<DocumentDirectoryEntity> {
-    const project_id = this.getTenantId()
+    const tenant_id = this.getTenantId()
     const audit = this.getAuditInfo()
     const now = formatMysqlDateTimeShanghai()
 
     const payload: Omit<DocumentDirectoryEntity, 'id'> = {
-      project_id,
+      tenant_id,
       deleted: 0n,
       create_by: audit.by,
       creator_id: audit.id,

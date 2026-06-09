@@ -8,7 +8,7 @@ export class DocumentDirectoryEntity {
 
   @Column({ nullable: true })
   /** 平台项目隔离 */
-  project_id!: string | null
+  tenant_id!: string | null
 
   @Column({ nullable: true })
   /** 软删除标记 */

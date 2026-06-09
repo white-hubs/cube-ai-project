@@ -3,7 +3,7 @@ import { createHash, pbkdf2Sync, timingSafeEqual } from 'node:crypto'
 import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { SnowflakeUtil } from '@cube-ai/server-base'
-import { generateTenantProjectId, slugifyTenantProjectId, tenantSlugWithSuffix } from '@cube-ai/server-shared'
+import { generateTenantProjectId } from '@cube-ai/server-shared'
 
 /** 软删时间戳（毫秒），与 MySQL `deleted` 列语义一致 */
 function deletedValueMs(): number {
@@ -21,21 +21,6 @@ export type AuditColumns = {
 }
 
 const SCHEMA = `
-CREATE TABLE IF NOT EXISTS projects (
-  id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL DEFAULT '',
-  create_by TEXT NOT NULL DEFAULT 'system',
-  creator_id TEXT,
-  creator_type TEXT,
-  create_time TEXT NOT NULL,
-  update_by TEXT NOT NULL DEFAULT 'system',
-  updater_id TEXT,
-  updater_type TEXT,
-  update_time TEXT NOT NULL,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT ''
-);
-
 CREATE TABLE IF NOT EXISTS flows (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -52,7 +37,7 @@ CREATE TABLE IF NOT EXISTS flows (
   updater_type TEXT,
   update_time TEXT NOT NULL,
   lf_snapshot_json TEXT,
-  project_id TEXT NOT NULL DEFAULT ''
+  tenant_id TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS flow_graphs (
@@ -120,93 +105,8 @@ CREATE TABLE IF NOT EXISTS custom_component_templates (
   updater_id TEXT,
   updater_type TEXT,
   update_time TEXT NOT NULL,
-  project_id TEXT NOT NULL DEFAULT ''
+  tenant_id TEXT NOT NULL DEFAULT ''
 );
-
-CREATE TABLE IF NOT EXISTS api_keys (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  key_hash TEXT NOT NULL UNIQUE,
-  key_prefix TEXT NOT NULL,
-  flow_id TEXT,
-  scopes_json TEXT,
-  project_id TEXT NOT NULL DEFAULT '',
-  access_level TEXT NOT NULL DEFAULT 'project',
-  expires_at TEXT,
-  allowed_tools_json TEXT,
-  create_by TEXT NOT NULL DEFAULT 'system',
-  creator_id TEXT,
-  creator_type TEXT,
-  create_time TEXT NOT NULL,
-  update_by TEXT NOT NULL DEFAULT 'system',
-  updater_id TEXT,
-  updater_type TEXT,
-  update_time TEXT NOT NULL,
-  deleted INTEGER NOT NULL DEFAULT 0,
-  last_used_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
-
-CREATE TABLE IF NOT EXISTS auth_users (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  password_algo TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  role TEXT NOT NULL DEFAULT 'super_admin',
-  default_project_id TEXT,
-  create_by TEXT NOT NULL DEFAULT 'system',
-  creator_id TEXT,
-  creator_type TEXT,
-  create_time TEXT NOT NULL,
-  update_by TEXT NOT NULL DEFAULT 'system',
-  updater_id TEXT,
-  updater_type TEXT,
-  update_time TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS oauth_access_tokens (
-  id TEXT PRIMARY KEY,
-  token_hash TEXT NOT NULL UNIQUE,
-  user_id TEXT NOT NULL,
-  username TEXT NOT NULL,
-  role TEXT NOT NULL,
-  scope_json TEXT,
-  expires_at TEXT NOT NULL,
-  create_by TEXT NOT NULL DEFAULT 'system',
-  creator_id TEXT,
-  creator_type TEXT,
-  create_time TEXT NOT NULL,
-  update_by TEXT NOT NULL DEFAULT 'system',
-  updater_id TEXT,
-  updater_type TEXT,
-  update_time TEXT NOT NULL,
-  deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (
-  id TEXT PRIMARY KEY,
-  token_hash TEXT NOT NULL UNIQUE,
-  user_id TEXT NOT NULL,
-  access_token_id TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  create_by TEXT NOT NULL DEFAULT 'system',
-  creator_id TEXT,
-  creator_type TEXT,
-  create_time TEXT NOT NULL,
-  update_by TEXT NOT NULL DEFAULT 'system',
-  updater_id TEXT,
-  updater_type TEXT,
-  update_time TEXT NOT NULL,
-  deleted INTEGER NOT NULL DEFAULT 0,
-  FOREIGN KEY (user_id) REFERENCES auth_users(id) ON DELETE CASCADE,
-  FOREIGN KEY (access_token_id) REFERENCES oauth_access_tokens(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_oauth_access_token_hash ON oauth_access_tokens(token_hash);
-CREATE INDEX IF NOT EXISTS idx_oauth_refresh_token_hash ON oauth_refresh_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS webhook_invocations (
   id TEXT PRIMARY KEY,
@@ -222,7 +122,7 @@ CREATE TABLE IF NOT EXISTS webhook_invocations (
   updater_id TEXT,
   updater_type TEXT,
   update_time TEXT NOT NULL,
-  project_id TEXT NOT NULL DEFAULT ''
+  tenant_id TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_webhook_invocations_flow ON webhook_invocations(flow_id, create_time);
@@ -243,8 +143,8 @@ CREATE TABLE IF NOT EXISTS app_kv (
 
 export type ProjectRow = AuditColumns & {
   id: string
-  /** 租户标识（与 X-Project-Id 对齐；子表 project_id 存此值） */
-  project_id: string
+  /** @deprecated projects 表已退役（ADR-0012 addendum）；此类型保留仅供旧代码过渡期引用。 */
+  tenant_id: string
   name: string
   description: string
   create_time: string
@@ -261,7 +161,7 @@ export type FlowRow = AuditColumns & {
   create_time: string
   update_time: string
   lf_snapshot_json: string | null
-  project_id: string
+  tenant_id: string
 }
 
 export type PlaygroundSessionRow = AuditColumns & {
@@ -293,7 +193,7 @@ export type CustomComponentTemplateRow = AuditColumns & {
   dsl_json: string
   create_time: string
   update_time: string
-  project_id: string
+  tenant_id: string
 }
 
 export type ApiKeyRow = AuditColumns & {
@@ -303,7 +203,7 @@ export type ApiKeyRow = AuditColumns & {
   key_prefix: string
   flow_id: string | null
   scopes_json: string | null
-  project_id: string
+  tenant_id: string
   access_level: 'project' | 'system'
   create_time: string
   update_time: string
@@ -357,7 +257,7 @@ export type ApiKeySummary = {
   flow_id: string | null
   scopes: string[]
   allowed_tools: string[]
-  project_id: string | null
+  tenant_id: string | null
   access_level: 'project' | 'system'
   expires_at: string | null
   create_time: string
@@ -407,6 +307,7 @@ export function randomApiKeySecret(): string {
   return `sk_${b64}`
 }
 
+/** @deprecated auth/project 种子数据已退役（ADR-0012 addendum）；此接口保留仅供过渡期兼容，无实际效果。 */
 export interface FlowRepositorySeedConfig {
   superAdminUsername?: string
   superAdminPassword?: string
@@ -417,17 +318,13 @@ export class FlowRepository {
   private readonly seedConfig: FlowRepositorySeedConfig
 
   constructor(public readonly db: Database, seedConfig?: FlowRepositorySeedConfig) {
-    this.seedConfig = seedConfig ?? {}
+    this.seedConfig = seedConfig ?? {} // retained for backward compat; no longer has effect
     this.db.run(SCHEMA)
     this.migrateLegacyTimestampColumns()
-    this.migrateApiKeysColumns()
     this.migrateRevokedAtToDeleted()
     this.migrateAuditColumns()
-    this.migrateProjectColumns()
-    this.migrateAuthColumns()
+    this.migrateTenantIdColumns()
     this.migratePlaygroundSessionColumns()
-    this.ensureSuperAdminSeed()
-    this.ensureBuiltinSystemApiKey()
   }
 
   /** 通过路径打开（或创建）SQLite 数据库并初始化仓储。 */
@@ -439,22 +336,29 @@ export class FlowRepository {
     return new FlowRepository(db, seedConfig)
   }
 
-  /** SQLite 轻量迁移（已有库缺列时补齐）。 */
-  private migrateApiKeysColumns(): void {
-    const rows = this.db.query(`PRAGMA table_info(api_keys)`).all() as Array<{ name: string }>
-    const names = new Set(rows.map((r) => r.name))
-    const tryAdd = (sql: string) => {
-      try {
-        this.db.run(sql)
-      } catch {
-        /* 列已存在或表不存在 */
+  /**
+   * 存量 SQLite 库升级：将 tenant_id 列重命名为 tenant_id（ADR-0012 addendum）。
+   * 新建库直接使用 SCHEMA 中的 tenant_id，此方法仅用于存量库平滑升级。
+   */
+  private migrateTenantIdColumns(): void {
+    const tryRun = (sql: string) => {
+      try { this.db.run(sql) } catch { /* ignore */ }
+    }
+    const renamePidToTid = (table: string) => {
+      const cols = this.tableColumnNames(table)
+      if (cols.has('tenant_id') && !cols.has('tenant_id')) {
+        tryRun(`ALTER TABLE ${table} RENAME COLUMN tenant_id TO tenant_id`)
+      } else if (!cols.has('tenant_id') && cols.size > 0) {
+        tryRun(`ALTER TABLE ${table} ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''`)
       }
     }
-    if (!names.has('expires_at')) tryAdd(`ALTER TABLE api_keys ADD COLUMN expires_at TEXT`)
-    if (!names.has('allowed_tools_json')) tryAdd(`ALTER TABLE api_keys ADD COLUMN allowed_tools_json TEXT`)
-    if (!names.has('project_id')) tryAdd(`ALTER TABLE api_keys ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-    if (!names.has('access_level')) tryAdd(`ALTER TABLE api_keys ADD COLUMN access_level TEXT NOT NULL DEFAULT 'project'`)
-    this.db.run(`UPDATE api_keys SET access_level = 'project' WHERE access_level IS NULL OR TRIM(access_level) = ''`)
+    for (const t of ['flows', 'custom_component_templates', 'webhook_invocations']) {
+      renamePidToTid(t)
+    }
+    const flowsCols = this.tableColumnNames('flows')
+    if (flowsCols.has('tenant_id')) {
+      tryRun(`CREATE INDEX IF NOT EXISTS idx_flows_tenant ON flows(tenant_id)`)
+    }
   }
 
   /** 旧库 `revoked_at` → `deleted`（毫秒时间戳），并补齐 `update_time`。 */
@@ -493,9 +397,7 @@ export class FlowRepository {
       }
       tryDropRevoked(table)
     }
-    migrateTable('api_keys')
-    migrateTable('oauth_access_tokens')
-    migrateTable('oauth_refresh_tokens')
+    // api_keys, oauth_access_tokens, oauth_refresh_tokens removed (ADR-0012 addendum)
   }
 
   /** 存量库补齐与 MySQL 一致的审计列，以及 flow_graphs / messages 等表的 `create_time`/`update_time`。 */
@@ -518,16 +420,11 @@ export class FlowRepository {
       if (!c.has('updater_type')) tryAdd(`ALTER TABLE ${table} ADD COLUMN updater_type TEXT`)
     }
     for (const t of [
-      'projects',
       'flows',
       'flow_graphs',
       'playground_sessions',
       'playground_messages',
       'custom_component_templates',
-      'api_keys',
-      'auth_users',
-      'oauth_access_tokens',
-      'oauth_refresh_tokens',
       'webhook_invocations',
       'app_kv',
     ]) {
@@ -581,15 +478,10 @@ export class FlowRepository {
       }
     }
     const tables = [
-      'projects',
       'flows',
       'playground_sessions',
       'playground_messages',
       'custom_component_templates',
-      'api_keys',
-      'auth_users',
-      'oauth_access_tokens',
-      'oauth_refresh_tokens',
       'webhook_invocations',
       'app_kv',
     ]
@@ -605,116 +497,6 @@ export class FlowRepository {
       } catch {
         /* ignore */
       }
-    }
-  }
-
-  /** 补齐 projects 表与各资源 project_id 列，并回填默认项目。 */
-  private migrateProjectColumns(): void {
-    const tryRun = (sql: string) => {
-      try {
-        this.db.run(sql)
-      } catch {
-        /* ignore */
-      }
-    }
-    tryRun(`CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL DEFAULT '',
-      create_by TEXT NOT NULL DEFAULT 'system',
-      creator_id TEXT,
-      creator_type TEXT,
-      create_time TEXT NOT NULL,
-      update_by TEXT NOT NULL DEFAULT 'system',
-      updater_id TEXT,
-      updater_type TEXT,
-      update_time TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT ''
-    )`)
-
-    const projCols0 = this.tableColumnNames('projects')
-    if (!projCols0.has('project_id')) {
-      tryRun(`ALTER TABLE projects ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-    }
-
-    const flowsCols = this.tableColumnNames('flows')
-    if (!flowsCols.has('project_id')) {
-      tryRun(`ALTER TABLE flows ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-    }
-
-    const apiCols = this.tableColumnNames('api_keys')
-    if (apiCols.has('tenant_scope') && apiCols.has('project_id')) {
-      tryRun(
-        `UPDATE api_keys SET project_id = TRIM(tenant_scope) WHERE (project_id = '' OR project_id IS NULL) AND tenant_scope IS NOT NULL AND TRIM(tenant_scope) != ''`,
-      )
-    }
-
-    const tplCols = this.tableColumnNames('custom_component_templates')
-    if (!tplCols.has('project_id')) {
-      tryRun(`ALTER TABLE custom_component_templates ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-    }
-
-    const whCols = this.tableColumnNames('webhook_invocations')
-    if (!whCols.has('project_id')) {
-      tryRun(`ALTER TABLE webhook_invocations ADD COLUMN project_id TEXT NOT NULL DEFAULT ''`)
-    }
-
-    const flowsCols2 = this.tableColumnNames('flows')
-    if (flowsCols2.has('project_id')) {
-      tryRun(`CREATE INDEX IF NOT EXISTS idx_flows_project ON flows(project_id)`)
-    }
-
-    this.backfillProjectsTenantIds()
-    this.ensureDefaultProjectMigration()
-  }
-
-  /** 为存量 projects 行写入租户 project_id，并把子表 project_id 从内部 id 切到租户 id。 */
-  private backfillProjectsTenantIds(): void {
-    const rows = this.db
-      .query(`SELECT id, name, project_id FROM projects`)
-      .all() as Array<{ id: string; name: string; project_id: string }>
-    const used = new Set(rows.map((r) => r.project_id).filter((p) => p.trim() !== ''))
-    for (const r of rows) {
-      let tenant = (r.project_id ?? '').trim()
-      if (tenant) continue
-      let base = slugifyTenantProjectId(r.name)
-      let candidate = base || 'project'
-      let n = 0
-      while (used.has(candidate)) {
-        n += 1
-        candidate = tenantSlugWithSuffix(base || 'project', n)
-      }
-      used.add(candidate)
-      this.db.run(`UPDATE projects SET project_id = ? WHERE id = ?`, [candidate, r.id])
-      this.db.run(`UPDATE flows SET project_id = ? WHERE project_id = ?`, [candidate, r.id])
-      this.db.run(
-        `UPDATE api_keys SET project_id = ? WHERE project_id = ? AND COALESCE(access_level, 'project') != 'system'`,
-        [candidate, r.id],
-      )
-      this.db.run(`UPDATE custom_component_templates SET project_id = ? WHERE project_id = ?`, [candidate, r.id])
-      this.db.run(`UPDATE webhook_invocations SET project_id = ? WHERE project_id = ?`, [candidate, r.id])
-      this.db.run(`UPDATE auth_users SET default_project_id = ? WHERE default_project_id = ?`, [candidate, r.id])
-    }
-  }
-
-  private migrateAuthColumns(): void {
-    const tryAdd = (sql: string) => {
-      try {
-        this.db.run(sql)
-      } catch {
-        /* ignore */
-      }
-    }
-    const authUserCols = this.tableColumnNames('auth_users')
-    if (!authUserCols.has('role')) {
-      tryAdd(`ALTER TABLE auth_users ADD COLUMN role TEXT NOT NULL DEFAULT 'super_admin'`)
-    }
-    if (!authUserCols.has('default_project_id')) {
-      tryAdd(`ALTER TABLE auth_users ADD COLUMN default_project_id TEXT`)
-    }
-    const accessCols = this.tableColumnNames('oauth_access_tokens')
-    if (!accessCols.has('scope_json')) {
-      tryAdd(`ALTER TABLE oauth_access_tokens ADD COLUMN scope_json TEXT`)
     }
   }
 
@@ -738,112 +520,14 @@ export class FlowRepository {
     }
   }
 
-  private ensureDefaultProjectMigration(): void {
-    const countRow = this.db.query(`SELECT COUNT(1) as c FROM projects`).get() as { c: number } | undefined
-    if ((countRow?.c ?? 0) === 0) {
-      const id = SnowflakeUtil.nextId()
-      const now = new Date().toISOString()
-      this.db.run(
-        `INSERT INTO projects (id, project_id, name, description, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, 'default', '默认项目', '', now, now],
-      )
-    }
-    const first = this.db.query(`SELECT id, project_id FROM projects ORDER BY create_time ASC LIMIT 1`).get() as
-      | { id: string; project_id: string }
-      | undefined
-    if (!first?.id) return
-    const tenantPid = (first.project_id ?? '').trim() || first.id
-    this.db.run(`UPDATE flows SET project_id = ? WHERE project_id = '' OR project_id IS NULL`, [tenantPid])
-    this.db.run(
-      `UPDATE api_keys SET project_id = ? WHERE (project_id = '' OR project_id IS NULL) AND COALESCE(access_level, 'project') != 'system'`,
-      [tenantPid],
-    )
-    this.db.run(`UPDATE custom_component_templates SET project_id = ? WHERE project_id = '' OR project_id IS NULL`, [
-      tenantPid,
-    ])
-    this.db.run(`UPDATE webhook_invocations SET project_id = ? WHERE project_id = '' OR project_id IS NULL`, [tenantPid])
-  }
-
-  /**
-   * 当 `auth_users` 尚无任何用户时，写入一条内置超级管理员（`role = super_admin`）。
-   * 用户名/明文密码来自环境变量；未设置时默认为 `admin` / `ChangeMe123!`（生产环境请务必通过
-   * `CUBE_SUPER_ADMIN_PASSWORD` 覆盖，并在首次启动前配置好）。
-   * 仅在表为空时执行一次；若库中已有用户，不会覆盖或重复插入。
-   */
-  private ensureSuperAdminSeed(): void {
-    const countRow = this.db.query(`SELECT COUNT(1) as c FROM auth_users`).get() as { c: number } | undefined
-    if ((countRow?.c ?? 0) > 0) return
-    const defaultProject = this.db.query(`SELECT id, project_id FROM projects ORDER BY create_time ASC LIMIT 1`).get() as
-      | { id: string; project_id: string }
-      | undefined
-    const now = new Date().toISOString()
-    const username = this.seedConfig.superAdminUsername ?? process.env.CUBE_SUPER_ADMIN_USERNAME?.trim() ?? 'admin'
-    const password = this.seedConfig.superAdminPassword ?? process.env.CUBE_SUPER_ADMIN_PASSWORD?.trim() ?? 'ChangeMe123!'
-    const userId = SnowflakeUtil.nextId()
-    const defaultTenant = defaultProject?.project_id?.trim()
-      ? defaultProject.project_id.trim()
-      : defaultProject?.id ?? null
-    this.db.run(
-      `INSERT INTO auth_users (id, username, password_hash, password_algo, status, role, default_project_id, create_time, update_time)
-       VALUES (?, ?, ?, ?, 'active', 'super_admin', ?, ?, ?)`,
-      [
-        userId,
-        username,
-        hashPassword(password),
-        'pbkdf2_sha256',
-        defaultTenant,
-        now,
-        now,
-      ],
-    )
-  }
-
-  /**
-   * 若不存在固定 id 的内置系统级 API Key，则插入一条（access_level = system，不绑定项目）。
-   * 明文密钥由 `CUBE_AI_BUILTIN_SYSTEM_API_KEY` 提供；未设置时使用仅适用于本地开发的默认值，生产环境务必覆盖。
-   */
-  private ensureBuiltinSystemApiKey(): void {
-    const row = this.db.query('SELECT id FROM api_keys WHERE id = ?').get(BUILTIN_SYSTEM_API_KEY_ID) as
-      | { id: string }
-      | undefined
-    if (row) {
-      this.db.run(`UPDATE api_keys SET scopes_json = ? WHERE id = ?`, [
-        JSON.stringify(['run', 'kb', 'search', 'documents']),
-        BUILTIN_SYSTEM_API_KEY_ID,
-      ])
-      return
-    }
-    const secret = this.seedConfig.builtinSystemApiKey ?? process.env.CUBE_AI_BUILTIN_SYSTEM_API_KEY?.trim() ?? 'sk_cube_builtin_system_ChangeMeInProduction'
-    const now = new Date().toISOString()
-    const prefix = secret.slice(0, 10)
-    this.db.run(
-      `INSERT INTO api_keys (id, name, key_hash, key_prefix, flow_id, scopes_json, project_id, access_level, expires_at, allowed_tools_json, create_time, update_time, deleted, last_used_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
-      [
-        BUILTIN_SYSTEM_API_KEY_ID,
-        'Built-in system',
-        hashApiKey(secret),
-        prefix,
-        null,
-        JSON.stringify(['run', 'kb', 'search', 'documents']),
-        '',
-        'system',
-        null,
-        null,
-        now,
-        now,
-      ],
-    )
-  }
-
   createFlow(
     tenantId: string,
-    row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null },
+    row: Omit<FlowRow, 'lf_snapshot_json' | 'tenant_id'> & { lf_snapshot_json?: string | null },
     graphJson: string,
   ): void {
     const tx = this.db.transaction(() => {
       this.db.run(
-        `INSERT INTO flows (id, name, description, langflow_flow_id, binding_status, cube_revision, create_time, update_time, lf_snapshot_json, project_id)
+        `INSERT INTO flows (id, name, description, langflow_flow_id, binding_status, cube_revision, create_time, update_time, lf_snapshot_json, tenant_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id,
@@ -885,7 +569,7 @@ export class FlowRepository {
         cube_revision = ?,
         update_time = ?,
         update_by = 'system'
-      WHERE id = ? AND project_id = ?`,
+      WHERE id = ? AND tenant_id = ?`,
       [
         patch.name ?? null,
         patch.description ?? null,
@@ -902,7 +586,7 @@ export class FlowRepository {
   setLfSnapshot(tenantId: string, id: string, json: string | null): void {
     const now = new Date().toISOString()
     this.db.run(
-      `UPDATE flows SET lf_snapshot_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ?`,
+      `UPDATE flows SET lf_snapshot_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND tenant_id = ?`,
       [json, now, id, tenantId],
     )
   }
@@ -915,13 +599,13 @@ export class FlowRepository {
       id,
     ])
     this.db.run(
-      `UPDATE flows SET update_time = ?, cube_revision = cube_revision + 1, update_by = 'system' WHERE id = ? AND project_id = ?`,
+      `UPDATE flows SET update_time = ?, cube_revision = cube_revision + 1, update_by = 'system' WHERE id = ? AND tenant_id = ?`,
       [now, id, tenantId],
     )
   }
 
   deleteFlow(tenantId: string, id: string): void {
-    this.db.run(`DELETE FROM flows WHERE id = ? AND project_id = ?`, [id, tenantId])
+    this.db.run(`DELETE FROM flows WHERE id = ? AND tenant_id = ?`, [id, tenantId])
   }
 
   listFlows(tenantId?: string | null): FlowRow[] {
@@ -929,7 +613,7 @@ export class FlowRepository {
       return this.db.query('SELECT * FROM flows ORDER BY update_time DESC').all() as FlowRow[]
     }
     return this.db
-      .query('SELECT * FROM flows WHERE project_id = ? ORDER BY update_time DESC')
+      .query('SELECT * FROM flows WHERE tenant_id = ? ORDER BY update_time DESC')
       .all(tenantId) as FlowRow[]
   }
 
@@ -939,7 +623,7 @@ export class FlowRepository {
       return r ?? null
     }
     const r = this.db
-      .query('SELECT * FROM flows WHERE id = ? AND project_id = ?')
+      .query('SELECT * FROM flows WHERE id = ? AND tenant_id = ?')
       .get(id, tenantId) as FlowRow | undefined
     return r ?? null
   }
@@ -950,7 +634,7 @@ export class FlowRepository {
   }
 
   countFlowsInProject(tenantId: string): number {
-    const r = this.db.query(`SELECT COUNT(1) as n FROM flows WHERE project_id = ?`).get(tenantId) as
+    const r = this.db.query(`SELECT COUNT(1) as n FROM flows WHERE tenant_id = ?`).get(tenantId) as
       | { n: number }
       | undefined
     return r?.n ?? 0
@@ -958,14 +642,14 @@ export class FlowRepository {
 
   countApiKeysInProject(tenantId: string): number {
     const r = this.db
-      .query(`SELECT COUNT(1) as n FROM api_keys WHERE project_id = ? AND deleted = 0`)
+      .query(`SELECT COUNT(1) as n FROM api_keys WHERE tenant_id = ? AND deleted = 0`)
       .get(tenantId) as { n: number } | undefined
     return r?.n ?? 0
   }
 
   countCustomTemplatesInProject(tenantId: string): number {
     const r = this.db
-      .query(`SELECT COUNT(1) as n FROM custom_component_templates WHERE project_id = ?`)
+      .query(`SELECT COUNT(1) as n FROM custom_component_templates WHERE tenant_id = ?`)
       .get(tenantId) as { n: number } | undefined
     return r?.n ?? 0
   }
@@ -1130,7 +814,7 @@ export class FlowRepository {
         .all() as CustomComponentTemplateRow[]
     }
     return this.db
-      .query(`SELECT * FROM custom_component_templates WHERE project_id = ? ORDER BY update_time DESC`)
+      .query(`SELECT * FROM custom_component_templates WHERE tenant_id = ? ORDER BY update_time DESC`)
       .all(tenantId) as CustomComponentTemplateRow[]
   }
 
@@ -1142,18 +826,18 @@ export class FlowRepository {
       return r ?? null
     }
     const r = this.db
-      .query(`SELECT * FROM custom_component_templates WHERE id = ? AND project_id = ?`)
+      .query(`SELECT * FROM custom_component_templates WHERE id = ? AND tenant_id = ?`)
       .get(id, tenantId) as CustomComponentTemplateRow | undefined
     return r ?? null
   }
 
   insertCustomComponentTemplate(
     tenantId: string,
-    row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>,
+    row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'tenant_id' | keyof AuditColumns>,
   ): void {
     const now = new Date().toISOString()
     this.db.run(
-      `INSERT INTO custom_component_templates (id, display_name, dsl_json, create_time, update_time, project_id)
+      `INSERT INTO custom_component_templates (id, display_name, dsl_json, create_time, update_time, tenant_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [row.id, row.display_name, row.dsl_json, now, now, tenantId],
     )
@@ -1170,20 +854,20 @@ export class FlowRepository {
     const displayName = patch.display_name ?? row.display_name
     const dsl = patch.dsl_json ?? row.dsl_json
     this.db.run(
-      `UPDATE custom_component_templates SET display_name = ?, dsl_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ?`,
+      `UPDATE custom_component_templates SET display_name = ?, dsl_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND tenant_id = ?`,
       [displayName, dsl, now, id, tenantId],
     )
   }
 
   deleteCustomComponentTemplate(tenantId: string, id: string): void {
-    this.db.run(`DELETE FROM custom_component_templates WHERE id = ? AND project_id = ?`, [id, tenantId])
+    this.db.run(`DELETE FROM custom_component_templates WHERE id = ? AND tenant_id = ?`, [id, tenantId])
   }
 
   // --- Developer API keys ---
 
   insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): void {
     this.db.run(
-      `INSERT INTO api_keys (id, name, key_hash, key_prefix, flow_id, scopes_json, project_id, access_level, expires_at, allowed_tools_json, create_time, update_time, deleted, last_used_at)
+      `INSERT INTO api_keys (id, name, key_hash, key_prefix, flow_id, scopes_json, tenant_id, access_level, expires_at, allowed_tools_json, create_time, update_time, deleted, last_used_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
       [
         row.id,
@@ -1192,7 +876,7 @@ export class FlowRepository {
         row.key_prefix,
         row.flow_id,
         row.scopes_json,
-        row.project_id,
+        row.tenant_id,
         row.access_level,
         row.expires_at,
         row.allowed_tools_json,
@@ -1210,7 +894,7 @@ export class FlowRepository {
     }
     return this.db
       .query(
-        'SELECT * FROM api_keys WHERE project_id = ? AND deleted = 0 ORDER BY create_time DESC',
+        'SELECT * FROM api_keys WHERE tenant_id = ? AND deleted = 0 ORDER BY create_time DESC',
       )
       .all(tenantId) as ApiKeyRow[]
   }
@@ -1223,7 +907,7 @@ export class FlowRepository {
       return r ?? null
     }
     const r = this.db
-      .query('SELECT * FROM api_keys WHERE id = ? AND project_id = ? AND deleted = 0')
+      .query('SELECT * FROM api_keys WHERE id = ? AND tenant_id = ? AND deleted = 0')
       .get(id, tenantId) as ApiKeyRow | undefined
     return r ?? null
   }
@@ -1239,7 +923,7 @@ export class FlowRepository {
       return
     }
     this.db.run(
-      `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ? AND deleted = 0`,
+      `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND tenant_id = ? AND deleted = 0`,
       [del, now, id, tenantId],
     )
   }
@@ -1415,7 +1099,7 @@ export class FlowRepository {
   insertWebhookInvocation(row: {
     id: string
     flow_id: string
-    project_id: string
+    tenant_id: string
     source: string | null
     payload_json: string
     status: string
@@ -1423,8 +1107,8 @@ export class FlowRepository {
   }): void {
     const u = row.create_time
     this.db.run(
-      `INSERT INTO webhook_invocations (id, flow_id, source, payload_json, status, create_time, update_time, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, row.flow_id, row.source, row.payload_json, row.status, row.create_time, u, row.project_id],
+      `INSERT INTO webhook_invocations (id, flow_id, source, payload_json, status, create_time, update_time, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [row.id, row.flow_id, row.source, row.payload_json, row.status, row.create_time, u, row.tenant_id],
     )
   }
 
@@ -1469,7 +1153,7 @@ export class ProjectRepository {
 
   getProject(key: string): ProjectRow | null {
     const r = this.db
-      .query(`SELECT * FROM projects WHERE id = ? OR project_id = ?`)
+      .query(`SELECT * FROM projects WHERE id = ? OR tenant_id = ?`)
       .get(key, key) as ProjectRow | undefined
     return r ?? null
   }
@@ -1477,19 +1161,19 @@ export class ProjectRepository {
   allocateUniqueTenantProjectId(_name: string): string {
     for (let attempt = 0; attempt < 64; attempt++) {
       const id = generateTenantProjectId()
-      const row = this.db.query(`SELECT project_id FROM projects WHERE project_id = ?`).get(id) as
-        | { project_id: string }
+      const row = this.db.query(`SELECT tenant_id FROM projects WHERE tenant_id = ?`).get(id) as
+        | { tenant_id: string }
         | undefined
       if (!row) return id
     }
-    throw new Error('could not allocate unique tenant project_id')
+    throw new Error('could not allocate unique tenant tenant_id')
   }
 
-  insertProject(row: { id: string; project_id: string; name: string; description: string }): void {
+  insertProject(row: { id: string; tenant_id: string; name: string; description: string }): void {
     const now = new Date().toISOString()
     this.db.run(
-      `INSERT INTO projects (id, project_id, name, description, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      [row.id, row.project_id, row.name, row.description, now, now],
+      `INSERT INTO projects (id, tenant_id, name, description, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?)`,
+      [row.id, row.tenant_id, row.name, row.description, now, now],
     )
   }
 

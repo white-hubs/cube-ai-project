@@ -46,7 +46,7 @@ export function documentEntityToJson(entity: DocumentEntity): DocumentJson {
   const deleted = entity.deleted
   return {
     id: String(entity.id),
-    tenantId: entity.project_id,
+    tenantId: entity.tenant_id,
     deleted: deleted === null || deleted === undefined ? null : String(deleted),
     createBy: entity.create_by,
     creatorId: entity.creator_id,

@@ -77,7 +77,7 @@ function normalizeApiKeyRow(row: Record<string, unknown>): ApiKeyRow {
     key_prefix: String(row['key_prefix']),
     flow_id: row['flow_id'] == null ? null : String(row['flow_id']),
     scopes_json: row['scopes_json'] == null ? null : String(row['scopes_json']),
-    project_id: row['project_id'] == null ? '' : String(row['project_id']),
+    tenant_id: row['tenant_id'] == null ? '' : String(row['tenant_id']),
     access_level: row['access_level'] === 'system' ? 'system' : 'project',
     create_time: normalizeDateValue(row['create_time']) ?? '',
     update_time: normalizeDateValue(row['update_time']) ?? '',
@@ -100,7 +100,7 @@ function normalizeFlowRow(row: Record<string, unknown>): FlowRow {
     create_time: normalizeDateValue(row['create_time']) ?? '',
     update_time: normalizeDateValue(row['update_time']) ?? '',
     lf_snapshot_json: row['lf_snapshot_json'] == null ? null : String(row['lf_snapshot_json']),
-    project_id: String(row['project_id'] ?? ''),
+    tenant_id: String(row['tenant_id'] ?? ''),
   }
 }
 
@@ -108,7 +108,7 @@ function normalizeProjectRow(row: Record<string, unknown>): ProjectRow {
   return {
     ...normalizeAudit(row),
     id: String(row['id']),
-    project_id: String(row['project_id'] ?? ''),
+    tenant_id: String(row['tenant_id'] ?? ''),
     name: String(row['name']),
     description: String(row['description'] ?? ''),
     create_time: normalizeDateValue(row['create_time']) ?? '',
@@ -152,7 +152,7 @@ function normalizeTemplateRow(row: Record<string, unknown>): CustomComponentTemp
     dsl_json: String(row['dsl_json']),
     create_time: normalizeDateValue(row['create_time']) ?? '',
     update_time: normalizeDateValue(row['update_time']) ?? '',
-    project_id: String(row['project_id'] ?? ''),
+    tenant_id: String(row['tenant_id'] ?? ''),
   }
 }
 
@@ -224,7 +224,7 @@ class MysqlRepositoryBase {
     const pid = currentTenantId()?.trim()
     if (!pid) return { sql: '', params: [] }
     const prefix = alias ? `${alias}.` : ''
-    return { sql: `${prefix}project_id = ?`, params: [pid] }
+    return { sql: `${prefix}tenant_id = ?`, params: [pid] }
   }
 }
 
@@ -234,11 +234,11 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const projectCount = await this.countProjectsInternal()
     if (projectCount === 0) {
       const defaultProjectAny = await this.one<{ id: string; deleted: number }>(
-        'SELECT id, deleted FROM projects WHERE project_id = ? ORDER BY create_time ASC LIMIT 1',
+        'SELECT id, deleted FROM projects WHERE tenant_id = ? ORDER BY create_time ASC LIMIT 1',
         ['default'],
       )
       if (defaultProjectAny) {
-        // `project_id` 全局唯一；若历史上软删过 default，则恢复它而不是重新插入。
+        // `tenant_id` 全局唯一；若历史上软删过 default，则恢复它而不是重新插入。
         await this.exec(
           `UPDATE projects
            SET deleted = 0,
@@ -251,16 +251,16 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       } else {
         await this.insertProjectInternal({
           id: SnowflakeUtil.nextId(),
-          project_id: 'default',
+          tenant_id: 'default',
           name: '默认项目',
           description: '',
         })
       }
     }
     const firstProject = await this.one<Record<string, unknown>>(
-      'SELECT id, project_id FROM projects WHERE deleted = 0 ORDER BY create_time ASC LIMIT 1',
+      'SELECT id, tenant_id FROM projects WHERE deleted = 0 ORDER BY create_time ASC LIMIT 1',
     )
-    const defaultProjectTenantId = firstProject ? String(firstProject['project_id'] ?? '') : null
+    const defaultProjectTenantId = firstProject ? String(firstProject['tenant_id'] ?? '') : null
 
     const userCount = await this.one<{ c: number }>('SELECT COUNT(1) AS c FROM auth_users WHERE deleted = 0')
     if ((userCount?.c ?? 0) === 0) {
@@ -288,7 +288,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
         await this.exec(
           `UPDATE api_keys
            SET deleted = 0,
-               project_id = '',
+               tenant_id = '',
                access_level = 'system',
                update_time = ?
            WHERE id = ?`,
@@ -312,7 +312,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
                flow_id = NULL,
                scopes_json = ?,
                access_level = 'system',
-               project_id = '',
+               tenant_id = '',
                expires_at = NULL,
                allowed_tools_json = NULL,
                update_time = ?
@@ -334,7 +334,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
         key_prefix: secret.slice(0, 10),
         flow_id: null,
         scopes_json: JSON.stringify(['run', 'kb', 'search', 'documents']),
-        project_id: '',
+        tenant_id: '',
         access_level: 'system',
         create_time: nowIso(),
         expires_at: null,
@@ -349,27 +349,27 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     return row?.c ?? 0
   }
 
-  private async insertProjectInternal(row: { id: string; project_id: string; name: string; description: string }): Promise<void> {
+  private async insertProjectInternal(row: { id: string; tenant_id: string; name: string; description: string }): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO projects
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
-      [row.id, row.project_id, now, now, row.name, row.description],
+      [row.id, row.tenant_id, now, now, row.name, row.description],
     )
   }
 
-  public async createFlow(tenantId: string, row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null }, graphJson: string): Promise<void> {
+  public async createFlow(tenantId: string, row: Omit<FlowRow, 'lf_snapshot_json' | 'tenant_id'> & { lf_snapshot_json?: string | null }, graphJson: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO flows
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description, langflow_flow_id, binding_status, cube_revision, lf_snapshot_json)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description, langflow_flow_id, binding_status, cube_revision, lf_snapshot_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [row.id, tenantId, now, now, row.name, row.description, row.langflow_flow_id, row.binding_status, row.cube_revision, row.lf_snapshot_json ?? null],
     )
     await this.exec(
       `INSERT INTO flow_graphs
-      (flow_id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, graph_json)
+      (flow_id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, graph_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?)`,
       [row.id, tenantId, now, now, graphJson],
     )
@@ -387,7 +387,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
            binding_status = COALESCE(?, binding_status),
            cube_revision = ?,
            update_time = ?
-       WHERE id = ? AND project_id = ? AND deleted = 0`,
+       WHERE id = ? AND tenant_id = ? AND deleted = 0`,
       [
         patch.name ?? null,
         patch.description ?? null,
@@ -403,7 +403,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 
   public async setLfSnapshot(tenantId: string, id: string, json: string | null): Promise<void> {
     await this.exec(
-      'UPDATE flows SET lf_snapshot_json = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0',
+      'UPDATE flows SET lf_snapshot_json = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0',
       [json, formatMysqlDateTimeShanghai(), id, tenantId],
     )
   }
@@ -411,11 +411,11 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   public async updateGraph(tenantId: string, id: string, graphJson: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
-      'UPDATE flow_graphs SET graph_json = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0',
+      'UPDATE flow_graphs SET graph_json = ?, update_time = ? WHERE flow_id = ? AND tenant_id = ? AND deleted = 0',
       [graphJson, now, id, tenantId],
     )
     await this.exec(
-      'UPDATE flows SET cube_revision = cube_revision + 1, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0',
+      'UPDATE flows SET cube_revision = cube_revision + 1, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0',
       [now, id, tenantId],
     )
   }
@@ -423,11 +423,11 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   public async deleteFlow(tenantId: string, id: string): Promise<void> {
     const del = deletedValue()
     const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE flows SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
-    await this.exec('UPDATE flow_graphs SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
-    await this.exec('UPDATE playground_sessions SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
+    await this.exec('UPDATE flows SET deleted = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0', [del, now, id, tenantId])
+    await this.exec('UPDATE flow_graphs SET deleted = ?, update_time = ? WHERE flow_id = ? AND tenant_id = ? AND deleted = 0', [del, now, id, tenantId])
+    await this.exec('UPDATE playground_sessions SET deleted = ?, update_time = ? WHERE flow_id = ? AND tenant_id = ? AND deleted = 0', [del, now, id, tenantId])
     await this.exec(
-      'UPDATE playground_messages SET deleted = ?, update_time = ? WHERE session_id IN (SELECT id FROM playground_sessions WHERE flow_id = ? AND project_id = ?) AND deleted = 0',
+      'UPDATE playground_messages SET deleted = ?, update_time = ? WHERE session_id IN (SELECT id FROM playground_sessions WHERE flow_id = ? AND tenant_id = ?) AND deleted = 0',
       [del, now, id, tenantId],
     )
   }
@@ -436,7 +436,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const params: unknown[] = []
     let sql = 'SELECT * FROM flows WHERE deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     sql += ' ORDER BY update_time DESC'
@@ -447,7 +447,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const params: unknown[] = [id]
     let sql = 'SELECT * FROM flows WHERE id = ? AND deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
@@ -459,20 +459,20 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   }
 
   public async countFlowsInProject(tenantId: string): Promise<number> {
-    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM flows WHERE project_id = ? AND deleted = 0', [tenantId])
+    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM flows WHERE tenant_id = ? AND deleted = 0', [tenantId])
     return row?.n ?? 0
   }
 
   public async countApiKeysInProject(tenantId: string): Promise<number> {
     const row = await this.one<{ n: number }>(
-      'SELECT COUNT(1) AS n FROM api_keys WHERE project_id = ? AND deleted = 0',
+      'SELECT COUNT(1) AS n FROM api_keys WHERE tenant_id = ? AND deleted = 0',
       [tenantId],
     )
     return row?.n ?? 0
   }
 
   public async countCustomTemplatesInProject(tenantId: string): Promise<number> {
-    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM custom_component_templates WHERE project_id = ? AND deleted = 0', [tenantId])
+    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM custom_component_templates WHERE tenant_id = ? AND deleted = 0', [tenantId])
     return row?.n ?? 0
   }
 
@@ -516,11 +516,11 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     }
     await this.exec(
       `INSERT INTO playground_sessions
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, flow_id, title, user_id, is_default, chat_history, last_message)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, flow_id, title, user_id, is_default, chat_history, last_message)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        flow.project_id,
+        flow.tenant_id,
         now,
         now,
         flowId,
@@ -561,15 +561,15 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   }
 
   public async appendPlaygroundMessage(sessionId: string, role: 'user' | 'bot', content: string): Promise<void> {
-    const session = await this.one<Record<string, unknown>>('SELECT project_id FROM playground_sessions WHERE id = ? AND deleted = 0', [sessionId])
-    const tenantId = session ? String(session['project_id']) : ''
+    const session = await this.one<Record<string, unknown>>('SELECT tenant_id FROM playground_sessions WHERE id = ? AND deleted = 0', [sessionId])
+    const tenantId = session ? String(session['tenant_id']) : ''
     const now = formatMysqlDateTimeShanghai()
     const seqRow = await this.one<{ m: number }>('SELECT COALESCE(MAX(seq), -1) AS m FROM playground_messages WHERE session_id = ? AND deleted = 0', [sessionId])
     const seq = (seqRow?.m ?? -1) + 1
     const msgId = SnowflakeUtil.nextId()
     await this.exec(
       `INSERT INTO playground_messages
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, session_id, role, content, seq)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, session_id, role, content, seq)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?)`,
       [msgId, tenantId, now, now, sessionId, role, content, seq],
     )
@@ -607,9 +607,9 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 
   public async listCustomComponentTemplates(tenantId?: string | null): Promise<CustomComponentTemplateRow[]> {
     const params: unknown[] = []
-    let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, project_id FROM custom_component_templates WHERE deleted = 0'
+    let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, tenant_id FROM custom_component_templates WHERE deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     sql += ' ORDER BY update_time DESC'
@@ -618,20 +618,20 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 
   public async getCustomComponentTemplate(id: string, tenantId?: string | null): Promise<CustomComponentTemplateRow | null> {
     const params: unknown[] = [id]
-    let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, project_id FROM custom_component_templates WHERE id = ? AND deleted = 0'
+    let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, tenant_id FROM custom_component_templates WHERE id = ? AND deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
     return row ? normalizeTemplateRow(row) : null
   }
 
-  public async insertCustomComponentTemplate(tenantId: string, row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>): Promise<void> {
+  public async insertCustomComponentTemplate(tenantId: string, row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'tenant_id' | keyof AuditColumns>): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO custom_component_templates
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, display_name, dsl_json)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, display_name, dsl_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
       [row.id, tenantId, now, now, row.display_name, row.dsl_json],
     )
@@ -644,22 +644,22 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     await this.exec(
       `UPDATE custom_component_templates
        SET display_name = ?, dsl_json = ?, update_time = ?
-       WHERE id = ? AND project_id = ? AND deleted = 0`,
+       WHERE id = ? AND tenant_id = ? AND deleted = 0`,
       [patch.display_name ?? row.display_name, patch.dsl_json ?? row.dsl_json, now, id, tenantId],
     )
   }
 
   public async deleteCustomComponentTemplate(tenantId: string, id: string): Promise<void> {
-    await this.exec('UPDATE custom_component_templates SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id, tenantId])
+    await this.exec('UPDATE custom_component_templates SET deleted = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id, tenantId])
   }
 
   public async insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): Promise<void> {
     const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
     await this.exec(
       `INSERT INTO api_keys
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, key_hash, key_prefix, flow_id, scopes_json, access_level, last_used_at, expires_at, allowed_tools_json)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, key_hash, key_prefix, flow_id, scopes_json, access_level, last_used_at, expires_at, allowed_tools_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-      [row.id, row.project_id || null, now, now, row.name, row.key_hash, row.key_prefix, row.flow_id, row.scopes_json, row.access_level, toDateTime(row.expires_at), row.allowed_tools_json],
+      [row.id, row.tenant_id || null, now, now, row.name, row.key_hash, row.key_prefix, row.flow_id, row.scopes_json, row.access_level, toDateTime(row.expires_at), row.allowed_tools_json],
     )
   }
 
@@ -667,7 +667,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const params: unknown[] = []
     let sql = 'SELECT * FROM api_keys WHERE deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     sql += ' ORDER BY create_time DESC'
@@ -678,7 +678,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const params: unknown[] = [id]
     let sql = 'SELECT * FROM api_keys WHERE id = ? AND deleted = 0'
     if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND project_id = ?'
+      sql += ' AND tenant_id = ?'
       params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
@@ -692,7 +692,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [del, now, id])
       return
     }
-    await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [
+    await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0', [
       del,
       now,
       id,
@@ -727,7 +727,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO auth_users
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, username, password_hash, password_algo, status, role, default_project_id)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, username, password_hash, password_algo, status, role, default_project_id)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [row.id, currentTenantId() ?? null, now, now, row.username, row.passwordHash, row.passwordAlgo, row.status, row.role, row.defaultProjectId],
     )
@@ -772,7 +772,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
     await this.exec(
       `INSERT INTO oauth_access_tokens
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, username, role, scope_json, expires_at)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, username, role, scope_json, expires_at)
       VALUES (?, NULL, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       [row.id, now, now, row.token_hash, row.user_id, row.username, row.role, row.scope_json, toDateTime(row.expires_at)],
     )
@@ -782,7 +782,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
     await this.exec(
       `INSERT INTO oauth_refresh_tokens
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, access_token_id, expires_at)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, access_token_id, expires_at)
       VALUES (?, NULL, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?)`,
       [row.id, now, now, row.token_hash, row.user_id, row.access_token_id, toDateTime(row.expires_at)],
     )
@@ -828,13 +828,13 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     ])
   }
 
-  public async insertWebhookInvocation(row: { id: string; flow_id: string; project_id: string; source: string | null; payload_json: string; status: string; create_time: string }): Promise<void> {
+  public async insertWebhookInvocation(row: { id: string; flow_id: string; tenant_id: string; source: string | null; payload_json: string; status: string; create_time: string }): Promise<void> {
     const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
     await this.exec(
       `INSERT INTO webhook_invocations
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, flow_id, source, payload_json, status)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, flow_id, source, payload_json, status)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?)`,
-      [row.id, row.project_id, now, now, row.flow_id, row.source, row.payload_json, row.status],
+      [row.id, row.tenant_id, now, now, row.flow_id, row.source, row.payload_json, row.status],
     )
   }
 
@@ -847,7 +847,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO app_kv
-      (kv_key, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, value_json)
+      (kv_key, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, value_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?)
       ON DUPLICATE KEY UPDATE value_json = VALUES(value_json), update_time = VALUES(update_time), deleted = 0`,
       [key, currentTenantId() ?? null, now, now, JSON.stringify(value)],
@@ -870,13 +870,13 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 export class MysqlProjectRepository extends MysqlRepositoryBase implements ProjectRepository {
   public async listProjects(): Promise<ProjectRow[]> {
     return (await this.q<Record<string, unknown>>(
-      'SELECT id, project_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 ORDER BY create_time ASC',
+      'SELECT id, tenant_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 ORDER BY create_time ASC',
     )).map(normalizeProjectRow)
   }
 
   public async getProject(key: string): Promise<ProjectRow | null> {
     const row = await this.one<Record<string, unknown>>(
-      'SELECT id, project_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 AND (id = ? OR project_id = ?)',
+      'SELECT id, tenant_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 AND (id = ? OR tenant_id = ?)',
       [key, key],
     )
     return row ? normalizeProjectRow(row) : null
@@ -886,7 +886,7 @@ export class MysqlProjectRepository extends MysqlRepositoryBase implements Proje
     for (let attempt = 0; attempt < 64; attempt++) {
       const id = generateTenantProjectId()
       const taken = await this.one<{ c: number }>(
-        'SELECT COUNT(1) AS c FROM projects WHERE project_id = ? AND deleted = 0',
+        'SELECT COUNT(1) AS c FROM projects WHERE tenant_id = ? AND deleted = 0',
         [id],
       )
       if ((taken?.c ?? 0) === 0) return id
@@ -894,13 +894,13 @@ export class MysqlProjectRepository extends MysqlRepositoryBase implements Proje
     throw new Error('could not allocate unique tenant project_id')
   }
 
-  public async insertProject(row: { id: string; project_id: string; name: string; description: string }): Promise<void> {
+  public async insertProject(row: { id: string; tenant_id: string; name: string; description: string }): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO projects
-      (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
+      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
-      [row.id, row.project_id, now, now, row.name, row.description],
+      [row.id, row.tenant_id, now, now, row.name, row.description],
     )
   }
 

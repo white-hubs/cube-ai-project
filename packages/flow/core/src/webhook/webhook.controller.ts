@@ -121,7 +121,7 @@ export class WebhookController {
     await this.repo.insertWebhookInvocation({
       id,
       flow_id: resolvedFlowId,
-      project_id: tenantId || flow?.project_id || '__global__',
+      tenant_id: tenantId || flow?.tenant_id || '__global__',
       source: ctx.request.headers.get('x-webhook-source'),
       payload_json: raw.slice(0, 500_000),
       status: 'accepted',

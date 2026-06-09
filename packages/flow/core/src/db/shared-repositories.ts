@@ -1,21 +1,17 @@
 import { loadAppConfig, type AppConfig } from '@cube-ai/server-base'
-import { type DatabaseModuleOptions, DatabaseService } from '@dangao/bun-server'
-import {
-  FlowRepository as SqliteFlowRepository,
-  ProjectRepository as SqliteProjectRepository,
-  type FlowRepositorySeedConfig,
-} from './sqlite'
+import mysql, { type Connection } from 'mysql2/promise'
 import {
   FLOW_REPOSITORY_TOKEN,
   PROJECT_REPOSITORY_TOKEN,
   type FlowRepository,
   type FlowRepositoryBundle,
+  type FlowRepositorySeedConfig,
   type ProjectRepository,
 } from './repository-contracts'
-import { MysqlFlowRepository, MysqlProjectRepository } from './mysql-repositories'
+import { MysqlFlowRepository, type MysqlQueryService, MysqlProjectRepository } from './mysql-repositories'
 
 type SharedRepositoriesState = {
-  mode: 'sqlite' | 'mysql'
+  mode: 'mysql'
   flowRepo: FlowRepository
   projectRepo: ProjectRepository
 }
@@ -23,39 +19,36 @@ type SharedRepositoriesState = {
 let _sharedRepositories: SharedRepositoriesState | null = null
 let _sharedRepositoriesPromise: Promise<FlowRepositoryBundle> | null = null
 
-function buildDatabaseOptions(config: AppConfig): DatabaseModuleOptions {
-  if (config.localDev) {
-    return {
-      database: {
-        type: 'sqlite',
-        config: { path: config.paths.sqlitePath },
-      },
-      enableHealthCheck: false,
-    }
+class Mysql2FlowQueryService implements MysqlQueryService {
+  private connection: Connection | null = null
+
+  public constructor(private readonly config: AppConfig) {}
+
+  public async initialize(): Promise<void> {
+    if (this.connection) return
+    this.connection = await mysql.createConnection({
+      host: this.config.mysqlHost,
+      port: this.config.mysqlPort,
+      database: this.config.mysqlDatabase,
+      user: this.config.mysqlUsername,
+      password: this.config.mysqlPassword,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
+    })
+    await this.connection.query("SET time_zone = '+08:00'")
   }
-  return {
-    database: {
-      type: 'mysql',
-      config: {
-        host: config.mysqlHost,
-        port: config.mysqlPort,
-        database: config.mysqlDatabase,
-        user: config.mysqlUsername,
-        password: config.mysqlPassword,
-      },
-    },
-    pool: {
-      maxConnections: 10,
-      connectionTimeout: 30000,
-      retryCount: 3,
-      retryDelay: 1000,
-    },
-    enableHealthCheck: true,
+
+  public async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (!this.connection) {
+      throw new Error('Flow MySQL connection is not initialized')
+    }
+    const [rows] = await this.connection.query(sql, params)
+    return Array.isArray(rows) ? (rows as T[]) : []
   }
 }
 
 export class MysqlFlowRepositoryPlaceholder implements FlowRepository {
-  constructor(private readonly db: DatabaseService) {
+  constructor(private readonly db: MysqlQueryService) {
     void this.db
   }
 
@@ -117,7 +110,7 @@ export class MysqlFlowRepositoryPlaceholder implements FlowRepository {
 }
 
 export class MysqlProjectRepositoryPlaceholder implements ProjectRepository {
-  constructor(private readonly db: DatabaseService) {
+  constructor(private readonly db: MysqlQueryService) {
     void this.db
   }
 
@@ -147,19 +140,12 @@ export async function initSharedRepositories(
   if (_sharedRepositoriesPromise) return _sharedRepositoriesPromise
 
   _sharedRepositoriesPromise = (async () => {
-    if (config.localDev) {
-      const sqliteRepoRaw = SqliteFlowRepository.open(config.paths.sqlitePath, seedConfig)
-      const sqliteRepo = sqliteRepoRaw as unknown as FlowRepository
-      const projectRepo = new SqliteProjectRepository(sqliteRepoRaw.db)
-      _sharedRepositories = { mode: 'sqlite', flowRepo: sqliteRepo, projectRepo }
-    } else {
-      const db = new DatabaseService(buildDatabaseOptions(config))
-      await db.initialize()
-      const flowRepo = new MysqlFlowRepository(db)
-      await flowRepo.ensureBootstrapData(seedConfig)
-      const projectRepo = new MysqlProjectRepository(db)
-      _sharedRepositories = { mode: 'mysql', flowRepo, projectRepo }
-    }
+    const db = new Mysql2FlowQueryService(config)
+    await db.initialize()
+    const flowRepo = new MysqlFlowRepository(db)
+    await flowRepo.ensureBootstrapData(seedConfig)
+    const projectRepo = new MysqlProjectRepository(db)
+    _sharedRepositories = { mode: 'mysql', flowRepo, projectRepo }
 
     const shared = _sharedRepositories
     return {

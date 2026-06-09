@@ -1,17 +1,6 @@
 import { type Middleware } from '@dangao/bun-server'
-import { createProjectContextMiddleware as createBaseProjectContextMiddleware, type ProjectLookup } from '@cube-ai/server-base'
-import { getSharedRepositories } from '../db/shared-repositories'
+import { createProjectContextMiddleware as createBaseProjectContextMiddleware } from '@cube-ai/server-base'
 
 export function createProjectContextMiddleware(): Middleware {
-  const lookup: ProjectLookup = {
-    async listProjectIds() {
-      const { projectRepo } = await getSharedRepositories()
-      return (await projectRepo.listProjects()).map((p) => p.project_id)
-    },
-    async hasProject(tenantId: string) {
-      const { projectRepo } = await getSharedRepositories()
-      return (await projectRepo.getProject(tenantId)) != null
-    },
-  }
-  return createBaseProjectContextMiddleware({ projectLookup: lookup })
+  return createBaseProjectContextMiddleware()
 }
