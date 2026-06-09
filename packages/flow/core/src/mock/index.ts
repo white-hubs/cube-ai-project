@@ -2,9 +2,6 @@
  * Flow 域 HTTP mock：仅注册本包 handlers；框架见 `@cube-ai/server-mock`。
  */
 
-import './handlers/api-keys.mock'
-import './handlers/auth.mock'
-import './handlers/projects.mock'
 import './handlers/run.mock'
 import './handlers/webhook.mock'
 import './handlers/execution-metrics.mock'

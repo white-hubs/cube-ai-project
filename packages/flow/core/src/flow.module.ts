@@ -3,16 +3,11 @@ import { loadAppConfig, APP_CONFIG_TOKEN } from '@cube-ai/server-base'
 import type { LlmProviderPort } from '@cube-ai/contracts'
 import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from '@cube-ai/contracts/platform'
 import { NoopLlmProvider } from '@cube-ai/llm-core'
-import { AuthController } from './auth/auth.controller'
-import { UsersController } from './auth/users.controller'
-import { AuthService } from './auth/auth.service'
 import { ComponentsController } from './components/components.controller'
 import { ComponentCatalogService } from './components/component-catalog.service'
 import { ComponentSchemaService } from './components/component-schema.service'
 import { CustomComponentTemplatesController } from './custom-component-templates/custom-component-templates.controller'
 import { CustomComponentTemplatesService } from './custom-component-templates/custom-component-templates.service'
-import { ApiKeysController } from './api-keys/api-keys.controller'
-import { ApiKeysService } from './api-keys/api-keys.service'
 import { FlowsController } from './flows/flows.controller'
 import { FlowMonitorController } from './flows/flow-monitor.controller'
 import { FlowsService } from './flows/flows.service'
@@ -26,23 +21,16 @@ import { McpToolsController } from './mcp/mcp-tools.controller'
 import { RunController } from './run/run.controller'
 import { WebhookController } from './webhook/webhook.controller'
 import { ExecutionMetricsController } from './observability/execution-metrics.controller'
-import { ProjectsController } from './projects/projects.controller'
-import { ProjectsService } from './projects/projects.service'
 import { FlowRepository as SqliteFlowRepository } from './db/sqlite'
-import { FLOW_REPOSITORY_TOKEN, PROJECT_REPOSITORY_TOKEN, type FlowRepository, type ProjectRepository } from './db/repository-contracts'
+import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from './db/repository-contracts'
 import { initSharedRepositories, peekSharedRepositories } from './db/shared-repositories'
 
 const appConfig = await loadAppConfig()
-const seedConfig = {
-  superAdminUsername: appConfig.superAdminUsername,
-  superAdminPassword: appConfig.superAdminPassword,
-  builtinSystemApiKey: appConfig.builtinSystemApiKey,
-}
 
 @Injectable()
 class FlowRepositoriesBootstrap implements OnModuleInit {
   public async onModuleInit(): Promise<void> {
-    await initSharedRepositories(appConfig, seedConfig)
+    await initSharedRepositories(appConfig)
   }
 }
 
@@ -71,7 +59,6 @@ function createRepositoryProxy<T extends object>(getter: () => T): T {
 }
 
 const flowRepoProxy = createRepositoryProxy<FlowRepository>(() => requireSharedRepositories().flowRepo)
-const projectRepoProxy = createRepositoryProxy<ProjectRepository>(() => requireSharedRepositories().projectRepo)
 
 function resolveLlmProvider(c: Container): LlmProviderPort {
   try {
@@ -89,10 +76,6 @@ function resolveLlmProvider(c: Container): LlmProviderPort {
     RunController,
     WebhookController,
     ExecutionMetricsController,
-    ApiKeysController,
-    AuthController,
-    UsersController,
-    ProjectsController,
     ComponentsController,
     McpToolsController,
     FlowFilesController,
@@ -103,10 +86,6 @@ function resolveLlmProvider(c: Container): LlmProviderPort {
     {
       provide: FLOW_REPOSITORY_TOKEN,
       useValue: flowRepoProxy,
-    },
-    {
-      provide: PROJECT_REPOSITORY_TOKEN,
-      useValue: projectRepoProxy,
     },
     {
       provide: SqliteFlowRepository,
@@ -135,13 +114,10 @@ function resolveLlmProvider(c: Container): LlmProviderPort {
     },
     FlowFilesService,
     FlowsService,
-    ApiKeysService,
-    AuthService,
-    ProjectsService,
     ComponentCatalogService,
     ComponentSchemaService,
     CustomComponentTemplatesService,
   ],
-  exports: [APP_CONFIG_TOKEN, FlowsService, FlowFilesService, FLOW_REPOSITORY_TOKEN, PROJECT_REPOSITORY_TOKEN, SqliteFlowRepository],
+  exports: [APP_CONFIG_TOKEN, FlowsService, FlowFilesService, FLOW_REPOSITORY_TOKEN, SqliteFlowRepository],
 })
 export class FlowModule {}

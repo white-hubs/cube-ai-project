@@ -6,7 +6,6 @@ import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-con
 import { getLfComponentDef } from '../langflow/lf-api-all-registry'
 import { normalizeRunBody, type NormalizedRunBody } from '../contracts/cube-run'
 import { applyInputGuardrails } from '../guardrails/guardrails'
-import { developerApiAls } from '../developer-api-context'
 import { currentProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 
 /** Keys safe to expose in playground graph summaries (no secrets). */
@@ -99,17 +98,16 @@ export class FlowCrudService {
   }
 
   requireProjectId(): string {
-    const p = currentProjectId() ?? developerApiAls.getStore()?.projectId
+    const p = currentProjectId()
     const s = typeof p === 'string' ? p.trim() : ''
     if (!s) {
-      throw new HttpException(400, 'missing or invalid X-Project-Id', { code: 'PROJECT_REQUIRED' })
+      throw new HttpException(400, 'missing or invalid tenant context', { code: 'TENANT_REQUIRED' })
     }
     return s
   }
 
   readProjectId(): string | null {
-    const dev = developerApiAls.getStore()
-    if (isGlobalAccessEnabled() && (!dev || dev.accessLevel === 'system')) return null
+    if (isGlobalAccessEnabled()) return null
     return this.requireProjectId()
   }
 
@@ -119,19 +117,8 @@ export class FlowCrudService {
     return norm
   }
 
-  async assertDeveloperApiFlowScope(resolvedFlowPk: string): Promise<void> {
-    const dev = developerApiAls.getStore()
-    if (dev?.flowIdScope && dev.flowIdScope !== resolvedFlowPk) {
-      throw new HttpException(403, 'API key is scoped to a different flow', {
-        code: 'API_KEY_FLOW_SCOPE',
-      })
-    }
-    const pid = dev?.projectId?.trim()
-    if (pid && !(await this.repo.getFlow(resolvedFlowPk, pid))) {
-      throw new HttpException(403, 'flow is not in the API key project', {
-        code: 'API_KEY_PROJECT_SCOPE',
-      })
-    }
+  async assertDeveloperApiFlowScope(_resolvedFlowPk: string): Promise<void> {
+    // Developer API key scope checks removed: api-keys retired (ADR-0012 addendum)
   }
 
   async resolveFlowId(ref: string): Promise<string> {

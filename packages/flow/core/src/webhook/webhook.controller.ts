@@ -13,7 +13,6 @@ import {
 } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/server-base'
 import { currentProjectId } from '@cube-ai/server-shared'
-import { developerApiAls } from '../developer-api-context'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import { FlowsService } from '../flows/flows.service'
 import { MockableEndpoint } from '@cube-ai/server-mock'
@@ -118,7 +117,7 @@ export class WebhookController {
     const now = new Date().toISOString()
     const resolvedFlowId = await this.flows.resolveFlowId(flowId)
     const flow = await this.repo.getFlow(resolvedFlowId, null)
-    const projectId = developerApiAls.getStore()?.projectId?.trim() ?? currentProjectId() ?? ''
+    const projectId = currentProjectId() ?? ''
     await this.repo.insertWebhookInvocation({
       id,
       flow_id: resolvedFlowId,

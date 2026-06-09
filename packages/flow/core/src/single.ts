@@ -1,18 +1,12 @@
 /**
  * 仅挂载 FlowModule（无 assistant / kb），默认端口 3320。
+ * NOTE: 鉴权/project 上下文由 host 注入；此入口仅用于本地开发/测试。
  */
 import 'reflect-metadata'
 import { Application } from '@dangao/bun-server'
 import { loadAppConfig } from '@cube-ai/server-base'
 import { registerMockInterceptor } from './mock/index'
-import { createExecutionAuthMiddleware } from '@cube-ai/server-base'
 import { createDeveloperRateLimitMiddleware } from './middleware/developer-rate-limit.middleware'
-import { createProjectContextMiddleware } from './middleware/project-context.middleware'
-import {
-  createFlowAccessTokenReader,
-  createFlowDeveloperApiKeyReader,
-  createFlowProjectLookup,
-} from './auth/flow-auth-adapters'
 import { FlowModule } from './flow.module'
 
 async function main(): Promise<void> {
@@ -25,15 +19,7 @@ async function main(): Promise<void> {
   })
   registerMockInterceptor(app.getContainer())
   app.registerModule(FlowModule)
-  app.use(
-    createExecutionAuthMiddleware({
-      accessTokenReader: createFlowAccessTokenReader(),
-      apiKeyReader: createFlowDeveloperApiKeyReader(),
-      projectLookup: createFlowProjectLookup(),
-    }),
-  )
   app.use(createDeveloperRateLimitMiddleware({ maxPerMin: config.devApiRateLimitPerMin }))
-  app.use(createProjectContextMiddleware())
   await app.listen()
   console.log(`[@cube-ai/flow single] http://localhost:${config.port}`)
 }

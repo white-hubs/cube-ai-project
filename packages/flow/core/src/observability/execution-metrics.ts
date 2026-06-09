@@ -1,4 +1,3 @@
-import { developerApiAls } from '../developer-api-context'
 import { currentProjectId } from '@cube-ai/server-shared'
 
 export type FlowRunMetric = {
@@ -7,7 +6,6 @@ export type FlowRunMetric = {
   latencyMs: number
   stream: boolean
   hadError: boolean
-  apiKeyId?: string
   projectId?: string | null
   ttftMs?: number
   approxOutputChars?: number
@@ -30,16 +28,13 @@ export function recordFlowExecutionFromSse(ctx: {
   ttftMs?: number
   approxOutputChars?: number
 }): void {
-  const dev = developerApiAls.getStore()
-  const projectId = dev?.projectId ?? currentProjectId()
   pushMetric({
     flowId: ctx.flowId,
     taskId: ctx.taskId,
     latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
     stream: true,
     hadError: ctx.hadError,
-    apiKeyId: dev?.apiKeyId,
-    projectId,
+    projectId: currentProjectId(),
     ttftMs: ctx.ttftMs,
     approxOutputChars: ctx.approxOutputChars,
     at: Date.now(),
@@ -52,16 +47,13 @@ export function recordFlowExecutionSync(ctx: {
   startedAtMs: number
   ok: boolean
 }): void {
-  const dev = developerApiAls.getStore()
-  const projectId = dev?.projectId ?? currentProjectId()
   pushMetric({
     flowId: ctx.flowId,
     taskId: ctx.taskId,
     latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
     stream: false,
     hadError: !ctx.ok,
-    apiKeyId: dev?.apiKeyId,
-    projectId,
+    projectId: currentProjectId(),
     at: Date.now(),
   })
 }
@@ -77,7 +69,6 @@ export type ExecutionAggregateSlice = {
 export type ExecutionMetricsSnapshot = {
   recentCount: number
   byFlow: Record<string, ExecutionAggregateSlice>
-  byApiKey: Record<string, ExecutionAggregateSlice>
   byProjectId: Record<string, ExecutionAggregateSlice>
 }
 
@@ -123,19 +114,16 @@ function toSlices(acc: Record<string, Acc>): Record<string, ExecutionAggregateSl
 
 export function getExecutionMetricsSnapshot(filterProjectId?: string | null): ExecutionMetricsSnapshot {
   const byFlow: Record<string, Acc> = {}
-  const byApiKey: Record<string, Acc> = {}
   const byProjectId: Record<string, Acc> = {}
   const fpid = filterProjectId?.trim() ?? ''
   const source = fpid ? recent.filter((m) => (m.projectId?.trim() ?? '') === fpid) : recent
   for (const m of source) {
     fold(byFlow, m.flowId, m)
-    if (m.apiKeyId) fold(byApiKey, m.apiKeyId, m)
     fold(byProjectId, m.projectId?.trim() ? m.projectId!.trim() : '_none', m)
   }
   return {
     recentCount: source.length,
     byFlow: toSlices(byFlow),
-    byApiKey: toSlices(byApiKey),
     byProjectId: toSlices(byProjectId),
   }
 }

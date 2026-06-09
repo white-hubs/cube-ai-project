@@ -6,11 +6,6 @@ export { FlowLangflowSyncService } from './flows/flow-langflow-sync.service'
 export { FlowExecutionService } from './flows/flow-execution.service'
 export { FlowPlaygroundService } from './flows/flow-playground.service'
 export { FlowFilesService, type FlowFileDownloadOptions } from './flows/flow-files.service'
-export {
-  createFlowAccessTokenReader,
-  createFlowDeveloperApiKeyReader,
-  createFlowProjectLookup,
-} from './auth/flow-auth-adapters'
 export { createDeveloperRateLimitMiddleware } from './middleware/developer-rate-limit.middleware'
 export { createProjectContextMiddleware } from './middleware/project-context.middleware'
 export { projectContextAls, type ProjectContext } from '@cube-ai/server-shared'

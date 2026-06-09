@@ -4,7 +4,6 @@ import {
   mapLangflowBuildEnvelope,
   type CubeRunEvent,
 } from './build-event-mapper'
-import { developerApiAls } from '../developer-api-context'
 
 type ParsedLfMessage = { dataJson: string; sseEvent?: string }
 
@@ -49,25 +48,6 @@ function envelopeForMapper(dataObj: unknown, sseEvent?: string): unknown {
 
 type LfStreamState = { sawLfEnd: boolean; sawStreamContent: boolean; sawToken: boolean }
 
-function applyToolCallPolicy(cube: CubeRunEvent): CubeRunEvent {
-  if (cube.type !== 'tool_call') return cube
-  const allow = developerApiAls.getStore()?.allowedTools
-  if (allow == null || allow.length === 0) return cube
-  if (allow.includes('*')) return cube
-  const name = String(cube.payload['name'] ?? cube.payload['tool_name'] ?? '')
-  if (!name || !allow.includes(name)) {
-    return {
-      type: 'message_delta',
-      payload: {
-        phase: 'tool_call_denied',
-        tool: name,
-        message: 'tool not in API key allowed_tools list',
-      },
-    }
-  }
-  return cube
-}
-
 function emitLangflowEnvelope(
   envelope: unknown,
   controller: ReadableStreamDefaultController<Uint8Array>,
@@ -85,7 +65,6 @@ function emitLangflowEnvelope(
         payload: { phase: 'vertex_done', detail: pre?.['data'] },
       }
     }
-    cube = applyToolCallPolicy(cube)
     const assistantAddMessageAfterTokens =
       cube.type === 'message' &&
       lfEv === 'add_message' &&
