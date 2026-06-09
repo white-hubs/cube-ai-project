@@ -48,9 +48,9 @@ src/
 - `createDeveloperApiKeyMiddleware`
 - `createDeveloperRateLimitMiddleware`
 - `createProjectContextMiddleware`
-- `currentProjectId`
+- `currentTenantId`
 - `isGlobalAccessEnabled`
-- `requireScopedProjectId`
+- `requireScopedTenantId`
 
 ## 主要职责
 
