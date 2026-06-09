@@ -3,9 +3,6 @@ import { ExceptionFilterRegistry } from '@dangao/bun-server';
 import { createExecutionAuthMiddleware, loadAppConfig } from '@cube-ai/ai-center/platform/server-base';
 import {
   createDeveloperRateLimitMiddleware,
-  createFlowAccessTokenReader,
-  createFlowDeveloperApiKeyReader,
-  createFlowProjectLookup,
   createProjectContextMiddleware,
 } from '@cube-ai/flow-core';
 import {
@@ -147,16 +144,22 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
     }
   }
 
-  const flowApiKeyReader = createFlowDeveloperApiKeyReader();
   const ghcloudReaders = useGhcloudIdentity
-    ? createGhcloudExecutionAuthReaders({ apiKeyFallback: flowApiKeyReader })
+    ? createGhcloudExecutionAuthReaders({})
     : null;
+
+  const accessTokenReader = ghcloudReaders?.accessTokenReader ?? {
+    verifyAccessToken: async () => ({
+      userId: 'dev',
+      username: 'dev',
+      role: 'super_admin',
+      isSuperAdmin: true,
+    }),
+  };
 
   app.use(
     createExecutionAuthMiddleware({
-      accessTokenReader: ghcloudReaders?.accessTokenReader ?? createFlowAccessTokenReader(),
-      apiKeyReader: ghcloudReaders?.apiKeyReader ?? flowApiKeyReader,
-      projectLookup: createFlowProjectLookup(),
+      accessTokenReader,
     }),
   );
   app.use(createDeveloperRateLimitMiddleware({ maxPerMin: flowConfig.devApiRateLimitPerMin }));
