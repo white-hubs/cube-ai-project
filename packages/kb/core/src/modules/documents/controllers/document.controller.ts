@@ -17,7 +17,6 @@ import {
 import { MockableEndpoint } from '@/infra/mock-endpoint'
 import { DocumentService } from '../services/document.service'
 import type { ChunkingOptions, TableChunkMode, TextChunkMode } from '../../common/document-types'
-import { projectContextAls } from '@/infra/access-scope'
 import { PlatformSourceImportService } from '../../ingestion/platform-source-import.service'
 
 function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
@@ -329,7 +328,7 @@ export class DocumentController {
             type: 'object',
             properties: {
               id: { type: 'string', description: '文档主键' },
-              projectId: { type: 'string', nullable: true, description: '项目标识（X-Project-Id）' },
+              tenantId: { type: 'string', nullable: true, description: '租户标识' },
               deleted: { type: 'string', nullable: true, description: '软删除标记' },
               createBy: { type: 'string', description: '创建者名称' },
               creatorId: { type: 'string', nullable: true, description: '创建者主体 id' },

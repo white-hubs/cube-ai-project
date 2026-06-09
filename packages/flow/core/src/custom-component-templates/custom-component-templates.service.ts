@@ -2,7 +2,7 @@ import { BadRequestException, HttpException, Inject, Injectable, NotFoundExcepti
 import { SnowflakeUtil } from '@cube-ai/server-base'
 import { buildCubeComponentSchemaFromDslPayload } from '../custom-component/dsl-to-cube-schema'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
-import { currentProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 
 const MAX_DSL_JSON_BYTES = 512 * 1024
 
@@ -15,16 +15,16 @@ export class CustomComponentTemplatesService {
   }
 
   private requireProjectId(): string {
-    const p = currentProjectId() ?? ''
+    const p = currentTenantId() ?? ''
     if (!p) {
-      throw new HttpException(400, 'missing project context', { code: 'PROJECT_REQUIRED' })
+      throw new HttpException(400, 'missing tenant context', { code: 'TENANT_REQUIRED' })
     }
     return p
   }
 
   async list() {
-    const projectId = isGlobalAccessEnabled() ? null : this.requireProjectId()
-    return (await this.repo.listCustomComponentTemplates(projectId)).map((r) => ({
+    const tenantId = isGlobalAccessEnabled() ? null : this.requireProjectId()
+    return (await this.repo.listCustomComponentTemplates(tenantId)).map((r) => ({
       id: r.id,
       displayName: r.display_name,
       dsl: JSON.parse(r.dsl_json) as unknown,

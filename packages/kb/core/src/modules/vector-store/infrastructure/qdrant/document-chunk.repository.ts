@@ -7,7 +7,7 @@ import {
   Repository,
   type Logger,
 } from '@dangao/bun-server'
-import { currentProjectId, isGlobalAccessEnabled } from '@/infra/access-scope'
+import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import type { TextChunkRecord } from '../../../common/document-types'
 import { buildStableQdrantPointId } from '@cube-ai/vector-qdrant';
@@ -26,13 +26,13 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
     super(databaseService)
   }
 
-  private getProjectId(): string | null {
+  private getTenantId(): string | null {
     if (isGlobalAccessEnabled()) return null
-    return currentProjectId()
+    return currentTenantId()
   }
 
   private scopeFilter(): { sql: string; params: unknown[] } {
-    const pid = this.getProjectId()
+    const pid = this.getTenantId()
     if (pid) return { sql: 'project_id = ?', params: [pid] }
     return { sql: '', params: [] }
   }
@@ -111,7 +111,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
       return
     }
 
-    const project_id = this.getProjectId()
+    const project_id = this.getTenantId()
     const audit = this.getAuditInfo()
     const now = formatMysqlDateTimeShanghai()
 
@@ -341,7 +341,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
     }
     const innerSql = unionParts.join(' UNION ALL ')
     let sql = `UPDATE ${this.tableName} AS dc INNER JOIN (${innerSql}) AS t ON dc.document_id = t.document_id AND dc.chunk_id = t.chunk_id SET dc.recall_count = dc.recall_count + t.delta WHERE (dc.deleted IS NULL OR dc.deleted = 0)`
-    const pid = this.getProjectId()
+    const pid = this.getTenantId()
     if (pid) {
       sql += ' AND dc.project_id = ?'
       joinParams.push(pid)

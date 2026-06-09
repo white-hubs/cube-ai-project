@@ -202,7 +202,7 @@ export class DocumentService {
       chunkIndex: existing.chunk_index,
       text,
       embeddingText: headingPath.length > 0 ? `${headingPath.join('\n')}\n${text}` : text,
-      projectId: document.project_id,
+      tenantId: document.project_id,
       sourceType: document.mime_type,
       fileName: document.name,
       sectionId: existing.section_id,

@@ -1,4 +1,4 @@
-import { currentProjectId } from '@cube-ai/server-shared'
+import { currentTenantId } from '@cube-ai/server-shared'
 
 export type FlowRunMetric = {
   flowId: string
@@ -6,7 +6,7 @@ export type FlowRunMetric = {
   latencyMs: number
   stream: boolean
   hadError: boolean
-  projectId?: string | null
+  tenantId?: string | null
   ttftMs?: number
   approxOutputChars?: number
   at: number
@@ -34,7 +34,7 @@ export function recordFlowExecutionFromSse(ctx: {
     latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
     stream: true,
     hadError: ctx.hadError,
-    projectId: currentProjectId(),
+    tenantId: currentTenantId(),
     ttftMs: ctx.ttftMs,
     approxOutputChars: ctx.approxOutputChars,
     at: Date.now(),
@@ -53,7 +53,7 @@ export function recordFlowExecutionSync(ctx: {
     latencyMs: Math.max(0, Date.now() - ctx.startedAtMs),
     stream: false,
     hadError: !ctx.ok,
-    projectId: currentProjectId(),
+    tenantId: currentTenantId(),
     at: Date.now(),
   })
 }
@@ -69,7 +69,7 @@ export type ExecutionAggregateSlice = {
 export type ExecutionMetricsSnapshot = {
   recentCount: number
   byFlow: Record<string, ExecutionAggregateSlice>
-  byProjectId: Record<string, ExecutionAggregateSlice>
+  byTenantId: Record<string, ExecutionAggregateSlice>
 }
 
 type Acc = {
@@ -112,26 +112,26 @@ function toSlices(acc: Record<string, Acc>): Record<string, ExecutionAggregateSl
   return o
 }
 
-export function getExecutionMetricsSnapshot(filterProjectId?: string | null): ExecutionMetricsSnapshot {
+export function getExecutionMetricsSnapshot(filterTenantId?: string | null): ExecutionMetricsSnapshot {
   const byFlow: Record<string, Acc> = {}
-  const byProjectId: Record<string, Acc> = {}
-  const fpid = filterProjectId?.trim() ?? ''
-  const source = fpid ? recent.filter((m) => (m.projectId?.trim() ?? '') === fpid) : recent
+  const byTenantId: Record<string, Acc> = {}
+  const ftid = filterTenantId?.trim() ?? ''
+  const source = ftid ? recent.filter((m) => (m.tenantId?.trim() ?? '') === ftid) : recent
   for (const m of source) {
     fold(byFlow, m.flowId, m)
-    fold(byProjectId, m.projectId?.trim() ? m.projectId!.trim() : '_none', m)
+    fold(byTenantId, m.tenantId?.trim() ? m.tenantId!.trim() : '_none', m)
   }
   return {
     recentCount: source.length,
     byFlow: toSlices(byFlow),
-    byProjectId: toSlices(byProjectId),
+    byTenantId: toSlices(byTenantId),
   }
 }
 
-export function getExecutionMetricsRecent(filterProjectId?: string | null): FlowRunMetric[] {
-  const fpid = filterProjectId?.trim() ?? ''
-  if (!fpid) return [...recent]
-  return recent.filter((m) => (m.projectId?.trim() ?? '') === fpid)
+export function getExecutionMetricsRecent(filterTenantId?: string | null): FlowRunMetric[] {
+  const ftid = filterTenantId?.trim() ?? ''
+  if (!ftid) return [...recent]
+  return recent.filter((m) => (m.tenantId?.trim() ?? '') === ftid)
 }
 
 export function resetExecutionMetricsForTests(): void {

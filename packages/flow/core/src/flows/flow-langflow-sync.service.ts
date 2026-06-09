@@ -132,12 +132,12 @@ export class FlowLangflowSyncService {
    * 删除 Cube 流程：先 best-effort 调用 Langflow 删除远端 flow（失败仅打日志），再删本地库。
    */
   async deleteFlow(ref: string): Promise<{ deleted: true }> {
-     const projectId = this.crud.requireProjectId()
+     const tenantId = this.crud.requireProjectId()
      const id = await this.crud.resolveFlowId(ref)
-     const row = await this.repo.getFlow(id, projectId)
+     const row = await this.repo.getFlow(id, tenantId)
      if (!row) throw new NotFoundException(`Flow ${id} not found`)
      await this.deleteLangflowFlowBestEffort(row.langflow_flow_id)
-     await this.repo.deleteFlow(projectId, id)
+     await this.repo.deleteFlow(tenantId, id)
      return { deleted: true }
   }
 
@@ -208,14 +208,14 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
     ref: string,
     body: { name?: string; description?: string; graph?: CubeFlowGraph },
   ) {
-    const projectId = this.crud.requireProjectId()
+    const tenantId = this.crud.requireProjectId()
     const id = await this.crud.resolveFlowId(ref)
-    const row = await this.repo.getFlow(id, projectId)
+    const row = await this.repo.getFlow(id, tenantId)
     if (!row) throw new NotFoundException(`Flow ${id} not found`)
 
     if (body.name !== undefined || body.description !== undefined) {
       await this.repo.updateFlowMeta(
-        projectId,
+        tenantId,
         id,
         { name: body.name, description: body.description },
         false,
@@ -226,7 +226,7 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
       const graph = normalizeCubeGraphMcpDynamicSchema(body.graph)
       validateCubeCustomComponentGraph(graph)
       const graphJson = JSON.stringify(graph)
-      await this.repo.updateGraph(projectId, id, graphJson)
+      await this.repo.updateGraph(tenantId, id, graphJson)
       await this.pushToLangflow(id, graph)
       const after = await this.repo.getFlow(id, this.crud.requireProjectId())
       if (after) {
@@ -238,8 +238,8 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
   }
 
   private async ensureLangflowFlowBound(flowId: string): Promise<void> {
-    const projectId = this.crud.requireProjectId()
-    const row = await this.repo.getFlow(flowId, projectId)
+    const tenantId = this.crud.requireProjectId()
+    const row = await this.repo.getFlow(flowId, tenantId)
     if (!row || !this.lf || row.langflow_flow_id) return
     try {
       const created = await this.lf.createFlow({
@@ -254,15 +254,15 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
         return
       }
       await this.repo.updateFlowMeta(
-        projectId,
+        tenantId,
         flowId,
         { langflow_flow_id: lfId, binding_status: 'linked' },
         false,
       )
-      await this.repo.setLfSnapshot(projectId, flowId, JSON.stringify(created))
+      await this.repo.setLfSnapshot(tenantId, flowId, JSON.stringify(created))
       console.log(`[cube-ai] Bound flow ${flowId} -> Langflow ${lfId}`)
     } catch (e) {
-      await this.repo.updateFlowMeta(projectId, flowId, { binding_status: 'broken' }, false)
+      await this.repo.updateFlowMeta(tenantId, flowId, { binding_status: 'broken' }, false)
       console.error('[cube-ai] ensureLangflowFlowBound failed:', e)
       throw new HttpException(502, `Cannot create Langflow flow: ${e instanceof Error ? e.message : String(e)}`, {
         code: 'LANGFLOW_CREATE_FAILED',
@@ -271,13 +271,13 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
   }
 
   async pushToLangflow(id: string, graph: CubeFlowGraph) {
-    const projectId = this.crud.requireProjectId()
+    const tenantId = this.crud.requireProjectId()
     if (!this.lf) {
       console.warn('[cube-ai] pushToLangflow skipped: LANGFLOW_BASE_URL not set or invalid')
       return
     }
     await this.ensureLangflowFlowBound(id)
-    const row = await this.repo.getFlow(id, projectId)
+    const row = await this.repo.getFlow(id, tenantId)
     if (!row?.langflow_flow_id) {
       console.warn('[cube-ai] pushToLangflow skipped: no langflow_flow_id after bind attempt')
       return
@@ -332,19 +332,19 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
         if (!newLfId) {
           throw new Error('Langflow createFlow returned no id after remote flow was deleted')
         }
-        await this.repo.updateFlowMeta(projectId, id, { langflow_flow_id: newLfId, binding_status: 'linked' }, false)
+        await this.repo.updateFlowMeta(tenantId, id, { langflow_flow_id: newLfId, binding_status: 'linked' }, false)
         let fresh: Record<string, unknown>
         try {
           fresh = await this.lf!.getFlow(newLfId)
         } catch {
           fresh = created
         }
-        await this.repo.setLfSnapshot(projectId, id, JSON.stringify(fresh))
+        await this.repo.setLfSnapshot(tenantId, id, JSON.stringify(fresh))
         const updated = await patchMerged(newLfId, fresh)
-        await this.repo.setLfSnapshot(projectId, id, JSON.stringify(updated))
-        await this.repo.updateFlowMeta(projectId, id, { binding_status: 'linked' }, false)
+        await this.repo.setLfSnapshot(tenantId, id, JSON.stringify(updated))
+        await this.repo.updateFlowMeta(tenantId, id, { binding_status: 'linked' }, false)
       } catch (e2) {
-        await this.repo.updateFlowMeta(projectId, id, { binding_status: 'broken' }, false)
+        await this.repo.updateFlowMeta(tenantId, id, { binding_status: 'broken' }, false)
         throw new HttpException(
           502,
           `Langflow sync failed (rebind): ${e2 instanceof Error ? e2.message : String(e2)}`,
@@ -359,7 +359,7 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
     } else {
       try {
         snapshotObj = await this.lf.getFlow(row.langflow_flow_id)
-        await this.repo.setLfSnapshot(projectId, id, JSON.stringify(snapshotObj))
+        await this.repo.setLfSnapshot(tenantId, id, JSON.stringify(snapshotObj))
       } catch (e) {
         const lfErr = e instanceof LangflowRequestError ? e : null
         const rebind =
@@ -368,7 +368,7 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
           await rebindAfterRemoteDelete(row.langflow_flow_id)
           return
         }
-        await this.repo.updateFlowMeta(projectId, id, { binding_status: 'broken' }, false)
+        await this.repo.updateFlowMeta(tenantId, id, { binding_status: 'broken' }, false)
         throw new HttpException(502, `Langflow sync failed: ${e instanceof Error ? e.message : String(e)}`, {
           code: 'LANGFLOW_SYNC_FAILED',
         })
@@ -377,8 +377,8 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
 
     try {
       const updated = await patchMerged(row.langflow_flow_id, snapshotObj)
-      await this.repo.setLfSnapshot(projectId, id, JSON.stringify(updated))
-      await this.repo.updateFlowMeta(projectId, id, { binding_status: 'linked' }, false)
+      await this.repo.setLfSnapshot(tenantId, id, JSON.stringify(updated))
+      await this.repo.updateFlowMeta(tenantId, id, { binding_status: 'linked' }, false)
     } catch (e) {
       const lfErr = e instanceof LangflowRequestError ? e : null
       const rebind =
@@ -386,7 +386,7 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
         this.lf &&
         (lfErr.status === 404 || lfErr.status === 410 || lfErr.rebindSuggested === true)
       if (!rebind) {
-        await this.repo.updateFlowMeta(projectId, id, { binding_status: 'broken' }, false)
+        await this.repo.updateFlowMeta(tenantId, id, { binding_status: 'broken' }, false)
         throw new HttpException(502, `Langflow sync failed: ${e instanceof Error ? e.message : String(e)}`, {
           code: 'LANGFLOW_SYNC_FAILED',
         })
@@ -403,17 +403,17 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
       throw new HttpException(503, 'Langflow not configured', { code: 'LANGFLOW_UNAVAILABLE' })
     }
 
-    const projectId = this.crud.requireProjectId()
+    const tenantId = this.crud.requireProjectId()
     const doc = await this.lf.getFlow(langflowFlowId)
     const graph = lfFlowDocumentToCubeGraph(doc)
     await this.repo.updateFlowMeta(
-      projectId,
+      tenantId,
       id,
       { langflow_flow_id: langflowFlowId, binding_status: 'linked' },
       false,
     )
-    await this.repo.setLfSnapshot(projectId, id, JSON.stringify(doc))
-    await this.repo.updateGraph(projectId, id, JSON.stringify(graph))
+    await this.repo.setLfSnapshot(tenantId, id, JSON.stringify(doc))
+    await this.repo.updateGraph(tenantId, id, JSON.stringify(graph))
     return this.crud.get(id)
   }
 
@@ -493,9 +493,11 @@ private async deleteLangflowFlowBestEffort(langflowFlowId: string | null | undef
     await this.update(id, { graph: detail.graph })
     const refreshed = await this.crud.get(id)
     if (!this.lf || !refreshed.langflowFlowId) {
-      throw new HttpException(503, 'Execution backend not available', {
-        code: 'EXECUTION_UNAVAILABLE',
-      })
+      throw new HttpException(
+        503,
+        'Execution backend not available: set LANGFLOW_BASE_URL to run via Langflow, or EXP_USE_CUBE_FLOW_ENGINE=1 to use the built-in cube-linear-engine',
+        { code: 'EXECUTION_UNAVAILABLE' },
+      )
     }
     return { lf: this.lf, langflowFlowId: refreshed.langflowFlowId }
   }

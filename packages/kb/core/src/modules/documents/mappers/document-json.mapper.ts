@@ -6,7 +6,7 @@ import type { DocumentEntity } from '../infrastructure/orm/document.entity'
  */
 export interface DocumentJson {
   id: string
-  projectId: string | null
+  tenantId: string | null
   /** 软删除标记（序列化为字符串以兼容大整数） */
   deleted: string | null
   createBy: string
@@ -46,7 +46,7 @@ export function documentEntityToJson(entity: DocumentEntity): DocumentJson {
   const deleted = entity.deleted
   return {
     id: String(entity.id),
-    projectId: entity.project_id,
+    tenantId: entity.project_id,
     deleted: deleted === null || deleted === undefined ? null : String(deleted),
     createBy: entity.create_by,
     creatorId: entity.creator_id,

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { HttpException } from '@dangao/bun-server'
-import { projectContextAls } from '@cube-ai/server-shared'
+import { tenantContextAls } from '@cube-ai/server-shared'
 import { FlowRepository } from '../db/sqlite'
 import { FlowCrudService } from './flow-crud.service'
 import { CUBE_FLOW_SCHEMA_VERSION } from '../contracts/cube-flow'
@@ -22,8 +22,8 @@ function makeSvc(repo: FlowRepository): FlowCrudService {
   )
 }
 
-function withProject<T>(projectId: string, fn: () => T): T {
-  return projectContextAls.run({ projectId, bypassProjectIsolation: false }, fn)
+function withProject<T>(tenantId: string, fn: () => T): T {
+  return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, fn)
 }
 
 const PROJECT = 'default'

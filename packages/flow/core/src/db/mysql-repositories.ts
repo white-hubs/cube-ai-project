@@ -1,6 +1,6 @@
-import { DatabaseService, Injectable } from '@dangao/bun-server'
+import { Injectable } from '@dangao/bun-server'
 import { SnowflakeUtil } from '@cube-ai/server-base'
-import { currentProjectId, generateTenantProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, generateTenantProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 import {
   BUILTIN_SYSTEM_API_KEY_ID,
   hashApiKey,
@@ -19,6 +19,10 @@ import {
   type FlowRepositorySeedConfig,
 } from './sqlite'
 import type { FlowRepository, ProjectRepository } from './repository-contracts'
+
+export interface MysqlQueryService {
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): T[] | Promise<T[]>
+}
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -198,7 +202,7 @@ function normalizeRefreshTokenRow(row: Record<string, unknown>): OAuthRefreshTok
 }
 
 class MysqlRepositoryBase {
-  constructor(protected readonly databaseService: DatabaseService) {}
+  constructor(protected readonly databaseService: MysqlQueryService) {}
 
   protected async q<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
     const result = this.databaseService.query<T>(sql, params)
@@ -217,7 +221,7 @@ class MysqlRepositoryBase {
 
   protected projectScopeColumn(alias = ''): { sql: string; params: unknown[] } {
     if (isGlobalAccessEnabled()) return { sql: '', params: [] }
-    const pid = currentProjectId()?.trim()
+    const pid = currentTenantId()?.trim()
     if (!pid) return { sql: '', params: [] }
     const prefix = alias ? `${alias}.` : ''
     return { sql: `${prefix}project_id = ?`, params: [pid] }
@@ -355,24 +359,24 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     )
   }
 
-  public async createFlow(projectId: string, row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null }, graphJson: string): Promise<void> {
+  public async createFlow(tenantId: string, row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null }, graphJson: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO flows
       (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description, langflow_flow_id, binding_status, cube_revision, lf_snapshot_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, projectId, now, now, row.name, row.description, row.langflow_flow_id, row.binding_status, row.cube_revision, row.lf_snapshot_json ?? null],
+      [row.id, tenantId, now, now, row.name, row.description, row.langflow_flow_id, row.binding_status, row.cube_revision, row.lf_snapshot_json ?? null],
     )
     await this.exec(
       `INSERT INTO flow_graphs
       (flow_id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, graph_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?)`,
-      [row.id, projectId, now, now, graphJson],
+      [row.id, tenantId, now, now, graphJson],
     )
   }
 
-  public async updateFlowMeta(projectId: string, id: string, patch: Partial<Pick<FlowRow, 'name' | 'description' | 'langflow_flow_id' | 'binding_status'>>, bumpRevision: boolean): Promise<void> {
-    const row = await this.getFlow(id, projectId)
+  public async updateFlowMeta(tenantId: string, id: string, patch: Partial<Pick<FlowRow, 'name' | 'description' | 'langflow_flow_id' | 'binding_status'>>, bumpRevision: boolean): Promise<void> {
+    const row = await this.getFlow(id, tenantId)
     if (!row) return
     const rev = bumpRevision ? row.cube_revision + 1 : row.cube_revision
     await this.exec(
@@ -392,83 +396,83 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
         rev,
         formatMysqlDateTimeShanghai(),
         id,
-        projectId,
+        tenantId,
       ],
     )
   }
 
-  public async setLfSnapshot(projectId: string, id: string, json: string | null): Promise<void> {
+  public async setLfSnapshot(tenantId: string, id: string, json: string | null): Promise<void> {
     await this.exec(
       'UPDATE flows SET lf_snapshot_json = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0',
-      [json, formatMysqlDateTimeShanghai(), id, projectId],
+      [json, formatMysqlDateTimeShanghai(), id, tenantId],
     )
   }
 
-  public async updateGraph(projectId: string, id: string, graphJson: string): Promise<void> {
+  public async updateGraph(tenantId: string, id: string, graphJson: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       'UPDATE flow_graphs SET graph_json = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0',
-      [graphJson, now, id, projectId],
+      [graphJson, now, id, tenantId],
     )
     await this.exec(
       'UPDATE flows SET cube_revision = cube_revision + 1, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0',
-      [now, id, projectId],
+      [now, id, tenantId],
     )
   }
 
-  public async deleteFlow(projectId: string, id: string): Promise<void> {
+  public async deleteFlow(tenantId: string, id: string): Promise<void> {
     const del = deletedValue()
     const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE flows SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [del, now, id, projectId])
-    await this.exec('UPDATE flow_graphs SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, projectId])
-    await this.exec('UPDATE playground_sessions SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, projectId])
+    await this.exec('UPDATE flows SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
+    await this.exec('UPDATE flow_graphs SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
+    await this.exec('UPDATE playground_sessions SET deleted = ?, update_time = ? WHERE flow_id = ? AND project_id = ? AND deleted = 0', [del, now, id, tenantId])
     await this.exec(
       'UPDATE playground_messages SET deleted = ?, update_time = ? WHERE session_id IN (SELECT id FROM playground_sessions WHERE flow_id = ? AND project_id = ?) AND deleted = 0',
-      [del, now, id, projectId],
+      [del, now, id, tenantId],
     )
   }
 
-  public async listFlows(projectId?: string | null): Promise<FlowRow[]> {
+  public async listFlows(tenantId?: string | null): Promise<FlowRow[]> {
     const params: unknown[] = []
     let sql = 'SELECT * FROM flows WHERE deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     sql += ' ORDER BY update_time DESC'
     return (await this.q<Record<string, unknown>>(sql, params)).map(normalizeFlowRow)
   }
 
-  public async getFlow(id: string, projectId?: string | null): Promise<FlowRow | null> {
+  public async getFlow(id: string, tenantId?: string | null): Promise<FlowRow | null> {
     const params: unknown[] = [id]
     let sql = 'SELECT * FROM flows WHERE id = ? AND deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
     return row ? normalizeFlowRow(row) : null
   }
 
-  public async getFlowInProject(id: string, projectId: string): Promise<FlowRow | null> {
-    return this.getFlow(id, projectId)
+  public async getFlowInProject(id: string, tenantId: string): Promise<FlowRow | null> {
+    return this.getFlow(id, tenantId)
   }
 
-  public async countFlowsInProject(projectId: string): Promise<number> {
-    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM flows WHERE project_id = ? AND deleted = 0', [projectId])
+  public async countFlowsInProject(tenantId: string): Promise<number> {
+    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM flows WHERE project_id = ? AND deleted = 0', [tenantId])
     return row?.n ?? 0
   }
 
-  public async countApiKeysInProject(projectId: string): Promise<number> {
+  public async countApiKeysInProject(tenantId: string): Promise<number> {
     const row = await this.one<{ n: number }>(
       'SELECT COUNT(1) AS n FROM api_keys WHERE project_id = ? AND deleted = 0',
-      [projectId],
+      [tenantId],
     )
     return row?.n ?? 0
   }
 
-  public async countCustomTemplatesInProject(projectId: string): Promise<number> {
-    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM custom_component_templates WHERE project_id = ? AND deleted = 0', [projectId])
+  public async countCustomTemplatesInProject(tenantId: string): Promise<number> {
+    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM custom_component_templates WHERE project_id = ? AND deleted = 0', [tenantId])
     return row?.n ?? 0
   }
 
@@ -558,7 +562,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 
   public async appendPlaygroundMessage(sessionId: string, role: 'user' | 'bot', content: string): Promise<void> {
     const session = await this.one<Record<string, unknown>>('SELECT project_id FROM playground_sessions WHERE id = ? AND deleted = 0', [sessionId])
-    const projectId = session ? String(session['project_id']) : ''
+    const tenantId = session ? String(session['project_id']) : ''
     const now = formatMysqlDateTimeShanghai()
     const seqRow = await this.one<{ m: number }>('SELECT COALESCE(MAX(seq), -1) AS m FROM playground_messages WHERE session_id = ? AND deleted = 0', [sessionId])
     const seq = (seqRow?.m ?? -1) + 1
@@ -567,7 +571,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       `INSERT INTO playground_messages
       (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, session_id, role, content, seq)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?)`,
-      [msgId, projectId, now, now, sessionId, role, content, seq],
+      [msgId, tenantId, now, now, sessionId, role, content, seq],
     )
     await this.exec('UPDATE playground_sessions SET last_message = ?, update_time = ? WHERE id = ? AND deleted = 0', [content, now, sessionId])
   }
@@ -601,52 +605,52 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   }
 
 
-  public async listCustomComponentTemplates(projectId?: string | null): Promise<CustomComponentTemplateRow[]> {
+  public async listCustomComponentTemplates(tenantId?: string | null): Promise<CustomComponentTemplateRow[]> {
     const params: unknown[] = []
     let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, project_id FROM custom_component_templates WHERE deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     sql += ' ORDER BY update_time DESC'
     return (await this.q<Record<string, unknown>>(sql, params)).map(normalizeTemplateRow)
   }
 
-  public async getCustomComponentTemplate(id: string, projectId?: string | null): Promise<CustomComponentTemplateRow | null> {
+  public async getCustomComponentTemplate(id: string, tenantId?: string | null): Promise<CustomComponentTemplateRow | null> {
     const params: unknown[] = [id]
     let sql = 'SELECT id, display_name, dsl_json, create_time, update_time, project_id FROM custom_component_templates WHERE id = ? AND deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
     return row ? normalizeTemplateRow(row) : null
   }
 
-  public async insertCustomComponentTemplate(projectId: string, row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>): Promise<void> {
+  public async insertCustomComponentTemplate(tenantId: string, row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `INSERT INTO custom_component_templates
       (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, display_name, dsl_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
-      [row.id, projectId, now, now, row.display_name, row.dsl_json],
+      [row.id, tenantId, now, now, row.display_name, row.dsl_json],
     )
   }
 
-  public async updateCustomComponentTemplate(projectId: string, id: string, patch: Partial<Pick<CustomComponentTemplateRow, 'display_name' | 'dsl_json'>>): Promise<void> {
-    const row = await this.getCustomComponentTemplate(id, projectId)
+  public async updateCustomComponentTemplate(tenantId: string, id: string, patch: Partial<Pick<CustomComponentTemplateRow, 'display_name' | 'dsl_json'>>): Promise<void> {
+    const row = await this.getCustomComponentTemplate(id, tenantId)
     if (!row) return
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
       `UPDATE custom_component_templates
        SET display_name = ?, dsl_json = ?, update_time = ?
        WHERE id = ? AND project_id = ? AND deleted = 0`,
-      [patch.display_name ?? row.display_name, patch.dsl_json ?? row.dsl_json, now, id, projectId],
+      [patch.display_name ?? row.display_name, patch.dsl_json ?? row.dsl_json, now, id, tenantId],
     )
   }
 
-  public async deleteCustomComponentTemplate(projectId: string, id: string): Promise<void> {
-    await this.exec('UPDATE custom_component_templates SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id, projectId])
+  public async deleteCustomComponentTemplate(tenantId: string, id: string): Promise<void> {
+    await this.exec('UPDATE custom_component_templates SET deleted = ?, update_time = ? WHERE id = ? AND project_id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id, tenantId])
   }
 
   public async insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): Promise<void> {
@@ -659,32 +663,32 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     )
   }
 
-  public async listApiKeys(projectId?: string | null): Promise<ApiKeyRow[]> {
+  public async listApiKeys(tenantId?: string | null): Promise<ApiKeyRow[]> {
     const params: unknown[] = []
     let sql = 'SELECT * FROM api_keys WHERE deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     sql += ' ORDER BY create_time DESC'
     return (await this.q<Record<string, unknown>>(sql, params)).map(normalizeApiKeyRow)
   }
 
-  public async getApiKeyById(id: string, projectId?: string | null): Promise<ApiKeyRow | null> {
+  public async getApiKeyById(id: string, tenantId?: string | null): Promise<ApiKeyRow | null> {
     const params: unknown[] = [id]
     let sql = 'SELECT * FROM api_keys WHERE id = ? AND deleted = 0'
-    if (projectId && projectId.trim() !== '') {
+    if (tenantId && tenantId.trim() !== '') {
       sql += ' AND project_id = ?'
-      params.push(projectId)
+      params.push(tenantId)
     }
     const row = await this.one<Record<string, unknown>>(sql, params)
     return row ? normalizeApiKeyRow(row) : null
   }
 
-  public async revokeApiKey(projectId: string | null | undefined, id: string): Promise<void> {
+  public async revokeApiKey(tenantId: string | null | undefined, id: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     const del = deletedValue()
-    if (!projectId || projectId.trim() === '') {
+    if (!tenantId || tenantId.trim() === '') {
       await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [del, now, id])
       return
     }
@@ -692,7 +696,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       del,
       now,
       id,
-      projectId,
+      tenantId,
     ])
   }
 
@@ -725,7 +729,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       `INSERT INTO auth_users
       (id, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, username, password_hash, password_algo, status, role, default_project_id)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, currentProjectId() ?? null, now, now, row.username, row.passwordHash, row.passwordAlgo, row.status, row.role, row.defaultProjectId],
+      [row.id, currentTenantId() ?? null, now, now, row.username, row.passwordHash, row.passwordAlgo, row.status, row.role, row.defaultProjectId],
     )
   }
 
@@ -846,7 +850,7 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
       (kv_key, project_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, value_json)
       VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?)
       ON DUPLICATE KEY UPDATE value_json = VALUES(value_json), update_time = VALUES(update_time), deleted = 0`,
-      [key, currentProjectId() ?? null, now, now, JSON.stringify(value)],
+      [key, currentTenantId() ?? null, now, now, JSON.stringify(value)],
     )
   }
 

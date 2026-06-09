@@ -60,7 +60,7 @@ export class VectorizationService {
           cueIndex: chunk.cueIndex ?? null,
           propertyNamespace: chunk.propertyNamespace ?? null,
           retrievalProfile: chunk.retrievalProfile,
-          projectId: chunk.projectId,
+          tenantId: chunk.tenantId,
         },
       })),
     )
@@ -104,7 +104,7 @@ export class VectorizationService {
           cueIndex: chunk.cueIndex ?? null,
           propertyNamespace: chunk.propertyNamespace ?? null,
           retrievalProfile: chunk.retrievalProfile,
-          projectId: chunk.projectId,
+          tenantId: chunk.tenantId,
         },
       },
     ])

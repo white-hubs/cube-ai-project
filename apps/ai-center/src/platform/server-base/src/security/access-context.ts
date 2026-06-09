@@ -1,9 +1,14 @@
-import { currentProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 
-export function requireScopedProjectId(errorFactory: () => Error): string {
-  const pid = currentProjectId()
-  if (!pid) throw errorFactory()
-  return pid
+export function requireScopedTenantId(errorFactory: () => Error): string {
+  const tid = currentTenantId()
+  if (!tid) throw errorFactory()
+  return tid
 }
 
-export { currentProjectId, isGlobalAccessEnabled }
+/** @deprecated Use {@link requireScopedTenantId} */
+export function requireScopedProjectId(errorFactory: () => Error): string {
+  return requireScopedTenantId(errorFactory)
+}
+
+export { currentTenantId, isGlobalAccessEnabled }

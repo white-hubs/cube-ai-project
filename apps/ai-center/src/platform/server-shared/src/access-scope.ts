@@ -1,10 +1,10 @@
-import { projectContextAls } from './project-context'
+import { tenantContextAls } from './project-context'
 
-export function currentProjectId(): string | null {
-  const raw = projectContextAls.getStore()?.projectId?.trim() ?? ''
+export function currentTenantId(): string | null {
+  const raw = tenantContextAls.getStore()?.tenantId?.trim() ?? ''
   return raw !== '' ? raw : null
 }
 
 export function isGlobalAccessEnabled(): boolean {
-  return projectContextAls.getStore()?.bypassProjectIsolation === true
+  return tenantContextAls.getStore()?.bypassTenantIsolation === true
 }

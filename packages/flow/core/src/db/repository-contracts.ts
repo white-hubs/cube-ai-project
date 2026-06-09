@@ -20,25 +20,25 @@ export const PROJECT_REPOSITORY_TOKEN = Symbol('ProjectRepository')
 
 export interface FlowRepository {
   createFlow(
-    projectId: string,
+    tenantId: string,
     row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null },
     graphJson: string,
   ): Awaitable<void>
   updateFlowMeta(
-    projectId: string,
+    tenantId: string,
     id: string,
     patch: Partial<Pick<FlowRow, 'name' | 'description' | 'langflow_flow_id' | 'binding_status'>>,
     bumpRevision: boolean,
   ): Awaitable<void>
-  setLfSnapshot(projectId: string, id: string, json: string | null): Awaitable<void>
-  updateGraph(projectId: string, id: string, graphJson: string): Awaitable<void>
-  deleteFlow(projectId: string, id: string): Awaitable<void>
-  listFlows(projectId?: string | null): Awaitable<FlowRow[]>
-  getFlow(id: string, projectId?: string | null): Awaitable<FlowRow | null>
-  getFlowInProject(id: string, projectId: string): Awaitable<FlowRow | null>
-  countFlowsInProject(projectId: string): Awaitable<number>
-  countApiKeysInProject(projectId: string): Awaitable<number>
-  countCustomTemplatesInProject(projectId: string): Awaitable<number>
+  setLfSnapshot(tenantId: string, id: string, json: string | null): Awaitable<void>
+  updateGraph(tenantId: string, id: string, graphJson: string): Awaitable<void>
+  deleteFlow(tenantId: string, id: string): Awaitable<void>
+  listFlows(tenantId?: string | null): Awaitable<FlowRow[]>
+  getFlow(id: string, tenantId?: string | null): Awaitable<FlowRow | null>
+  getFlowInProject(id: string, tenantId: string): Awaitable<FlowRow | null>
+  countFlowsInProject(tenantId: string): Awaitable<number>
+  countApiKeysInProject(tenantId: string): Awaitable<number>
+  countCustomTemplatesInProject(tenantId: string): Awaitable<number>
   getGraphJson(flowId: string): Awaitable<string | null>
 
   getPlaygroundSession(flowId: string, sessionId: string): Awaitable<PlaygroundSessionRow | null>
@@ -67,23 +67,23 @@ export interface FlowRepository {
   archiveDefaultPlaygroundSession(flowId: string, demotedTitle: string): Awaitable<void>
 
 
-  listCustomComponentTemplates(projectId?: string | null): Awaitable<CustomComponentTemplateRow[]>
-  getCustomComponentTemplate(id: string, projectId?: string | null): Awaitable<CustomComponentTemplateRow | null>
+  listCustomComponentTemplates(tenantId?: string | null): Awaitable<CustomComponentTemplateRow[]>
+  getCustomComponentTemplate(id: string, tenantId?: string | null): Awaitable<CustomComponentTemplateRow | null>
   insertCustomComponentTemplate(
-    projectId: string,
+    tenantId: string,
     row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>,
   ): Awaitable<void>
   updateCustomComponentTemplate(
-    projectId: string,
+    tenantId: string,
     id: string,
     patch: Partial<Pick<CustomComponentTemplateRow, 'display_name' | 'dsl_json'>>,
   ): Awaitable<void>
-  deleteCustomComponentTemplate(projectId: string, id: string): Awaitable<void>
+  deleteCustomComponentTemplate(tenantId: string, id: string): Awaitable<void>
 
   insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): Awaitable<void>
-  listApiKeys(projectId?: string | null): Awaitable<ApiKeyRow[]>
-  getApiKeyById(id: string, projectId?: string | null): Awaitable<ApiKeyRow | null>
-  revokeApiKey(projectId: string | null | undefined, id: string): Awaitable<void>
+  listApiKeys(tenantId?: string | null): Awaitable<ApiKeyRow[]>
+  getApiKeyById(id: string, tenantId?: string | null): Awaitable<ApiKeyRow | null>
+  revokeApiKey(tenantId: string | null | undefined, id: string): Awaitable<void>
   touchApiKeyUsage(id: string): Awaitable<void>
   verifyApiKeyRaw(rawSecret: string): Awaitable<ApiKeyRow | null>
 

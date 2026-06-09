@@ -351,7 +351,7 @@ export class DocumentDirectoryController {
             type: 'object',
             properties: {
               id: { type: 'string', description: '文档主键' },
-              projectId: { type: 'string', nullable: true, description: '项目标识（X-Project-Id）' },
+              tenantId: { type: 'string', nullable: true, description: '租户标识' },
               deleted: { type: 'string', nullable: true, description: '软删除标记' },
               createBy: { type: 'string', description: '创建者名称' },
               creatorId: { type: 'string', nullable: true, description: '创建者主体 id' },

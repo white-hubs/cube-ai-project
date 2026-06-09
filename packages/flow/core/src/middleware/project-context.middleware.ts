@@ -8,9 +8,9 @@ export function createProjectContextMiddleware(): Middleware {
       const { projectRepo } = await getSharedRepositories()
       return (await projectRepo.listProjects()).map((p) => p.project_id)
     },
-    async hasProject(projectId: string) {
+    async hasProject(tenantId: string) {
       const { projectRepo } = await getSharedRepositories()
-      return (await projectRepo.getProject(projectId)) != null
+      return (await projectRepo.getProject(tenantId)) != null
     },
   }
   return createBaseProjectContextMiddleware({ projectLookup: lookup })

@@ -51,7 +51,7 @@ export interface ChunkDocumentInput {
   text: string
   sourceType: string
   fileName: string
-  projectId: string | null
+  tenantId: string | null
   chunkingOptions?: ChunkingOptions
 }
 
@@ -74,7 +74,7 @@ export interface TextChunkRecord extends ChunkSemanticMetadata {
   chunkIndex: number
   text: string
   embeddingText: string
-  projectId: string | null
+  tenantId: string | null
   sourceType: string
   fileName: string
   sectionId: string

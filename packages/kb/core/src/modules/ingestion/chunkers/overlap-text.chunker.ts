@@ -232,7 +232,7 @@ export class OverlapTextChunker {
       chunkIndex,
       text,
       embeddingText: text,
-      projectId: input.projectId,
+      tenantId: input.tenantId,
       sourceType: input.sourceType,
       fileName: input.fileName,
       sectionId: 'document-root',

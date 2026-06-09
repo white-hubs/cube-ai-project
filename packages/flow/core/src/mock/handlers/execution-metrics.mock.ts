@@ -6,7 +6,7 @@ MockRegistry.getInstance().define(
   () => ({
     recentCount: 0,
     byFlow: {},
-    byProjectId: {},
+    byTenantId: {},
   }),
 )
 

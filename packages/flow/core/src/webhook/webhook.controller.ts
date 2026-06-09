@@ -12,7 +12,7 @@ import {
   POST,
 } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/server-base'
-import { currentProjectId } from '@cube-ai/server-shared'
+import { currentTenantId } from '@cube-ai/server-shared'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import { FlowsService } from '../flows/flows.service'
 import { MockableEndpoint } from '@cube-ai/server-mock'
@@ -117,11 +117,11 @@ export class WebhookController {
     const now = new Date().toISOString()
     const resolvedFlowId = await this.flows.resolveFlowId(flowId)
     const flow = await this.repo.getFlow(resolvedFlowId, null)
-    const projectId = currentProjectId() ?? ''
+    const tenantId = currentTenantId() ?? ''
     await this.repo.insertWebhookInvocation({
       id,
       flow_id: resolvedFlowId,
-      project_id: projectId || flow?.project_id || '__global__',
+      project_id: tenantId || flow?.project_id || '__global__',
       source: ctx.request.headers.get('x-webhook-source'),
       payload_json: raw.slice(0, 500_000),
       status: 'accepted',

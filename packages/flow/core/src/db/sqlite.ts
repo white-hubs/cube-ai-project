@@ -837,7 +837,7 @@ export class FlowRepository {
   }
 
   createFlow(
-    projectId: string,
+    tenantId: string,
     row: Omit<FlowRow, 'lf_snapshot_json' | 'project_id'> & { lf_snapshot_json?: string | null },
     graphJson: string,
   ): void {
@@ -855,7 +855,7 @@ export class FlowRepository {
           row.create_time,
           row.update_time,
           row.lf_snapshot_json ?? null,
-          projectId,
+          tenantId,
         ],
       )
       this.db.run(
@@ -867,13 +867,13 @@ export class FlowRepository {
   }
 
   updateFlowMeta(
-    projectId: string,
+    tenantId: string,
     id: string,
     patch: Partial<Pick<FlowRow, 'name' | 'description' | 'langflow_flow_id' | 'binding_status'>>,
     bumpRevision: boolean,
   ): void {
     const now = new Date().toISOString()
-    const row = this.getFlow(id, projectId)
+    const row = this.getFlow(id, tenantId)
     if (!row) return
     const rev = bumpRevision ? row.cube_revision + 1 : row.cube_revision
     this.db.run(
@@ -894,20 +894,20 @@ export class FlowRepository {
         rev,
         now,
         id,
-        projectId,
+        tenantId,
       ],
     )
   }
 
-  setLfSnapshot(projectId: string, id: string, json: string | null): void {
+  setLfSnapshot(tenantId: string, id: string, json: string | null): void {
     const now = new Date().toISOString()
     this.db.run(
       `UPDATE flows SET lf_snapshot_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ?`,
-      [json, now, id, projectId],
+      [json, now, id, tenantId],
     )
   }
 
-  updateGraph(projectId: string, id: string, graphJson: string): void {
+  updateGraph(tenantId: string, id: string, graphJson: string): void {
     const now = new Date().toISOString()
     this.db.run(`UPDATE flow_graphs SET graph_json = ?, update_time = ?, update_by = 'system' WHERE flow_id = ?`, [
       graphJson,
@@ -916,57 +916,57 @@ export class FlowRepository {
     ])
     this.db.run(
       `UPDATE flows SET update_time = ?, cube_revision = cube_revision + 1, update_by = 'system' WHERE id = ? AND project_id = ?`,
-      [now, id, projectId],
+      [now, id, tenantId],
     )
   }
 
-  deleteFlow(projectId: string, id: string): void {
-    this.db.run(`DELETE FROM flows WHERE id = ? AND project_id = ?`, [id, projectId])
+  deleteFlow(tenantId: string, id: string): void {
+    this.db.run(`DELETE FROM flows WHERE id = ? AND project_id = ?`, [id, tenantId])
   }
 
-  listFlows(projectId?: string | null): FlowRow[] {
-    if (!projectId || projectId.trim() === '') {
+  listFlows(tenantId?: string | null): FlowRow[] {
+    if (!tenantId || tenantId.trim() === '') {
       return this.db.query('SELECT * FROM flows ORDER BY update_time DESC').all() as FlowRow[]
     }
     return this.db
       .query('SELECT * FROM flows WHERE project_id = ? ORDER BY update_time DESC')
-      .all(projectId) as FlowRow[]
+      .all(tenantId) as FlowRow[]
   }
 
-  getFlow(id: string, projectId?: string | null): FlowRow | null {
-    if (!projectId || projectId.trim() === '') {
+  getFlow(id: string, tenantId?: string | null): FlowRow | null {
+    if (!tenantId || tenantId.trim() === '') {
       const r = this.db.query('SELECT * FROM flows WHERE id = ?').get(id) as FlowRow | undefined
       return r ?? null
     }
     const r = this.db
       .query('SELECT * FROM flows WHERE id = ? AND project_id = ?')
-      .get(id, projectId) as FlowRow | undefined
+      .get(id, tenantId) as FlowRow | undefined
     return r ?? null
   }
 
   /** 执行面：按 id 解析 flow，并校验属于给定 project（用于 API Key / webhook）。 */
-  getFlowInProject(id: string, projectId: string): FlowRow | null {
-    return this.getFlow(id, projectId)
+  getFlowInProject(id: string, tenantId: string): FlowRow | null {
+    return this.getFlow(id, tenantId)
   }
 
-  countFlowsInProject(projectId: string): number {
-    const r = this.db.query(`SELECT COUNT(1) as n FROM flows WHERE project_id = ?`).get(projectId) as
+  countFlowsInProject(tenantId: string): number {
+    const r = this.db.query(`SELECT COUNT(1) as n FROM flows WHERE project_id = ?`).get(tenantId) as
       | { n: number }
       | undefined
     return r?.n ?? 0
   }
 
-  countApiKeysInProject(projectId: string): number {
+  countApiKeysInProject(tenantId: string): number {
     const r = this.db
       .query(`SELECT COUNT(1) as n FROM api_keys WHERE project_id = ? AND deleted = 0`)
-      .get(projectId) as { n: number } | undefined
+      .get(tenantId) as { n: number } | undefined
     return r?.n ?? 0
   }
 
-  countCustomTemplatesInProject(projectId: string): number {
+  countCustomTemplatesInProject(tenantId: string): number {
     const r = this.db
       .query(`SELECT COUNT(1) as n FROM custom_component_templates WHERE project_id = ?`)
-      .get(projectId) as { n: number } | undefined
+      .get(tenantId) as { n: number } | undefined
     return r?.n ?? 0
   }
 
@@ -1123,19 +1123,19 @@ export class FlowRepository {
     tx()
   }
 
-  listCustomComponentTemplates(projectId?: string | null): CustomComponentTemplateRow[] {
-    if (!projectId || projectId.trim() === '') {
+  listCustomComponentTemplates(tenantId?: string | null): CustomComponentTemplateRow[] {
+    if (!tenantId || tenantId.trim() === '') {
       return this.db
         .query(`SELECT * FROM custom_component_templates ORDER BY update_time DESC`)
         .all() as CustomComponentTemplateRow[]
     }
     return this.db
       .query(`SELECT * FROM custom_component_templates WHERE project_id = ? ORDER BY update_time DESC`)
-      .all(projectId) as CustomComponentTemplateRow[]
+      .all(tenantId) as CustomComponentTemplateRow[]
   }
 
-  getCustomComponentTemplate(id: string, projectId?: string | null): CustomComponentTemplateRow | null {
-    if (!projectId || projectId.trim() === '') {
+  getCustomComponentTemplate(id: string, tenantId?: string | null): CustomComponentTemplateRow | null {
+    if (!tenantId || tenantId.trim() === '') {
       const r = this.db
         .query(`SELECT * FROM custom_component_templates WHERE id = ?`)
         .get(id) as CustomComponentTemplateRow | undefined
@@ -1143,40 +1143,40 @@ export class FlowRepository {
     }
     const r = this.db
       .query(`SELECT * FROM custom_component_templates WHERE id = ? AND project_id = ?`)
-      .get(id, projectId) as CustomComponentTemplateRow | undefined
+      .get(id, tenantId) as CustomComponentTemplateRow | undefined
     return r ?? null
   }
 
   insertCustomComponentTemplate(
-    projectId: string,
+    tenantId: string,
     row: Omit<CustomComponentTemplateRow, 'create_time' | 'update_time' | 'project_id' | keyof AuditColumns>,
   ): void {
     const now = new Date().toISOString()
     this.db.run(
       `INSERT INTO custom_component_templates (id, display_name, dsl_json, create_time, update_time, project_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [row.id, row.display_name, row.dsl_json, now, now, projectId],
+      [row.id, row.display_name, row.dsl_json, now, now, tenantId],
     )
   }
 
   updateCustomComponentTemplate(
-    projectId: string,
+    tenantId: string,
     id: string,
     patch: Partial<Pick<CustomComponentTemplateRow, 'display_name' | 'dsl_json'>>,
   ): void {
-    const row = this.getCustomComponentTemplate(id, projectId)
+    const row = this.getCustomComponentTemplate(id, tenantId)
     if (!row) return
     const now = new Date().toISOString()
     const displayName = patch.display_name ?? row.display_name
     const dsl = patch.dsl_json ?? row.dsl_json
     this.db.run(
       `UPDATE custom_component_templates SET display_name = ?, dsl_json = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ?`,
-      [displayName, dsl, now, id, projectId],
+      [displayName, dsl, now, id, tenantId],
     )
   }
 
-  deleteCustomComponentTemplate(projectId: string, id: string): void {
-    this.db.run(`DELETE FROM custom_component_templates WHERE id = ? AND project_id = ?`, [id, projectId])
+  deleteCustomComponentTemplate(tenantId: string, id: string): void {
+    this.db.run(`DELETE FROM custom_component_templates WHERE id = ? AND project_id = ?`, [id, tenantId])
   }
 
   // --- Developer API keys ---
@@ -1202,8 +1202,8 @@ export class FlowRepository {
     )
   }
 
-  listApiKeys(projectId?: string | null): ApiKeyRow[] {
-    if (!projectId || projectId.trim() === '') {
+  listApiKeys(tenantId?: string | null): ApiKeyRow[] {
+    if (!tenantId || tenantId.trim() === '') {
       return this.db
         .query('SELECT * FROM api_keys WHERE deleted = 0 ORDER BY create_time DESC')
         .all() as ApiKeyRow[]
@@ -1212,11 +1212,11 @@ export class FlowRepository {
       .query(
         'SELECT * FROM api_keys WHERE project_id = ? AND deleted = 0 ORDER BY create_time DESC',
       )
-      .all(projectId) as ApiKeyRow[]
+      .all(tenantId) as ApiKeyRow[]
   }
 
-  getApiKeyById(id: string, projectId?: string | null): ApiKeyRow | null {
-    if (!projectId || projectId.trim() === '') {
+  getApiKeyById(id: string, tenantId?: string | null): ApiKeyRow | null {
+    if (!tenantId || tenantId.trim() === '') {
       const r = this.db
         .query('SELECT * FROM api_keys WHERE id = ? AND deleted = 0')
         .get(id) as ApiKeyRow | undefined
@@ -1224,14 +1224,14 @@ export class FlowRepository {
     }
     const r = this.db
       .query('SELECT * FROM api_keys WHERE id = ? AND project_id = ? AND deleted = 0')
-      .get(id, projectId) as ApiKeyRow | undefined
+      .get(id, tenantId) as ApiKeyRow | undefined
     return r ?? null
   }
 
-  revokeApiKey(projectId: string | null | undefined, id: string): void {
+  revokeApiKey(tenantId: string | null | undefined, id: string): void {
     const del = deletedValueMs()
     const now = new Date().toISOString()
-    if (!projectId || projectId.trim() === '') {
+    if (!tenantId || tenantId.trim() === '') {
       this.db.run(
         `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND deleted = 0`,
         [del, now, id],
@@ -1240,7 +1240,7 @@ export class FlowRepository {
     }
     this.db.run(
       `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND project_id = ? AND deleted = 0`,
-      [del, now, id, projectId],
+      [del, now, id, tenantId],
     )
   }
 

@@ -115,7 +115,7 @@ class FakeIngestionService {
         chunkIndex: 0,
         text: 'preview text',
         embeddingText: 'heading\npreview text',
-        projectId: null,
+        tenantId: null,
         sourceType: 'txt',
         fileName: 'note.txt',
         sectionId: 'section-1',

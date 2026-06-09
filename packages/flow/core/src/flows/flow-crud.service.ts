@@ -6,7 +6,7 @@ import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-con
 import { getLfComponentDef } from '../langflow/lf-api-all-registry'
 import { normalizeRunBody, type NormalizedRunBody } from '../contracts/cube-run'
 import { applyInputGuardrails } from '../guardrails/guardrails'
-import { currentProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 
 /** Keys safe to expose in playground graph summaries (no secrets). */
 export const PLAYGROUND_VISIBLE_CONFIG_KEYS = [
@@ -98,7 +98,7 @@ export class FlowCrudService {
   }
 
   requireProjectId(): string {
-    const p = currentProjectId()
+    const p = currentTenantId()
     const s = typeof p === 'string' ? p.trim() : ''
     if (!s) {
       throw new HttpException(400, 'missing or invalid tenant context', { code: 'TENANT_REQUIRED' })
@@ -122,12 +122,12 @@ export class FlowCrudService {
   }
 
   async resolveFlowId(ref: string): Promise<string> {
-    const projectId = this.readProjectId()
+    const tenantId = this.readProjectId()
     const s = ref?.trim() ?? ''
     if (!s) throw new BadRequestException('flow id or name is required')
-    if (await this.repo.getFlow(s, projectId)) return s
+    if (await this.repo.getFlow(s, tenantId)) return s
     const lower = s.toLowerCase()
-    const matches = (await this.repo.listFlows(projectId)).filter((r) => r.name.trim().toLowerCase() === lower)
+    const matches = (await this.repo.listFlows(tenantId)).filter((r) => r.name.trim().toLowerCase() === lower)
     if (matches.length === 1) {
       const only = matches[0]
       if (!only) throw new NotFoundException(`Flow ${s} not found`)
@@ -263,17 +263,17 @@ export class FlowCrudService {
    * 仅删除本地库；HTTP 入口应使用 `FlowLangflowSyncService.deleteFlow`（会先 best-effort 删 Langflow 远端）。
    */
   async delete(ref: string) {
-    const projectId = this.requireProjectId()
+    const tenantId = this.requireProjectId()
     const id = await this.resolveFlowId(ref)
-    const row = await this.repo.getFlow(id, projectId)
+    const row = await this.repo.getFlow(id, tenantId)
     if (!row) throw new NotFoundException(`Flow ${id} not found`)
-    await this.repo.deleteFlow(projectId, id)
+    await this.repo.deleteFlow(tenantId, id)
     return { deleted: true }
   }
 
   async loadGraphOrThrow(flowPk: string): Promise<CubeFlowGraph> {
-    const projectId = this.requireProjectId()
-    if (!(await this.repo.getFlow(flowPk, projectId))) throw new NotFoundException(`Flow ${flowPk} not found`)
+    const tenantId = this.requireProjectId()
+    if (!(await this.repo.getFlow(flowPk, tenantId))) throw new NotFoundException(`Flow ${flowPk} not found`)
     const j = await this.repo.getGraphJson(flowPk)
     if (!j?.trim()) throw new NotFoundException(`Flow ${flowPk} has no graph`)
     return parseGraph(j)

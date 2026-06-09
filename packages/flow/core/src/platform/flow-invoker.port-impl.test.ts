@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { FlowInvokerPort } from '@cube-ai/contracts';
-import { projectContextAls } from '@cube-ai/server-shared';
+import { tenantContextAls } from '@cube-ai/server-shared';
 import { FlowRepository } from '../db/sqlite';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowLangflowSyncService } from '../flows/flow-langflow-sync.service';
@@ -84,7 +84,7 @@ describe('FlowInvokerPortImpl', () => {
         if (originalEnv !== undefined) process.env['EXP_USE_CUBE_FLOW_ENGINE'] = originalEnv;
       }
 
-      await projectContextAls.run({ projectId: 'default', bypassProjectIsolation: false }, async () => {
+      await tenantContextAls.run({ tenantId: 'default', bypassTenantIsolation: false }, async () => {
         await expect(execution.run('invoke-flow-1', { input: 'hi', stream: false })).rejects.toThrow();
       });
     } finally {

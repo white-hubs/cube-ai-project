@@ -9,7 +9,7 @@ import type { SearchItem } from '../modules/common/document-types';
 import type { RetrievalService } from '../modules/vector-store/services/retrieval.service';
 
 describe('KnowledgeQueryPort mapping', () => {
-  test('maps tenant to projectId string', () => {
+  test('maps tenant to tenantId string', () => {
     expect(mapTenantToProjectId(9)).toBe('9');
   });
 

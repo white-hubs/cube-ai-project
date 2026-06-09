@@ -7,7 +7,7 @@ import {
   type QdrantFilter,
   type SparseVector,
 } from '@cube-ai/vector-qdrant';
-import { currentProjectId, isGlobalAccessEnabled } from '@/infra/access-scope';
+import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope';
 import { APP_CONFIG_TOKEN, type AppConfig } from '@/config/app.config';
 
 export interface QdrantPointPayload extends Record<string, unknown> {
@@ -36,7 +36,7 @@ export interface QdrantPointPayload extends Record<string, unknown> {
   cueIndex?: number | null;
   propertyNamespace?: string | null;
   retrievalProfile?: string | null;
-  projectId?: string | null;
+  tenantId?: string | null;
 }
 
 export interface QdrantSearchResult {
@@ -77,15 +77,15 @@ export class QdrantVectorRepository {
     this.vectorIndex = new QdrantVectorIndex(qdrantClient, qdrantCollectionService);
   }
 
-  private getScopedProjectIdForFilter(): string | null {
+  private getScopedTenantIdForFilter(): string | null {
     if (isGlobalAccessEnabled()) return null;
-    return currentProjectId();
+    return currentTenantId();
   }
 
   private buildSearchFilter(
     params: QdrantVectorRepositorySearchParams,
   ): QdrantFilter | undefined {
-    const scopedProjectId = this.getScopedProjectIdForFilter();
+    const scopedTenantId = this.getScopedTenantIdForFilter();
     const should: Array<{ key: string; match: { value: string | number } }> = [];
     if (params.documentId !== undefined) {
       const documentId = String(params.documentId).trim();
@@ -103,8 +103,8 @@ export class QdrantVectorRepository {
     }
 
     const must: Array<{ key: string; match: { value: string } }> = [];
-    if (scopedProjectId !== null) {
-      must.push({ key: 'projectId', match: { value: scopedProjectId } });
+    if (scopedTenantId !== null) {
+      must.push({ key: 'tenantId', match: { value: scopedTenantId } });
     }
 
     if (must.length === 0 && should.length === 0) {
@@ -122,15 +122,15 @@ export class QdrantVectorRepository {
   }
 
   private buildDeleteFilter(documentId: string): QdrantFilter {
-    const scopedProjectId = this.getScopedProjectIdForFilter();
+    const scopedTenantId = this.getScopedTenantIdForFilter();
     const must: Array<{ key: string; match: { value: string } }> = [
       {
         key: 'documentId',
         match: { value: documentId },
       },
     ];
-    if (scopedProjectId !== null) {
-      must.push({ key: 'projectId', match: { value: scopedProjectId } });
+    if (scopedTenantId !== null) {
+      must.push({ key: 'tenantId', match: { value: scopedTenantId } });
     }
     return { must };
   }
@@ -147,13 +147,13 @@ export class QdrantVectorRepository {
     if (points.length === 0) {
       return;
     }
-    const scopedProjectId = this.getScopedProjectIdForFilter();
+    const scopedTenantId = this.getScopedTenantIdForFilter();
     await this.vectorIndex.upsert(
       this.config.qdrantCollectionName,
       points.map((point) => ({
         id: point.id,
         vectors: point.vectors,
-        payload: { ...point.payload, projectId: scopedProjectId } as Record<string, unknown>,
+        payload: { ...point.payload, tenantId: scopedTenantId } as Record<string, unknown>,
       })),
     );
   }

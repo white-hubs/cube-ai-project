@@ -1,6 +1,6 @@
 import { ApiOperation, ApiResponse, Controller, GET, Injectable } from '@dangao/bun-server'
 import { MockableEndpoint } from '@cube-ai/server-mock'
-import { currentProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 import { getExecutionMetricsSnapshot, getExecutionMetricsRecent } from './execution-metrics'
 
 /**
@@ -31,7 +31,7 @@ export class ExecutionMetricsController {
   })
   @MockableEndpoint('metrics.summary')
   summary() {
-    const pid = isGlobalAccessEnabled() ? null : currentProjectId()
+    const pid = isGlobalAccessEnabled() ? null : currentTenantId()
     return getExecutionMetricsSnapshot(pid)
   }
 
@@ -57,7 +57,7 @@ export class ExecutionMetricsController {
   })
   @MockableEndpoint('metrics.recent')
   recent() {
-    const pid = isGlobalAccessEnabled() ? null : currentProjectId()
+    const pid = isGlobalAccessEnabled() ? null : currentTenantId()
     return getExecutionMetricsRecent(pid)
   }
 }

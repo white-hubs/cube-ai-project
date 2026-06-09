@@ -8,7 +8,7 @@ import type {
   FlowInvokerPort,
 } from '@cube-ai/contracts';
 import { AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN, AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN } from '@cube-ai/contracts/platform';
-import { projectContextAls } from '@cube-ai/server-shared';
+import { tenantContextAls } from '@cube-ai/server-shared';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowExecutionService } from '../flows/flow-execution.service';
 
@@ -27,7 +27,7 @@ export class FlowInvokerPortImpl implements FlowInvokerPort {
           : '';
     const body = { ...(req.variables ?? {}), input, stream: false };
 
-    return projectContextAls.run({ projectId: tenantId, bypassProjectIsolation: false }, async () => {
+    return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, async () => {
       const raw = await this.execution.run(req.flowId, body);
       const result: Record<string, unknown> =
         raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : { value: raw };
@@ -43,7 +43,7 @@ export class FlowCatalogPortImpl implements FlowCatalogPort {
   async list(req: FlowCatalogListRequest, signal: AbortSignal): Promise<FlowCatalogListResponse> {
     void signal;
     const tenantId = String(req.tenant);
-    return projectContextAls.run({ projectId: tenantId, bypassProjectIsolation: false }, async () => {
+    return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, async () => {
       const rows = await this.crud.repo.listFlows(tenantId);
       const keyword = req.keyword?.trim().toLowerCase();
       let flows = rows.map((r) => ({

@@ -3,12 +3,12 @@
  * 随重组逐步迁入具体实现；见 cube-ai/server/README.md。
  */
 export {
-  projectContextAls,
-  type ProjectContext,
+  tenantContextAls,
+  type TenantContext,
 } from './project-context'
 export { authenticatedUserAls, type AuthenticatedUserContext } from './auth-context'
 export { developerApiAls, type DeveloperApiContext } from './developer-api-context'
-export { currentProjectId, isGlobalAccessEnabled } from './access-scope'
+export { currentTenantId, isGlobalAccessEnabled } from './access-scope'
 
 export function assertNonEmptyString(value: string, name: string): string {
   const t = value.trim()

@@ -7,7 +7,7 @@ import type {
 import { Injectable } from '@dangao/bun-server';
 import type { SearchItem } from '../modules/common/document-types';
 import type { RetrievalService } from '../modules/vector-store/services/retrieval.service';
-import { projectContextAls } from '../infra/access-scope';
+import { tenantContextAls } from '../infra/access-scope';
 
 /** tenant:number → projectId:string (ghcloud parity: numeric tenant id as string). */
 export function mapTenantToProjectId(tenant: number): string {
@@ -53,8 +53,8 @@ export class KnowledgeQueryPortImpl implements KnowledgeQueryPort {
       return { hits: [], truncated: false };
     }
 
-    const projectId = mapTenantToProjectId(req.tenant);
-    return projectContextAls.run({ projectId }, async () => {
+    const tenantId = mapTenantToProjectId(req.tenant);
+    return tenantContextAls.run({ tenantId }, async () => {
       const perDirectory = await Promise.all(
         directoryIds.map(async (directoryId) => {
           const result = await this.retrievalService.searchByDirectory({

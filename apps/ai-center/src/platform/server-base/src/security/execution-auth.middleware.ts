@@ -6,7 +6,7 @@ import {
 } from '@dangao/bun-server'
 import {
   authenticatedUserAls,
-  projectContextAls,
+  tenantContextAls,
 } from '@cube-ai/server-shared'
 import type {
   AccessTokenReader,
@@ -44,8 +44,8 @@ export function createExecutionAuthMiddleware(deps: {
         const tenantRaw = ctx.request.headers.get('tenant')?.trim() ?? ''
         const bypassIsolation = auth.isSuperAdmin && tenantRaw === ''
         return authenticatedUserAls.run(auth, () =>
-          projectContextAls.run(
-            { projectId: tenantRaw, bypassProjectIsolation: bypassIsolation },
+          tenantContextAls.run(
+            { tenantId: tenantRaw, bypassTenantIsolation: bypassIsolation },
             () => next(),
           ),
         )

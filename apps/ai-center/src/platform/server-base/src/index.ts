@@ -11,8 +11,9 @@ export { createDeveloperRateLimitMiddleware } from './security/developer-rate-li
 export { createExecutionAuthMiddleware } from './security/execution-auth.middleware'
 export { createProjectContextMiddleware } from './security/project-context.middleware'
 export {
-  currentProjectId,
+  currentTenantId,
   isGlobalAccessEnabled,
+  requireScopedTenantId,
   requireScopedProjectId,
 } from './security/access-context'
 export type {

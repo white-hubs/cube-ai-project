@@ -1,17 +1,17 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-export type ProjectContext = {
-  projectId: string;
-  bypassProjectIsolation?: boolean;
+export type TenantContext = {
+  tenantId: string;
+  bypassTenantIsolation?: boolean;
 };
 
-export const projectContextAls = new AsyncLocalStorage<ProjectContext>();
+export const tenantContextAls = new AsyncLocalStorage<TenantContext>();
 
-export function currentProjectId(): string | null {
-  const raw = projectContextAls.getStore()?.projectId?.trim() ?? '';
+export function currentTenantId(): string | null {
+  const raw = tenantContextAls.getStore()?.tenantId?.trim() ?? '';
   return raw !== '' ? raw : null;
 }
 
 export function isGlobalAccessEnabled(): boolean {
-  return projectContextAls.getStore()?.bypassProjectIsolation === true;
+  return tenantContextAls.getStore()?.bypassTenantIsolation === true;
 }

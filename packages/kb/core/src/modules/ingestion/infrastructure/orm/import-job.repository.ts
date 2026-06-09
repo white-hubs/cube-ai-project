@@ -7,7 +7,7 @@ import {
   Repository,
   type Logger,
 } from '@dangao/bun-server'
-import { currentProjectId, isGlobalAccessEnabled } from '@/infra/access-scope'
+import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import { ImportJobEntity } from './import-job.entity'
 
@@ -24,13 +24,13 @@ export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
     super(databaseService)
   }
 
-  private getProjectId(): string | null {
+  private getTenantId(): string | null {
     if (isGlobalAccessEnabled()) return null
-    return currentProjectId()
+    return currentTenantId()
   }
 
   private scopeFilter(): { sql: string; params: unknown[] } {
-    const pid = this.getProjectId()
+    const pid = this.getTenantId()
     if (pid) return { sql: 'project_id = ?', params: [pid] }
     return { sql: '', params: [] }
   }
@@ -40,7 +40,7 @@ export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
   }
 
   public async createJob(data: Partial<ImportJobEntity>): Promise<ImportJobEntity> {
-    const project_id = this.getProjectId()
+    const project_id = this.getTenantId()
     const audit = this.getAuditInfo()
     const now = formatMysqlDateTimeShanghai()
 

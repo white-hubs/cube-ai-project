@@ -13,7 +13,7 @@ describe('OverlapTextChunker', () => {
       text: 'alpha\n\nbeta\n\ngamma',
       sourceType: 'md',
       fileName: 'paragraphs.md',
-      projectId: '1',
+      tenantId: '1',
     })
 
     expect(chunks).toHaveLength(2)
@@ -32,7 +32,7 @@ describe('OverlapTextChunker', () => {
       text: '  Hello   world  \n\nvisit https://example.com or mail me@example.com  \n\n next\tline ',
       sourceType: 'txt',
       fileName: 'clean.txt',
-      projectId: '2',
+      tenantId: '2',
     })
 
     expect(chunks).toHaveLength(1)
@@ -50,7 +50,7 @@ describe('OverlapTextChunker', () => {
       text: 'line-one\nline-two\nline-three',
       sourceType: 'txt',
       fileName: 'lines.txt',
-      projectId: '3',
+      tenantId: '3',
     })
 
     expect(chunks).toHaveLength(3)
@@ -68,7 +68,7 @@ describe('OverlapTextChunker', () => {
       text: 'alpha###beta###gamma',
       sourceType: 'txt',
       fileName: 'custom-separator.txt',
-      projectId: '3',
+      tenantId: '3',
       chunkingOptions: {
         separator: '###',
       } as never,
@@ -97,7 +97,7 @@ describe('OverlapTextChunker', () => {
       ].join('\n'),
       sourceType: 'txt',
       fileName: 'sdk.txt',
-      projectId: '1',
+      tenantId: '1',
       chunkingOptions: {
         textChunkMode: 'block',
       } as never,
@@ -129,7 +129,7 @@ describe('OverlapTextChunker', () => {
       ].join('\n'),
       sourceType: 'txt',
       fileName: 'sdk.txt',
-      projectId: '1',
+      tenantId: '1',
       chunkingOptions: {
         textChunkMode: 'auto',
       } as never,
@@ -151,7 +151,7 @@ describe('OverlapTextChunker', () => {
       text: '- line one\n\n- line two',
       sourceType: 'txt',
       fileName: 'list.txt',
-      projectId: '1',
+      tenantId: '1',
       chunkingOptions: {
         textChunkMode: 'merge',
       } as never,
@@ -172,7 +172,7 @@ describe('OverlapTextChunker', () => {
       text: 'abcdefghijklmnopqrstuvwx',
       sourceType: 'txt',
       fileName: 'demo.txt',
-      projectId: '9',
+      tenantId: '9',
     })
 
     expect(chunks).toHaveLength(3)
@@ -181,7 +181,7 @@ describe('OverlapTextChunker', () => {
     expect(chunks[1]?.text).toBe('ijklmnopqrst')
     expect(chunks[2]?.text).toBe('qrstuvwx')
     expect(chunks[1]?.documentId).toBe('7')
-    expect(chunks[1]?.projectId).toBe('9')
+    expect(chunks[1]?.tenantId).toBe('9')
   })
 
   test('returns one chunk for short text', async () => {
@@ -195,7 +195,7 @@ describe('OverlapTextChunker', () => {
       text: 'short text',
       sourceType: 'md',
       fileName: 'note.md',
-      projectId: null,
+      tenantId: null,
     })
 
     expect(chunks).toHaveLength(1)

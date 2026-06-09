@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { authenticatedUserAls, projectContextAls } from '@cube-ai/server-shared'
+import { authenticatedUserAls, tenantContextAls } from '@cube-ai/server-shared'
 import { createExecutionAuthMiddleware } from './execution-auth.middleware'
 import type { AccessTokenReader } from './middleware-types'
 
@@ -46,7 +46,7 @@ describe('execution auth middleware', () => {
       createCtx('/run/flow-1', { authorization: 'Bearer good-token', tenant: '42' }) as never,
       async () => {
         seenAuth = authenticatedUserAls.getStore()?.username === 'admin'
-        seenTenant = projectContextAls.getStore()?.projectId === '42'
+        seenTenant = tenantContextAls.getStore()?.tenantId === '42'
       },
     )
 
@@ -77,7 +77,7 @@ describe('execution auth middleware', () => {
       }) as never,
       async () => {
         await Promise.resolve()
-        seenTenantAfterAwait = projectContextAls.getStore()?.projectId === '42'
+        seenTenantAfterAwait = tenantContextAls.getStore()?.tenantId === '42'
       },
     )
 
@@ -120,7 +120,7 @@ describe('execution auth middleware', () => {
     let bypass = false
 
     await middleware(createCtx('/run/flow-1', { authorization: 'Bearer token' }) as never, async () => {
-      bypass = projectContextAls.getStore()?.bypassProjectIsolation === true
+      bypass = tenantContextAls.getStore()?.bypassTenantIsolation === true
     })
 
     expect(bypass).toBe(true)

@@ -27,5 +27,5 @@ export interface DeveloperApiKeyReader {
 
 export interface ProjectLookup {
   listProjectIds(): Awaitable<string[]>
-  hasProject(projectId: string): Awaitable<boolean>
+  hasProject(tenantId: string): Awaitable<boolean>
 }

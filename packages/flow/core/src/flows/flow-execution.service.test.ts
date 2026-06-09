@@ -2,7 +2,7 @@ import { describe, expect, test, mock } from 'bun:test'
 import { join } from 'node:path'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { projectContextAls } from '@cube-ai/server-shared'
+import { tenantContextAls } from '@cube-ai/server-shared'
 import { FlowRepository } from '../db/sqlite'
 import { FlowCrudService } from './flow-crud.service'
 import { FlowLangflowSyncService } from './flow-langflow-sync.service'
@@ -56,7 +56,7 @@ function seedFlow(repo: FlowRepository, id: string, name: string) {
 }
 
 function withProject<T>(fn: () => T): T {
-  return projectContextAls.run({ projectId: PROJECT, bypassProjectIsolation: false }, fn)
+  return tenantContextAls.run({ tenantId: PROJECT, bypassTenantIsolation: false }, fn)
 }
 
 describe('FlowExecutionService', () => {
