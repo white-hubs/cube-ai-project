@@ -22,10 +22,10 @@ function isReadonlyMethod(method: string): boolean {
 
 /**
  * 注入 tenantContextAls（用于管理面路由）。
- * tenant 来自 X-Project-Id 请求头，由上游身份中间件预先验证；不再查询 projects 表。
+ * tenant 来自 X-Tenant-Id 请求头，由上游身份中间件预先验证；不再查询 projects 表。
  * 超管在无 tenant 头时可启用全局可见模式（只读）。
  */
-export function createProjectContextMiddleware(deps?: {
+export function createTenantContextMiddleware(deps?: {
   skipPrefixes?: string[]
 }): Middleware {
   const skipPrefixes = deps?.skipPrefixes ?? [
@@ -34,7 +34,6 @@ export function createProjectContextMiddleware(deps?: {
     '/webhook/',
     '/search',
     '/documents',
-    '/projects',
     '/components',
     '/swagger',
     '/oauth2/',
@@ -46,7 +45,7 @@ export function createProjectContextMiddleware(deps?: {
       return next()
     }
 
-    const raw = ctx.request.headers.get('x-project-id')?.trim()
+    const raw = ctx.request.headers.get('x-tenant-id')?.trim()
     if (raw) {
       return tenantContextAls.run({ tenantId: raw, bypassTenantIsolation: false }, () => next())
     }
@@ -56,6 +55,6 @@ export function createProjectContextMiddleware(deps?: {
       return tenantContextAls.run({ tenantId: '', bypassTenantIsolation: true }, () => next())
     }
 
-    throw new BadRequestException('X-Project-Id header is required')
+    throw new BadRequestException('X-Tenant-Id header is required')
   }
 }

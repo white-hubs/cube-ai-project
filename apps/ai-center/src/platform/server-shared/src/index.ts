@@ -5,7 +5,7 @@
 export {
   tenantContextAls,
   type TenantContext,
-} from './project-context'
+} from './tenant-context'
 export { authenticatedUserAls, type AuthenticatedUserContext } from './auth-context'
 export { developerApiAls, type DeveloperApiContext } from './developer-api-context'
 export { currentTenantId, isGlobalAccessEnabled } from './access-scope'
@@ -15,10 +15,3 @@ export function assertNonEmptyString(value: string, name: string): string {
   if (!t) throw new Error(`${name} is required`)
   return t
 }
-
-export { slugifyTenantProjectId, tenantSlugWithSuffix } from './project-slug'
-export {
-  generateTenantProjectId,
-  TENANT_PROJECT_ID_PREFIX,
-  TENANT_PROJECT_ID_RANDOM_LENGTH,
-} from './project-tenant-id'

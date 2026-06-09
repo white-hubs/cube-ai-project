@@ -6,9 +6,5 @@ export function requireScopedTenantId(errorFactory: () => Error): string {
   return tid
 }
 
-/** @deprecated Use {@link requireScopedTenantId} */
-export function requireScopedProjectId(errorFactory: () => Error): string {
-  return requireScopedTenantId(errorFactory)
-}
 
 export { currentTenantId, isGlobalAccessEnabled }

@@ -1,16 +1,9 @@
 import { Database } from 'bun:sqlite'
-import { createHash, pbkdf2Sync, timingSafeEqual } from 'node:crypto'
 import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { SnowflakeUtil } from '@cube-ai/server-base'
-import { generateTenantProjectId } from '@cube-ai/server-shared'
 
-/** 软删时间戳（毫秒），与 MySQL `deleted` 列语义一致 */
-function deletedValueMs(): number {
-  return Date.now()
-}
-
-/** 与 MySQL 审计列一致；INSERT 可使用 DEFAULT，`insertApiKey` 等通过 `Omit<..., keyof AuditColumns>` 不要求调用方传入 */
+/** 与 MySQL 审计列一致；INSERT 可使用 DEFAULT，通过 `Omit<..., keyof AuditColumns>` 不要求调用方传入 */
 export type AuditColumns = {
   create_by: string
   creator_id: string | null
@@ -141,16 +134,6 @@ CREATE TABLE IF NOT EXISTS app_kv (
 );
 `
 
-export type ProjectRow = AuditColumns & {
-  id: string
-  /** @deprecated projects 表已退役（ADR-0012 addendum）；此类型保留仅供旧代码过渡期引用。 */
-  tenant_id: string
-  name: string
-  description: string
-  create_time: string
-  update_time: string
-}
-
 export type FlowRow = AuditColumns & {
   id: string
   name: string
@@ -196,129 +179,9 @@ export type CustomComponentTemplateRow = AuditColumns & {
   tenant_id: string
 }
 
-export type ApiKeyRow = AuditColumns & {
-  id: string
-  name: string
-  key_hash: string
-  key_prefix: string
-  flow_id: string | null
-  scopes_json: string | null
-  tenant_id: string
-  access_level: 'project' | 'system'
-  create_time: string
-  update_time: string
-  /** 0 表示未删除；非 0 为软删时间戳（毫秒），与 MySQL `deleted` 一致 */
-  deleted: number
-  last_used_at: string | null
-  expires_at: string | null
-  allowed_tools_json: string | null
-}
-
-export type AuthUserRow = AuditColumns & {
-  id: string
-  username: string
-  password_hash: string
-  password_algo: string
-  status: string
-  role: string
-  default_project_id: string | null
-  create_time: string
-  update_time: string
-}
-
-export type OAuthAccessTokenRow = AuditColumns & {
-  id: string
-  token_hash: string
-  user_id: string
-  username: string
-  role: string
-  scope_json: string | null
-  expires_at: string
-  create_time: string
-  update_time: string
-  deleted: number
-}
-
-export type OAuthRefreshTokenRow = AuditColumns & {
-  id: string
-  token_hash: string
-  user_id: string
-  access_token_id: string
-  expires_at: string
-  create_time: string
-  update_time: string
-  deleted: number
-}
-
-export type ApiKeySummary = {
-  id: string
-  name: string
-  key_prefix: string
-  flow_id: string | null
-  scopes: string[]
-  allowed_tools: string[]
-  tenant_id: string | null
-  access_level: 'project' | 'system'
-  expires_at: string | null
-  create_time: string
-  last_used_at: string | null
-}
-
-/** 内置系统级 Developer API Key 的固定主键（数字字符串，兼容 MySQL BIGINT）。 */
-export const BUILTIN_SYSTEM_API_KEY_ID = '1'
-
-export function hashApiKey(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex')
-}
-
-export function hashOpaqueToken(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex')
-}
-
-export function randomOpaqueToken(prefix: string): string {
-  const bytes = new Uint8Array(32)
-  crypto.getRandomValues(bytes)
-  return `${prefix}_${Buffer.from(bytes).toString('base64url')}`
-}
-
-export function hashPassword(raw: string): string {
-  const salt = Buffer.alloc(16)
-  crypto.getRandomValues(salt)
-  const iterations = 210_000
-  const derived = pbkdf2Sync(raw, salt, iterations, 32, 'sha256')
-  return `pbkdf2_sha256$${iterations}$${salt.toString('base64url')}$${derived.toString('base64url')}`
-}
-
-export function verifyPassword(raw: string, encoded: string): boolean {
-  const [algo, iterationsRaw, saltRaw, digestRaw] = encoded.split('$')
-  if (algo !== 'pbkdf2_sha256' || !iterationsRaw || !saltRaw || !digestRaw) return false
-  const iterations = Number(iterationsRaw)
-  if (!Number.isFinite(iterations) || iterations <= 0) return false
-  const salt = Buffer.from(saltRaw, 'base64url')
-  const expected = Buffer.from(digestRaw, 'base64url')
-  const actual = pbkdf2Sync(raw, salt, iterations, expected.length, 'sha256')
-  return actual.length === expected.length && timingSafeEqual(actual, expected)
-}
-
-export function randomApiKeySecret(): string {
-  const bytes = new Uint8Array(24)
-  crypto.getRandomValues(bytes)
-  const b64 = Buffer.from(bytes).toString('base64url')
-  return `sk_${b64}`
-}
-
-/** @deprecated auth/project 种子数据已退役（ADR-0012 addendum）；此接口保留仅供过渡期兼容，无实际效果。 */
-export interface FlowRepositorySeedConfig {
-  superAdminUsername?: string
-  superAdminPassword?: string
-  builtinSystemApiKey?: string
-}
 
 export class FlowRepository {
-  private readonly seedConfig: FlowRepositorySeedConfig
-
-  constructor(public readonly db: Database, seedConfig?: FlowRepositorySeedConfig) {
-    this.seedConfig = seedConfig ?? {} // retained for backward compat; no longer has effect
+  constructor(public readonly db: Database) {
     this.db.run(SCHEMA)
     this.migrateLegacyTimestampColumns()
     this.migrateRevokedAtToDeleted()
@@ -328,12 +191,12 @@ export class FlowRepository {
   }
 
   /** 通过路径打开（或创建）SQLite 数据库并初始化仓储。 */
-  static open(dbPath: string, seedConfig?: FlowRepositorySeedConfig): FlowRepository {
+  static open(dbPath: string): FlowRepository {
     mkdirSync(dirname(dbPath), { recursive: true })
     const db = new Database(dbPath, { create: true })
     db.run('PRAGMA journal_mode=WAL')
     db.run('PRAGMA foreign_keys=ON')
-    return new FlowRepository(db, seedConfig)
+    return new FlowRepository(db)
   }
 
   /**
@@ -397,7 +260,6 @@ export class FlowRepository {
       }
       tryDropRevoked(table)
     }
-    // api_keys, oauth_access_tokens, oauth_refresh_tokens removed (ADR-0012 addendum)
   }
 
   /** 存量库补齐与 MySQL 一致的审计列，以及 flow_graphs / messages 等表的 `create_time`/`update_time`。 */
@@ -640,13 +502,6 @@ export class FlowRepository {
     return r?.n ?? 0
   }
 
-  countApiKeysInProject(tenantId: string): number {
-    const r = this.db
-      .query(`SELECT COUNT(1) as n FROM api_keys WHERE tenant_id = ? AND deleted = 0`)
-      .get(tenantId) as { n: number } | undefined
-    return r?.n ?? 0
-  }
-
   countCustomTemplatesInProject(tenantId: string): number {
     const r = this.db
       .query(`SELECT COUNT(1) as n FROM custom_component_templates WHERE tenant_id = ?`)
@@ -863,239 +718,6 @@ export class FlowRepository {
     this.db.run(`DELETE FROM custom_component_templates WHERE id = ? AND tenant_id = ?`, [id, tenantId])
   }
 
-  // --- Developer API keys ---
-
-  insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): void {
-    this.db.run(
-      `INSERT INTO api_keys (id, name, key_hash, key_prefix, flow_id, scopes_json, tenant_id, access_level, expires_at, allowed_tools_json, create_time, update_time, deleted, last_used_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
-      [
-        row.id,
-        row.name,
-        row.key_hash,
-        row.key_prefix,
-        row.flow_id,
-        row.scopes_json,
-        row.tenant_id,
-        row.access_level,
-        row.expires_at,
-        row.allowed_tools_json,
-        row.create_time,
-        row.create_time,
-      ],
-    )
-  }
-
-  listApiKeys(tenantId?: string | null): ApiKeyRow[] {
-    if (!tenantId || tenantId.trim() === '') {
-      return this.db
-        .query('SELECT * FROM api_keys WHERE deleted = 0 ORDER BY create_time DESC')
-        .all() as ApiKeyRow[]
-    }
-    return this.db
-      .query(
-        'SELECT * FROM api_keys WHERE tenant_id = ? AND deleted = 0 ORDER BY create_time DESC',
-      )
-      .all(tenantId) as ApiKeyRow[]
-  }
-
-  getApiKeyById(id: string, tenantId?: string | null): ApiKeyRow | null {
-    if (!tenantId || tenantId.trim() === '') {
-      const r = this.db
-        .query('SELECT * FROM api_keys WHERE id = ? AND deleted = 0')
-        .get(id) as ApiKeyRow | undefined
-      return r ?? null
-    }
-    const r = this.db
-      .query('SELECT * FROM api_keys WHERE id = ? AND tenant_id = ? AND deleted = 0')
-      .get(id, tenantId) as ApiKeyRow | undefined
-    return r ?? null
-  }
-
-  revokeApiKey(tenantId: string | null | undefined, id: string): void {
-    const del = deletedValueMs()
-    const now = new Date().toISOString()
-    if (!tenantId || tenantId.trim() === '') {
-      this.db.run(
-        `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND deleted = 0`,
-        [del, now, id],
-      )
-      return
-    }
-    this.db.run(
-      `UPDATE api_keys SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND tenant_id = ? AND deleted = 0`,
-      [del, now, id, tenantId],
-    )
-  }
-
-  touchApiKeyUsage(id: string): void {
-    const now = new Date().toISOString()
-    this.db.run(`UPDATE api_keys SET last_used_at = ?, update_time = ?, update_by = 'system' WHERE id = ?`, [
-      now,
-      now,
-      id,
-    ])
-  }
-
-  /**
-   * 校验原始密钥；返回行或 null。会更新 last_used_at。
-   */
-  verifyApiKeyRaw(rawSecret: string): ApiKeyRow | null {
-    const h = hashApiKey(rawSecret)
-    const r = this.db
-      .query('SELECT * FROM api_keys WHERE key_hash = ? AND deleted = 0')
-      .get(h) as ApiKeyRow | undefined
-    if (!r) return null
-    if (r.expires_at) {
-      const exp = Date.parse(r.expires_at)
-      if (Number.isFinite(exp) && exp < Date.now()) return null
-    }
-    this.touchApiKeyUsage(r.id)
-    return r
-  }
-
-  listAuthUsers(): AuthUserRow[] {
-    return this.db.query(`SELECT * FROM auth_users ORDER BY create_time ASC`).all() as AuthUserRow[]
-  }
-
-  createAuthUser(row: {
-    id: string
-    username: string
-    passwordHash: string
-    passwordAlgo: string
-    role: string
-    status: string
-    defaultProjectId: string | null
-  }): void {
-    const now = new Date().toISOString()
-    this.db.run(
-      `INSERT INTO auth_users (id, username, password_hash, password_algo, status, role, default_project_id, create_time, update_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, row.username, row.passwordHash, row.passwordAlgo, row.status, row.role, row.defaultProjectId, now, now],
-    )
-  }
-
-  updateAuthUser(id: string, fields: Partial<{ role: string; status: string; defaultProjectId: string | null }>): void {
-    const now = new Date().toISOString()
-    const sets: string[] = ['update_time = ?', `update_by = 'system'`]
-    const params: (string | null)[] = [now]
-    if (fields.role !== undefined) { sets.push('role = ?'); params.push(fields.role) }
-    if (fields.status !== undefined) { sets.push('status = ?'); params.push(fields.status) }
-    if ('defaultProjectId' in fields) { sets.push('default_project_id = ?'); params.push(fields.defaultProjectId ?? null) }
-    params.push(id)
-    this.db.run(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = ?`, params)
-  }
-
-  updateAuthUserPassword(id: string, passwordHash: string, passwordAlgo: string): void {
-    const now = new Date().toISOString()
-    this.db.run(
-      `UPDATE auth_users SET password_hash = ?, password_algo = ?, update_time = ?, update_by = 'system' WHERE id = ?`,
-      [passwordHash, passwordAlgo, now, id],
-    )
-  }
-
-  deleteAuthUser(id: string): void {
-    this.db.run(`DELETE FROM auth_users WHERE id = ?`, [id])
-  }
-
-  getAuthUserByUsername(username: string): AuthUserRow | null {
-    const row = this.db
-      .query(`SELECT * FROM auth_users WHERE username = ?`)
-      .get(username) as AuthUserRow | undefined
-    return row ?? null
-  }
-
-  getAuthUserById(id: string): AuthUserRow | null {
-    const row = this.db
-      .query(`SELECT * FROM auth_users WHERE id = ?`)
-      .get(id) as AuthUserRow | undefined
-    return row ?? null
-  }
-
-  createAccessToken(row: Omit<OAuthAccessTokenRow, 'deleted' | 'update_time' | keyof AuditColumns>): void {
-    this.db.run(
-      `INSERT INTO oauth_access_tokens (id, token_hash, user_id, username, role, scope_json, expires_at, create_time, update_time, deleted)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      [
-        row.id,
-        row.token_hash,
-        row.user_id,
-        row.username,
-        row.role,
-        row.scope_json,
-        row.expires_at,
-        row.create_time,
-        row.create_time,
-      ],
-    )
-  }
-
-  createRefreshToken(row: Omit<OAuthRefreshTokenRow, 'deleted' | 'update_time' | keyof AuditColumns>): void {
-    this.db.run(
-      `INSERT INTO oauth_refresh_tokens (id, token_hash, user_id, access_token_id, expires_at, create_time, update_time, deleted)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-      [
-        row.id,
-        row.token_hash,
-        row.user_id,
-        row.access_token_id,
-        row.expires_at,
-        row.create_time,
-        row.create_time,
-      ],
-    )
-  }
-
-  verifyAccessToken(rawToken: string): AuthUserRow | null {
-    const tokenHash = hashOpaqueToken(rawToken)
-    const token = this.db
-      .query(
-        `SELECT id, token_hash, user_id, username, role, scope_json, expires_at, create_time, update_time, deleted
-         FROM oauth_access_tokens WHERE token_hash = ? AND deleted = 0`,
-      )
-      .get(tokenHash) as OAuthAccessTokenRow | undefined
-    if (!token) return null
-    const expiresAt = Date.parse(token.expires_at)
-    if (Number.isFinite(expiresAt) && expiresAt < Date.now()) return null
-    const user = this.getAuthUserById(token.user_id)
-    if (!user || user.status !== 'active') return null
-    return user
-  }
-
-  verifyRefreshToken(rawToken: string): { refresh: OAuthRefreshTokenRow; user: AuthUserRow } | null {
-    const tokenHash = hashOpaqueToken(rawToken)
-    const refresh = this.db
-      .query(
-        `SELECT id, token_hash, user_id, access_token_id, expires_at, create_time, update_time, deleted
-         FROM oauth_refresh_tokens WHERE token_hash = ? AND deleted = 0`,
-      )
-      .get(tokenHash) as OAuthRefreshTokenRow | undefined
-    if (!refresh) return null
-    const expiresAt = Date.parse(refresh.expires_at)
-    if (Number.isFinite(expiresAt) && expiresAt < Date.now()) return null
-    const user = this.getAuthUserById(refresh.user_id)
-    if (!user || user.status !== 'active') return null
-    return { refresh, user }
-  }
-
-  revokeAccessToken(accessTokenId: string): void {
-    const del = deletedValueMs()
-    const now = new Date().toISOString()
-    this.db.run(
-      `UPDATE oauth_access_tokens SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND deleted = 0`,
-      [del, now, accessTokenId],
-    )
-  }
-
-  revokeRefreshToken(refreshTokenId: string): void {
-    const del = deletedValueMs()
-    const now = new Date().toISOString()
-    this.db.run(
-      `UPDATE oauth_refresh_tokens SET deleted = ?, update_time = ?, update_by = 'system' WHERE id = ? AND deleted = 0`,
-      [del, now, refreshTokenId],
-    )
-  }
-
   insertWebhookInvocation(row: {
     id: string
     flow_id: string
@@ -1141,68 +763,6 @@ export class FlowRepository {
   }
 }
 
-/** Project CRUD（与 FlowRepository 共用同一 Database）。 */
-export class ProjectRepository {
-  constructor(public readonly db: Database) {}
-
-  listProjects(): ProjectRow[] {
-    return this.db
-      .query(`SELECT * FROM projects ORDER BY create_time ASC`)
-      .all() as ProjectRow[]
-  }
-
-  getProject(key: string): ProjectRow | null {
-    const r = this.db
-      .query(`SELECT * FROM projects WHERE id = ? OR tenant_id = ?`)
-      .get(key, key) as ProjectRow | undefined
-    return r ?? null
-  }
-
-  allocateUniqueTenantProjectId(_name: string): string {
-    for (let attempt = 0; attempt < 64; attempt++) {
-      const id = generateTenantProjectId()
-      const row = this.db.query(`SELECT tenant_id FROM projects WHERE tenant_id = ?`).get(id) as
-        | { tenant_id: string }
-        | undefined
-      if (!row) return id
-    }
-    throw new Error('could not allocate unique tenant tenant_id')
-  }
-
-  insertProject(row: { id: string; tenant_id: string; name: string; description: string }): void {
-    const now = new Date().toISOString()
-    this.db.run(
-      `INSERT INTO projects (id, tenant_id, name, description, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      [row.id, row.tenant_id, row.name, row.description, now, now],
-    )
-  }
-
-  updateProject(internalId: string, patch: Partial<Pick<ProjectRow, 'name' | 'description'>>): void {
-    const row = this.db
-      .query(`SELECT * FROM projects WHERE id = ?`)
-      .get(internalId) as ProjectRow | undefined
-    if (!row) return
-    const now = new Date().toISOString()
-    const name = patch.name ?? row.name
-    const desc = patch.description ?? row.description
-    this.db.run(`UPDATE projects SET name = ?, description = ?, update_time = ?, update_by = 'system' WHERE id = ?`, [
-      name,
-      desc,
-      now,
-      internalId,
-    ])
-  }
-
-  deleteProject(internalId: string): void {
-    this.db.run(`DELETE FROM projects WHERE id = ?`, [internalId])
-  }
-
-  countProjects(): number {
-    const r = this.db.query(`SELECT COUNT(1) as n FROM projects`).get() as { n: number } | undefined
-    return r?.n ?? 0
-  }
-}
-
 /** @deprecated 改用 AppConfig.paths.sqlitePath，通过 DI 注入 AppConfig */
 export function defaultDbPath(): string {
   const env = process.env['CUBE_AI_SQLITE_PATH']?.trim()
@@ -1216,12 +776,9 @@ let _sharedRepo: FlowRepository | null = null
  * 初始化进程级共享 FlowRepository 单例（由 FlowModule 在启动时调用一次）。
  * 已初始化时忽略重复调用，保证全进程只有一个 Database 连接。
  */
-export function initSharedFlowRepository(
-  dbPath: string,
-  seedConfig?: FlowRepositorySeedConfig,
-): FlowRepository {
+export function initSharedFlowRepository(dbPath: string): FlowRepository {
   if (!_sharedRepo) {
-    _sharedRepo = FlowRepository.open(dbPath, seedConfig)
+    _sharedRepo = FlowRepository.open(dbPath)
   }
   return _sharedRepo
 }

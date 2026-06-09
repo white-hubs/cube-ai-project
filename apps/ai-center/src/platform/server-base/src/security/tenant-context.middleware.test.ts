@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { createProjectContextMiddleware } from './project-context.middleware'
+import { createTenantContextMiddleware } from './tenant-context.middleware'
 
 function createCtx(path: string, method = 'GET', headers: Record<string, string> = {}) {
   return {
@@ -8,9 +8,9 @@ function createCtx(path: string, method = 'GET', headers: Record<string, string>
   }
 }
 
-describe('project context middleware', () => {
+describe('tenant context middleware', () => {
   test('allows health subpaths without checking tenant', async () => {
-    const middleware = createProjectContextMiddleware()
+    const middleware = createTenantContextMiddleware()
 
     let passed = false
     await middleware(createCtx('/health/live') as never, async () => {
@@ -20,18 +20,18 @@ describe('project context middleware', () => {
     expect(passed).toBe(true)
   })
 
-  test('sets tenant context from x-project-id header', async () => {
-    const middleware = createProjectContextMiddleware()
+  test('sets tenant context from x-tenant-id header', async () => {
+    const middleware = createTenantContextMiddleware()
     let passed = false
     await middleware(
-      createCtx('/flows', 'GET', { 'x-project-id': 'tenant-42' }) as never,
+      createCtx('/flows', 'GET', { 'x-tenant-id': 'tenant-42' }) as never,
       async () => { passed = true },
     )
     expect(passed).toBe(true)
   })
 
-  test('throws BadRequestException when no x-project-id header and not super admin', async () => {
-    const middleware = createProjectContextMiddleware()
+  test('throws BadRequestException when no x-tenant-id header and not super admin', async () => {
+    const middleware = createTenantContextMiddleware()
     await expect(
       middleware(createCtx('/flows') as never, async () => {}),
     ).rejects.toThrow()

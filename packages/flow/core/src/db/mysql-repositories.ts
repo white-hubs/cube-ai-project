@@ -1,31 +1,17 @@
 import { Injectable } from '@dangao/bun-server'
 import { SnowflakeUtil } from '@cube-ai/server-base'
-import { currentTenantId, generateTenantProjectId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
 import {
-  BUILTIN_SYSTEM_API_KEY_ID,
-  hashApiKey,
-  hashOpaqueToken,
-  hashPassword,
-  type ApiKeyRow,
   type AuditColumns,
-  type AuthUserRow,
   type CustomComponentTemplateRow,
   type FlowRow,
-  type OAuthAccessTokenRow,
-  type OAuthRefreshTokenRow,
   type PlaygroundMessageRow,
   type PlaygroundSessionRow,
-  type ProjectRow,
-  type FlowRepositorySeedConfig,
 } from './sqlite'
-import type { FlowRepository, ProjectRepository } from './repository-contracts'
+import type { FlowRepository } from './repository-contracts'
 
 export interface MysqlQueryService {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): T[] | Promise<T[]>
-}
-
-function nowIso(): string {
-  return new Date().toISOString()
 }
 
 function deletedValue(): number {
@@ -37,12 +23,6 @@ function formatMysqlDateTimeShanghai(date: Date = new Date()): string {
     timeZone: 'Asia/Shanghai',
     hour12: false,
   })
-}
-
-function toDateTime(value?: string | null): string | null {
-  if (!value) return null
-  const d = new Date(value)
-  return Number.isFinite(d.getTime()) ? formatMysqlDateTimeShanghai(d) : value
 }
 
 function normalizeDateValue(value: unknown): string | null {
@@ -68,26 +48,6 @@ function normalizeAudit(row: Record<string, unknown>): AuditColumns {
   }
 }
 
-function normalizeApiKeyRow(row: Record<string, unknown>): ApiKeyRow {
-  return {
-    ...normalizeAudit(row),
-    id: String(row['id']),
-    name: String(row['name']),
-    key_hash: String(row['key_hash']),
-    key_prefix: String(row['key_prefix']),
-    flow_id: row['flow_id'] == null ? null : String(row['flow_id']),
-    scopes_json: row['scopes_json'] == null ? null : String(row['scopes_json']),
-    tenant_id: row['tenant_id'] == null ? '' : String(row['tenant_id']),
-    access_level: row['access_level'] === 'system' ? 'system' : 'project',
-    create_time: normalizeDateValue(row['create_time']) ?? '',
-    update_time: normalizeDateValue(row['update_time']) ?? '',
-    deleted: normalizeDeleted(row['deleted']),
-    last_used_at: normalizeDateValue(row['last_used_at']),
-    expires_at: normalizeDateValue(row['expires_at']),
-    allowed_tools_json: row['allowed_tools_json'] == null ? null : String(row['allowed_tools_json']),
-  }
-}
-
 function normalizeFlowRow(row: Record<string, unknown>): FlowRow {
   return {
     ...normalizeAudit(row),
@@ -101,18 +61,6 @@ function normalizeFlowRow(row: Record<string, unknown>): FlowRow {
     update_time: normalizeDateValue(row['update_time']) ?? '',
     lf_snapshot_json: row['lf_snapshot_json'] == null ? null : String(row['lf_snapshot_json']),
     tenant_id: String(row['tenant_id'] ?? ''),
-  }
-}
-
-function normalizeProjectRow(row: Record<string, unknown>): ProjectRow {
-  return {
-    ...normalizeAudit(row),
-    id: String(row['id']),
-    tenant_id: String(row['tenant_id'] ?? ''),
-    name: String(row['name']),
-    description: String(row['description'] ?? ''),
-    create_time: normalizeDateValue(row['create_time']) ?? '',
-    update_time: normalizeDateValue(row['update_time']) ?? '',
   }
 }
 
@@ -156,51 +104,6 @@ function normalizeTemplateRow(row: Record<string, unknown>): CustomComponentTemp
   }
 }
 
-function normalizeAuthUserRow(row: Record<string, unknown>): AuthUserRow {
-  return {
-    ...normalizeAudit(row),
-    id: String(row['id']),
-    username: String(row['username']),
-    password_hash: String(row['password_hash']),
-    password_algo: String(row['password_algo']),
-    status: String(row['status']),
-    role: String(row['role']),
-    default_project_id: row['default_project_id'] == null ? null : String(row['default_project_id']),
-    create_time: normalizeDateValue(row['create_time']) ?? '',
-    update_time: normalizeDateValue(row['update_time']) ?? '',
-  }
-}
-
-function normalizeAccessTokenRow(row: Record<string, unknown>): OAuthAccessTokenRow {
-  return {
-    ...normalizeAudit(row),
-    id: String(row['id']),
-    token_hash: String(row['token_hash']),
-    user_id: String(row['user_id']),
-    username: String(row['username']),
-    role: String(row['role']),
-    scope_json: row['scope_json'] == null ? null : String(row['scope_json']),
-    expires_at: normalizeDateValue(row['expires_at']) ?? '',
-    create_time: normalizeDateValue(row['create_time']) ?? '',
-    update_time: normalizeDateValue(row['update_time']) ?? '',
-    deleted: normalizeDeleted(row['deleted']),
-  }
-}
-
-function normalizeRefreshTokenRow(row: Record<string, unknown>): OAuthRefreshTokenRow {
-  return {
-    ...normalizeAudit(row),
-    id: String(row['id']),
-    token_hash: String(row['token_hash']),
-    user_id: String(row['user_id']),
-    access_token_id: String(row['access_token_id']),
-    expires_at: normalizeDateValue(row['expires_at']) ?? '',
-    create_time: normalizeDateValue(row['create_time']) ?? '',
-    update_time: normalizeDateValue(row['update_time']) ?? '',
-    deleted: normalizeDeleted(row['deleted']),
-  }
-}
-
 class MysqlRepositoryBase {
   constructor(protected readonly databaseService: MysqlQueryService) {}
 
@@ -230,135 +133,6 @@ class MysqlRepositoryBase {
 
 @Injectable()
 export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepository {
-  public async ensureBootstrapData(seedConfig?: FlowRepositorySeedConfig): Promise<void> {
-    const projectCount = await this.countProjectsInternal()
-    if (projectCount === 0) {
-      const defaultProjectAny = await this.one<{ id: string; deleted: number }>(
-        'SELECT id, deleted FROM projects WHERE tenant_id = ? ORDER BY create_time ASC LIMIT 1',
-        ['default'],
-      )
-      if (defaultProjectAny) {
-        // `tenant_id` 全局唯一；若历史上软删过 default，则恢复它而不是重新插入。
-        await this.exec(
-          `UPDATE projects
-           SET deleted = 0,
-               name = CASE WHEN name IS NULL OR name = '' THEN ? ELSE name END,
-               description = COALESCE(description, ?),
-               update_time = ?
-           WHERE id = ?`,
-          ['默认项目', '', formatMysqlDateTimeShanghai(), String(defaultProjectAny.id)],
-        )
-      } else {
-        await this.insertProjectInternal({
-          id: SnowflakeUtil.nextId(),
-          tenant_id: 'default',
-          name: '默认项目',
-          description: '',
-        })
-      }
-    }
-    const firstProject = await this.one<Record<string, unknown>>(
-      'SELECT id, tenant_id FROM projects WHERE deleted = 0 ORDER BY create_time ASC LIMIT 1',
-    )
-    const defaultProjectTenantId = firstProject ? String(firstProject['tenant_id'] ?? '') : null
-
-    const userCount = await this.one<{ c: number }>('SELECT COUNT(1) AS c FROM auth_users WHERE deleted = 0')
-    if ((userCount?.c ?? 0) === 0) {
-      await this.createAuthUser({
-        id: SnowflakeUtil.nextId(),
-        username: seedConfig?.superAdminUsername ?? 'admin',
-        passwordHash: hashPassword(seedConfig?.superAdminPassword ?? 'ChangeMe123!'),
-        passwordAlgo: 'pbkdf2_sha256',
-        role: 'super_admin',
-        status: 'active',
-        defaultProjectId: defaultProjectTenantId,
-      })
-    }
-
-    const secret = seedConfig?.builtinSystemApiKey ?? 'sk_cube_builtin_system_ChangeMeInProduction'
-    const secretHash = hashApiKey(secret)
-    const builtinBySecret = await this.one<{ id: string; deleted: number | string | null }>(
-      'SELECT id, deleted FROM api_keys WHERE key_hash = ? AND access_level = ? LIMIT 1',
-      [secretHash, 'system'],
-    )
-    if (builtinBySecret) {
-      const deleted = Number(builtinBySecret.deleted ?? 0)
-      if (deleted !== 0) {
-        const now = formatMysqlDateTimeShanghai()
-        await this.exec(
-          `UPDATE api_keys
-           SET deleted = 0,
-               tenant_id = '',
-               access_level = 'system',
-               update_time = ?
-           WHERE id = ?`,
-          [now, String(builtinBySecret.id)],
-        )
-      }
-    } else {
-      // 兼容历史：若固定 id 已存在（含软删），则恢复并刷新为系统 key。
-      const legacyBuiltinById = await this.one<{ id: string }>(
-        'SELECT id FROM api_keys WHERE id = ? LIMIT 1',
-        [BUILTIN_SYSTEM_API_KEY_ID],
-      )
-      if (legacyBuiltinById) {
-        const now = formatMysqlDateTimeShanghai()
-        await this.exec(
-          `UPDATE api_keys
-           SET deleted = 0,
-               name = ?,
-               key_hash = ?,
-               key_prefix = ?,
-               flow_id = NULL,
-               scopes_json = ?,
-               access_level = 'system',
-               tenant_id = '',
-               expires_at = NULL,
-               allowed_tools_json = NULL,
-               update_time = ?
-           WHERE id = ?`,
-          [
-            'Built-in system',
-            secretHash,
-            secret.slice(0, 10),
-            JSON.stringify(['run', 'kb', 'search', 'documents']),
-            now,
-            BUILTIN_SYSTEM_API_KEY_ID,
-          ],
-        )
-      } else {
-      await this.insertApiKey({
-        id: BUILTIN_SYSTEM_API_KEY_ID,
-        name: 'Built-in system',
-        key_hash: secretHash,
-        key_prefix: secret.slice(0, 10),
-        flow_id: null,
-        scopes_json: JSON.stringify(['run', 'kb', 'search', 'documents']),
-        tenant_id: '',
-        access_level: 'system',
-        create_time: nowIso(),
-        expires_at: null,
-        allowed_tools_json: null,
-      })
-      }
-    }
-  }
-
-  private async countProjectsInternal(): Promise<number> {
-    const row = await this.one<{ c: number }>('SELECT COUNT(1) AS c FROM projects WHERE deleted = 0')
-    return row?.c ?? 0
-  }
-
-  private async insertProjectInternal(row: { id: string; tenant_id: string; name: string; description: string }): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec(
-      `INSERT INTO projects
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
-      VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
-      [row.id, row.tenant_id, now, now, row.name, row.description],
-    )
-  }
-
   public async createFlow(tenantId: string, row: Omit<FlowRow, 'lf_snapshot_json' | 'tenant_id'> & { lf_snapshot_json?: string | null }, graphJson: string): Promise<void> {
     const now = formatMysqlDateTimeShanghai()
     await this.exec(
@@ -460,14 +234,6 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
 
   public async countFlowsInProject(tenantId: string): Promise<number> {
     const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM flows WHERE tenant_id = ? AND deleted = 0', [tenantId])
-    return row?.n ?? 0
-  }
-
-  public async countApiKeysInProject(tenantId: string): Promise<number> {
-    const row = await this.one<{ n: number }>(
-      'SELECT COUNT(1) AS n FROM api_keys WHERE tenant_id = ? AND deleted = 0',
-      [tenantId],
-    )
     return row?.n ?? 0
   }
 
@@ -653,181 +419,6 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
     await this.exec('UPDATE custom_component_templates SET deleted = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id, tenantId])
   }
 
-  public async insertApiKey(row: Omit<ApiKeyRow, 'last_used_at' | 'deleted' | 'update_time' | keyof AuditColumns>): Promise<void> {
-    const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
-    await this.exec(
-      `INSERT INTO api_keys
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, key_hash, key_prefix, flow_id, scopes_json, access_level, last_used_at, expires_at, allowed_tools_json)
-      VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
-      [row.id, row.tenant_id || null, now, now, row.name, row.key_hash, row.key_prefix, row.flow_id, row.scopes_json, row.access_level, toDateTime(row.expires_at), row.allowed_tools_json],
-    )
-  }
-
-  public async listApiKeys(tenantId?: string | null): Promise<ApiKeyRow[]> {
-    const params: unknown[] = []
-    let sql = 'SELECT * FROM api_keys WHERE deleted = 0'
-    if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND tenant_id = ?'
-      params.push(tenantId)
-    }
-    sql += ' ORDER BY create_time DESC'
-    return (await this.q<Record<string, unknown>>(sql, params)).map(normalizeApiKeyRow)
-  }
-
-  public async getApiKeyById(id: string, tenantId?: string | null): Promise<ApiKeyRow | null> {
-    const params: unknown[] = [id]
-    let sql = 'SELECT * FROM api_keys WHERE id = ? AND deleted = 0'
-    if (tenantId && tenantId.trim() !== '') {
-      sql += ' AND tenant_id = ?'
-      params.push(tenantId)
-    }
-    const row = await this.one<Record<string, unknown>>(sql, params)
-    return row ? normalizeApiKeyRow(row) : null
-  }
-
-  public async revokeApiKey(tenantId: string | null | undefined, id: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    const del = deletedValue()
-    if (!tenantId || tenantId.trim() === '') {
-      await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [del, now, id])
-      return
-    }
-    await this.exec('UPDATE api_keys SET deleted = ?, update_time = ? WHERE id = ? AND tenant_id = ? AND deleted = 0', [
-      del,
-      now,
-      id,
-      tenantId,
-    ])
-  }
-
-  public async touchApiKeyUsage(id: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE api_keys SET last_used_at = ?, update_time = ? WHERE id = ? AND deleted = 0', [now, now, id])
-  }
-
-  public async verifyApiKeyRaw(rawSecret: string): Promise<ApiKeyRow | null> {
-    const row = await this.one<Record<string, unknown>>('SELECT * FROM api_keys WHERE key_hash = ? AND deleted = 0', [hashApiKey(rawSecret)])
-    if (!row) return null
-    const normalized = normalizeApiKeyRow(row)
-    if (normalized.expires_at) {
-      const exp = Date.parse(normalized.expires_at)
-      if (Number.isFinite(exp) && exp < Date.now()) return null
-    }
-    await this.touchApiKeyUsage(normalized.id)
-    return normalized
-  }
-
-  public async listAuthUsers(): Promise<AuthUserRow[]> {
-    return (await this.q<Record<string, unknown>>(
-      'SELECT id, username, password_hash, password_algo, status, role, default_project_id, create_time, update_time FROM auth_users WHERE deleted = 0 ORDER BY create_time ASC',
-    )).map(normalizeAuthUserRow)
-  }
-
-  public async createAuthUser(row: { id: string; username: string; passwordHash: string; passwordAlgo: string; role: string; status: string; defaultProjectId: string | null }): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec(
-      `INSERT INTO auth_users
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, username, password_hash, password_algo, status, role, default_project_id)
-      VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, currentTenantId() ?? null, now, now, row.username, row.passwordHash, row.passwordAlgo, row.status, row.role, row.defaultProjectId],
-    )
-  }
-
-  public async updateAuthUser(id: string, fields: Partial<{ role: string; status: string; defaultProjectId: string | null }>): Promise<void> {
-    const sets: string[] = ['update_time = ?']
-    const now = formatMysqlDateTimeShanghai()
-    const params: unknown[] = [now]
-    if (fields.role !== undefined) { sets.push('role = ?'); params.push(fields.role) }
-    if (fields.status !== undefined) { sets.push('status = ?'); params.push(fields.status) }
-    if ('defaultProjectId' in fields) { sets.push('default_project_id = ?'); params.push(fields.defaultProjectId ?? null) }
-    await this.exec(`UPDATE auth_users SET ${sets.join(', ')} WHERE id = ? AND deleted = 0`, [...params, id])
-  }
-
-  public async updateAuthUserPassword(id: string, passwordHash: string, passwordAlgo: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE auth_users SET password_hash = ?, password_algo = ?, update_time = ? WHERE id = ? AND deleted = 0', [passwordHash, passwordAlgo, now, id])
-  }
-
-  public async deleteAuthUser(id: string): Promise<void> {
-    await this.exec('UPDATE auth_users SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [deletedValue(), formatMysqlDateTimeShanghai(), id])
-  }
-
-  public async getAuthUserByUsername(username: string): Promise<AuthUserRow | null> {
-    const row = await this.one<Record<string, unknown>>(
-      'SELECT id, username, password_hash, password_algo, status, role, default_project_id, create_time, update_time FROM auth_users WHERE username = ? AND deleted = 0',
-      [username],
-    )
-    return row ? normalizeAuthUserRow(row) : null
-  }
-
-  public async getAuthUserById(id: string): Promise<AuthUserRow | null> {
-    const row = await this.one<Record<string, unknown>>(
-      'SELECT id, username, password_hash, password_algo, status, role, default_project_id, create_time, update_time FROM auth_users WHERE id = ? AND deleted = 0',
-      [id],
-    )
-    return row ? normalizeAuthUserRow(row) : null
-  }
-
-  public async createAccessToken(row: Omit<OAuthAccessTokenRow, 'deleted' | 'update_time' | keyof AuditColumns>): Promise<void> {
-    const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
-    await this.exec(
-      `INSERT INTO oauth_access_tokens
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, username, role, scope_json, expires_at)
-      VALUES (?, NULL, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, now, now, row.token_hash, row.user_id, row.username, row.role, row.scope_json, toDateTime(row.expires_at)],
-    )
-  }
-
-  public async createRefreshToken(row: Omit<OAuthRefreshTokenRow, 'deleted' | 'update_time' | keyof AuditColumns>): Promise<void> {
-    const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
-    await this.exec(
-      `INSERT INTO oauth_refresh_tokens
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, token_hash, user_id, access_token_id, expires_at)
-      VALUES (?, NULL, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?, ?, ?)`,
-      [row.id, now, now, row.token_hash, row.user_id, row.access_token_id, toDateTime(row.expires_at)],
-    )
-  }
-
-  public async verifyAccessToken(rawToken: string): Promise<AuthUserRow | null> {
-    const row = await this.one<Record<string, unknown>>('SELECT * FROM oauth_access_tokens WHERE token_hash = ? AND deleted = 0', [hashOpaqueToken(rawToken)])
-    if (!row) return null
-    const token = normalizeAccessTokenRow(row)
-    const exp = Date.parse(token.expires_at)
-    if (Number.isFinite(exp) && exp < Date.now()) return null
-    const user = await this.getAuthUserById(token.user_id)
-    if (!user || user.status !== 'active') return null
-    return user
-  }
-
-  public async verifyRefreshToken(rawToken: string): Promise<{ refresh: OAuthRefreshTokenRow; user: AuthUserRow } | null> {
-    const row = await this.one<Record<string, unknown>>('SELECT * FROM oauth_refresh_tokens WHERE token_hash = ? AND deleted = 0', [hashOpaqueToken(rawToken)])
-    if (!row) return null
-    const refresh = normalizeRefreshTokenRow(row)
-    const exp = Date.parse(refresh.expires_at)
-    if (Number.isFinite(exp) && exp < Date.now()) return null
-    const user = await this.getAuthUserById(refresh.user_id)
-    if (!user || user.status !== 'active') return null
-    return { refresh, user }
-  }
-
-  public async revokeAccessToken(accessTokenId: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE oauth_access_tokens SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [
-      deletedValue(),
-      now,
-      accessTokenId,
-    ])
-  }
-
-  public async revokeRefreshToken(refreshTokenId: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE oauth_refresh_tokens SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [
-      deletedValue(),
-      now,
-      refreshTokenId,
-    ])
-  }
-
   public async insertWebhookInvocation(row: { id: string; flow_id: string; tenant_id: string; source: string | null; payload_json: string; status: string; create_time: string }): Promise<void> {
     const now = formatMysqlDateTimeShanghai(new Date(row.create_time))
     await this.exec(
@@ -866,63 +457,3 @@ export class MysqlFlowRepository extends MysqlRepositoryBase implements FlowRepo
   }
 }
 
-@Injectable()
-export class MysqlProjectRepository extends MysqlRepositoryBase implements ProjectRepository {
-  public async listProjects(): Promise<ProjectRow[]> {
-    return (await this.q<Record<string, unknown>>(
-      'SELECT id, tenant_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 ORDER BY create_time ASC',
-    )).map(normalizeProjectRow)
-  }
-
-  public async getProject(key: string): Promise<ProjectRow | null> {
-    const row = await this.one<Record<string, unknown>>(
-      'SELECT id, tenant_id, name, description, create_time, update_time FROM projects WHERE deleted = 0 AND (id = ? OR tenant_id = ?)',
-      [key, key],
-    )
-    return row ? normalizeProjectRow(row) : null
-  }
-
-  public async allocateUniqueTenantProjectId(_name: string): Promise<string> {
-    for (let attempt = 0; attempt < 64; attempt++) {
-      const id = generateTenantProjectId()
-      const taken = await this.one<{ c: number }>(
-        'SELECT COUNT(1) AS c FROM projects WHERE tenant_id = ? AND deleted = 0',
-        [id],
-      )
-      if ((taken?.c ?? 0) === 0) return id
-    }
-    throw new Error('could not allocate unique tenant project_id')
-  }
-
-  public async insertProject(row: { id: string; tenant_id: string; name: string; description: string }): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec(
-      `INSERT INTO projects
-      (id, tenant_id, deleted, create_by, creator_id, creator_type, create_time, update_by, updater_id, updater_type, update_time, name, description)
-      VALUES (?, ?, 0, 'system', NULL, NULL, ?, 'system', NULL, NULL, ?, ?, ?)`,
-      [row.id, row.tenant_id, now, now, row.name, row.description],
-    )
-  }
-
-  public async updateProject(internalId: string, patch: Partial<Pick<ProjectRow, 'name' | 'description'>>): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec(
-      'UPDATE projects SET name = COALESCE(?, name), description = COALESCE(?, description), update_time = ? WHERE id = ? AND deleted = 0',
-      [patch.name ?? null, patch.description ?? null, now, internalId],
-    )
-  }
-
-  public async deleteProject(internalId: string): Promise<void> {
-    const now = formatMysqlDateTimeShanghai()
-    await this.exec('UPDATE projects SET deleted = ?, update_time = ? WHERE id = ? AND deleted = 0', [
-      deletedValue(),
-      now,
-      internalId,
-    ])
-  }
-
-  public async countProjects(): Promise<number> {
-    const row = await this.one<{ n: number }>('SELECT COUNT(1) AS n FROM projects WHERE deleted = 0')
-    return row?.n ?? 0
-  }
-}

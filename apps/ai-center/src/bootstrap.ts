@@ -3,7 +3,7 @@ import { ExceptionFilterRegistry } from '@dangao/bun-server';
 import { createExecutionAuthMiddleware, loadAppConfig } from '@cube-ai/ai-center/platform/server-base';
 import {
   createDeveloperRateLimitMiddleware,
-  createProjectContextMiddleware,
+  createTenantContextMiddleware as createFlowTenantContextMiddleware,
 } from '@cube-ai/flow-core';
 import {
   createGhcloudExecutionAuthReaders,
@@ -163,7 +163,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
     }),
   );
   app.use(createDeveloperRateLimitMiddleware({ maxPerMin: flowConfig.devApiRateLimitPerMin }));
-  app.use(createProjectContextMiddleware());
+  app.use(createFlowTenantContextMiddleware());
 
   registerLifecycleHooks(app);
   await app.listen(port, hostname);

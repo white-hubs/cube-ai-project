@@ -1,4 +1,4 @@
-import { tenantContextAls } from './project-context'
+import { tenantContextAls } from './tenant-context'
 
 export function currentTenantId(): string | null {
   const raw = tenantContextAls.getStore()?.tenantId?.trim() ?? ''

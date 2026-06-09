@@ -9,18 +9,16 @@ export {
 export { UnifiedErrorFilter, type UnifiedErrorBody } from './error/unified-error.filter'
 export { createDeveloperRateLimitMiddleware } from './security/developer-rate-limit.middleware'
 export { createExecutionAuthMiddleware } from './security/execution-auth.middleware'
-export { createProjectContextMiddleware } from './security/project-context.middleware'
+export { createTenantContextMiddleware } from './security/tenant-context.middleware'
 export {
   currentTenantId,
   isGlobalAccessEnabled,
   requireScopedTenantId,
-  requireScopedProjectId,
 } from './security/access-context'
 export type {
   AccessTokenReader,
   AccessTokenRecord,
   DeveloperApiKeyReader,
   DeveloperApiKeyRecord,
-  ProjectLookup,
 } from './security/middleware-types'
 export { nextSnowflakeId, SnowflakeUtil } from './ids/snowflake'
