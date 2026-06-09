@@ -2,11 +2,14 @@ import { Module, type Container } from '@dangao/bun-server';
 import {
   AGENTIC_PLATFORM_LLM_CATALOG_TOKEN,
   AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN,
+  AGENTIC_PLATFORM_IMAGE_GENERATION_TOKEN,
   type LlmCatalogPort,
 } from '@cube-ai/contracts';
-import { CatalogDrivenProvider, NoopLlmProvider } from '@cube-ai/llm-core';
+import { CatalogDrivenProvider, NoopLlmProvider, CatalogImageProvider } from '@cube-ai/llm-core';
 
-const providerKind = process.env['AGENTIC_ENGINE_PROVIDER'] ?? 'llm-core';
+// 默认走真实目录驱动 provider（与 ghcloud agentic-platform-llm-catalog 对齐）。
+// 仅当显式设为 'noop' 时使用空实现；其余任意取值均激活 CatalogDrivenProvider。
+const providerKind = process.env['AGENTIC_ENGINE_PROVIDER'] ?? 'agentic-platform-llm-catalog';
 
 @Module({
   providers: [
@@ -20,7 +23,14 @@ const providerKind = process.env['AGENTIC_ENGINE_PROVIDER'] ?? 'llm-core';
         return new CatalogDrivenProvider({ catalog });
       },
     },
+    {
+      provide: AGENTIC_PLATFORM_IMAGE_GENERATION_TOKEN,
+      useFactory: (c: Container) => {
+        const catalog = c.resolve(AGENTIC_PLATFORM_LLM_CATALOG_TOKEN) as LlmCatalogPort;
+        return new CatalogImageProvider({ catalog });
+      },
+    },
   ],
-  exports: [AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN],
+  exports: [AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN, AGENTIC_PLATFORM_IMAGE_GENERATION_TOKEN],
 })
 export class LlmProviderModule {}
