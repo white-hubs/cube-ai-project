@@ -36,7 +36,7 @@ function baseCtx(
 }
 
 describe('JobsController', () => {
-  test('GET /v1/jobs/:id returns job view', async () => {
+  test('GET /jobs/:id returns job view', async () => {
     const jobData = {
       findJobById: mock(async () => ({
         id: '1820345678901234567',
@@ -76,7 +76,7 @@ describe('JobsController', () => {
     expect((out as { status: string }).status).toBe('RUNNING');
   });
 
-  test('GET /v1/jobs/:id hides cross-tenant job as not-found', async () => {
+  test('GET /jobs/:id hides cross-tenant job as not-found', async () => {
     const jobData = {
       findJobById: mock(async () => ({
         id: '1820345678901234567',
@@ -116,7 +116,7 @@ describe('JobsController', () => {
     });
   });
 
-  test('POST /v1/jobs/:id:cancel cancels active job', async () => {
+  test('POST /jobs/:id:cancel cancels active job', async () => {
     const cancelJobDb = mock(async () => true);
     const jobData = {
       findJobById: mock(async () => ({
@@ -158,7 +158,7 @@ describe('JobsController', () => {
     expect(out).toEqual({ ok: true });
   });
 
-  test('POST /v1/jobs/:id:cancel hides cross-tenant job as not-found', async () => {
+  test('POST /jobs/:id:cancel hides cross-tenant job as not-found', async () => {
     const cancelJobDb = mock(async () => true);
     const jobData = {
       findJobById: mock(async () => ({

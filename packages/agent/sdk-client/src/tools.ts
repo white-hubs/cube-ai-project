@@ -34,14 +34,14 @@ export class ToolAcksApi {
     const validated = ToolAckSubmitRequestSchema.parse({ toolCallId, result });
     await this.client.requestJson({
       method: 'POST',
-      path:   `/v1/sessions/${sessionId}/turns/${turnId}/tool-acks`,
+      path:   `/sessions/${sessionId}/turns/${turnId}/tool-acks`,
       body:   validated,
     });
   }
 }
 
 /**
- * Descriptors API — list public tool descriptors（GET `/v1/descriptors`）.
+ * Descriptors API — list public tool descriptors（GET `/descriptors`）.
  */
 export class DescriptorsApi {
   constructor(
@@ -56,7 +56,7 @@ export class DescriptorsApi {
     if (opts?.enabledOnly === true) query.enabledOnly = 'true';
     const raw = await this.client.requestJson<unknown>({
       method: 'GET',
-      path:   '/v1/descriptors',
+      path:   '/descriptors',
       query,
     });
     const parsed = DescriptorsListResponseSchema.parse(raw);
@@ -81,12 +81,12 @@ export class ToolsApi {
     });
   }
 
-  /** POST `/v1/tools/:name/invoke` — 返回引擎 JSON 载荷（业务自定义 shape） */
+  /** POST `/tools/:name/invoke` — 返回引擎 JSON 载荷（业务自定义 shape） */
   async invoke(name: string, args: Record<string, unknown>): Promise<unknown> {
     const seg = encodeURIComponent(name);
     return this.client.requestJson<unknown>({
       method: 'POST',
-      path:   `/v1/tools/${seg}/invoke`,
+      path:   `/tools/${seg}/invoke`,
       body:   args,
     });
   }

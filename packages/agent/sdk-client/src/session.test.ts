@@ -118,7 +118,7 @@ describe('SessionApi — CRUD', () => {
     expect(method).toBe('DELETE');
   });
 
-  test('patchSession PATCHes /v1/sessions/:id with title', async () => {
+  test('patchSession PATCHes /sessions/:id with title', async () => {
     let captured: { url?: string; method?: string; body?: string } = {};
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       captured = { url, method: init?.method, body: init?.body as string };
@@ -133,12 +133,12 @@ describe('SessionApi — CRUD', () => {
 
     await client.sessions.patch('6000000000000000001', { title: 'new title' });
     expect(captured.method).toBe('PATCH');
-    expect(captured.url).toContain('/v1/sessions/6000000000000000001');
+    expect(captured.url).toContain('/sessions/6000000000000000001');
     const parsed = JSON.parse(captured.body ?? '{}') as Record<string, unknown>;
     expect(parsed.title).toBe('new title');
   });
 
-  test('listMessages GETs /v1/sessions/:id/messages?limit=', async () => {
+  test('listMessages GETs /sessions/:id/messages?limit=', async () => {
     let captured = '';
     const fetchImpl = async (url: string): Promise<Response> => {
       captured = url;
@@ -165,14 +165,14 @@ describe('SessionApi — CRUD', () => {
     });
 
     const result = await client.sessions.listMessages('8000000000000000099', { limit: 200 });
-    expect(captured).toContain('/v1/sessions/8000000000000000099/messages');
+    expect(captured).toContain('/sessions/8000000000000000099/messages');
     expect(captured).toContain('limit=200');
     expect(result.items).toHaveLength(1);
   });
 });
 
 describe('SessionApi — startTurn', () => {
-  test('POST /v1/sessions/:id/messages → returns { turnId } + content-type 小写 + 自动 idempotency-key', async () => {
+  test('POST /sessions/:id/messages → returns { turnId } + content-type 小写 + 自动 idempotency-key', async () => {
     let captured: { url?: string; init?: RequestInit } = {};
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       captured = { url, init };
@@ -189,7 +189,7 @@ describe('SessionApi — startTurn', () => {
       content: buildTextMessage('hello'),
     });
     expect(turnId).toBe('9000000000000000001');
-    expect(captured.url).toContain('/v1/sessions/8000000000000000099/messages');
+    expect(captured.url).toContain('/sessions/8000000000000000099/messages');
     expect(captured.init?.method).toBe('POST');
     const h = captured.init?.headers as Record<string, string>;
     expect(h['content-type']).toBe('application/json');
@@ -297,7 +297,7 @@ describe('SessionApi — startTurn', () => {
             kind: 'image',
             fileId: 'file_01',
             mimeType: 'image/png',
-            previewUrl: '/v1/files/file_01/preview',
+            previewUrl: '/files/file_01/preview',
           },
         ],
       ),
@@ -309,7 +309,7 @@ describe('SessionApi — startTurn', () => {
         kind: 'image',
         fileId: 'file_01',
         mimeType: 'image/png',
-        previewUrl: '/v1/files/file_01/preview',
+        previewUrl: '/files/file_01/preview',
       },
     ]);
   });
@@ -369,7 +369,7 @@ describe('SessionApi — startTurn', () => {
 });
 
 describe('SessionApi — streamEvents', () => {
-  test('GET /v1/sessions/:id/events → yields parsed SseEvents', async () => {
+  test('GET /sessions/:id/events → yields parsed SseEvents', async () => {
     let captured: { url?: string; init?: RequestInit } = {};
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       captured = { url, init };
@@ -398,7 +398,7 @@ describe('SessionApi — streamEvents', () => {
     }
 
     expect(captured.init?.method).toBe('GET');
-    expect(captured.url).toContain('/v1/sessions/5000000000000000099/events');
+    expect(captured.url).toContain('/sessions/5000000000000000099/events');
     expect((captured.init?.headers as Record<string, string>).accept).toBe('text/event-stream');
     expect(collected).toContain('turn-started-v1');
   });
@@ -435,7 +435,7 @@ describe('SessionApi — streamEvents', () => {
       turnId: '5000000000000000002',
     });
     for await (const _ of iter) { /* drain */ void _ }
-    expect(capturedUrl).toBe('http://mock/v1/sessions/s-1/events?turnId=5000000000000000002');
+    expect(capturedUrl).toBe('http://mock/sessions/s-1/events?turnId=5000000000000000002');
   });
 
   test('omits ?turnId= when not provided (session-scope v1 compat)', async () => {
@@ -451,7 +451,7 @@ describe('SessionApi — streamEvents', () => {
     });
     const iter = client.sessions.streamEvents('s-1');
     for await (const _ of iter) { /* drain */ void _ }
-    expect(capturedUrl).toBe('http://mock/v1/sessions/s-1/events');
+    expect(capturedUrl).toBe('http://mock/sessions/s-1/events');
   });
 
   test('AbortSignal terminates the stream early', async () => {
@@ -539,7 +539,7 @@ describe('SessionApi — streamEvents', () => {
 });
 
 describe('SessionApi — cancelTurn', () => {
-  test('POST /v1/sessions/:id/turns/:turnId/cancel', async () => {
+  test('POST /sessions/:id/turns/:turnId/cancel', async () => {
     let captured: { url?: string; method?: string } = {};
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       captured = { url, method: init?.method };
@@ -551,7 +551,7 @@ describe('SessionApi — cancelTurn', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     await client.sessions.cancelTurn('1', '2');
-    expect(captured.url).toContain('/v1/sessions/1/turns/2/cancel');
+    expect(captured.url).toContain('/sessions/1/turns/2/cancel');
     expect(captured.method).toBe('POST');
   });
 });

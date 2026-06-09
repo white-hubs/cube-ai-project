@@ -275,7 +275,7 @@ async function createSession(
   tenant: number,
   userId: string,
 ): Promise<string> {
-  const resp = await fetch(`${baseUrl}/v1/sessions`, {
+  const resp = await fetch(`${baseUrl}/sessions`, {
     method: 'POST',
     headers: mockHeaders(tenant, userId),
     body: JSON.stringify({ agentId: AGENT_ID, title: 'ghcloud-e2e' }),
@@ -296,7 +296,7 @@ async function sendTurnAndAwaitSseCompletion(args: {
 }): Promise<string> {
   const ac = new AbortController();
   const streamResp = await fetch(
-    `${args.baseUrl}/v1/sessions/${args.sessionId}/events`,
+    `${args.baseUrl}/sessions/${args.sessionId}/events`,
     {
       headers: {
         ...mockHeaders(args.tenant, args.userId),
@@ -313,7 +313,7 @@ async function sendTurnAndAwaitSseCompletion(args: {
   let buf = '';
 
   const turnResp = await fetch(
-    `${args.baseUrl}/v1/sessions/${args.sessionId}/messages`,
+    `${args.baseUrl}/sessions/${args.sessionId}/messages`,
     {
       method: 'POST',
       headers: mockHeaders(args.tenant, args.userId),
@@ -389,7 +389,7 @@ async function uploadLocalImage(args: {
   previewUrl: string;
   mimeType: string;
 }> {
-  const resp = await fetch(`${args.baseUrl}/v1/files`, {
+  const resp = await fetch(`${args.baseUrl}/files`, {
     method: 'POST',
     headers: mockHeaders(args.tenant, args.userId),
     body: JSON.stringify({
@@ -405,7 +405,7 @@ async function uploadLocalImage(args: {
     mimeType: string;
   };
   expect(body.fileId).toMatch(/^[a-z0-9_]+$/iu);
-  expect(body.previewUrl).toBe(`/v1/files/${body.fileId}/preview`);
+  expect(body.previewUrl).toBe(`/files/${body.fileId}/preview`);
   expect(body.mimeType).toBe(args.mimeType);
   return body;
 }
@@ -456,7 +456,7 @@ async function sendMultimodalTurnAndCollectSse(args: {
 }): Promise<{ turnId: string; sseText: string }> {
   const ac = new AbortController();
   const streamResp = await fetch(
-    `${args.baseUrl}/v1/sessions/${args.sessionId}/events`,
+    `${args.baseUrl}/sessions/${args.sessionId}/events`,
     {
       headers: {
         ...mockHeaders(args.tenant, args.userId),
@@ -473,7 +473,7 @@ async function sendMultimodalTurnAndCollectSse(args: {
   let buf = '';
 
   const turnResp = await fetch(
-    `${args.baseUrl}/v1/sessions/${args.sessionId}/messages`,
+    `${args.baseUrl}/sessions/${args.sessionId}/messages`,
     {
       method: 'POST',
       headers: mockHeaders(args.tenant, args.userId),
@@ -1059,7 +1059,7 @@ async function dispatchToolCallAndWait(args: {
 
     /**
      * Full-chain smoke (tachu MultimodalResolver → engine local files → ghcloud stub Provider):
-     * POST /v1/files → image_ref turn (SSE) → upstream chat/completions carries data:image base64.
+     * POST /files → image_ref turn (SSE) → upstream chat/completions carries data:image base64.
      * Runs engine via test-infra subprocess (linked @tachu/core), same code path as dev / host-binary bundle input.
      */
     it('local file upload + multimodal turn smoke preserves attachments and sends image_url upstream', async () => {
@@ -1114,7 +1114,7 @@ async function dispatchToolCallAndWait(args: {
 
       expect(sseText).toContain(turnId);
 
-      const messagesResp = await fetch(`${engine.baseUrl}/v1/sessions/${sessionId}/messages?limit=20`, {
+      const messagesResp = await fetch(`${engine.baseUrl}/sessions/${sessionId}/messages?limit=20`, {
         headers: mockHeaders(tenant, userId),
       });
       expect(messagesResp.status).toBe(200);

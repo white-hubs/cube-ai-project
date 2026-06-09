@@ -27,7 +27,7 @@ function readSubject(ctx: Context): DualSubject {
   return subj;
 }
 
-@Controller('/v1/files')
+@Controller('/files')
 export class LocalFileController {
   constructor(private readonly files: LocalFileService) {}
 

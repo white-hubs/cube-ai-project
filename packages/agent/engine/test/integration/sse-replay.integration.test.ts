@@ -16,7 +16,7 @@ describe.skip('SSE replay + heartbeat + drain (live stack)', () => {
   test('GET /events with Last-Event-ID replays buffered events newer than anchor id', async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const lastId = process.env.TEST_LAST_EVENT_ID!;
-    const res = await fetch(`${BASE}/v1/sessions/${sid}/events`, {
+    const res = await fetch(`${BASE}/sessions/${sid}/events`, {
       headers: { 'Last-Event-ID': lastId },
     });
     expect(res.ok).toBe(true);
@@ -30,7 +30,7 @@ describe.skip('SSE replay + heartbeat + drain (live stack)', () => {
   test('heartbeat emits ping with schema ping-v1 within ~30s window', async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const ac = new AbortController();
-    const p = fetch(`${BASE}/v1/sessions/${sid}/events`, { signal: ac.signal });
+    const p = fetch(`${BASE}/sessions/${sid}/events`, { signal: ac.signal });
     const res = await p;
     expect(res.ok).toBe(true);
     const reader = res.body!.getReader();
@@ -50,7 +50,7 @@ describe.skip('SSE replay + heartbeat + drain (live stack)', () => {
   test('after SIGTERM on engine, active SSE reads drain.mode with drain-mode-v1 before close', async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const ac = new AbortController();
-    const res = await fetch(`${BASE}/v1/sessions/${sid}/events`, { signal: ac.signal });
+    const res = await fetch(`${BASE}/sessions/${sid}/events`, { signal: ac.signal });
     expect(res.ok).toBe(true);
     const reader = res.body!.getReader();
     const dec = new TextDecoder();

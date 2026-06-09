@@ -27,7 +27,7 @@ export interface UploadFileInput {
 }
 
 /**
- * Local file upload API — POST `/v1/files` (ADR-0008 §D4 files face).
+ * Local file upload API — POST `/files` (ADR-0008 §D4 files face).
  */
 export class FilesApi {
   constructor(
@@ -43,7 +43,7 @@ export class FilesApi {
     });
     const raw = await this.client.requestJson<unknown>({
       method: 'POST',
-      path: '/v1/files',
+      path: '/files',
       body,
     });
     return UploadedFileSchema.parse(raw);

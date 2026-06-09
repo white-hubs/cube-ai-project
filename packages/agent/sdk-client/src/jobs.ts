@@ -15,7 +15,7 @@ export class JobsApi {
   async get(jobId: string): Promise<Job> {
     const raw = await this.client.requestJson<unknown>({
       method: 'GET',
-      path:   `/v1/jobs/${jobId}`,
+      path:   `/jobs/${jobId}`,
     });
     return JobSchema.parse(raw);
   }
@@ -23,7 +23,7 @@ export class JobsApi {
   async cancel(jobId: string, opts?: { reason?: string }): Promise<void> {
     await this.client.requestJson({
       method: 'POST',
-      path:   `/v1/jobs/${jobId}:cancel`,
+      path:   `/jobs/${jobId}:cancel`,
       body:   opts?.reason ? { reason: opts.reason } : {},
     });
   }

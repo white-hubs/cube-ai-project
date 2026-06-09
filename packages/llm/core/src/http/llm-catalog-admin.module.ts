@@ -24,7 +24,7 @@ import { LLM_HTTP_TENANT_RESOLVER_TOKEN, type LlmHttpTenantResolver } from './re
 export const CATALOG_MYSQL_POOL_TOKEN = Symbol.for('agentic.infra.mysql');
 
 /**
- * LLM 目录管理面 HTTP 模块（/ai/llm 全 CRUD + 远程发现/连通性）。
+ * LLM 目录管理面 HTTP 模块（/llm 全 CRUD + 远程发现/连通性）。
  * 需要 MySQL pool（CATALOG_MYSQL_POOL_TOKEN）+ 租户 resolver（LLM_HTTP_TENANT_RESOLVER_TOKEN）。
  * 图标默认走本地回退实现；ghcloud 环境可在更高层 @Global 模块覆盖 LLM_PROVIDER_ICON_STORE_TOKEN。
  */

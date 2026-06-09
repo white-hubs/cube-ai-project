@@ -383,13 +383,13 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
     });
 
     describe('HTTP + SSE（子进程 Engine）', () => {
-      it('POST /v1/sessions — 201，id 为 19 位 SFID；响应 JSON 不含 tenant', async () => {
+      it('POST /sessions — 201，id 为 19 位 SFID；响应 JSON 不含 tenant', async () => {
         const tenant = 91_101;
         const base = engineHolder.current!.baseUrl;
         const body = { agentId: AGENT_ID, title: 'tc-http-create' };
         expect(Object.hasOwn(body, 'tenant')).toBe(false);
 
-        const resp = await fetch(`${base}/v1/sessions`, {
+        const resp = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, 'tc-http-user'),
           body: JSON.stringify(body),
@@ -402,13 +402,13 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(json).not.toHaveProperty('tenant');
       });
 
-      it('GET /v1/sessions/:id — 非所属 tenant 返回 404', async () => {
+      it('GET /sessions/:id — 非所属 tenant 返回 404', async () => {
         const tenantA = 91_102;
         const tenantB = 91_103;
         const base = engineHolder.current!.baseUrl;
         const userA = 'tc-iso-user';
 
-        const created = await fetch(`${base}/v1/sessions`, {
+        const created = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenantA, userA),
           body: JSON.stringify({ agentId: AGENT_ID }),
@@ -416,7 +416,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(created.status).toBe(201);
         const { id } = (await created.json()) as { id: string };
 
-        const wrongTenant = await fetch(`${base}/v1/sessions/${id}`, {
+        const wrongTenant = await fetch(`${base}/sessions/${id}`, {
           method: 'GET',
           cache: 'no-store',
           headers: mockHeaders(tenantB, userA),
@@ -424,12 +424,12 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(wrongTenant.status).toBe(404);
       });
 
-      it('DELETE /v1/sessions/:id — 204；outbox_events 含 session.deleted', async () => {
+      it('DELETE /sessions/:id — 204；outbox_events 含 session.deleted', async () => {
         const tenant = 91_104;
         const base = engineHolder.current!.baseUrl;
         const mysqlUrl = stackHolder.current!.mysqlUrl;
 
-        const created = await fetch(`${base}/v1/sessions`, {
+        const created = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, 'tc-del-user'),
           body: JSON.stringify({ agentId: AGENT_ID }),
@@ -437,7 +437,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(created.status).toBe(201);
         const { id } = (await created.json()) as { id: string };
 
-        const del = await fetch(`${base}/v1/sessions/${id}`, {
+        const del = await fetch(`${base}/sessions/${id}`, {
           method: 'DELETE',
           headers: mockHeaders(tenant, 'tc-del-user'),
         });
@@ -463,11 +463,11 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         }
       });
 
-      it('SSE：GET /v1/sessions/:id/events 返回 text/event-stream', async () => {
+      it('SSE：GET /sessions/:id/events 返回 text/event-stream', async () => {
         const tenant = 91_105;
         const base = engineHolder.current!.baseUrl;
 
-        const post = await fetch(`${base}/v1/sessions`, {
+        const post = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, 'tc-sse-user'),
           body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-sse' }),
@@ -475,7 +475,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(post.status).toBe(201);
         const { id: sid } = (await post.json()) as { id: string };
 
-        const res = await fetch(`${base}/v1/sessions/${sid}/events`, {
+        const res = await fetch(`${base}/sessions/${sid}/events`, {
           headers: mockHeaders(tenant, 'tc-sse-user'),
         });
 
@@ -497,11 +497,11 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         }
       }, { timeout: 60_000 });
 
-      it('GET /v1/sessions/:id — 所属 tenant 返回 200', async () => {
+      it('GET /sessions/:id — 所属 tenant 返回 200', async () => {
         const tenant = 91_106;
         const base = engineHolder.current!.baseUrl;
         const user = 'tc-get-user';
-        const created = await fetch(`${base}/v1/sessions`, {
+        const created = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, user),
           body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-get' }),
@@ -509,7 +509,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         expect(created.status).toBe(201);
         const { id } = (await created.json()) as { id: string };
 
-        const got = await fetch(`${base}/v1/sessions/${id}`, {
+        const got = await fetch(`${base}/sessions/${id}`, {
           headers: mockHeaders(tenant, user),
         });
         expect(got.status).toBe(200);
@@ -520,7 +520,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
       it('SSE：Last-Event-ID 重连后仍为 event-stream', async () => {
         const tenant = 91_107;
         const base = engineHolder.current!.baseUrl;
-        const post = await fetch(`${base}/v1/sessions`, {
+        const post = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, 'tc-lae-user'),
           body: JSON.stringify({ agentId: AGENT_ID }),
@@ -533,7 +533,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         const abortTimer = setTimeout(() => ac.abort(), 32_000);
         let buf = '';
         try {
-          const res = await fetch(`${base}/v1/sessions/${sid}/events`, {
+          const res = await fetch(`${base}/sessions/${sid}/events`, {
             headers: {
               ...mockHeaders(tenant, 'tc-lae-user'),
               Accept: 'text/event-stream',
@@ -558,7 +558,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         const eventId = buf.match(/id:\s*(\d{1,20}:\d{6})/)?.[1];
         expect(eventId).toBeTruthy();
 
-        const res2 = await fetch(`${base}/v1/sessions/${sid}/events`, {
+        const res2 = await fetch(`${base}/sessions/${sid}/events`, {
           headers: {
             ...mockHeaders(tenant, 'tc-lae-user'),
             Accept: 'text/event-stream',
@@ -574,7 +574,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
       it('SSE：心跳含 ping-v1（≤36s）', async () => {
         const tenant = 91_108;
         const base = engineHolder.current!.baseUrl;
-        const post = await fetch(`${base}/v1/sessions`, {
+        const post = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, 'tc-ping-user'),
           body: JSON.stringify({ agentId: AGENT_ID }),
@@ -583,7 +583,7 @@ function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<s
         const { id: sid } = (await post.json()) as { id: string };
 
         const ac = new AbortController();
-        const res = await fetch(`${base}/v1/sessions/${sid}/events`, {
+        const res = await fetch(`${base}/sessions/${sid}/events`, {
           headers: mockHeaders(tenant, 'tc-ping-user'),
           signal: ac.signal,
         });

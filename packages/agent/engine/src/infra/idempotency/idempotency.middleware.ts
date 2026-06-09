@@ -5,7 +5,7 @@
  * =========
  *  - Active only on POST/PUT/PATCH (GET/HEAD/DELETE/OPTIONS are by definition
  *    or convention idempotent on the protocol layer).
- *  - Bypass paths: `/health/*`, `/metrics`, `/v1/health`, `/v1/ready` — these
+ *  - Bypass paths: `/health/live`, `/health/ready`, `/metrics` — these
  *    are infra surfaces and must not consult Redis.
  *  - Header is opt-in: requests WITHOUT `Idempotency-Key` pass through. This
  *    matches Stripe / GitHub semantics — the client signals intent.
@@ -61,10 +61,7 @@ const DEFAULT_LOCK_TTL_SECONDS = 30;
 const BYPASS_PATHS: ReadonlySet<string> = new Set([
   '/health/live',
   '/health/ready',
-  '/v1/health',
-  '/v1/ready',
   '/metrics',
-  '/v1/metrics',
 ]);
 
 const PRESERVED_HEADER_NAMES = ['content-type'] as const;

@@ -35,7 +35,7 @@ function resolveTtlSeconds(input: {
   return undefined;
 }
 
-@Controller('/v1/grants')
+@Controller('/grants')
 export class GrantController {
   constructor(private readonly grantService: GrantService) {}
 

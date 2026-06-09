@@ -21,7 +21,7 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl:  fetchImpl as unknown as typeof fetch,
     });
 
-    await client.requestJson({ method: 'POST', path: '/v1/sessions', body: { agentId: '1' } });
+    await client.requestJson({ method: 'POST', path: '/sessions', body: { agentId: '1' } });
 
     const h = new Headers(captured!.headers as HeadersInit);
     expect(h.get('Authorization')).toBe('Bearer tok-ok');
@@ -108,7 +108,7 @@ describe('AgenticClient HTTP 封装', () => {
 
     await client.requestJson({
       method: 'POST',
-      path:   '/v1/sessions',
+      path:   '/sessions',
       body:   { agentId: '1' },
       idempotencyKey: 'idem-1',
     });
@@ -145,7 +145,7 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    await client.requestJson({ method: 'GET', path: '/v1/sessions/1' });
+    await client.requestJson({ method: 'GET', path: '/sessions/1' });
 
     expect(tenantCalled).toBe(1);
     const raw = captured!.headers as Record<string, string>;
@@ -168,7 +168,7 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    await client.requestJson({ method: 'GET', path: '/v1/sessions/1' });
+    await client.requestJson({ method: 'GET', path: '/sessions/1' });
     expect((captured!.headers as Record<string, string>).tenant).toBe('7');
   });
 
@@ -216,7 +216,7 @@ describe('AgenticClient HTTP 封装', () => {
   /**
    * 回归：`baseUrl` 含 path 段（如网关反代 `https://gw/api/agentic-engine`）时，
    * 必须**保留**该 path 段做前缀拼接，**不**走 `new URL(path, base)` 的语义
-   * （后者会把 `/v1/sessions` 当绝对路径吞掉 base.path）。
+   * （后者会把 `/sessions` 当绝对路径吞掉 base.path）。
    */
   test('baseUrl 带 path 前缀时，请求 URL 保留该 path（不被 path-absolute 吞掉）', async () => {
     let capturedUrl = '';
@@ -230,7 +230,7 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     await client.sessions.list({ limit: 10 });
-    expect(capturedUrl).toContain('https://gw.example.com/api/agentic-engine/v1/sessions');
+    expect(capturedUrl).toContain('https://gw.example.com/api/agentic-engine/sessions');
     expect(capturedUrl).toContain('limit=10');
   });
 
@@ -247,6 +247,6 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     await client.sessions.list();
-    expect(capturedUrl).toBe('/api/agentic-engine/v1/sessions');
+    expect(capturedUrl).toBe('/api/agentic-engine/sessions');
   });
 });

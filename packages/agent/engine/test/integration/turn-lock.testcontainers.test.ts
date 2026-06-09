@@ -5,12 +5,12 @@
  * 文件名带 `.skip` 整体被 bun test 忽略）。该 placeholder 仅落需求/验收，不再单独维护。
  *
  * **覆盖**：基于 `Engine` 子进程 + 真实 MySQL/Redis/Qdrant，
- *   1. 同 session 上**并发** 2 个 M1（POST /v1/sessions/:id/messages）→ 仅 1 个拿到 turn-lock；
+ *   1. 同 session 上**并发** 2 个 M1（POST /sessions/:id/messages）→ 仅 1 个拿到 turn-lock；
  *      另 1 个返回 409 + `RESOURCE_CONFLICT_SESSION_BUSY`（`agentic-error.ts` → categoryOf("RESOURCE_CONFLICT") = 409）。
  *   2. 第 1 个完成（lock 已释放）后，第 2 个 M1 不再返 409（lock 已释放）。
  *
  * **状态码**：
- *   - POST /v1/sessions/:id/messages 在控制器内未调 `setStatus`，默认 200；
+ *   - POST /sessions/:id/messages 在控制器内未调 `setStatus`，默认 200；
  *   - 409 来自 `AgenticEngineError(RESOURCE_CONFLICT_SESSION_BUSY)` 经 `agenticEngineExceptionFilter` 映射。
  *
  * **schema 局部增量**：`infra/test-infra/fixtures/minimal-mysql.sql` 仅含 `sessions` + `outbox_events`；
@@ -181,7 +181,7 @@ interface MessageError {
 
     async function createSession(tenant: number, userId: string): Promise<string> {
       const base = engineHolder.current!.baseUrl;
-      const r = await fetch(`${base}/v1/sessions`, {
+      const r = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: mockHeaders(tenant, userId),
         body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-turn-lock' }),
@@ -219,7 +219,7 @@ interface MessageError {
       const userId = 'tc-lock-user';
       const sid = await createSession(tenant, userId);
       const base = engineHolder.current!.baseUrl;
-      const url = `${base}/v1/sessions/${sid}/messages`;
+      const url = `${base}/sessions/${sid}/messages`;
       const headers = mockHeaders(tenant, userId);
       const body = JSON.stringify({ prompt: 'hello' });
 
@@ -252,7 +252,7 @@ interface MessageError {
       const userId = 'tc-lock-release-user';
       const sid = await createSession(tenant, userId);
       const base = engineHolder.current!.baseUrl;
-      const url = `${base}/v1/sessions/${sid}/messages`;
+      const url = `${base}/sessions/${sid}/messages`;
       const headers = mockHeaders(tenant, userId);
 
       const r1 = await fetch(url, {

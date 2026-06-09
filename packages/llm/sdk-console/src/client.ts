@@ -5,30 +5,38 @@ import {
 import { llmConsoleRequestJson, type LlmConsoleConfig } from './http';
 import { z } from 'zod';
 
+const LlmProviderSummaryPassthroughSchema = LlmProviderSummarySchema.passthrough();
+type LlmProviderSummaryWithExtras = LlmProviderSummary & Record<string, unknown>;
+
 const ProviderListSchema = z.union([
-  z.array(LlmProviderSummarySchema),
-  z.object({ items: z.array(LlmProviderSummarySchema) }),
+  z.array(LlmProviderSummaryPassthroughSchema),
+  z.object({ items: z.array(LlmProviderSummaryPassthroughSchema) }),
 ]);
 
 export class LlmConsoleClient {
   constructor(private readonly config: LlmConsoleConfig) {}
 
-  async listProviders(): Promise<LlmProviderSummary[]> {
+  async listProviders(): Promise<LlmProviderSummaryWithExtras[]> {
     const raw = await llmConsoleRequestJson<unknown>(this.config, 'GET', '/providers');
     const parsed = ProviderListSchema.parse(raw);
     return Array.isArray(parsed) ? parsed : parsed.items;
   }
 
-  getProvider(providerId: string): Promise<LlmProviderSummary> {
-    return llmConsoleRequestJson<LlmProviderSummary>(
+  async getProvider(providerId: string): Promise<LlmProviderSummaryWithExtras> {
+    const raw = await llmConsoleRequestJson<unknown>(
       this.config,
       'GET',
       `/providers/${encodeURIComponent(providerId)}`,
     );
+    return LlmProviderSummaryPassthroughSchema.parse(raw);
   }
 
   listProviderTypes(): Promise<unknown> {
     return llmConsoleRequestJson<unknown>(this.config, 'GET', '/provider-types');
+  }
+
+  listEndpointTypes(): Promise<unknown> {
+    return llmConsoleRequestJson<unknown>(this.config, 'GET', '/endpoint-types');
   }
 
   getProviderType(code: string): Promise<unknown> {

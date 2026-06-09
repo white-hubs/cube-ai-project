@@ -4,9 +4,9 @@
  * **覆盖策略说明（防重复）**
  *
  * `mysql-redis-qdrant.testcontainers.test.ts` 已统一覆盖以下 REST 主链路：
- *   - POST /v1/sessions — 201, id 为 19 位 SFID, 响应 JSON 不含 tenant
- *   - GET  /v1/sessions/:id — 200 (own tenant) / 404 (other tenant)
- *   - DELETE /v1/sessions/:id — 204 + outbox `session.deleted`
+ *   - POST /sessions — 201, id 为 19 位 SFID, 响应 JSON 不含 tenant
+ *   - GET  /sessions/:id — 200 (own tenant) / 404 (other tenant)
+ *   - DELETE /sessions/:id — 204 + outbox `session.deleted`
  *   - SSE event-stream / Last-Event-ID / 心跳 ping-v1
  *
  * 因此 `sessions.integration.test.ts` 中 3 个 `test.skip` 用例（POST/GET-404/DELETE）
@@ -14,7 +14,7 @@
  *
  *   1. POST 链路同事务写入 `session_lifecycle / session.created` outbox 行
  *      （DELETE 已在 mysql-redis-qdrant 覆盖；CREATE 是 P3-04 关键不变式补强）
- *   2. GET /v1/sessions（list 分页端点）— 行级 tenant 隔离 + page meta
+ *   2. GET /sessions（list 分页端点）— 行级 tenant 隔离 + page meta
  *
  * 前置：Docker daemon 可用，`USE_TESTCONTAINERS=1`：
  *   bun run test:containers
@@ -140,10 +140,10 @@ function createMysqlPool(mysqlUrl: string): Pool {
       await stopTrackedTestcontainersIfAny();
     });
 
-    it('POST /v1/sessions — same transaction writes session_lifecycle / session.created outbox', async () => {
+    it('POST /sessions — same transaction writes session_lifecycle / session.created outbox', async () => {
       const tenant = 92_201;
       const base = engineHolder.current!.baseUrl;
-      const created = await fetch(`${base}/v1/sessions`, {
+      const created = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: mockHeaders(tenant, 'tc-create-outbox'),
         body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-create-outbox' }),
@@ -173,7 +173,7 @@ function createMysqlPool(mysqlUrl: string): Pool {
       }
     });
 
-    it('GET /v1/sessions — list returns owner sessions with page metadata', async () => {
+    it('GET /sessions — list returns owner sessions with page metadata', async () => {
       const tenant = 92_202;
       const userId = 'tc-list-user';
       const base = engineHolder.current!.baseUrl;
@@ -182,7 +182,7 @@ function createMysqlPool(mysqlUrl: string): Pool {
       const titles = ['tc-list-1', 'tc-list-2'];
       const ids: string[] = [];
       for (const title of titles) {
-        const r = await fetch(`${base}/v1/sessions`, {
+        const r = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, userId),
           body: JSON.stringify({ agentId: AGENT_ID, title }),
@@ -194,14 +194,14 @@ function createMysqlPool(mysqlUrl: string): Pool {
 
       /** 另一个 tenant 创建一个会话 → list 不应包含 */
       const otherTenant = 92_203;
-      const otherCreate = await fetch(`${base}/v1/sessions`, {
+      const otherCreate = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: mockHeaders(otherTenant, 'tc-list-other'),
         body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-list-other' }),
       });
       expect(otherCreate.status).toBe(201);
 
-      const listResp = await fetch(`${base}/v1/sessions?limit=10`, {
+      const listResp = await fetch(`${base}/sessions?limit=10`, {
         headers: mockHeaders(tenant, userId),
       });
       expect(listResp.status).toBe(200);

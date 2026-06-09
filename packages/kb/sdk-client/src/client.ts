@@ -1,7 +1,3 @@
-import {
-  KnowledgeQueryResponseSchema,
-  type KnowledgeQueryResponse,
-} from '@cube-ai/contracts/platform';
 import { kbRequestJson, type KbSdkConfig } from './http';
 
 export interface SearchBody {
@@ -27,22 +23,41 @@ export interface SearchByDirectoryBody {
   similarityThreshold?: number;
 }
 
+/** kb-core 检索接口返回的单个 chunk 条目（字段与 retrieval.service.ts SearchItem 对齐）。 */
+export interface KbSearchItem {
+  text?: string | null;
+  score?: number | null;
+  headingPath?: string[] | null;
+  keywords?: string[] | null;
+  headers?: string[] | null;
+  chunkId?: string | null;
+  chunkIndex?: number | null;
+  documentId?: string | null;
+  sectionId?: string | null;
+  [key: string]: unknown;
+}
+
+/** kb-core 检索接口的真实响应格式：`{ items: KbSearchItem[] }`。 */
+export interface KbSearchResult {
+  items: KbSearchItem[];
+}
+
 export class KbClient {
   constructor(private readonly config: KbSdkConfig) {}
 
-  async search(body: SearchBody): Promise<KnowledgeQueryResponse> {
-    const raw = await kbRequestJson<unknown>(this.config, 'POST', '/search', body);
-    return KnowledgeQueryResponseSchema.parse(raw);
+  async search(body: SearchBody): Promise<KbSearchResult> {
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search', body);
+    return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 
-  async searchByDocuments(body: SearchByDocumentsBody): Promise<KnowledgeQueryResponse> {
-    const raw = await kbRequestJson<unknown>(this.config, 'POST', '/search/by-documents', body);
-    return KnowledgeQueryResponseSchema.parse(raw);
+  async searchByDocuments(body: SearchByDocumentsBody): Promise<KbSearchResult> {
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search/by-documents', body);
+    return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 
-  async searchByDirectory(body: SearchByDirectoryBody): Promise<KnowledgeQueryResponse> {
-    const raw = await kbRequestJson<unknown>(this.config, 'POST', '/search/by-directory', body);
-    return KnowledgeQueryResponseSchema.parse(raw);
+  async searchByDirectory(body: SearchByDirectoryBody): Promise<KbSearchResult> {
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search/by-directory', body);
+    return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 }
 

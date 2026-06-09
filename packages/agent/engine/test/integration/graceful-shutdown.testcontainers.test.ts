@@ -147,7 +147,7 @@ function mockHeaders(tenant: number, userId: string) {
           const userId = 'tc-shutdown-active';
           const base = engine.baseUrl;
 
-          const post = await fetch(`${base}/v1/sessions`, {
+          const post = await fetch(`${base}/sessions`, {
             method: 'POST',
             headers: mockHeaders(tenant, userId),
             body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-shutdown-active' }),
@@ -155,7 +155,7 @@ function mockHeaders(tenant: number, userId: string) {
           expect(post.status).toBe(201);
           const { id: sid } = (await post.json()) as { id: string };
 
-          const sse = await fetch(`${base}/v1/sessions/${sid}/events`, {
+          const sse = await fetch(`${base}/sessions/${sid}/events`, {
             headers: {
               ...mockHeaders(tenant, userId),
               Accept: 'text/event-stream',

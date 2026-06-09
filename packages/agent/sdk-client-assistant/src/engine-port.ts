@@ -93,7 +93,7 @@ export function createAgenticEnginePort(
     cancelTurn: (sessionId, turnId) => sessions.cancelTurn(sessionId, turnId),
 
     respondGrant: async (input: GrantResponseInput): Promise<void> => {
-      // 直走 sdk-core grants.respond → `POST /v1/grants/responses`（与 engine
+      // 直走 sdk-core grants.respond → `POST /grants/responses`（与 engine
       // `@cube-ai/agentic-engine` GrantController 路径对齐，body 已 zod 校验）。
       await client.grants.respond({
         grantRequestId: input.grantRequestId,

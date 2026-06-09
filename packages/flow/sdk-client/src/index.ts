@@ -19,4 +19,6 @@ export type {
   FlowValidateResult,
   FlowFileUploadResponse,
   ListFlowsPageQuery,
+  FlowExportVo,
+  FlowRunResult,
 } from './editor-model';

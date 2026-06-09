@@ -11,7 +11,7 @@
  *  - When no tenant is present (anonymous / health bypass / paths skipped by
  *    auth) the middleware passes through. Auth + tenant propagation upstream
  *    are the canonical gates; rate-limit is a defence-in-depth derivative.
- *  - Bypass paths: `/health/*`, `/metrics`, `/v1/health`, `/v1/ready` —
+ *  - Bypass paths: `/health/live`, `/health/ready`, `/metrics` —
  *    same set as auth and idempotency for protocol-layer consistency.
  *
  * Headers
@@ -43,10 +43,7 @@ import type { RateLimitConfig, RateLimiter } from './rate-limit.types';
 const BYPASS_PATHS: ReadonlySet<string> = new Set([
   '/health/live',
   '/health/ready',
-  '/v1/health',
-  '/v1/ready',
   '/metrics',
-  '/v1/metrics',
 ]);
 
 const HEADER_REMAINING = 'X-RateLimit-Remaining';

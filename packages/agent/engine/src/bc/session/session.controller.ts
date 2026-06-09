@@ -144,7 +144,7 @@ function readTurnIdPathParam(ctx: Context): string {
  * ref: docs/detailed-design/01-api/session.md §S1–S5
  *      docs/detailed-design/03-core-adapters/concurrency-and-replay.md §3.4
  */
-@Controller('/v1/sessions')
+@Controller('/sessions')
 export class SessionController {
   constructor(
     private readonly sessionService: SessionService,
@@ -153,7 +153,7 @@ export class SessionController {
     private readonly drainService: DrainService,
   ) {}
 
-  /** S2 — GET /v1/sessions */
+  /** S2 — GET /sessions */
   @GET('/')
   listSessions(): Promise<{ items: unknown[]; page: { nextCursor?: string; hasMore: boolean } }> {
     const ctx = requireCtx();
@@ -183,7 +183,7 @@ export class SessionController {
       .then(mapList);
   }
 
-  /** S1 — POST /v1/sessions */
+  /** S1 — POST /sessions */
   @POST('/')
   async create(): Promise<unknown> {
     const ctx = requireCtx();
@@ -224,7 +224,7 @@ export class SessionController {
   }
 
   /**
-   * SSE — GET /v1/sessions/:sessionId/events?turnId={turnId}
+   * SSE — GET /sessions/:sessionId/events?turnId={turnId}
    *
    * SSE stream of turn events with Last-Event-ID replay support (P3-06)
    * + per-turn 过滤（ADR-0022 §D5.1.v2）：
@@ -269,7 +269,7 @@ export class SessionController {
     });
   }
 
-  /** M2 — GET /v1/sessions/:sessionId/messages（历史分页；见 session.md §11） */
+  /** M2 — GET /sessions/:sessionId/messages（历史分页；见 session.md §11） */
   @GET('/:sessionId/messages')
   async listMessages(): Promise<unknown> {
     const ctx = requireCtx();
@@ -294,7 +294,7 @@ export class SessionController {
   }
 
   /**
-   * Cancel running turn — POST /v1/sessions/:sessionId/turns/:turnId/cancel.
+   * Cancel running turn — POST /sessions/:sessionId/turns/:turnId/cancel.
    *
    * 客户端触发的「用户主动停止」入口。委派到 `TurnService.cancelTurn` 完成
    *  - tachu.Engine.cancel(sessionId) → 中断 LLM / tool 运行
@@ -405,7 +405,7 @@ export class SessionController {
     return { turnId };
   }
 
-  /** S3 — GET /v1/sessions/:sessionId */
+  /** S3 — GET /sessions/:sessionId */
   @GET('/:sessionId')
   async getById(): Promise<unknown> {
     const ctx = requireCtx();
@@ -432,7 +432,7 @@ export class SessionController {
     return session;
   }
 
-  /** S4 — PATCH /v1/sessions/:sessionId */
+  /** S4 — PATCH /sessions/:sessionId */
   @PATCH('/:sessionId')
   async update(): Promise<{ ok: true }> {
     const ctx = requireCtx();
@@ -467,7 +467,7 @@ export class SessionController {
     return { ok: true };
   }
 
-  /** S5 — DELETE /v1/sessions/:sessionId */
+  /** S5 — DELETE /sessions/:sessionId */
   @DELETE('/:sessionId')
   async remove(): Promise<void> {
     const ctx = requireCtx();

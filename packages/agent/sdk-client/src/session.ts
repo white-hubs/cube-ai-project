@@ -128,7 +128,7 @@ export class SessionApi {
     const body = CreateSessionRequestSchema.parse(req);
     const raw = await this.client.requestJson<unknown>({
       method: 'POST',
-      path:   '/v1/sessions',
+      path:   '/sessions',
       body,
     });
     return CreateSessionResponseSchema.parse(raw);
@@ -137,7 +137,7 @@ export class SessionApi {
   async get(sessionId: string): Promise<Session> {
     const raw = await this.client.requestJson<unknown>({
       method: 'GET',
-      path:   `/v1/sessions/${sessionId}`,
+      path:   `/sessions/${sessionId}`,
     });
     return SessionSchema.parse(raw);
   }
@@ -145,7 +145,7 @@ export class SessionApi {
   async list(filter: ListSessionsFilter = {}): Promise<ListSessionsResult> {
     const raw = await this.client.requestJson<unknown>({
       method: 'GET',
-      path:   '/v1/sessions',
+      path:   '/sessions',
       query:  {
         cursor: filter.cursor,
         limit:  filter.limit,
@@ -158,7 +158,7 @@ export class SessionApi {
   async patch(sessionId: string, patch: PatchSessionRequest): Promise<void> {
     await this.client.requestJson<unknown>({
       method: 'PATCH',
-      path:   `/v1/sessions/${sessionId}`,
+      path:   `/sessions/${sessionId}`,
       body:   patch,
     });
   }
@@ -166,7 +166,7 @@ export class SessionApi {
   async delete(sessionId: string): Promise<void> {
     await this.client.requestJson<unknown>({
       method: 'DELETE',
-      path:   `/v1/sessions/${sessionId}`,
+      path:   `/sessions/${sessionId}`,
     });
   }
 
@@ -176,14 +176,14 @@ export class SessionApi {
   ): Promise<ListMessagesResult> {
     const raw = await this.client.requestJson<unknown>({
       method: 'GET',
-      path:   `/v1/sessions/${sessionId}/messages`,
+      path:   `/sessions/${sessionId}/messages`,
       query:  { limit: opts.limit },
     });
     return ListMessagesResponseSchema.parse(raw);
   }
 
   /**
-   * POST `/v1/sessions/:sessionId/messages` → `{ turnId }`（同步 JSON 返回）。
+   * POST `/sessions/:sessionId/messages` → `{ turnId }`（同步 JSON 返回）。
    * 失败映射：
    *   - 409 RESOURCE_CONFLICT_TURN_RUNNING / "already has a running turn" → `SessionBusyError`
    *   - 其它 4xx/5xx/网络错 → `StartTurnFailedError`
@@ -199,7 +199,7 @@ export class SessionApi {
       const validatedBody = StartTurnRequestSchema.parse(body);
       const raw = await this.client.requestJson<unknown>({
         method:         'POST',
-        path:           `/v1/sessions/${sessionId}/messages`,
+        path:           `/sessions/${sessionId}/messages`,
         body: validatedBody,
         idempotencyKey: idem,
         ...(opts.signal ? { signal: opts.signal } : {}),
@@ -242,19 +242,19 @@ export class SessionApi {
   }
 
   /**
-   * POST `/v1/sessions/:sessionId/turns/:turnId/cancel`（ADR-0008 §D3）。
+   * POST `/sessions/:sessionId/turns/:turnId/cancel`（ADR-0008 §D3）。
    * Fire-and-forget 语义在业务层 `AssistantStore.cancel` 处理；本方法仍如实返回 HTTP 结果。
    * Idempotent — engine 端 turn 非 RUNNING 时返回 404 RESOURCE_NOT_FOUND_SESSION。
    */
   async cancelTurn(sessionId: string, turnId: string): Promise<void> {
     await this.client.requestJson<unknown>({
       method: 'POST',
-      path:   `/v1/sessions/${sessionId}/turns/${turnId}/cancel`,
+      path:   `/sessions/${sessionId}/turns/${turnId}/cancel`,
     });
   }
 
   /**
-   * GET `/v1/sessions/:sessionId/events[?turnId={turnId}]`。
+   * GET `/sessions/:sessionId/events[?turnId={turnId}]`。
    *
    * AsyncIterable 形态 — 业务侧 `for await (const ev of streamEvents(...)) { ... }`。
    *
@@ -271,7 +271,7 @@ export class SessionApi {
     sessionId: string,
     opts: { turnId?: string; lastEventId?: string; signal?: AbortSignal } = {},
   ): AsyncIterable<SseEvent> {
-    const baseUrl = `${this.config.baseUrl}/v1/sessions/${sessionId}/events`;
+    const baseUrl = `${this.config.baseUrl}/sessions/${sessionId}/events`;
     const url =
       opts.turnId !== undefined && opts.turnId !== ''
         ? `${baseUrl}?turnId=${encodeURIComponent(opts.turnId)}`

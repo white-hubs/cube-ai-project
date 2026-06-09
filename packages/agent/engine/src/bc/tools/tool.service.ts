@@ -282,7 +282,7 @@ export class ToolService {
       return {
         scheduled: true,
         jobId,
-        statusUrl: `/v1/jobs/${jobId}`,
+        statusUrl: `/jobs/${jobId}`,
       };
     }
 

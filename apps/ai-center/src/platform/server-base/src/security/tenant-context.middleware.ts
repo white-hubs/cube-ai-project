@@ -20,9 +20,18 @@ function isReadonlyMethod(method: string): boolean {
   return method === 'GET' || method === 'HEAD'
 }
 
+/** 与 execution-auth / CubeGateway 对齐：`tenant` 为主，`x-tenant-id` 作兼容兜底。 */
+function resolveTenantHeader(ctx: Context): string {
+  return (
+    ctx.request.headers.get('tenant')?.trim() ??
+    ctx.request.headers.get('x-tenant-id')?.trim() ??
+    ''
+  )
+}
+
 /**
  * 注入 tenantContextAls（用于管理面路由）。
- * tenant 来自 X-Tenant-Id 请求头，由上游身份中间件预先验证；不再查询 projects 表。
+ * tenant 来自 `tenant` 请求头（CubeGateway 标准），由上游身份中间件预先验证；不再查询 projects 表。
  * 超管在无 tenant 头时可启用全局可见模式（只读）。
  */
 export function createTenantContextMiddleware(deps?: {
@@ -45,7 +54,12 @@ export function createTenantContextMiddleware(deps?: {
       return next()
     }
 
-    const raw = ctx.request.headers.get('x-tenant-id')?.trim()
+    // execution-auth 已注入时直接透传，避免重复解析/覆盖。
+    if (tenantContextAls.getStore()) {
+      return next()
+    }
+
+    const raw = resolveTenantHeader(ctx)
     if (raw) {
       return tenantContextAls.run({ tenantId: raw, bypassTenantIsolation: false }, () => next())
     }
@@ -55,6 +69,6 @@ export function createTenantContextMiddleware(deps?: {
       return tenantContextAls.run({ tenantId: '', bypassTenantIsolation: true }, () => next())
     }
 
-    throw new BadRequestException('X-Tenant-Id header is required')
+    throw new BadRequestException('tenant header is required')
   }
 }

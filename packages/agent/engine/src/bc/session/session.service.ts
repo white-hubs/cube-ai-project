@@ -261,7 +261,7 @@ export class SessionService {
   }
 
   /**
-   * POST /v1/sessions — create row + session.created outbox (single transaction).
+   * POST /sessions — create row + session.created outbox (single transaction).
    */
   async createSession(
     tenant: number,
@@ -322,7 +322,7 @@ export class SessionService {
   }
 
   /**
-   * M2 — GET /v1/sessions/:sessionId/messages
+   * M2 — GET /sessions/:sessionId/messages
    * ref: docs/detailed-design/01-api/session.md §11
    */
   async listSessionMessages(params: {

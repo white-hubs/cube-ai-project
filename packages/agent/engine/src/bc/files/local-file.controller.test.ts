@@ -33,7 +33,7 @@ describe('LocalFileController', () => {
         mimeType: 'image/png',
         size: 3,
         sha256: 'a'.repeat(64),
-        previewUrl: '/v1/files/file_01/preview',
+        previewUrl: '/files/file_01/preview',
       })),
     };
     const controller = new LocalFileController(files as never);

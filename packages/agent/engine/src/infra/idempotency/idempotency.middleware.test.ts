@@ -62,7 +62,7 @@ interface MakeCtxOpts {
 
 function makeCtx(opts: MakeCtxOpts = {}): FakeCtx {
   const method = opts.method ?? 'POST';
-  const path = opts.path ?? '/v1/sessions';
+  const path = opts.path ?? '/sessions';
   const headers = opts.headers ?? {};
   const reqHeaders = new Map<string, string>();
   for (const [k, v] of Object.entries(headers)) {
@@ -148,7 +148,7 @@ describe('idempotencyMiddleware', () => {
   it('passes through bypass paths even with key + POST', async () => {
     const store = new InMemoryStore();
     const mw = createIdempotencyMiddleware({ store });
-    for (const path of ['/health/live', '/health/ready', '/metrics', '/v1/health']) {
+    for (const path of ['/health/live', '/health/ready', '/metrics']) {
       const ctx = makeCtx({
         method: 'POST',
         path,
@@ -251,7 +251,7 @@ describe('idempotencyMiddleware', () => {
 
     // Pre-occupy the lock by mutating the in-memory store directly to simulate
     // a concurrent in-flight call.
-    const composedKey = 'u-1|POST|/v1/sessions|k1';
+    const composedKey = 'u-1|POST|/sessions|k1';
     store.locks.add(composedKey);
 
     const ctx = makeCtx({

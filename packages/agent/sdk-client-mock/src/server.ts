@@ -226,8 +226,8 @@ export async function startMockEngine(
         );
       }
 
-      // POST /v1/sessions
-      if (pathname === '/v1/sessions' && request.method === 'POST') {
+      // POST /sessions
+      if (pathname === '/sessions' && request.method === 'POST') {
         const body = (await request.json().catch(() => ({}))) as {
           agentId?: string;
           title?: string;
@@ -250,8 +250,8 @@ export async function startMockEngine(
         );
       }
 
-      // GET /v1/sessions（分页占位）
-      if (pathname === '/v1/sessions' && request.method === 'GET') {
+      // GET /sessions（分页占位）
+      if (pathname === '/sessions' && request.method === 'GET') {
         const items = [...sessions.values()].map(r => ({
           id: r.id,
           status: r.status,
@@ -267,8 +267,8 @@ export async function startMockEngine(
         );
       }
 
-      // GET /v1/sessions/:sessionId
-      const getSess = pathname.match(/^\/v1\/sessions\/(\d{1,20})$/);
+      // GET /sessions/:sessionId
+      const getSess = pathname.match(/^\/sessions\/(\d{1,20})$/);
       if (getSess && request.method === 'GET') {
         const row = sessions.get(getSess[1]!);
         if (!row) return buildErrorResponse(404, 'RESOURCE_NOT_FOUND_SESSION', 'Unknown session');
@@ -286,8 +286,8 @@ export async function startMockEngine(
         );
       }
 
-      // DELETE /v1/sessions/:sessionId
-      const delSess = pathname.match(/^\/v1\/sessions\/(\d{1,20})$/);
+      // DELETE /sessions/:sessionId
+      const delSess = pathname.match(/^\/sessions\/(\d{1,20})$/);
       if (delSess && request.method === 'DELETE') {
         const id = delSess[1]!;
         if (!sessions.has(id))
@@ -296,16 +296,16 @@ export async function startMockEngine(
         return new Response(null, { status: 204, headers: buildVersionHeaders() });
       }
 
-      // GET /v1/descriptors
-      if (pathname === '/v1/descriptors' && request.method === 'GET') {
+      // GET /descriptors
+      if (pathname === '/descriptors' && request.method === 'GET') {
         return Response.json(
           { items: MOCK_DESCRIPTORS },
           { headers: buildVersionHeaders() },
         );
       }
 
-      // GET /v1/jobs/:jobId
-      const jobGet = pathname.match(/^\/v1\/jobs\/(\d{1,20})$/);
+      // GET /jobs/:jobId
+      const jobGet = pathname.match(/^\/jobs\/(\d{1,20})$/);
       if (jobGet && request.method === 'GET') {
         const jid = jobGet[1]!;
         const job = jobs.get(jid);
@@ -313,8 +313,8 @@ export async function startMockEngine(
         return Response.json(job, { headers: buildVersionHeaders() });
       }
 
-      // POST /v1/jobs/:jobId:cancel
-      const jobCancel = pathname.match(/^\/v1\/jobs\/(\d{1,20}):cancel$/);
+      // POST /jobs/:jobId:cancel
+      const jobCancel = pathname.match(/^\/jobs\/(\d{1,20}):cancel$/);
       if (jobCancel && request.method === 'POST') {
         const jid = jobCancel[1]!;
         const cur = jobs.get(jid);
@@ -329,15 +329,15 @@ export async function startMockEngine(
         return Response.json({ ok: true }, { headers: buildVersionHeaders() });
       }
 
-      // POST /v1/tools/:name/invoke
-      const inv = pathname.match(/^\/v1\/tools\/([^/]+)\/invoke$/);
+      // POST /tools/:name/invoke
+      const inv = pathname.match(/^\/tools\/([^/]+)\/invoke$/);
       if (inv && request.method === 'POST') {
         const args = await request.json().catch(() => ({}));
         return Response.json({ ok: true, tool: inv[1], args }, { headers: buildVersionHeaders() });
       }
 
-      // GET /v1/sessions/:sessionId/events[?turnId=...] → SSE stream
-      const sseMatch = pathname.match(/^\/v1\/sessions\/(\d{1,20})\/events$/);
+      // GET /sessions/:sessionId/events[?turnId=...] → SSE stream
+      const sseMatch = pathname.match(/^\/sessions\/(\d{1,20})\/events$/);
       if (sseMatch && request.method === 'GET') {
         const sessionId = sseMatch[1]!;
         if (!sessions.has(sessionId))
@@ -387,8 +387,8 @@ export async function startMockEngine(
         });
       }
 
-      // POST /v1/sessions/:sessionId/messages → { turnId }
-      const msgMatch = pathname.match(/^\/v1\/sessions\/(\d{1,20})\/messages$/);
+      // POST /sessions/:sessionId/messages → { turnId }
+      const msgMatch = pathname.match(/^\/sessions\/(\d{1,20})\/messages$/);
       if (msgMatch && request.method === 'POST') {
         const sessionId = msgMatch[1]!;
         if (!sessions.has(sessionId))
@@ -420,14 +420,14 @@ export async function startMockEngine(
         return Response.json({ turnId }, { headers: buildVersionHeaders() });
       }
 
-      // POST /v1/grants/responses
-      if (pathname === '/v1/grants/responses' && request.method === 'POST') {
+      // POST /grants/responses
+      if (pathname === '/grants/responses' && request.method === 'POST') {
         return Response.json({ ok: true }, { headers: buildVersionHeaders() });
       }
 
-      // POST /v1/sessions/:id/turns/:tid/tool-acks
+      // POST /sessions/:id/turns/:tid/tool-acks
       const ackMatch = pathname.match(
-        /^\/v1\/sessions\/(\d{1,20})\/turns\/(\d{1,20})\/tool-acks$/,
+        /^\/sessions\/(\d{1,20})\/turns\/(\d{1,20})\/tool-acks$/,
       );
       if (ackMatch && request.method === 'POST') {
         return Response.json({ ok: true }, { headers: buildVersionHeaders() });

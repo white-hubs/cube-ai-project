@@ -39,10 +39,7 @@ import { AgenticEngineError } from '../errors/agentic-error';
 const VERSION_BYPASS_PATHS: ReadonlySet<string> = new Set([
   '/health/live',
   '/health/ready',
-  '/v1/health',
-  '/v1/ready',
   '/metrics',
-  '/v1/metrics',
 ]);
 
 function resolvePath(ctx: Context): string {

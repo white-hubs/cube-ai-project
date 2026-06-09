@@ -43,7 +43,7 @@ interface MakeCtxOpts {
 
 function makeCtx(opts: MakeCtxOpts = {}): FakeCtx {
   return {
-    path: opts.path ?? '/v1/sessions',
+    path: opts.path ?? '/sessions',
     resHeaders: new Map<string, string>(),
     state: {
       subject: {
@@ -70,7 +70,7 @@ describe('rateLimitMiddleware', () => {
       resetSeconds: 9,
     });
     const mw = createRateLimitMiddleware({ limiter, config: cfg });
-    for (const path of ['/health/live', '/health/ready', '/metrics', '/v1/health']) {
+    for (const path of ['/health/live', '/health/ready', '/metrics']) {
       const ctx = makeCtx({ path, tenantRoot: 7 });
       const next = mock(okNext);
       await mw(ctx as unknown as Context, next);
@@ -101,13 +101,13 @@ describe('rateLimitMiddleware', () => {
       resetSeconds: 1,
     });
     const mw = createRateLimitMiddleware({ limiter, config: cfg });
-    const ctx = makeCtx({ tenantRoot: 7, path: '/v1/sessions' });
+    const ctx = makeCtx({ tenantRoot: 7, path: '/sessions' });
     const next = mock(okNext);
 
     await mw(ctx as unknown as Context, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(limiter.calls).toEqual([{ key: '7|/v1/sessions', cfg }]);
+    expect(limiter.calls).toEqual([{ key: '7|/sessions', cfg }]);
     expect(ctx.resHeaders.get('X-RateLimit-Remaining')).toBe('99');
     expect(ctx.resHeaders.get('X-RateLimit-Reset')).toBe('1');
   });
@@ -146,13 +146,13 @@ describe('rateLimitMiddleware', () => {
       resetSeconds: 5,
     });
     const mw = createRateLimitMiddleware({ limiter, config: cfg });
-    const ctx = makeCtx({ tenantUser: 11, path: '/v1/messages' });
+    const ctx = makeCtx({ tenantUser: 11, path: '/messages' });
     const next = mock(okNext);
 
     await mw(ctx as unknown as Context, next);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(limiter.calls).toEqual([{ key: '11|/v1/messages', cfg }]);
+    expect(limiter.calls).toEqual([{ key: '11|/messages', cfg }]);
   });
 
   it('caps negative remaining/reset to 0 when emitting headers', async () => {

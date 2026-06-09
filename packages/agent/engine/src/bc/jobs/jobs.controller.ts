@@ -88,7 +88,7 @@ function toJobView(row: JobRow) {
   });
 }
 
-@Controller('/v1/jobs')
+@Controller('/jobs')
 export class JobsController {
   constructor(private readonly jobData: JobDataService) {}
 

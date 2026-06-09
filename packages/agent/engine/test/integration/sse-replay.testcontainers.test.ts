@@ -4,7 +4,7 @@
  * **覆盖策略说明（防重复）**
  *
  * `mysql-redis-qdrant.testcontainers.test.ts` 已覆盖：
- *   - SSE：GET /v1/sessions/:id/events 返回 text/event-stream
+ *   - SSE：GET /sessions/:id/events 返回 text/event-stream
  *   - SSE：Last-Event-ID 重连后仍为 event-stream
  *   - SSE：心跳含 ping-v1（≤36s）
  *
@@ -127,7 +127,7 @@ function mockHeaders(tenant: number, userId: string) {
         const base = engineHolder.current!.baseUrl;
         const userId = 'tc-sse-anchor';
 
-        const post = await fetch(`${base}/v1/sessions`, {
+        const post = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, userId),
           body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-sse-anchor' }),
@@ -143,7 +143,7 @@ function mockHeaders(tenant: number, userId: string) {
         const abortTimer = setTimeout(() => ac.abort(), 32_000);
         let firstBuf = '';
         try {
-          const res = await fetch(`${base}/v1/sessions/${sid}/events`, {
+          const res = await fetch(`${base}/sessions/${sid}/events`, {
             headers: { ...mockHeaders(tenant, userId), Accept: 'text/event-stream' },
             signal: ac.signal,
           });
@@ -173,7 +173,7 @@ function mockHeaders(tenant: number, userId: string) {
         const stopT2 = setTimeout(() => ac2.abort(), 6_000);
         let secondBuf = '';
         try {
-          const res2 = await fetch(`${base}/v1/sessions/${sid}/events`, {
+          const res2 = await fetch(`${base}/sessions/${sid}/events`, {
             headers: {
               ...mockHeaders(tenant, userId),
               Accept: 'text/event-stream',
@@ -214,8 +214,8 @@ function mockHeaders(tenant: number, userId: string) {
         /**
          * Phase 4 Wave 3B：依赖 `EngineIntegrationProcess.sendSignal` /
          * `waitForExit` split API（test-infra）。流程：
-         *   1. POST /v1/sessions
-         *   2. GET /v1/sessions/:id/events 持有 reader
+         *   1. POST /sessions
+         *   2. GET /sessions/:id/events 持有 reader
          *   3. engine.sendSignal('SIGTERM') — 不立即 join exit
          *   4. reader 持续读至 `event: drain.mode` + schema `drain-mode-v1`
          *   5. engine.waitForExit() — exit code 0
@@ -228,7 +228,7 @@ function mockHeaders(tenant: number, userId: string) {
         const base = engineHolder.current!.baseUrl;
         const userId = 'tc-sse-drain';
 
-        const post = await fetch(`${base}/v1/sessions`, {
+        const post = await fetch(`${base}/sessions`, {
           method: 'POST',
           headers: mockHeaders(tenant, userId),
           body: JSON.stringify({ agentId: AGENT_ID, title: 'tc-sse-drain' }),
@@ -237,7 +237,7 @@ function mockHeaders(tenant: number, userId: string) {
         const { id: sid } = (await post.json()) as { id: string };
 
         const ac = new AbortController();
-        const sseRes = await fetch(`${base}/v1/sessions/${sid}/events`, {
+        const sseRes = await fetch(`${base}/sessions/${sid}/events`, {
           headers: { ...mockHeaders(tenant, userId), Accept: 'text/event-stream' },
           signal: ac.signal,
         });

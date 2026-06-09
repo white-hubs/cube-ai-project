@@ -43,7 +43,7 @@ function baseCtx(
 }
 
 describe('SessionController — REST wiring', () => {
-  test('POST /v1/sessions/:id/messages parses SDK content.blocks into prompt', async () => {
+  test('POST /sessions/:id/messages parses SDK content.blocks into prompt', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -81,7 +81,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages accepts image-only content with attachments', async () => {
+  test('POST /sessions/:id/messages accepts image-only content with attachments', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -131,7 +131,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages keeps legacy prompt compatibility', async () => {
+  test('POST /sessions/:id/messages keeps legacy prompt compatibility', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -164,7 +164,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages forwards modelCode to turn options', async () => {
+  test('POST /sessions/:id/messages forwards modelCode to turn options', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -193,7 +193,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages forwards skillEmbeddingModelCode to turn options', async () => {
+  test('POST /sessions/:id/messages forwards skillEmbeddingModelCode to turn options', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -221,7 +221,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages forwards per-message runtimeRefs', async () => {
+  test('POST /sessions/:id/messages forwards per-message runtimeRefs', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -256,7 +256,7 @@ describe('SessionController — REST wiring', () => {
     );
   });
 
-  test('POST /v1/sessions/:id/messages rejects when both content and prompt are missing', async () => {
+  test('POST /sessions/:id/messages rejects when both content and prompt are missing', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -272,7 +272,7 @@ describe('SessionController — REST wiring', () => {
     expect(turnSvc.startTurn).not.toHaveBeenCalled();
   });
 
-  test('POST /v1/sessions/:id/messages rejects unreferenced attachment', async () => {
+  test('POST /sessions/:id/messages rejects unreferenced attachment', async () => {
     const turnSvc = {
       startTurn: mock(async () => '1820345678901234999'),
     } as unknown as TurnService;
@@ -301,7 +301,7 @@ describe('SessionController — REST wiring', () => {
     expect(turnSvc.startTurn).not.toHaveBeenCalled();
   });
 
-  test('POST /v1/sessions returns 201 + SFID id', async () => {
+  test('POST /sessions returns 201 + SFID id', async () => {
     const sessionSvc = {
       createSession: mock(async () => ({
         id: '1820345678901234567',
@@ -334,7 +334,7 @@ describe('SessionController — REST wiring', () => {
     expect(sessionSvc.createSession).toHaveBeenCalled();
   });
 
-  test('POST /v1/sessions rejects invalid context.systemSuffix type', async () => {
+  test('POST /sessions rejects invalid context.systemSuffix type', async () => {
     const ctl = new SessionController({} as SessionService, {} as TurnService, {} as never, {} as never);
     const ctx = baseCtx({
       getBody: mock(async () => ({
@@ -348,7 +348,7 @@ describe('SessionController — REST wiring', () => {
     });
   });
 
-  test('GET /v1/sessions/:id throws INVALID_ARGUMENT_SESSION_ID for bad id', async () => {
+  test('GET /sessions/:id throws INVALID_ARGUMENT_SESSION_ID for bad id', async () => {
     const ctl = new SessionController({} as SessionService, {} as TurnService, {} as never, {} as never);
     const ctx = baseCtx({
       getParam: mock((k: string) => (k === 'sessionId' ? 'bad' : undefined)),
@@ -359,7 +359,7 @@ describe('SessionController — REST wiring', () => {
     });
   });
 
-  test('GET /v1/sessions/:id returns session view', async () => {
+  test('GET /sessions/:id returns session view', async () => {
     const sessionSvc = {
       getSession: mock(async () => ({
         id: '1820345678901234567',
@@ -385,7 +385,7 @@ describe('SessionController — REST wiring', () => {
     expect((body as { id: string }).id).toBe('1820345678901234567');
   });
 
-  test('GET /v1/sessions/:id/messages delegates to SessionService.listSessionMessages', async () => {
+  test('GET /sessions/:id/messages delegates to SessionService.listSessionMessages', async () => {
     const sessionSvc = {
       listSessionMessages: mock(async () => ({
         items: [
@@ -405,7 +405,7 @@ describe('SessionController — REST wiring', () => {
 
     const ctl = new SessionController(sessionSvc, {} as TurnService, {} as never, {} as never);
     const ctx = baseCtx({
-      path: '/v1/sessions/1820345678901234567/messages',
+      path: '/sessions/1820345678901234567/messages',
       query: new URLSearchParams({ limit: '100' }),
     });
 
@@ -420,7 +420,7 @@ describe('SessionController — REST wiring', () => {
     expect((body as { items: unknown[] }).items).toHaveLength(1);
   });
 
-  test('DELETE /v1/sessions/:id returns 204', async () => {
+  test('DELETE /sessions/:id returns 204', async () => {
     const sessionSvc = {
       deleteSession: mock(async () => {}),
     } as unknown as SessionService;
@@ -436,7 +436,7 @@ describe('SessionController — REST wiring', () => {
     expect(ctx.setStatus).toHaveBeenCalledWith(204);
   });
 
-  test('GET /v1/sessions lists with pagination envelope', async () => {
+  test('GET /sessions lists with pagination envelope', async () => {
     const sessionSvc = {
       listSessions: mock(async () => ({
         items: [],
@@ -467,13 +467,13 @@ describe('SessionController — REST wiring', () => {
     });
   });
 
-  test('POST /v1/sessions/:id/turns/:turnId/cancel dispatches USER_REQUEST and returns 204', async () => {
+  test('POST /sessions/:id/turns/:turnId/cancel dispatches USER_REQUEST and returns 204', async () => {
     const turnSvc = {
       cancelTurn: mock(async () => {}),
     } as unknown as TurnService;
     const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
     const ctx = baseCtx({
-      path: '/v1/sessions/1820345678901234567/turns/1820345678901234999/cancel',
+      path: '/sessions/1820345678901234567/turns/1820345678901234999/cancel',
       getParam: mock((k: string) => {
         if (k === 'sessionId') return '1820345678901234567';
         if (k === 'turnId') return '1820345678901234999';
@@ -491,13 +491,13 @@ describe('SessionController — REST wiring', () => {
     expect(ctx.setStatus).toHaveBeenCalledWith(204);
   });
 
-  test('POST /v1/sessions/:id/turns/:turnId/cancel rejects invalid turnId SFID', async () => {
+  test('POST /sessions/:id/turns/:turnId/cancel rejects invalid turnId SFID', async () => {
     const turnSvc = {
       cancelTurn: mock(async () => {}),
     } as unknown as TurnService;
     const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
     const ctx = baseCtx({
-      path: '/v1/sessions/1820345678901234567/turns/not-a-sfid/cancel',
+      path: '/sessions/1820345678901234567/turns/not-a-sfid/cancel',
       getParam: mock((k: string) => {
         if (k === 'sessionId') return '1820345678901234567';
         if (k === 'turnId') return 'not-a-sfid';
@@ -511,7 +511,7 @@ describe('SessionController — REST wiring', () => {
     expect(turnSvc.cancelTurn).not.toHaveBeenCalled();
   });
 
-  test('GET /v1/sessions/:id/events?turnId={sfid} 透传 turnId 到 SSE 工厂；只回放本 turn (ADR-0022 §D5.1.v2)', async () => {
+  test('GET /sessions/:id/events?turnId={sfid} 透传 turnId 到 SSE 工厂；只回放本 turn (ADR-0022 §D5.1.v2)', async () => {
     const store = new InMemoryReplayBufferStore();
     const emitter = new SessionSseEmitter(store);
     const drain = new DrainService();
@@ -536,7 +536,7 @@ describe('SessionController — REST wiring', () => {
 
     const ac = new AbortController();
     const ctx = baseCtx({
-      path: `/v1/sessions/${SCOPE.sessionId}/events`,
+      path: `/sessions/${SCOPE.sessionId}/events`,
       getParam: mock((k: string) => (k === 'sessionId' ? SCOPE.sessionId : undefined)),
       headers: new Headers(),
       query: new URLSearchParams({ turnId: T_TURN }),
@@ -557,7 +557,7 @@ describe('SessionController — REST wiring', () => {
     ac.abort();
   });
 
-  test('GET /v1/sessions/:id/events?turnId=bad-sfid 抛 INVALID_ARGUMENT_TURN_ID', async () => {
+  test('GET /sessions/:id/events?turnId=bad-sfid 抛 INVALID_ARGUMENT_TURN_ID', async () => {
     const emitter = new SessionSseEmitter(new InMemoryReplayBufferStore());
     const drain = new DrainService();
     const ctl = new SessionController(
@@ -568,7 +568,7 @@ describe('SessionController — REST wiring', () => {
     );
 
     const ctx = baseCtx({
-      path: '/v1/sessions/1820345678901234567/events',
+      path: '/sessions/1820345678901234567/events',
       getParam: mock((k: string) => (k === 'sessionId' ? '1820345678901234567' : undefined)),
       headers: new Headers(),
       query: new URLSearchParams({ turnId: 'not-a-sfid' }),

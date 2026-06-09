@@ -27,5 +27,6 @@ import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
       },
     },
   ],
+  exports: [LLM_HTTP_TENANT_RESOLVER_TOKEN],
 })
 export class AiCenterDomainHttpModule {}

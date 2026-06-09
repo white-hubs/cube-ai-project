@@ -20,6 +20,8 @@ import {
   FlowStudioFlowRepository,
   FlowStudioReleaseRepository,
   FlowStudioResourceRefRepository,
+  applyFlowStudioMysqlSchema,
+  getStudioQueryService,
   initStudioRepositories,
   peekStudioRepositories,
   type StudioRepositories,
@@ -33,6 +35,8 @@ const appConfig = await loadAppConfig()
 @Injectable()
 class StudioRepositoriesBootstrap implements OnModuleInit {
   public async onModuleInit(): Promise<void> {
+    const db = await getStudioQueryService(appConfig)
+    await applyFlowStudioMysqlSchema((sql) => db.query(sql))
     await initStudioRepositories(appConfig)
   }
 }

@@ -4,7 +4,7 @@ import { startMockEngine } from './server';
 import { SCENARIOS } from './scenarios';
 
 describe('startMockEngine', () => {
-  test('启动后可 POST /v1/sessions 并 GET 回 SFID session', async () => {
+  test('启动后可 POST /sessions 并 GET 回 SFID session', async () => {
     const mock = await startMockEngine({
       port:          0,
       scenarioName: 'health_up',
@@ -29,7 +29,7 @@ describe('startMockEngine', () => {
     }
   });
 
-  test('GET /v1/descriptors + GET /v1/jobs/:id + cancel 语义闭环', async () => {
+  test('GET /descriptors + GET /jobs/:id + cancel 语义闭环', async () => {
     const mock = await startMockEngine({ port: 0 });
     try {
       const client = createAgenticClient({ baseUrl: mock.url, token: 't' });

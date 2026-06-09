@@ -4,8 +4,11 @@ import type {
   FlowDebugBody,
   FlowDebugResult,
   FlowDetailVo,
+  FlowExportVo,
+  FlowImportBody,
   FlowListPageVo,
   FlowRunBody,
+  FlowRunResult,
   FlowSaveBody,
   FlowSummaryVo,
   FlowValidateResult,
@@ -82,6 +85,18 @@ export class FlowClient {
 
   debugFlow(flowId: string, body: FlowDebugBody): Promise<FlowDebugResult> {
     return flowRequestJson<FlowDebugResult>(this.config, 'POST', studioPath(`/${encodeURIComponent(flowId)}/debug`), body);
+  }
+
+  exportFlow(flowId: string): Promise<FlowExportVo> {
+    return flowRequestJson<FlowExportVo>(this.config, 'GET', studioPath(`/${encodeURIComponent(flowId)}/export`));
+  }
+
+  importFlow(flowId: string, body: FlowImportBody): Promise<FlowDetailVo> {
+    return flowRequestJson<FlowDetailVo>(this.config, 'POST', studioPath(`/${encodeURIComponent(flowId)}/import`), body);
+  }
+
+  runFlow(flowId: string, body: FlowRunBody): Promise<FlowRunResult> {
+    return flowRequestJson<FlowRunResult>(this.config, 'POST', studioPath(`/${encodeURIComponent(flowId)}/run`), body);
   }
 
   runFlowStream(flowId: string, body: FlowRunBody): Promise<Response> {

@@ -11,7 +11,7 @@ import {
  */
 export interface MockScenario {
   readonly name: string;
-  /** Events streamed for POST /v1/sessions/:id/messages */
+  /** Events streamed for POST /sessions/:id/messages */
   readonly stream?: readonly SseEvent[];
   /** Canned error response when a route is exercised */
   readonly error?: ErrorResponse;

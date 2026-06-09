@@ -16,11 +16,18 @@ describe('createDomainPathRewriteMiddleware', () => {
     expect(ctx.path).toBe('/documents');
   });
 
-  test('strips /llm prefix before routing', async () => {
+  test('strips /agent prefix before routing', async () => {
+    const mw = createDomainPathRewriteMiddleware();
+    const ctx = { path: '/agent/sessions' } as { path: string };
+    await mw(ctx as never, async () => {});
+    expect(ctx.path).toBe('/sessions');
+  });
+
+  test('does not strip /llm prefix (direct controller routing)', async () => {
     const mw = createDomainPathRewriteMiddleware();
     const ctx = { path: '/llm/providers' } as { path: string };
     await mw(ctx as never, async () => {});
-    expect(ctx.path).toBe('/providers');
+    expect(ctx.path).toBe('/llm/providers');
   });
 
   test('leaves unrelated paths unchanged', async () => {

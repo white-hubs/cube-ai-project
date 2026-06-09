@@ -19,7 +19,7 @@ export class GrantsApi {
     const validated = GrantResponseRequestSchema.parse(req);
     await this.client.requestJson({
       method: 'POST',
-      path:   '/v1/grants/responses',
+      path:   '/grants/responses',
       body:   validated,
     });
   }

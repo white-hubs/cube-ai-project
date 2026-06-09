@@ -36,7 +36,7 @@ function baseCtx(
 }
 
 describe('GrantController', () => {
-  test('POST /v1/grants/responses approves grant request', async () => {
+  test('POST /grants/responses approves grant request', async () => {
     const approveGrant = mock(async () => ({}));
     const denyGrant = mock(async () => {});
     const grantSvc = {
@@ -62,7 +62,7 @@ describe('GrantController', () => {
     expect(ctx.setStatus).toHaveBeenCalledWith(204);
   });
 
-  test('POST /v1/grants/responses denies grant request', async () => {
+  test('POST /grants/responses denies grant request', async () => {
     const approveGrant = mock(async () => ({}));
     const denyGrant = mock(async () => {});
     const grantSvc = {
@@ -88,7 +88,7 @@ describe('GrantController', () => {
     expect(ctx.setStatus).toHaveBeenCalledWith(204);
   });
 
-  test('POST /v1/grants/responses rejects invalid body', async () => {
+  test('POST /grants/responses rejects invalid body', async () => {
     const approveGrant = mock(async () => ({}));
     const denyGrant = mock(async () => {});
     const grantSvc = {

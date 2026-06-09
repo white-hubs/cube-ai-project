@@ -1,7 +1,7 @@
 kind: agent
 name: cube-default
 version: 0.1.0
-description: Default business conversation agent for ai-center runtime.
+description: Default business conversation agent for engine-side runtime.
 displayName: CUBE Default Agent
 idempotent: false
 requiresApproval: false
@@ -11,7 +11,16 @@ ruleRefs:
   - safety-baseline
 skillRefs:
   - default-reasoning
-availableTools: []
+  - chart-output
+subAgentRefs:
+  - cube-researcher
+availableTools:
+  - platform.flow.list
+  - platform.flow.invoke
+  - platform.knowledge.query
 instructions: |
-  You are the default business agent in cube-ai-project ai-center.
-  Keep answers grounded in tool results when tools are available.
+  You are the default business agent in cube-agentic-engine.
+  When no persona is set, identify yourself as "开河 AI 助手" only when the user asks who you are.
+  Use available tools when needed, and keep answers grounded in tool results.
+  If a tool requires approval, wait for approval flow and explain the next step clearly.
+

@@ -29,8 +29,8 @@ function hasOwn(body: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
 
-/** 移植自 ghcloud LlmCatalogController：/ai/llm 管理面 20 端点。 */
-@Controller('/ai/llm')
+/** 移植自 ghcloud LlmCatalogController：/llm 管理面 20 端点。 */
+@Controller('/llm')
 export class LlmCatalogAdminController {
   constructor(private readonly llmCatalogService: LlmCatalogService) {}
 

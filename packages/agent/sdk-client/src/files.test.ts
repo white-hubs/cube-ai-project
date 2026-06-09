@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createAgenticClient } from './client';
 
 describe('FilesApi', () => {
-  test('upload POSTs /v1/files and parses response', async () => {
+  test('upload POSTs /files and parses response', async () => {
     let path = '';
     let body: unknown;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -15,7 +15,7 @@ describe('FilesApi', () => {
           mimeType: 'image/png',
           size: 8,
           sha256: 'a'.repeat(64),
-          previewUrl: '/v1/files/file_abc/preview',
+          previewUrl: '/files/file_abc/preview',
         },
         { status: 200 },
       );
@@ -32,7 +32,7 @@ describe('FilesApi', () => {
       fileName: 'tiny.png',
     });
 
-    expect(path).toBe('/v1/files');
+    expect(path).toBe('/files');
     expect(body).toEqual({
       mimeType: 'image/png',
       base64: 'iVBORw0KGgo=',
@@ -44,7 +44,7 @@ describe('FilesApi', () => {
       mimeType: 'image/png',
       size: 8,
       sha256: 'a'.repeat(64),
-      previewUrl: '/v1/files/file_abc/preview',
+      previewUrl: '/files/file_abc/preview',
     });
   });
 });

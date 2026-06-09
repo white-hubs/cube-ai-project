@@ -127,7 +127,7 @@ async function applyComposeInitSqlFile(mysqlUrl: string, fileName: string): Prom
 export async function applyAiCenterDomainMysqlSchemas(mysqlUrl: string): Promise<void> {
   await applyMinimalMysqlSchema(mysqlUrl);
   await applyGrantsMysqlSchema(mysqlUrl);
-  for (const file of ['02-flow.sql', '03-llm-catalog.sql', '04-kb.sql'] as const) {
+  for (const file of ['02-flow.sql', '03-llm-catalog.sql', '04-kb.sql', '05-flow-studio.sql'] as const) {
     await applyComposeInitSqlFile(mysqlUrl, file);
   }
 }

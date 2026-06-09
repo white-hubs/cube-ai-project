@@ -77,7 +77,7 @@ describe('LocalFileService', () => {
       bytes: new Uint8Array([1, 2, 3]),
     });
     expect(uploaded.status).toBe('UNBOUND');
-    expect(uploaded.previewUrl).toContain(`/v1/files/${uploaded.fileId}/preview`);
+    expect(uploaded.previewUrl).toContain(`/files/${uploaded.fileId}/preview`);
   });
 
   test('unbound preview denies non-uploader', async () => {

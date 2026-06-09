@@ -132,7 +132,7 @@ export class SessionBusyError extends AgenticClientError {
 }
 
 /**
- * `POST /v1/sessions/:id/messages` 失败（含 4xx/5xx/网络错误）。
+ * `POST /sessions/:id/messages` 失败（含 4xx/5xx/网络错误）。
  * 调用方区分"消息没发出去（startTurn 失败）"与"消息发出去但 stream 断了（StreamDisconnectedError）"。
  */
 export class StartTurnFailedError extends AgenticClientError {
@@ -151,7 +151,7 @@ export class StartTurnFailedError extends AgenticClientError {
 }
 
 /**
- * `GET /v1/sessions/:id/events` 流中断（网络错误 / reader 在 done 前 reject）。
+ * `GET /sessions/:id/events` 流中断（网络错误 / reader 在 done 前 reject）。
  * 首版 SDK 不重连（ADR-0008 §D1 TODO）；调用方决定是否提示用户刷新页面。
  * 与 `StartTurnFailedError` 同源信号：前者代表"消息没发出去"，后者代表"消息发出去但流断了"。
  */

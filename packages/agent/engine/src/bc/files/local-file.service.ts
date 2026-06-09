@@ -149,7 +149,7 @@ export class LocalFileService {
       mimeType: asset.mimeType,
       size: asset.sizeBytes,
       sha256: asset.sha256,
-      previewUrl: `/v1/files/${asset.fileId}/preview`,
+      previewUrl: `/files/${asset.fileId}/preview`,
     };
   }
 }

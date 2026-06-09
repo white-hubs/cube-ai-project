@@ -165,3 +165,29 @@ export interface ListFlowsPageQuery {
   pageSize: number
   keyword?: string
 }
+
+export interface FlowExportVo {
+  schemaVersion: string
+  /** Unix 毫秒时间戳 */
+  exportedAt: number
+  flow: {
+    id: string
+    name: string
+    description: string | null
+    enabled: boolean | null
+    remark: string | null
+    compileStatus: string
+    compileRevision: string
+    publishedRevision: string | null
+  }
+  editorFlowJson: FlowEditorGraph
+  compiledFlowJson: Record<string, unknown> | null
+  componentSnapshotJson: Record<string, unknown> | null
+}
+
+export interface FlowRunResult {
+  raw?: {
+    outputs?: unknown[]
+    session_id?: string | null
+  } | null
+}

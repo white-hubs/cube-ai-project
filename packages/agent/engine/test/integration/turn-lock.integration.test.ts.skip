@@ -18,7 +18,7 @@ const BASE = `http://127.0.0.1:${TEST_PORT}`;
 
 describe.skip('turn-lock integration (live stack)', () => {
   test('second concurrent message → 409 RESOURCE_CONFLICT_SESSION_BUSY', async () => {
-    const create = await fetch(`${BASE}/v1/sessions`, {
+    const create = await fetch(`${BASE}/sessions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -30,7 +30,7 @@ describe.skip('turn-lock integration (live stack)', () => {
     expect([200, 201]).toContain(create.status);
     const { id: sessionId } = (await create.json()) as { id: string };
 
-    const url = `${BASE}/v1/sessions/${sessionId}/messages`;
+    const url = `${BASE}/sessions/${sessionId}/messages`;
     const body = JSON.stringify({ prompt: 'hello' });
     const headers = { 'content-type': 'application/json' };
 
@@ -47,7 +47,7 @@ describe.skip('turn-lock integration (live stack)', () => {
   });
 
   test('after first turn completes, second message → 200', async () => {
-    const create = await fetch(`${BASE}/v1/sessions`, {
+    const create = await fetch(`${BASE}/sessions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -59,7 +59,7 @@ describe.skip('turn-lock integration (live stack)', () => {
     expect([200, 201]).toContain(create.status);
     const { id: sessionId } = (await create.json()) as { id: string };
 
-    const url = `${BASE}/v1/sessions/${sessionId}/messages`;
+    const url = `${BASE}/sessions/${sessionId}/messages`;
     const r1 = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

@@ -41,7 +41,7 @@ function makeCtx(opts: {
   }
   const resHeaders = new Map<string, string>();
   return {
-    path: opts.path ?? '/v1/sessions',
+    path: opts.path ?? '/sessions',
     reqHeaders,
     resHeaders,
     getHeader(key: string): string | null {
@@ -138,7 +138,7 @@ describe('versionNegotiationMiddleware', () => {
 
   it('bypasses health/metrics paths without consulting version', async () => {
     const mw = createVersionNegotiationMiddleware();
-    for (const path of ['/health/live', '/health/ready', '/v1/health', '/metrics']) {
+    for (const path of ['/health/live', '/health/ready', '/metrics']) {
       const ctx = makeCtx({ path, headers: { [HEADER_SDK_VERSION]: '99.99' } });
       const next = mock(okNext);
       await mw(ctx as unknown as Context, next);

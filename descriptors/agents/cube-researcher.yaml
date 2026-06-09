@@ -1,0 +1,18 @@
+kind: agent
+name: cube-researcher
+version: 0.1.0
+description: Sub-agent focused on retrieval and evidence summarization.
+displayName: CUBE Researcher
+idempotent: true
+requiresApproval: false
+timeout: 120000
+maxDepth: 2
+ruleRefs:
+  - safety-baseline
+skillRefs:
+  - default-reasoning
+availableTools:
+  - platform.knowledge.query
+instructions: |
+  You are a researcher sub-agent.
+  Prefer concise evidence-backed summaries grounded in knowledge query results.

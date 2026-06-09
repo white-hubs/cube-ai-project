@@ -15,7 +15,7 @@ function makeCtx(opts: {
   headers?: Record<string, string>;
 }) {
   return {
-    path: opts.path ?? '/v1/sessions',
+    path: opts.path ?? '/sessions',
     headers: opts.headers ?? {},
     state: {} as Record<string, unknown>,
   };
@@ -71,7 +71,7 @@ describe('oauth2IntrospectionMiddleware', () => {
     webHeaders.set('x-mock-tenant-id', '91103');
     webHeaders.set('x-mock-user-id', 'tenant-switch-user');
     const ctx = {
-      path: '/v1/sessions',
+      path: '/sessions',
       headers: webHeaders,
       state: {} as Record<string, unknown>,
     };

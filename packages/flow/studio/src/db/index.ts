@@ -1,5 +1,9 @@
 export * from './rows'
 export {
+  FLOW_STUDIO_MYSQL_SCHEMA,
+  applyFlowStudioMysqlSchema,
+} from './flow-studio-mysql-schema'
+export {
   type MysqlQueryService,
   StudioTenantError,
   resolveTenantId,

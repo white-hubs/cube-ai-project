@@ -235,9 +235,9 @@ async function signTestJwt(keys: MockIdpKeys, issuer: string): Promise<string> {
       await stopTrackedTestcontainersIfAny();
     });
 
-    it('rejects POST /v1/sessions without Bearer token (401 UNAUTHENTICATED)', async () => {
+    it('rejects POST /sessions without Bearer token (401 UNAUTHENTICATED)', async () => {
       const base = engineHolder.current!.baseUrl;
-      const res = await fetch(`${base}/v1/sessions`, {
+      const res = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: AGENT_ID }),
@@ -247,9 +247,9 @@ async function signTestJwt(keys: MockIdpKeys, issuer: string): Promise<string> {
       expect(String(body.code ?? '')).toMatch(/UNAUTHENTICATED/);
     });
 
-    it('rejects POST /v1/sessions with malformed Bearer (401)', async () => {
+    it('rejects POST /sessions with malformed Bearer (401)', async () => {
       const base = engineHolder.current!.baseUrl;
-      const res = await fetch(`${base}/v1/sessions`, {
+      const res = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -260,10 +260,10 @@ async function signTestJwt(keys: MockIdpKeys, issuer: string): Promise<string> {
       expect(res.status).toBe(401);
     });
 
-    it('accepts POST /v1/sessions with valid JWT + introspect=active (201)', async () => {
+    it('accepts POST /sessions with valid JWT + introspect=active (201)', async () => {
       const base = engineHolder.current!.baseUrl;
       const token = await signTestJwt(keys, idpBaseUrl);
-      const res = await fetch(`${base}/v1/sessions`, {
+      const res = await fetch(`${base}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

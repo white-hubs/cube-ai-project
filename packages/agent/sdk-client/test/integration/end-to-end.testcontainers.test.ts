@@ -11,11 +11,11 @@
  *   2. **session create + list**：SDK 创建 session（mock auth via fetchImpl 注入 x-mock-* 头）
  *      并通过 `client.sessions.list()` 列回；id 为 19 位 SFID
  *   3. **SSE Last-Event-ID 重连**（差异化覆盖）：直接复用 SDK 的 `SseClient` 对 GET
- *      `/v1/sessions/:id/events` 进行 subscribe → unsubscribe → 重连，断言重连后仍能拿到
+ *      `/sessions/:id/events` 进行 subscribe → unsubscribe → 重连，断言重连后仍能拿到
  *      `text/event-stream`（深度的 `turn-completed-v1` 流验证依赖 LLM provider，留 follow-up）
  *
  * **设计取舍**
- *   - SDK 自带的 `client.sessions.streamMessages` POST `/v1/sessions/:id/messages`，
+ *   - SDK 自带的 `client.sessions.streamMessages` POST `/sessions/:id/messages`，
  *     而 engine 该端点目前只返回 `{turnId}` JSON（启动 turn），SSE 流挂在 GET `/events`。
  *     因此 streamMessages 的 schema 流验证依赖 LLM provider + turnService 实际产 token，
  *     `AGENTIC_ENGINE_PROVIDER=noop` 下不会发出 turn-completed-v1。
@@ -191,7 +191,7 @@ function buildMockFetchImpl(): typeof fetch {
           agentId: AGENT_ID,
           title: 'sdk-e2e-sse',
         });
-        const url = `${engineHolder.current!.baseUrl}/v1/sessions/${created.id}/events`;
+        const url = `${engineHolder.current!.baseUrl}/sessions/${created.id}/events`;
 
         // 直接复用 SDK SseClient（绕过 streamMessages — 因为后者 POST /messages 不挂 SSE 流）
         const sse = new SseClient(0, 200, buildMockFetchImpl());
@@ -245,7 +245,7 @@ function buildMockFetchImpl(): typeof fetch {
     );
 
     /**
-     * SDK `streamMessages` POST `/v1/sessions/:id/messages` 期待 SSE 流；engine 该端点
+     * SDK `streamMessages` POST `/sessions/:id/messages` 期待 SSE 流；engine 该端点
      * 当前返回 `{turnId}` JSON（kick off turn），实际 turn 流由 GET `/events` 推送。
      * 在 `AGENTIC_ENGINE_PROVIDER=noop` 下不会产生 `turn-completed-v1`，深度流验证留 follow-up。
      */

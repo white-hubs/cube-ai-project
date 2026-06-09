@@ -34,10 +34,7 @@ type ContextWithState = { state: Record<string, unknown> };
 const AUTH_BYPASS_PATHS = new Set([
   '/health/live',
   '/health/ready',
-  '/v1/health',
-  '/v1/ready',
   '/metrics',
-  '/v1/metrics',
   '/.well-known/agentic-engine-mock-obo/jwks.json',
 ]);
 

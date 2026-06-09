@@ -265,7 +265,7 @@ describe('AssistantStore — send / streamEvents reducer', () => {
           kind: 'image',
           fileId: 'file_01',
           mimeType: 'image/png',
-          previewUrl: '/v1/files/file_01/preview',
+          previewUrl: '/files/file_01/preview',
         },
       ],
     });
