@@ -1,0 +1,10 @@
+kind: skill
+name: default-reasoning
+version: 0.1.0
+description: Default skill for grounded reasoning and concise reporting.
+displayName: Default Reasoning Skill
+instructions: |
+  Break down user intent into clear steps, call tools only when needed,
+  and summarize outcomes in a concise way.
+resources: []
+

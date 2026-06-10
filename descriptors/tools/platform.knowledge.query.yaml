@@ -1,0 +1,51 @@
+schemaVersion: 1
+kind: TOOL
+name: platform.knowledge.query
+version: 0.1.0
+description: Query platform knowledge bases attached to the current turn.
+displayName: Platform Knowledge Query
+isPreset: true
+meta:
+  execution: LOCAL
+  consent: NEVER
+  requiresPrincipal: USER
+  timeoutMs: 120000
+  idempotent: true
+  sideEffects:
+    - read:platform.knowledge
+inputSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    query:
+      type: string
+    kbIds:
+      type: array
+      items:
+        type: string
+    topK:
+      type: integer
+      minimum: 1
+      maximum: 20
+    scoreThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+  required:
+    - query
+outputSchema:
+  type: object
+  properties:
+    hits:
+      type: array
+    truncated:
+      type: boolean
+requires:
+  principal: USER
+  oauthScope: []
+  obo: null
+execute: builtin:platform.knowledge.query
+category: PLATFORM
+tags:
+  - knowledge
+  - platform
