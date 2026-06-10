@@ -66,10 +66,13 @@ FROM ${BUN_CI_IMAGE} AS runtime-source
 WORKDIR /app
 
 RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
-    && mkdir -p /var/lib/ai-center/local-files \
-    && chown -R ai-center:ai-center /var/lib/ai-center
+    && mkdir -p /var/lib/ai-center/local-files /app/data \
+    && chown -R ai-center:ai-center /var/lib/ai-center /app/data
 
 COPY --from=build-source --chown=ai-center:ai-center /app /app
+
+RUN cp /app/packages/flow/core/data/langflow-api-all.json /app/data/langflow-api-all.json \
+    && cp /app/packages/flow/core/generated/cube-component-catalog.json /app/data/cube-component-catalog.json
 
 ENV NODE_ENV=production \
     TZ=UTC \
@@ -98,10 +101,12 @@ RUN apt-get update \
 WORKDIR /app
 
 RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
-    && mkdir -p /var/lib/ai-center/local-files \
-    && chown -R ai-center:ai-center /var/lib/ai-center
+    && mkdir -p /var/lib/ai-center/local-files /app/data \
+    && chown -R ai-center:ai-center /var/lib/ai-center /app/data
 
 COPY --from=build-binary --chown=ai-center:ai-center /out/ai-center /app/ai-center
+COPY --chown=ai-center:ai-center packages/flow/core/data/langflow-api-all.json /app/data/langflow-api-all.json
+COPY --chown=ai-center:ai-center packages/flow/core/generated/cube-component-catalog.json /app/data/cube-component-catalog.json
 
 ENV NODE_ENV=production \
     TZ=UTC \
@@ -129,11 +134,13 @@ RUN apt-get update \
 WORKDIR /app
 
 RUN useradd --uid 1001 --no-create-home --shell /bin/sh ai-center \
-    && mkdir -p /var/lib/ai-center/local-files descriptors /app/config \
-    && chown -R ai-center:ai-center /var/lib/ai-center /app/descriptors /app/config
+    && mkdir -p /var/lib/ai-center/local-files descriptors /app/config /app/data \
+    && chown -R ai-center:ai-center /var/lib/ai-center /app/descriptors /app/config /app/data
 
 # host 预编译产物 — 须先执行 scripts/build-host-binary.sh
 COPY --chown=ai-center:ai-center dist/ai-center /app/ai-center
+COPY --chown=ai-center:ai-center packages/flow/core/data/langflow-api-all.json /app/data/langflow-api-all.json
+COPY --chown=ai-center:ai-center packages/flow/core/generated/cube-component-catalog.json /app/data/cube-component-catalog.json
 RUN chmod +x /app/ai-center
 
 ENV NODE_ENV=production \

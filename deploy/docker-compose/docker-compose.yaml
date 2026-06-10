@@ -23,6 +23,9 @@ x-ai-center-base: &ai-center-base
     - ../../descriptors:/app/descriptors:ro
     - ../../config:/app/config:ro
     - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
+    # flow-core 图翻译依赖 api-all；prebuilt 镜像不含 /app/data，须挂载或见 Dockerfile COPY
+    - ../../packages/flow/core/data/langflow-api-all.json:/app/data/langflow-api-all.json:ro
+    - ../../packages/flow/core/generated/cube-component-catalog.json:/app/data/cube-component-catalog.json:ro
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
@@ -229,6 +232,8 @@ services:
       - ../../descriptors:/app/descriptors:ro
       - ../../config:/app/config:ro
       - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
+      - ../../packages/flow/core/data/langflow-api-all.json:/app/data/langflow-api-all.json:ro
+      - ../../packages/flow/core/generated/cube-component-catalog.json:/app/data/cube-component-catalog.json:ro
 
 volumes:
   mysql-data:

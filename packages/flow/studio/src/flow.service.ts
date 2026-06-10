@@ -1789,7 +1789,7 @@ export class FlowService {
         )
         return {
           id: generateNumericId(),
-          tenant,
+          tenant_id: tenant,
           flow_id: entity.id,
           node_id: ref.nodeId,
           component_key: ref.componentKey,
