@@ -20,6 +20,11 @@ export interface McpServerConfig {
   env?:     Record<string, string>;
   headers?: Record<string, string>;
   name?:    string;
+  /**
+   * 该 server 下工具的默认 consent 档（引擎扩展字段，非 Cursor 标准）。
+   * 只读公开检索类 MCP 建议设为 'NEVER' 以免逐次授权等待超时。缺省回退到内置名单 / 'ON_FIRST_USE'。
+   */
+  consent?: 'NEVER' | 'ON_FIRST_USE';
   enabled:  boolean;
 }
 
@@ -30,7 +35,15 @@ export interface McpServersConfig {
 /** 只读公开检索类 MCP（如 config 里的 `web-search`）— 本引擎不要求用户 consent。 */
 const MCP_SERVER_IDS_CONSENT_NEVER = new Set<string>(['web-search']);
 
-function defaultConsentForMcpServer(serverName: string): 'NEVER' | 'ON_FIRST_USE' {
+/**
+ * 工具 consent 档解析优先级：config 显式 `consent` > 内置名单 > 'ON_FIRST_USE'。
+ * 只读类 MCP 设为 'NEVER' 可避免无人审批导致的 consent 等待超时（默认 60s）。
+ */
+function defaultConsentForMcpServer(
+  serverName: string,
+  cfg?: McpServerConfig,
+): 'NEVER' | 'ON_FIRST_USE' {
+  if (cfg?.consent) return cfg.consent;
   return MCP_SERVER_IDS_CONSENT_NEVER.has(serverName) ? 'NEVER' : 'ON_FIRST_USE';
 }
 
@@ -519,6 +532,193 @@ class McpSseSession implements McpSession {
   }
 }
 
+function parseSseJsonRpcMessages(text: string): JsonRpcResp[] {
+  const normalized = text.replace(/\r\n/g, '\n');
+  const out: JsonRpcResp[] = [];
+  let buf = normalized;
+  while (true) {
+    const idx = buf.indexOf('\n\n');
+    if (idx === -1) break;
+    const block = buf.slice(0, idx);
+    buf = buf.slice(idx + 2);
+    const dataLines: string[] = [];
+    for (const line of block.split('\n')) {
+      if (!line || line.startsWith(':')) continue;
+      const sep = line.indexOf(':');
+      const field = sep === -1 ? line : line.slice(0, sep);
+      let value = sep === -1 ? '' : line.slice(sep + 1);
+      if (value.startsWith(' ')) value = value.slice(1);
+      if (field === 'data') dataLines.push(value);
+    }
+    const data = dataLines.join('\n');
+    if (!data) continue;
+    try {
+      out.push(JSON.parse(data) as JsonRpcResp);
+    } catch {
+      /* ignore malformed SSE payloads */
+    }
+  }
+  const trimmed = buf.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      out.push(JSON.parse(trimmed) as JsonRpcResp);
+    } catch {
+      /* ignore malformed direct JSON */
+    }
+  }
+  return out;
+}
+
+function normalizeMcpHttpUrl(raw: string): string {
+  const url = new URL(raw);
+  if (!url.pathname.endsWith('/')) {
+    url.pathname = `${url.pathname}/`;
+  }
+  return url.toString();
+}
+
+/**
+ * Streamable HTTP MCP 会话：单端点 POST JSON-RPC，响应可为 SSE `message` 或裸 JSON。
+ */
+class McpHttpSession implements McpSession {
+  private pending = new Map<number | string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private nextId = 1;
+  private abort = new AbortController();
+  private endpointUrl: string | null = null;
+  private started = false;
+
+  constructor(
+    private readonly serverName: string,
+    private readonly cfg: McpServerConfig,
+  ) {}
+
+  isAlive(): boolean {
+    return this.started && !this.abort.signal.aborted;
+  }
+
+  async start(): Promise<void> {
+    if (this.cfg.type !== 'http') {
+      throw AgenticEngineError.fromCode(
+        'UNIMPLEMENTED_MCP_ADAPTER',
+        `McpBridge: transport '${this.cfg.type}' not implemented by HTTP session`,
+      );
+    }
+    if (!this.cfg.url) {
+      throw AgenticEngineError.fromCode(
+        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+        'McpBridge: http server requires url',
+      );
+    }
+
+    this.abort = new AbortController();
+    this.endpointUrl = normalizeMcpHttpUrl(this.cfg.url);
+    this.started = true;
+
+    await this.rpc('initialize', {
+      protocolVersion: '2024-11-05',
+      capabilities:    {},
+      clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
+    });
+    await this.notify('notifications/initialized', {});
+  }
+
+  private handleJsonRpcMessage(msg: JsonRpcResp): void {
+    if (msg.id === undefined || msg.id === null) return;
+    const p = this.pending.get(msg.id);
+    if (!p) return;
+    this.pending.delete(msg.id);
+    if (msg.error) {
+      p.reject(new Error(msg.error.message));
+    } else {
+      p.resolve(msg.result);
+    }
+  }
+
+  private async notify(method: string, params?: unknown): Promise<void> {
+    await this.postJsonRpc({ jsonrpc: '2.0', method, params });
+  }
+
+  async rpc(method: string, params?: unknown): Promise<unknown> {
+    const id = this.nextId++;
+    const payload: JsonRpcReq = { jsonrpc: '2.0', id, method, params };
+    const p = new Promise<unknown>((resolve, reject) => {
+      const t = setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          reject(new Error(`MCP RPC timeout: ${method}`));
+        }
+      }, 120_000);
+      this.pending.set(id, {
+        resolve: (v) => {
+          clearTimeout(t);
+          resolve(v);
+        },
+        reject: (e) => {
+          clearTimeout(t);
+          reject(e);
+        },
+      });
+    });
+
+    try {
+      await this.postJsonRpc(payload);
+    } catch (e) {
+      this.pending.delete(id);
+      throw e;
+    }
+
+    return p;
+  }
+
+  private async postJsonRpc(payload: JsonRpcReq): Promise<void> {
+    if (!this.endpointUrl) {
+      throw new Error(`MCP HTTP endpoint unavailable: ${this.serverName}`);
+    }
+    const resp = await fetch(this.endpointUrl, {
+      method: 'POST',
+      headers: {
+        ...(this.cfg.headers ?? {}),
+        'content-type': 'application/json',
+        accept:         'application/json, text/event-stream',
+      },
+      body: JSON.stringify(payload),
+      signal: this.abort.signal,
+    });
+    if (!resp.ok) {
+      throw new Error(`MCP HTTP POST failed: HTTP ${resp.status}`);
+    }
+    const text = await resp.text().catch(() => '');
+    for (const msg of parseSseJsonRpcMessages(text)) {
+      this.handleJsonRpcMessage(msg);
+    }
+  }
+
+  async toolsList(): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
+    const result = (await this.rpc('tools/list', {})) as {
+      tools?: Array<{ name: string; description?: string; inputSchema?: unknown }>;
+    };
+    return result.tools ?? [];
+  }
+
+  async toolsCall(name: string, args: Record<string, unknown>): Promise<unknown> {
+    return this.rpc('tools/call', {
+      name,
+      arguments: args,
+    });
+  }
+
+  async dispose(): Promise<void> {
+    try {
+      this.abort.abort('mcp-http-dispose');
+    } catch {
+      /* ignore */
+    }
+    this.started = false;
+    this.endpointUrl = null;
+    this.pending.clear();
+  }
+}
+
 @Injectable()
 export class McpBridgeService {
   private config: McpServersConfig | null = null;
@@ -598,6 +798,7 @@ export class McpBridgeService {
   private createSession(serverName: string, cfg: McpServerConfig): McpSession {
     if (cfg.type === 'stdio') return new McpStdioSession(serverName, cfg);
     if (cfg.type === 'sse') return new McpSseSession(serverName, cfg);
+    if (cfg.type === 'http') return new McpHttpSession(serverName, cfg);
     throw AgenticEngineError.fromCode(
       'UNIMPLEMENTED_MCP_ADAPTER',
       `McpBridge: transport '${cfg.type}' not implemented`,
@@ -613,7 +814,7 @@ export class McpBridgeService {
 
     const out: ToolDescriptor[] = [];
     for (const [serverName, srv] of Object.entries(this.config.mcpServers)) {
-      if (!srv.enabled || (srv.type !== 'stdio' && srv.type !== 'sse')) continue;
+      if (!srv.enabled || (srv.type !== 'stdio' && srv.type !== 'sse' && srv.type !== 'http')) continue;
       try {
         const sess = await this.sessionFor(serverName);
         const tools = await sess.toolsList();
@@ -639,7 +840,7 @@ export class McpBridgeService {
             version:       '1.0.0',
             meta: {
               execution:          'REMOTE',
-              consent:            defaultConsentForMcpServer(serverName),
+              consent:            defaultConsentForMcpServer(serverName, srv),
               requiresPrincipal:  'USER',
               timeoutMs:          120_000,
               idempotent:         false,

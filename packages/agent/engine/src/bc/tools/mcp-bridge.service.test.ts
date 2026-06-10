@@ -112,6 +112,92 @@ function installFakeMcpSseFetch(): {
   };
 }
 
+function installFakeMcpHttpFetch(): {
+  url: string;
+  requests: CapturedJsonRpc[];
+  stop: () => void;
+} {
+  const requests: CapturedJsonRpc[] = [];
+  const originalFetch = globalThis.fetch;
+
+  const sseResponse = (data: unknown) => {
+    const raw = typeof data === 'string' ? data : JSON.stringify(data);
+    return new Response(`event: message\ndata: ${raw}\n\n`, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    });
+  };
+
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const req = input instanceof Request ? input : new Request(String(input), init);
+    const url = new URL(req.url);
+    if (
+      url.origin === 'http://fake-mcp-http.test' &&
+      (url.pathname === '/mcp' || url.pathname === '/mcp/') &&
+      req.method === 'POST'
+    ) {
+      const msg = (await req.json()) as CapturedJsonRpc;
+      requests.push(msg);
+      if (msg.method === 'initialize') {
+        return sseResponse({
+          jsonrpc: '2.0',
+          id:      msg.id,
+          result:  {
+            protocolVersion: '2024-11-05',
+            capabilities:    {},
+            serverInfo:      { name: 'fake-ontology', version: '1.0.0' },
+          },
+        });
+      }
+      if (msg.method === 'notifications/initialized') {
+        return new Response('', { status: 202 });
+      }
+      if (msg.method === 'tools/list') {
+        return sseResponse({
+          jsonrpc: '2.0',
+          id:      msg.id,
+          result:  {
+            tools: [
+              {
+                name:        'search_ontology',
+                description: 'Search ontology by keyword',
+                inputSchema: {
+                  type:       'object',
+                  properties: { keyword: { type: 'string' } },
+                  required:   ['keyword'],
+                },
+              },
+            ],
+          },
+        });
+      }
+      if (msg.method === 'tools/call') {
+        const params = msg.params as { arguments?: { keyword?: string } } | undefined;
+        return sseResponse({
+          jsonrpc: '2.0',
+          id:      msg.id,
+          result:  {
+            entities: [{ name: `entity:${params?.arguments?.keyword ?? ''}` }],
+          },
+        });
+      }
+    }
+
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  return {
+    url: 'http://fake-mcp-http.test/mcp',
+    requests,
+    stop: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
 describe('McpBridgeService', () => {
   test('未配置 MCP → listTools 返回 []', async () => {
     const bridge = new McpBridgeService();
@@ -174,6 +260,91 @@ describe('McpBridgeService', () => {
         'initialize',
         'notifications/initialized',
         'tools/list',
+        'tools/call',
+      ]);
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test('Streamable HTTP MCP server → listTools 生成 descriptor', async () => {
+    const fake = installFakeMcpHttpFetch();
+    const bridge = new McpBridgeService();
+    try {
+      await bridge.init({
+        mcpServers: {
+          'biz-ontology': {
+            type:    'http',
+            url:     fake.url,
+            enabled: true,
+          },
+        },
+      });
+
+      const tools = await bridge.listTools();
+      expect(tools).toHaveLength(1);
+      expect(tools[0]).toMatchObject({
+        name:     'mcp.biz-ontology.search_ontology',
+        execute:  'mcp:biz-ontology:search_ontology',
+        handler:  { kind: 'mcp' },
+        category: 'MCP',
+        meta:     { consent: 'ON_FIRST_USE' },
+      });
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test('config 显式 consent=NEVER → descriptor.meta.consent 为 NEVER（免授权）', async () => {
+    const fake = installFakeMcpHttpFetch();
+    const bridge = new McpBridgeService();
+    try {
+      await bridge.init({
+        mcpServers: {
+          'biz-ontology': {
+            type:    'http',
+            url:     fake.url,
+            consent: 'NEVER',
+            enabled: true,
+          },
+        },
+      });
+
+      const tools = await bridge.listTools();
+      expect(tools).toHaveLength(1);
+      expect(tools[0]).toMatchObject({
+        name: 'mcp.biz-ontology.search_ontology',
+        meta: { consent: 'NEVER' },
+      });
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test('Streamable HTTP MCP server → callTool 通过单端点 POST 返回结果', async () => {
+    const fake = installFakeMcpHttpFetch();
+    const bridge = new McpBridgeService();
+    try {
+      await bridge.init({
+        mcpServers: {
+          'biz-ontology': {
+            type:    'http',
+            url:     fake.url,
+            enabled: true,
+          },
+        },
+      });
+
+      const out = await bridge.callTool('biz-ontology', 'search_ontology', {
+        keyword: 'AlarmRecord',
+      });
+      expect(out).toEqual({ entities: [{ name: 'entity:AlarmRecord' }] });
+      expect(fake.requests.map((r) => r.method)).toEqual([
+        'initialize',
+        'notifications/initialized',
         'tools/call',
       ]);
     } finally {

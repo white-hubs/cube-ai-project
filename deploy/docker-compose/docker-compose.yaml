@@ -21,6 +21,7 @@ x-ai-center-base: &ai-center-base
   restart: unless-stopped
   volumes:
     - ../../descriptors:/app/descriptors:ro
+    - ../../config:/app/config:ro
     - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
   extra_hosts:
     - "host.docker.internal:host-gateway"
@@ -55,6 +56,7 @@ x-ai-center-env: &ai-center-env
   AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR: "/app/descriptors/agents"
   AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR: "/app/descriptors/skills"
   AGENTIC_ENGINE_GLOBAL_PROMPT_PATH: "/app/CUBE.md"
+  AGENTIC_ENGINE_MCP_SERVERS_CONFIG: "/app/config/mcp-servers.json"
 
 services:
   mysql:
@@ -225,6 +227,7 @@ services:
       <<: *ai-center-env
     volumes:
       - ../../descriptors:/app/descriptors:ro
+      - ../../config:/app/config:ro
       - ../../packages/agent/engine/CUBE.md:/app/CUBE.md:ro
 
 volumes:

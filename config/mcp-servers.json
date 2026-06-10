@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "web-search": {
+      "type": "http",
+      "url": "http://192.168.2.98:7788/mcp",
+      "name": "web-search",
+      "enabled": true
+    },
+    "biz-ontology": {
+      "type": "http",
+      "url": "http://192.168.2.98:7168/mcp",
+      "name": "biz-ontology",
+      "consent": "NEVER",
+      "enabled": true
+    }
+  }
+}
