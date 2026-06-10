@@ -3,7 +3,7 @@
  *
  * Ref: `bullmq-protocol.md` §4 / `P1-07-jobs.md` §4.1
  */
-import type { Queue } from 'bullmq';
+import type { Queue, ConnectionOptions } from 'bullmq';
 import Redis from 'ioredis';
 import type { BullMqEnqueuePort } from './dispatcher';
 
@@ -27,7 +27,7 @@ export class BullMqEnqueueAdapter implements BullMqEnqueuePort {
     let q = this.queues.get(queueName);
     if (!q) {
       q = new Queue(queueName, {
-        connection: this.connection,
+        connection: this.connection as ConnectionOptions,
         prefix:     BULL_PREFIX,
       });
       this.queues.set(queueName, q);
@@ -42,8 +42,12 @@ export class BullMqEnqueueAdapter implements BullMqEnqueuePort {
 
 export function buildRedisForBullMq(redisUrl?: string): Redis {
   const url = redisUrl ?? process.env['AGENTIC_ENGINE_REDIS_URL'] ?? 'redis://127.0.0.1:6379/0';
-  return new Redis(url, {
+  const client = new Redis(url, {
     lazyConnect:          true,
     maxRetriesPerRequest: null,
   });
+  client.on('error', () => {
+    /* BullMQ manages reconnect; avoid unhandled ioredis error events */
+  });
+  return client;
 }

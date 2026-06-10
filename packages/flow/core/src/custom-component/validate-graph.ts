@@ -42,7 +42,9 @@ export function validateCubeCustomComponentGraph(graph: CubeFlowGraph): void {
         ? safeParseCubeCustomComponentDslV2(parsed)
         : safeParseCubeCustomComponentDsl(parsed)
     if (!r.success) {
-      const detail = r.error.issues.map((i: { path: (string | number)[]; message: string }) => `${i.path.map(String).join('.')}: ${i.message}`).join('; ')
+      const detail = r.error.issues
+        .map((i) => `${i.path.map(String).join('.')}: ${i.message}`)
+        .join('; ')
       throw new BadRequestException(
         `${CUBE_CUSTOM_COMPONENT_DSL_KEY} invalid on node ${n.lfNodeId}: ${detail}`,
         { code: 'CUSTOM_COMPONENT_DSL_SCHEMA' },

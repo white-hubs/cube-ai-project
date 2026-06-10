@@ -60,11 +60,17 @@ export class RedisMemoryStore implements MemorySystem {
     if (!this._redis) {
       this._redis = this.config.redisFactory
         ? this.config.redisFactory()
-        : new Redis(this.config.redisUrl, {
-            lazyConnect: true,
-            enableReadyCheck: false,
-            maxRetriesPerRequest: 1,
-          });
+        : (() => {
+            const client = new Redis(this.config.redisUrl, {
+              lazyConnect: true,
+              enableReadyCheck: false,
+              maxRetriesPerRequest: 1,
+            });
+            client.on('error', () => {
+              /* reconnect noise — command failures surface at await sites */
+            });
+            return client;
+          })();
     }
     return this._redis;
   }

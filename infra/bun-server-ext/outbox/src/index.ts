@@ -27,5 +27,6 @@ export type {
 } from './dispatcher';
 export * from './relay.service';
 export * from './outbox.module';
+export { createTestRedisClient } from './test-redis-client';
 
 export const OUTBOX_EXT_VERSION = '0.0.0-m2-skeleton-c';

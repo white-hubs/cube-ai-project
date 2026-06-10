@@ -23,7 +23,6 @@ import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from 'bu
 import { join } from 'node:path';
 import Redis from 'ioredis';
 import {
-  applyMinimalMysqlSchema,
   registerProcessShutdown,
   resolveShouldRunTestcontainers,
   startMultiEngineStack,
@@ -35,6 +34,7 @@ import {
   DEFAULT_LEADER_KEY,
   LeaderElection,
   createLeaderElectionRedis,
+  createTestRedisClient,
 } from '@cube-ai/bun-server-ext-outbox';
 
 const run = await resolveShouldRunTestcontainers();
@@ -81,7 +81,6 @@ function nodeIdFromLeaderValue(raw: string | null): string | null {
         enableOutboxRelay: true,
       });
       stackHolder.current = stack;
-      await applyMinimalMysqlSchema(stack.mysqlUrl);
     }, 1_800_000);
 
     afterAll(async () => {
@@ -125,7 +124,7 @@ function nodeIdFromLeaderValue(raw: string | null): string | null {
       // one ioredis client per engine replica — operationally equivalent
       // to N processes racing for the same lock key.
       const clients: Redis[] = stack.engines.map(
-        () => new Redis(stack.redisUrl, { maxRetriesPerRequest: null }),
+        () => createTestRedisClient(stack.redisUrl),
       );
       redisHolder.clients.push(...clients);
 
@@ -147,9 +146,7 @@ function nodeIdFromLeaderValue(raw: string | null): string | null {
 
       // Verify the lock value points at the one winner's instanceId.
       // LeaderElection stores `${nodeId}:${nonce}` — assert prefix.
-      const observer = new Redis(stack.redisUrl, {
-        maxRetriesPerRequest: null,
-      });
+      const observer = createTestRedisClient(stack.redisUrl);
       redisHolder.clients.push(observer);
       const v = await observer.get(key);
       expect(v).not.toBeNull();
@@ -165,7 +162,7 @@ function nodeIdFromLeaderValue(raw: string | null): string | null {
       const key = `agentic:engine:outbox:leader:t14-handover:${Date.now()}`;
 
       const clients: Redis[] = stack.engines.map(
-        () => new Redis(stack.redisUrl, { maxRetriesPerRequest: null }),
+        () => createTestRedisClient(stack.redisUrl),
       );
       redisHolder.clients.push(...clients);
 
@@ -218,7 +215,7 @@ function nodeIdFromLeaderValue(raw: string | null): string | null {
     });
 
     it('SIGTERM on current outbox relay leader → a different replica holds the lock', async () => {
-      const redis = new Redis(stack.redisUrl, { maxRetriesPerRequest: null });
+      const redis = createTestRedisClient(stack.redisUrl);
       redisHolder.clients.push(redis);
 
       const settleDeadline = Date.now() + 30_000;

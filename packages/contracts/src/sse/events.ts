@@ -168,7 +168,7 @@ export const ReasoningStepEventSchema = z.object({
     .optional(),
   time:  EpochMsSchema,
   /** 弹性槽位：planning 阶段可放 RankedPlan 概要等结构化补充。 */
-  meta:  z.record(z.unknown()).optional(),
+  meta:  z.record(z.string(), z.unknown()).optional(),
 });
 export type ReasoningStepEvent = z.infer<typeof ReasoningStepEventSchema>;
 
@@ -198,7 +198,7 @@ export const ToolCallStartedEventSchema = z.object({
   parentStepId: SfidSchema.optional(),
   toolCallId:   toolCallIdSchema,
   toolName:     z.string(),
-  args:         z.record(z.unknown()),
+  args:         z.record(z.string(), z.unknown()),
   meta: z.object({
     execution: z.enum(['LOCAL', 'REMOTE', 'LONG_RUNNING']),
     consent:   z.enum(['NEVER', 'ON_FIRST_USE', 'EACH_CALL', 'ADMIN_ONLY']),
@@ -236,7 +236,7 @@ export const GrantRequestEventSchema = z.object({
   grantRequestId: SfidSchema,
   toolName:       z.string(),
   reason:         z.string(),
-  argsPreview:    z.record(z.unknown()),
+  argsPreview:    z.record(z.string(), z.unknown()),
   scopeHint:      z.enum(['PERSISTENT', 'ONCE']),
   expiresTime:    EpochMsSchema,
 });
@@ -255,7 +255,7 @@ const UsageAttributionSchema = z.object({
   kind:     z.string(),
   parentId: z.string().optional(),
   label:    z.string().optional(),
-  meta:     z.record(z.unknown()).optional(),
+  meta:     z.record(z.string(), z.unknown()).optional(),
 });
 
 export const UsageDeltaV1EventSchema = z.object({

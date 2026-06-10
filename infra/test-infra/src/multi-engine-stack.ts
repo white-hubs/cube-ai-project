@@ -69,6 +69,11 @@ export interface StartMultiEngineStackOptions {
   forceRealLeaderElection?: boolean;
   /** Optional extra env merged into every replica (after defaults). */
   extraEnv?: Record<string, string>;
+  /**
+   * Apply {@link applyMinimalMysqlSchema} after infra is up and before engines spawn.
+   * Default `true` — outbox relay polls `outbox_events` on boot.
+   */
+  applyMinimalSchema?: boolean;
 }
 
 /**
@@ -94,6 +99,11 @@ export async function startMultiEngineStack(
   const sharedStack: MysqlRedisQdrantStack | MysqlRedisStack = opts.withQdrant
     ? await startMysqlRedisQdrant()
     : await startMysqlRedis();
+
+  if (opts.applyMinimalSchema !== false) {
+    const { applyMinimalMysqlSchema } = await import('./apply-schema');
+    await applyMinimalMysqlSchema(sharedStack.mysqlUrl);
+  }
 
   const enableWorkers = opts.enableJobWorkers ?? true;
   const forceRealLeader = opts.forceRealLeaderElection ?? true;

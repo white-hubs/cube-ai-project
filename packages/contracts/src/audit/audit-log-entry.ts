@@ -82,7 +82,7 @@ export const AuditLogEntrySchema = z.object({
    * Event-specific payload with camelCase keys.
    * Forbidden keys (SEC5 §5.2): accessToken, refreshToken, privateKey, phone, idCard.
    */
-  payloadJson: z.record(z.unknown()).nullable(),
+  payloadJson: z.record(z.string(), z.unknown()).nullable(),
 
   ipAddress: z.string().nullable(),
   userAgent: z.string().nullable(),

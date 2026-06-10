@@ -7,8 +7,8 @@
  *      P3-02-auth-oauth2 §3.2
  */
 import { createHash, randomUUID } from 'node:crypto';
-import type { JWK, KeyLike } from 'jose';
-import { exportJWK, importPKCS8, SignJWT } from 'jose';
+import type { CryptoKey, JWK } from 'jose';
+import { exportJWK, SignJWT } from 'jose';
 import {
   createPrivateKey,
   createPublicKey,
@@ -33,7 +33,7 @@ export interface MockOboServiceOptions {
 
 type MaterializedKeys = {
   kid: string;
-  privateKey: KeyLike;
+  privateKey: CryptoKey;
   publicJwk: JWK;
 };
 
@@ -142,13 +142,13 @@ export class MockOboService {
       const privDer = new Uint8Array(privNode.export({ type: 'pkcs8', format: 'der' }) as Uint8Array);
       const pubDer = new Uint8Array(pubNode.export({ type: 'spki', format: 'der' }) as Uint8Array);
 
-      const privateKey = (await crypto.subtle.importKey(
+      const privateKey = await crypto.subtle.importKey(
         'pkcs8',
         privDer,
         { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
         false,
         ['sign'],
-      )) as unknown as KeyLike;
+      );
 
       const pubCrypto = await crypto.subtle.importKey(
         'spki',
@@ -189,7 +189,7 @@ export class MockOboService {
       ['sign', 'verify'],
     );
 
-    const privateKey = pair.privateKey as unknown as KeyLike;
+    const privateKey = pair.privateKey;
     const jwk = await exportJWK(pair.publicKey);
     const publicJwk: JWK = {
       ...jwk,

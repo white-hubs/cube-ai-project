@@ -121,7 +121,7 @@ export type ToolDescriptorRequires = z.infer<typeof ToolDescriptorRequires>;
 const JsonSchemaObject = z
   .object({
     type:       z.literal('object'),
-    properties: z.record(z.unknown()),
+    properties: z.record(z.string(), z.unknown()),
   })
   .passthrough();
 

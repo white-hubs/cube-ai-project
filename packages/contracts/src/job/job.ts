@@ -43,7 +43,7 @@ export const JobSchema = z.object({
     percent: z.number().min(0).max(100),
     message: z.string().max(256).optional(),
   }).nullable().optional(),
-  resultSummary: z.record(z.unknown()).nullable().optional(),
+  resultSummary: z.record(z.string(), z.unknown()).nullable().optional(),
   error: z.object({
     code:    z.string(),
     message: z.string(),

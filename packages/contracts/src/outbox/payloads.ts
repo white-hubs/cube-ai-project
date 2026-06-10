@@ -59,7 +59,7 @@ export const UsageLlmCallPayloadSchema = UsageOriginSchema.extend({
     .nullable()
     .optional(),
   occurredTime: z.number().int().nonnegative(),
-  extensions:   z.record(z.unknown()).nullable().optional(),
+  extensions:   z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type UsageLlmCallPayload = z.infer<typeof UsageLlmCallPayloadSchema>;
 
@@ -88,7 +88,7 @@ export const UsageToolCallPayloadSchema = UsageOriginSchema.extend({
   scheduled:    z.boolean().optional(),
   jobId:        SfidStringSchema.nullable().optional(),
   occurredTime: z.number().int().nonnegative(),
-  extensions:   z.record(z.unknown()).nullable().optional(),
+  extensions:   z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type UsageToolCallPayload = z.infer<typeof UsageToolCallPayloadSchema>;
 
@@ -136,7 +136,7 @@ export const UsageJobDurationPayloadSchema = UsageOriginSchema.extend({
     .nullable()
     .optional(),
   occurredTime:     z.number().int().nonnegative(),
-  extensions:       z.record(z.unknown()).nullable().optional(),
+  extensions:       z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type UsageJobDurationPayload = z.infer<typeof UsageJobDurationPayloadSchema>;
 

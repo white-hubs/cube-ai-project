@@ -16,14 +16,13 @@ describe('ai-console kb client smoke', () => {
         capturedUrl = typeof url === 'string' ? url : url.toString();
         expect(init?.method).toBe('POST');
         return Response.json({
-          hits: [{ docId: 'd1', snippet: 'hello', score: 0.9 }],
-          truncated: false,
+          items: [{ text: 'hello', score: 0.9, documentId: 'd1' }],
         });
       }) as typeof fetch,
     });
 
     const result = await client.search({ query: 'hello', topK: 3 });
     expect(capturedUrl).toBe(`${cfg.baseUrl}/kb/search`);
-    expect(result.hits[0]?.docId).toBe('d1');
+    expect(result.items[0]?.documentId).toBe('d1');
   });
 });

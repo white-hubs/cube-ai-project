@@ -27,7 +27,7 @@ import {
   it,
   setDefaultTimeout,
 } from 'bun:test';
-import { exportJWK, SignJWT, type JWK, type KeyLike } from 'jose';
+import { exportJWK, SignJWT, type CryptoKey, type JWK } from 'jose';
 import {
   applyMinimalMysqlSchema,
   getFreePort,
@@ -81,7 +81,7 @@ const TEST_USER_ID = 'test-user-01';
 const AGENT_ID = '1234567890123456789';
 
 interface MockIdpKeys {
-  privateKey: KeyLike;
+  privateKey: CryptoKey;
   publicJwk: JWK;
 }
 
@@ -98,7 +98,7 @@ async function generateMockIdpKeys(): Promise<MockIdpKeys> {
   );
   const jwk = await exportJWK(pair.publicKey);
   const publicJwk: JWK = { ...jwk, kid: KID, use: 'sig', alg: 'RS256' };
-  return { privateKey: pair.privateKey as unknown as KeyLike, publicJwk };
+  return { privateKey: pair.privateKey, publicJwk };
 }
 
 function startMockIdp(port: number, keys: MockIdpKeys, expectedClientId: string) {

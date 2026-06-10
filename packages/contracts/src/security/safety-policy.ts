@@ -23,7 +23,7 @@ export type SafetyResult = z.infer<typeof SafetyResultSchema>;
  */
 export const SafetyInputSchema = z.object({
   text: z.string(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type SafetyInput = z.infer<typeof SafetyInputSchema>;
@@ -45,7 +45,7 @@ export const SafetyPolicyConfigSchema = z.object({
   /** Policy identifier name (e.g. 'pii-scan', 'length-check', 'shell-blacklist') */
   name: z.string(),
   enabled: z.boolean().default(true),
-  options: z.record(z.unknown()).optional(),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type SafetyPolicyConfig = z.infer<typeof SafetyPolicyConfigSchema>;

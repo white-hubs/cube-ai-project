@@ -134,11 +134,11 @@ export const StartTurnRequestSchema = BaseStartTurnRequestSchema.superRefine((va
   }
   if (imageRefCount > 4) {
     ctx.addIssue({
-      code: z.ZodIssueCode.too_big,
+      code: 'too_big',
+      origin: 'array',
       maximum: 4,
       inclusive: true,
       exact: false,
-      type: 'array',
       message: 'A single message can reference at most 4 images',
       path: ['content', 'blocks'],
     });

@@ -6,7 +6,6 @@
  */
 import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
 import { createPool } from 'mysql2/promise';
-import Redis from 'ioredis';
 import { RedisKeys } from '@cube-ai/contracts';
 import {
   applyGrantsMysqlSchema,
@@ -17,6 +16,7 @@ import {
   stopTrackedTestcontainersIfAny,
   type MysqlRedisStack,
 } from '@cube-ai/test-infra';
+import { createTestRedisClient } from '@cube-ai/bun-server-ext-outbox';
 import { GrantService, createGrantRepository } from '../../src/bc/authz/grant.service';
 import { AuthzGatewayService } from '../../src/bc/authz/authz-gateway.service';
 import { ConsentPolicyEngine } from '../../src/bc/authz/consent-policy.engine';
@@ -69,8 +69,7 @@ if (run) {
       supportBigNumbers: true,
       bigNumberStrings: true,
     });
-    const redis = new Redis(s.redisUrl, { lazyConnect: true, maxRetriesPerRequest: null });
-    await redis.connect();
+    const redis = createTestRedisClient(s.redisUrl);
     const sfid = new SfidService();
     const grantService = new GrantService({
       repository: createGrantRepository(pool),
@@ -104,7 +103,7 @@ if (run) {
     expect(d.kind).toBe('ALLOW');
     expect(d.reason).toBe('user_default');
     await pool.end();
-    redis.disconnect();
+    await redis.quit();
   });
 
   test('NEVER：无 grant → policy_never', async () => {
@@ -127,8 +126,7 @@ if (run) {
 
   test('L2：Redis authzGrantActiveTool round-trip', async () => {
     const s = stackHolder.current!;
-    const redis = new Redis(s.redisUrl, { lazyConnect: true, maxRetriesPerRequest: null });
-    await redis.connect();
+    const redis = createTestRedisClient(s.redisUrl);
     const tenant = 1001;
     const userId = 'u_l2';
     const tool = 't.roundtrip';
@@ -138,6 +136,6 @@ if (run) {
     const raw = await redis.get(key);
     expect(JSON.parse(raw!)).toEqual(payload);
     await redis.del(key);
-    redis.disconnect();
+    await redis.quit();
   });
 });

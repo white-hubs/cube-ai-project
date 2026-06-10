@@ -158,6 +158,7 @@ if (run) {
       expect(hits.length).toBeGreaterThanOrEqual(1);
 
       await pool.end();
+      await store.dispose();
     });
   });
 } else {

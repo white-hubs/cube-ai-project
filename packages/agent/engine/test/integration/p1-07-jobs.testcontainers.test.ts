@@ -30,7 +30,7 @@ import {
   it,
   setDefaultTimeout,
 } from 'bun:test';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
 import { Queue } from 'bullmq';
 import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
 import {
@@ -39,6 +39,7 @@ import {
   CompositeDispatcher,
   OutboxRelayService,
   OutboxWriterImpl,
+  createTestRedisClient,
   type BullMqEnqueuePort,
   type LeaderElection,
   type OutboxDispatcherI,
@@ -127,13 +128,13 @@ function buildVerifierQueue(redis: Redis): Queue {
         throw e;
       }
       pool = createMysqlPoolForTest(s.mysqlUrl);
-      redis = new Redis(s.redisUrl, { maxRetriesPerRequest: null });
+      redis = createTestRedisClient(s.redisUrl);
       writer = new OutboxWriterImpl({ nextSfid: nextSfidFactory() });
     }, HOOK_MS);
 
     afterAll(async () => {
       try {
-        redis?.disconnect();
+        await redis?.quit();
       } catch {
         /* noop */
       }

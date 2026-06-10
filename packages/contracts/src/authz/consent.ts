@@ -91,7 +91,7 @@ export const GrantRequestSchema = z.object({
   toolCallId: z.string().optional(),
   consentType: z.enum(['ON_FIRST_USE', 'EACH_CALL']),
   /** Sanitised args for modal display — no PII */
-  argsPreview: z.record(z.unknown()).optional(),
+  argsPreview: z.record(z.string(), z.unknown()).optional(),
   scopeHint: z.enum(['ONCE', 'PERSISTENT']).optional(),
   status: z.enum(['PENDING', 'APPROVED', 'APPROVED_PERSISTENT', 'DENIED', 'EXPIRED']),
   createTime: z.number(),

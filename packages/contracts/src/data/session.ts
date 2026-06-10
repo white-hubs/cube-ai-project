@@ -44,12 +44,12 @@ export const SessionRowSchema = AuditFieldsSchema.extend({
    * Internal camelCase keys — see mysql-tables.md §6.4.
    * Validated at application layer by a dedicated AgentSnapshotSchema (Phase 2).
    */
-  agentSnapshotJson:          z.record(z.unknown()),
+  agentSnapshotJson:          z.record(z.string(), z.unknown()),
   /**
    * UserPrincipal snapshot — see mysql-tables.md §6.5.
    * MUST NOT contain access_token / refresh_token / credentials.
    */
-  userPrincipalSnapshotJson:  z.record(z.unknown()),
+  userPrincipalSnapshotJson:  z.record(z.string(), z.unknown()),
   title:                      z.string().max(255).nullable(),
   status:                     SessionRowStatusSchema,
   lastTurnId:                 SfidSchema.nullable(),

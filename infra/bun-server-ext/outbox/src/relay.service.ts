@@ -79,6 +79,25 @@ function toEpochMs(v: unknown): number {
   return 0;
 }
 
+function isTransientRelayErr(e: unknown): boolean {
+  const code =
+    typeof e === 'object' && e && 'code' in e
+      ? String((e as { code: unknown }).code)
+      : '';
+  const errno =
+    typeof e === 'object' && e && 'errno' in e
+      ? Number((e as { errno: unknown }).errno)
+      : 0;
+  const msg = e instanceof Error ? e.message : String(e);
+  return (
+    code === 'PROTOCOL_CONNECTION_LOST' ||
+    code === 'ER_NO_SUCH_TABLE' ||
+    errno === 1146 ||
+    msg.includes('PROTOCOL_CONNECTION_LOST') ||
+    msg.includes("doesn't exist")
+  );
+}
+
 function truncateErr(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   return msg.length > 1024 ? `${msg.slice(0, 1021)}...` : msg;
@@ -241,7 +260,9 @@ export class OutboxRelayService {
     try {
       await this.relayOnce();
     } catch (e) {
-      console.error('[OutboxRelayService] relay tick error', e);
+      if (!isTransientRelayErr(e)) {
+        console.error('[OutboxRelayService] relay tick error', e);
+      }
     } finally {
       this.relayLock = false;
     }

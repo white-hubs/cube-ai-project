@@ -29,6 +29,8 @@ export async function applyMinimalMysqlSchema(mysqlUrl: string): Promise<void> {
 
   const maxAttempts = 30;
   const delayMs = 500;
+  // MySQL testcontainers often accept TCP before the first session is stable.
+  await new Promise((r) => setTimeout(r, 300));
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -62,6 +64,8 @@ export async function applyGrantsMysqlSchema(mysqlUrl: string): Promise<void> {
 
   const maxAttempts = 30;
   const delayMs = 500;
+  // MySQL testcontainers often accept TCP before the first session is stable.
+  await new Promise((r) => setTimeout(r, 300));
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -89,6 +93,8 @@ export async function applyGrantsMysqlSchema(mysqlUrl: string): Promise<void> {
 async function applySqlWithRetry(mysqlUrl: string, sql: string, label: string): Promise<void> {
   const maxAttempts = 30;
   const delayMs = 500;
+  // MySQL testcontainers often accept TCP before the first session is stable.
+  await new Promise((r) => setTimeout(r, 300));
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
