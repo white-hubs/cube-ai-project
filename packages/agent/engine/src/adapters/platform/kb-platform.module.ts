@@ -29,9 +29,9 @@ function resolveKbEmbeddingDimension(): number {
 }
 
 function resolveKbEmbeddingTenant(): number {
-  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? '0';
+  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? '1';
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 1;
 }
 
 @Module({
@@ -47,7 +47,11 @@ function resolveKbEmbeddingTenant(): number {
           dimension: resolveKbEmbeddingDimension(),
         }),
     },
-    KnowledgeQueryPortImpl,
+    {
+      provide: KnowledgeQueryPortImpl,
+      useFactory: (container: Container) =>
+        new KnowledgeQueryPortImpl(container.resolve(RetrievalService)),
+    },
     {
       provide: AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN,
       useExisting: KnowledgeQueryPortImpl,

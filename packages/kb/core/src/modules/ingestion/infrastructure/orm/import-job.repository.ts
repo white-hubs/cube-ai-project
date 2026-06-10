@@ -8,6 +8,7 @@ import {
   type Logger,
 } from '@dangao/bun-server'
 import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
+import { resolveKbRecordId } from '@/infra/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import { ImportJobEntity } from './import-job.entity'
 
@@ -46,6 +47,7 @@ export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
 
     const payload: Partial<ImportJobEntity> = {
       ...data,
+      id: resolveKbRecordId(data.id),
       tenant_id,
       deleted: 0n,
       create_by: audit.by,
@@ -64,9 +66,7 @@ export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
     const sql = `INSERT INTO ${this.tableName} (${keys.join(', ')}) VALUES (${placeholders})`
     this.logger.info(`Creating import job for document: ${String(payload.document_id ?? '')}`)
     await this.executeQuery(sql, values)
-    const lastIdResult = await this.executeQuery<{ id: number }>('SELECT LAST_INSERT_ID() as id')
-    const lastId = Array.isArray(lastIdResult) && lastIdResult[0] ? lastIdResult[0].id : null
-    return lastId !== null ? ((await this.findById(lastId)) as ImportJobEntity) : (payload as ImportJobEntity)
+    return (await this.findById(payload.id!)) as ImportJobEntity
   }
 
   public override async findById(id: string | number): Promise<ImportJobEntity | null> {

@@ -93,4 +93,41 @@ describe('PinoObservabilityAdapter', () => {
     adapter.emit(event);
     expect(warn).toHaveBeenCalled();
   });
+
+  it('knowledge_prefetch_end uses info level', () => {
+    const info = mock(() => {});
+    const logger = {
+      info,
+      warn: mock(() => {}),
+      error: mock(() => {}),
+      debug: mock(() => {}),
+      fatal: mock(() => {}),
+      trace: mock(() => {}),
+    };
+    const factory: ILoggerFactory = {
+      getLogger: () => logger as unknown as import('pino').Logger,
+    };
+    const adapter = new PinoObservabilityAdapter(factory, new AgenticTracer());
+    adapter.emit({
+      timestamp: 1,
+      correlation: {
+        traceId: 't',
+        requestId: 't',
+        sessionId: 's',
+        turnId: 'turn',
+      },
+      type: 'knowledge_prefetch_end' as EngineEvent['type'],
+      phase: 'prefetch',
+      payload: {
+        hitCount: 2,
+        truncated: false,
+        kbIds: ['kb-1'],
+        queryChars: 12,
+        durationMs: 10,
+        injectedContextChars: 500,
+        topHits: [{ docId: 'doc-1', score: 0.9 }],
+      },
+    });
+    expect(info).toHaveBeenCalled();
+  });
 });

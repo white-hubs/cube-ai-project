@@ -409,9 +409,18 @@ describe('EngineFactory', () => {
         };
       },
     } satisfies Pick<ToolService, 'invoke'>;
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
     const factory = testEngineFactory(
       provider,
-      undefined,
+      observability,
       undefined,
       toolService as ToolService,
     );
@@ -473,6 +482,95 @@ describe('EngineFactory', () => {
             m.content.includes('## Retrieved Knowledge Context') &&
             m.content.includes('切换视角请点击右上角视角按钮'),
         ),
+      ),
+    ).toBe(true);
+    expect(
+      observabilityEvents.some(
+        (ev) =>
+          ev.type === 'knowledge_prefetch_end' &&
+          ev.payload.hitCount === 1 &&
+          ev.payload.truncated === false &&
+          ev.payload.kbIds?.[0] === 'kb-1' &&
+          typeof ev.payload.injectedContextChars === 'number' &&
+          (ev.payload.injectedContextChars as number) > 0 &&
+          Array.isArray(ev.payload.topHits) &&
+          (ev.payload.topHits as Array<{ docId?: string }>)[0]?.docId === 'doc-1',
+      ),
+    ).toBe(true);
+  });
+
+  test('runStream emits knowledge_prefetch_skipped when no knowledge bases are attached', async () => {
+    const provider = createCaptureProvider();
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    const factory = testEngineFactory(provider, observability);
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-RUNTIME-KB-SKIP',
+        turnId: 'TURN-RUNTIME-KB-SKIP',
+        tenant: 1,
+        prompt: 'hello world',
+        agentSnapshot: { agent: { content: { prompt: 'BASE-PROMPT' } } },
+      }),
+    );
+
+    expect(
+      observabilityEvents.some(
+        (ev) => ev.type === 'knowledge_prefetch_skipped' && ev.payload.reason === 'no_refs',
+      ),
+    ).toBe(true);
+  });
+
+  test('runStream emits knowledge_prefetch_failed when knowledge query throws', async () => {
+    const provider = createCaptureProvider();
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    const toolService = {
+      invoke: async () => {
+        throw Object.assign(new Error('kb query failed'), { code: 'UPSTREAM_TOOL_HTTP_FAILED' });
+      },
+    } satisfies Pick<ToolService, 'invoke'>;
+    const factory = testEngineFactory(
+      provider,
+      observability,
+      undefined,
+      toolService as ToolService,
+    );
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-RUNTIME-KB-FAIL',
+        turnId: 'TURN-RUNTIME-KB-FAIL',
+        tenant: 1,
+        prompt: '如何处理应急事故？',
+        runtimeRefs: {
+          knowledgeBases: [{ kbId: 'kb-1', displayName: '应急知识库' }],
+        },
+        agentSnapshot: { agent: { content: { prompt: 'BASE-PROMPT' } } },
+      }),
+    );
+
+    expect(
+      observabilityEvents.some(
+        (ev) =>
+          ev.type === 'knowledge_prefetch_failed' &&
+          ev.payload.errorMessage === 'kb query failed' &&
+          ev.payload.kbIds?.[0] === 'kb-1',
       ),
     ).toBe(true);
   });

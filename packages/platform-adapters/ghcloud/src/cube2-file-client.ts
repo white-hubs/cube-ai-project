@@ -4,87 +4,42 @@
  * Transport is created on first call; boot never connects to any remote service.
  * Resolution order for base URL:
  *   1. env CUBE2_FILE_SERVICE_BASE_URL (direct)
- *   2. Nacos naming lookup via NACOS_ADDRESS + CUBE2_FILE_SERVICE_NAME / CUBE2_FILE_SERVICE_GROUP
+ *   2. Nacos naming lookup via NACOS_ADDRESS / NACOS_SERVER_ADDR
+ *      + CUBE2_FILE_SERVICE_NAME / CUBE2_FILE_SERVICE_GROUP
  *
  * If CUBE2_INTERNAL_INVOKE_SECRET_KEY is set, the feign_inner_invoke header is injected.
  */
 
 import { createClient, type Interceptor } from '@connectrpc/connect'
 import { createGrpcTransport } from '@connectrpc/connect-node'
-import { NacosClient, NacosServiceClient } from '@dangao/nacos-client'
 
 import { FileCoreService } from './grpc-gen/guhecloud/cube/base/file/grpc/v1/file_core_service_pb'
 import { FileOperateService } from './grpc-gen/guhecloud/cube/base/file/grpc/v1/file_operate_service_pb'
-import { createGrpcInnerInvokeSignature } from './grpc-inner-invoke'
+import { createCube2GrpcAuthInterceptor } from './cube2-grpc-auth'
+import { resolveCube2GrpcBaseUrl } from './cube2-grpc-endpoint'
 
 async function resolveFileServiceBaseUrl(): Promise<string> {
-  const direct = process.env['CUBE2_FILE_SERVICE_BASE_URL']?.trim()
-  if (direct) return direct
-
-  // TODO(主 agent 复核): NACOS_ADDRESS, NACOS_NAMESPACE_ID, NACOS_USERNAME, NACOS_PASSWORD
-  // env vars must be set in the ghcloud deployment environment.
-  const nacosAddress = process.env['NACOS_ADDRESS']?.trim()
-  if (!nacosAddress) {
-    throw new Error(
-      'cube2-file-client: set CUBE2_FILE_SERVICE_BASE_URL or NACOS_ADDRESS to resolve the file service endpoint',
-    )
-  }
-
-  const nacosClient = new NacosClient({
-    serverList: [nacosAddress],
-    namespaceId: process.env['NACOS_NAMESPACE_ID']?.trim() || undefined,
-    username: process.env['NACOS_USERNAME']?.trim() || undefined,
-    password: process.env['NACOS_PASSWORD']?.trim() || undefined,
+  return resolveCube2GrpcBaseUrl({
+    directEnvKey: 'CUBE2_FILE_SERVICE_BASE_URL',
+    serviceNameEnvKey: 'CUBE2_FILE_SERVICE_NAME',
+    serviceGroupEnvKey: 'CUBE2_FILE_SERVICE_GROUP',
+    defaultServiceNames: ['cube-base-file', 'file'],
+    clientLabel: 'cube2-file-client',
   })
-
-  const serviceClient = new NacosServiceClient(nacosClient)
-  const serviceName =
-    process.env['CUBE2_FILE_SERVICE_NAME']?.trim() || 'file'
-  const groupName =
-    process.env['CUBE2_FILE_SERVICE_GROUP']?.trim() || 'DEFAULT_GROUP'
-
-  const instances = await serviceClient.getInstances({
-    serviceName,
-    groupName,
-    healthyOnly: true,
-  })
-
-  const healthy = instances.filter(
-    (i) => i.healthy !== false && i.enabled !== false,
-  )
-  if (healthy.length === 0) {
-    throw new Error(
-      `cube2-file-client: no healthy nacos instance for service='${serviceName}' group='${groupName}'`,
-    )
-  }
-
-  // Pick first healthy instance (load-balancing left to caller / future improvement)
-  const instance = healthy[0]!
-  return `http://${instance.ip}:${instance.port}`
 }
 
-function createInnerInvokeInterceptor(): Interceptor {
-  return (next) => (req) => {
-    const secretKey = process.env['CUBE2_INTERNAL_INVOKE_SECRET_KEY']?.trim()
-    if (secretKey) {
-      const sig = createGrpcInnerInvokeSignature(secretKey, Date.now() + 60_000)
-      req.header.set('feign_inner_invoke', sig)
-    }
-    return next(req)
-  }
+function buildTransport(baseUrl: string) {
+  return createGrpcTransport({
+    baseUrl,
+    interceptors: [createCube2GrpcAuthInterceptor()],
+  })
 }
 
-// Lazy-initialized transports (one per base URL resolution; cleared on failure).
 let fileOperateClientPromise: Promise<ReturnType<typeof createClient<typeof FileOperateService>>> | null = null
 let fileCoreClientPromise: Promise<ReturnType<typeof createClient<typeof FileCoreService>>> | null = null
 
 function buildClients() {
-  const transportPromise = resolveFileServiceBaseUrl().then((baseUrl) =>
-    createGrpcTransport({
-      baseUrl,
-      interceptors: [createInnerInvokeInterceptor()],
-    }),
-  )
+  const transportPromise = resolveFileServiceBaseUrl().then((baseUrl) => buildTransport(baseUrl))
 
   const operateP = transportPromise.then((t) =>
     createClient(FileOperateService, t),
@@ -93,7 +48,6 @@ function buildClients() {
     createClient(FileCoreService, t),
   )
 
-  // Clear cache on failure so the next call retries resolution
   const clearOnError = (p: Promise<unknown>) =>
     p.catch((err: unknown) => {
       fileOperateClientPromise = null

@@ -40,7 +40,7 @@ export class PlatformSourceImportService {
           doc.fileName,
           { type: doc.mimeType ?? 'application/octet-stream' },
         )
-        await this.documentService.uploadDocument(file, directoryId)
+        await this.documentService.uploadDocument(file, directoryId, undefined, doc.externalId)
         imported++
       } catch (err: unknown) {
         errors++

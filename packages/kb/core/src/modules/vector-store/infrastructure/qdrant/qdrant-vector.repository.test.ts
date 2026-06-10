@@ -9,6 +9,7 @@ class FakeQdrantRestClient {
   public readonly queryCalls: Array<{ collectionName: string; payload: Record<string, unknown> }> = [];
   public readonly deleteCalls: Array<{ collectionName: string; payload: Record<string, unknown> }> = [];
   public readonly getCollectionCalls: string[] = [];
+  public readonly createCollectionCalls: Array<{ name: string; payload: Record<string, unknown> }> = [];
   public readonly countCalls: Array<{ collectionName: string; payload: Record<string, unknown> }> = [];
   public countResult = 1;
   public getCollectionError: Error | null = null;
@@ -22,7 +23,14 @@ class FakeQdrantRestClient {
     if (this.getCollectionError) {
       throw this.getCollectionError;
     }
-    return { status: 'ok' };
+    return {
+      config: {
+        params: {
+          vectors: { dense: { size: 1024 } },
+          sparse_vectors: { sparse: {} },
+        },
+      },
+    };
   }
 
   public async count(collectionName: string, payload: Record<string, unknown>): Promise<{ count: number }> {
@@ -47,7 +55,10 @@ class FakeQdrantRestClient {
     };
   }
 
-  public async createCollection(_name: string, _payload: Record<string, unknown>): Promise<void> {}
+  public async createCollection(name: string, payload: Record<string, unknown>): Promise<void> {
+    this.createCollectionCalls.push({ name, payload });
+    this.getCollectionError = null;
+  }
 }
 
 class FakeQdrantClient implements QdrantClientLike {
@@ -158,6 +169,28 @@ describe('QdrantVectorRepository', () => {
       limit: 5,
       with_payload: true,
     });
+    expect(results[0]?.score).toBe(0.91);
+    expect(qdrantClient.restClient.getCollectionCalls.length).toBeGreaterThan(0);
+  });
+
+  test('creates missing collection before search instead of failing with Not Found', async () => {
+    const qdrantClient = new FakeQdrantClient();
+    qdrantClient.restClient.getCollectionError = new Error('404 Not Found');
+    const repository = new QdrantVectorRepository(
+      makeMockAppConfig(),
+      qdrantClient,
+      new QdrantCollectionService(qdrantClient),
+    );
+
+    const results = await repository.search({
+      denseVector: [0.1, 0.2, 0.3],
+      sparseVector: SPARSE_VECTOR,
+      topK: 5,
+      documentId: '2063877629778944002',
+    });
+
+    expect(qdrantClient.restClient.createCollectionCalls.length).toBeGreaterThan(0);
+    expect(qdrantClient.restClient.queryCalls).toHaveLength(1);
     expect(results[0]?.score).toBe(0.91);
   });
 

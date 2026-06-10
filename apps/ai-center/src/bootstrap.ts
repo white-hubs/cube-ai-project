@@ -8,14 +8,17 @@ import {
 import {
   createGhcloudExecutionAuthReaders,
   createGhcloudIdentityMiddleware,
+  createCube2OutboundAuthMiddleware,
 } from '@cube-ai/platform-adapter-ghcloud';
 import { agenticEngineExceptionFilter } from '../../../packages/agent/engine/src/infra/errors/agentic-engine-exception.filter';
+import { connectExceptionFilter } from './platform/connect-exception.filter';
 import { DescriptorLoader } from '../../../packages/agent/engine/src/bc/descriptor/descriptor-loader';
 import { DescriptorRegistryService } from '../../../packages/agent/engine/src/bc/descriptor/descriptor-registry.service';
 import { McpBridgeService } from '../../../packages/agent/engine/src/bc/tools/mcp-bridge.service';
 import {
   traceIdMiddleware,
   createErrorResponseMiddleware,
+  createEngineHttpExceptionFilter,
 } from '../../../packages/agent/engine/src/infra/errors';
 import { oauth2IntrospectionMiddleware } from '../../../packages/agent/engine/src/bc/auth/oauth2-introspection.middleware';
 import { MetricsRegistry } from '../../../packages/agent/engine/src/infra/observability/metrics-registry';
@@ -88,6 +91,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   registerMockInterceptor(container);
 
   ExceptionFilterRegistry.getInstance().register(agenticEngineExceptionFilter);
+  ExceptionFilterRegistry.getInstance().register(connectExceptionFilter);
 
   const secretsLoader = container.resolve(NacosSecretsLoader) as NacosSecretsLoader;
   await secretsLoader.load();
@@ -99,10 +103,12 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   const metricsRegistry = container.resolve(MetricsRegistry) as MetricsRegistry;
   const loggerFactory = container.resolve(LoggerFactory) as LoggerFactory;
   const errLog = loggerFactory.getLogger('agentic.engine.server.http.errors');
+  ExceptionFilterRegistry.getInstance().register(createEngineHttpExceptionFilter(errLog));
   const flowConfig = await loadAppConfig();
 
   app.use(traceIdMiddleware);
   app.use(createDomainPathRewriteMiddleware());
+  app.use(createCube2OutboundAuthMiddleware());
   app.use(createVersionNegotiationMiddleware());
   app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(oauth2IntrospectionMiddleware);
@@ -160,8 +166,12 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   app.use(
     createExecutionAuthMiddleware({
       accessTokenReader,
+      apiKeyReader: ghcloudReaders?.apiKeyReader,
+      builtinSystemApiKey: flowConfig.builtinSystemApiKey,
     }),
   );
+  const { createKbTenantContextMiddleware } = await import('@cube-ai/kb-core');
+  app.use(createKbTenantContextMiddleware());
   app.use(createDeveloperRateLimitMiddleware({ maxPerMin: flowConfig.devApiRateLimitPerMin }));
   app.use(createFlowTenantContextMiddleware());
 

@@ -8,6 +8,7 @@ import {
   POST,
 } from '@dangao/bun-server'
 import { MockableEndpoint } from '@/infra/mock-endpoint'
+import { parsePlatformDocumentSyncContext } from '../../../port/document-platform-sync.port'
 import { RetrievalService } from '../services/retrieval.service'
 
 function parseSimilarityThreshold(raw: unknown): number | undefined {
@@ -215,6 +216,8 @@ export class SearchController {
     body: {
       query?: string
       documents?: Array<{ documentId?: string; topK?: number; similarityThreshold?: number }>
+      platformKbId?: string
+      directoryId?: string
     },
   ) {
     if (!body?.query || typeof body.query !== 'string') {
@@ -250,7 +253,11 @@ export class SearchController {
       })
     }
 
-    return this.retrievalService.searchMultiByDocuments({ query: body.query, documents })
+    return this.retrievalService.searchMultiByDocuments({
+      query: body.query,
+      documents,
+      platformSync: parsePlatformDocumentSyncContext(body),
+    })
   }
 
   /**

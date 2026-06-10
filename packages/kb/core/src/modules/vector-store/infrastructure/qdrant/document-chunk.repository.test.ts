@@ -90,6 +90,50 @@ describe('DocumentChunkRepositoryOrm', () => {
     expect(insertCall?.params?.some((value) => typeof value === 'object' && value !== null && !(value instanceof Date))).toBe(false)
   })
 
+  test('replaces existing chunks without duplicate chunk_id conflicts', async () => {
+    const databaseService = new FakeDatabaseService()
+    const repository = new DocumentChunkRepositoryOrm(databaseService as never, fakeLogger)
+
+    const chunks: TextChunkRecord[] = [
+      {
+        chunkId: '12-0',
+        documentId: '12',
+        chunkIndex: 0,
+        text: 'display text',
+        embeddingText: 'embedding text',
+        tenantId: null,
+        sourceType: 'pdf',
+        fileName: 'demo.pdf',
+        sectionId: 'section-1',
+        headingPath: ['Title'],
+        pageNo: 1,
+        chunkType: 'paragraph',
+        orderInSection: 0,
+        captionText: null,
+        pictureDescription: null,
+        sheetName: null,
+        tableId: null,
+        rowStart: null,
+        rowEnd: null,
+        headers: undefined,
+        keywords: undefined,
+        startTime: null,
+        endTime: null,
+        cueIndex: null,
+        propertyNamespace: null,
+      },
+    ]
+
+    await repository.replaceDocumentChunks('12', chunks)
+    await repository.replaceDocumentChunks('12', chunks)
+
+    const deleteCalls = databaseService.calls.filter((call) => call.sql.startsWith('DELETE FROM document_chunk'))
+    const insertCalls = databaseService.calls.filter((call) => call.sql.startsWith('INSERT INTO document_chunk'))
+    expect(deleteCalls).toHaveLength(2)
+    expect(insertCalls).toHaveLength(2)
+    expect(databaseService.calls.some((call) => call.sql.startsWith('UPDATE document_chunk SET deleted = ?'))).toBe(false)
+  })
+
   test('finds chunks by document id and updates a single chunk safely', async () => {
     const databaseService = new FakeDatabaseService()
     databaseService.nextResult = [

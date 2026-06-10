@@ -200,6 +200,14 @@ class FakeVectorizationService {
   }
 }
 
+class FakeDocumentPlatformSyncService {
+  public ensureCalls: Array<{ documentId: string; syncContext?: unknown }> = []
+
+  public async ensureDocumentAvailable(documentId: string, syncContext?: unknown) {
+    this.ensureCalls.push({ documentId, syncContext })
+  }
+}
+
 describe('DocumentService', () => {
   test('uploads supported files to storage and triggers ingestion', async () => {
     const objectStorageService = new FakeObjectStorageService()
@@ -215,6 +223,7 @@ describe('DocumentService', () => {
       new FakeQdrantVectorRepository() as never,
       new FakeDocumentChunkRepository() as never,
       new FakeVectorizationService() as never,
+      new FakeDocumentPlatformSyncService() as never,
     )
 
     const file = new File(['hello world'], 'note.txt', { type: 'text/plain' })
@@ -255,6 +264,7 @@ describe('DocumentService', () => {
       qdrantVectorRepository as never,
       new FakeDocumentChunkRepository() as never,
       new FakeVectorizationService() as never,
+      new FakeDocumentPlatformSyncService() as never,
     )
 
     await service.deleteDocument("101")
@@ -278,6 +288,7 @@ describe('DocumentService', () => {
       new FakeQdrantVectorRepository() as never,
       chunkRepository as never,
       new FakeVectorizationService() as never,
+      new FakeDocumentPlatformSyncService() as never,
     )
 
     const file = new File(['hello world'], 'note.txt', { type: 'text/plain' })
@@ -315,6 +326,7 @@ describe('DocumentService', () => {
       new FakeQdrantVectorRepository() as never,
       chunkRepository as never,
       vectorizationService as never,
+      new FakeDocumentPlatformSyncService() as never,
     )
 
     const list = await service.listDocumentChunks("101")

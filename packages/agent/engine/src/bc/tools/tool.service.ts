@@ -324,7 +324,11 @@ export class ToolService {
       await this.safeAudit('completed', toolName, ctx, { ok: true });
       return result;
     } catch (e) {
-      this.log.debug(
+      const errPayload =
+        e instanceof AgenticEngineError
+          ? { code: e.code, message: e.message, category: e.category }
+          : { message: e instanceof Error ? e.message : String(e) };
+      this.log.warn(
         {
           phase: 'error',
           toolName,
@@ -334,10 +338,7 @@ export class ToolService {
           sessionId: ctx.session.id,
           turnId: ctx.session.turnId,
           traceId: ctx.traceId,
-          err:
-            e instanceof AgenticEngineError
-              ? { code: e.code, message: e.message, category: e.category }
-              : { message: e instanceof Error ? e.message : String(e) },
+          err: errPayload,
         },
         'tool.invoke.failed',
       );

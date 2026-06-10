@@ -38,6 +38,7 @@ import {
   type IntentRoutingBlock,
 } from '../tool-activation';
 import { assembleTachuRuntime, buildDefaultEngineConfig } from './assemble-tachu-runtime';
+import { emitHostEngineEvent } from './host-observability';
 import type { TurnContextHolder } from './turn-context-holder';
 import { resolveNonEmptyModel } from './tachu.tokens';
 import type { MemoryProjectionRelayService } from '../../infra/memory-projection/memory-projection-relay.service';
@@ -197,6 +198,25 @@ function readKnowledgeHits(output: unknown): KnowledgeHitView[] {
     });
   }
   return out;
+}
+
+function readKnowledgeTruncated(output: unknown): boolean {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+    return false;
+  }
+  return (output as { truncated?: unknown }).truncated === true;
+}
+
+function summarizeKnowledgeHitsForObservability(
+  hits: readonly KnowledgeHitView[],
+  limit = 3,
+): Array<{ docId?: string; kbId?: string; score?: number; title?: string }> {
+  return hits.slice(0, limit).map((hit) => ({
+    ...(hit.docId !== undefined ? { docId: hit.docId } : {}),
+    ...(hit.kbId !== undefined ? { kbId: hit.kbId } : {}),
+    ...(hit.title !== undefined ? { title: hit.title } : {}),
+    ...(typeof hit.score === 'number' ? { score: hit.score } : {}),
+  }));
 }
 
 function formatRetrievedKnowledgeContext(
@@ -573,7 +593,44 @@ export class EngineFactory {
     const refs = uniqueRuntimeKnowledgeRefs(arg.runtimeRefs);
     const query = truncateText(arg.prompt.trim(), 512);
     const toolService = this.getToolService();
-    if (refs.length === 0 || !toolService || query.length < 2) {
+    const kbIds = refs.map((ref) => ref.kbId);
+
+    if (refs.length === 0) {
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: 'knowledge_prefetch_skipped',
+        phase: 'prefetch',
+        payload: {
+          reason: 'no_refs',
+          queryChars: query.length,
+        },
+      });
+      return { chunks: [] };
+    }
+    if (!toolService) {
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: 'knowledge_prefetch_skipped',
+        phase: 'prefetch',
+        payload: {
+          reason: 'no_tool_service',
+          kbIds,
+          queryChars: query.length,
+        },
+      });
+      return { chunks: [] };
+    }
+    if (query.length < 2) {
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: 'knowledge_prefetch_skipped',
+        phase: 'prefetch',
+        payload: {
+          reason: 'query_too_short',
+          kbIds,
+          queryChars: query.length,
+        },
+      });
       return { chunks: [] };
     }
 
@@ -616,8 +673,37 @@ export class EngineFactory {
           context,
         ),
       );
-      return { chunks, promptContext: formatRetrievedKnowledgeContext(output, refs) };
+      const promptContext = formatRetrievedKnowledgeContext(output, refs);
+      const hits = readKnowledgeHits(output);
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: 'knowledge_prefetch_end',
+        phase: 'prefetch',
+        payload: {
+          hitCount: hits.length,
+          truncated: readKnowledgeTruncated(output),
+          kbIds,
+          queryChars: query.length,
+          durationMs: Date.now() - startedAt,
+          injectedContextChars: promptContext.length,
+          topHits: summarizeKnowledgeHitsForObservability(hits),
+        },
+      });
+      return { chunks, promptContext };
     } catch (error) {
+      const toolError = errorToToolError(error);
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: 'knowledge_prefetch_failed',
+        phase: 'prefetch',
+        payload: {
+          kbIds,
+          queryChars: query.length,
+          durationMs: Date.now() - startedAt,
+          errorCode: toolError.code,
+          errorMessage: toolError.message,
+        },
+      });
       chunks.push(
         this.withStreamEnvelope(
           {

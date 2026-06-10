@@ -8,9 +8,10 @@ import { DocumentDirectoryController } from './controllers/document-directory.co
 import { DocumentService } from './services/document.service'
 import { DocumentDirectoryService } from './services/document-directory.service'
 import { PlatformSourceImportService } from '../ingestion/platform-source-import.service'
+import { PlatformDocumentSyncModule } from './platform-document-sync.module'
 
 @Module({
-  imports: [OrmDatabaseModule, ObjectStorageModule, IngestionModule, VectorStoreModule],
+  imports: [OrmDatabaseModule, ObjectStorageModule, IngestionModule, VectorStoreModule, PlatformDocumentSyncModule],
   controllers: [DocumentController, DocumentDirectoryController],
   providers: [DocumentService, DocumentDirectoryService, PlatformSourceImportService],
   exports: [DocumentService, PlatformSourceImportService],

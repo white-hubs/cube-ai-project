@@ -4,9 +4,9 @@ import type {
   KnowledgeQueryRequest,
   KnowledgeQueryResponse,
 } from '@cube-ai/contracts/platform';
-import { Injectable } from '@dangao/bun-server';
+import { Inject, Injectable } from '@dangao/bun-server';
 import type { SearchItem } from '../modules/common/document-types';
-import type { RetrievalService } from '../modules/vector-store/services/retrieval.service';
+import { RetrievalService } from '../modules/vector-store/services/retrieval.service';
 import { tenantContextAls } from '../infra/access-scope';
 
 /** tenant:number → projectId:string (ghcloud parity: numeric tenant id as string). */
@@ -45,7 +45,9 @@ export function mapSearchItemToKnowledgeHit(item: SearchItem, kbId: string): Kno
 
 @Injectable()
 export class KnowledgeQueryPortImpl implements KnowledgeQueryPort {
-  constructor(private readonly retrievalService: RetrievalService) {}
+  constructor(
+    @Inject(RetrievalService) private readonly retrievalService: RetrievalService,
+  ) {}
 
   async query(req: KnowledgeQueryRequest, _signal: AbortSignal): Promise<KnowledgeQueryResponse> {
     const directoryIds = mapKbIdsToDirectoryIds(req.kbIds);

@@ -125,4 +125,24 @@ describe('execution auth middleware', () => {
 
     expect(bypass).toBe(true)
   })
+
+  test('allows knowledge-retrieval callback with builtin x-api-key and x-project-id', async () => {
+    const middleware = createExecutionAuthMiddleware({
+      accessTokenReader: { verifyAccessToken: () => null },
+      builtinSystemApiKey: 'sk_cube_builtin_system_test',
+    })
+    let seenTenant = false
+
+    await middleware(
+      createCtx('/search/by-documents', {
+        'x-api-key': 'sk_cube_builtin_system_test',
+        'x-project-id': '58197260',
+      }) as never,
+      async () => {
+        seenTenant = tenantContextAls.getStore()?.tenantId === '58197260'
+      },
+    )
+
+    expect(seenTenant).toBe(true)
+  })
 })

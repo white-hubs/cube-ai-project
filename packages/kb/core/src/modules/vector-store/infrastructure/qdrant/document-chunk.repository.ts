@@ -8,6 +8,7 @@ import {
   type Logger,
 } from '@dangao/bun-server'
 import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
+import { generateKbRecordId } from '@/infra/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import type { TextChunkRecord } from '../../../common/document-types'
 import { buildStableQdrantPointId } from '@cube-ai/vector-qdrant';
@@ -106,7 +107,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
   }
 
   public async replaceDocumentChunks(documentId: string, chunks: TextChunkRecord[]): Promise<void> {
-    await this.logicalDeleteByDocument(documentId)
+    await this.deleteByDocument(documentId)
     if (chunks.length === 0) {
       return
     }
@@ -117,6 +118,7 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
 
     for (const chunk of chunks) {
       const payload: Partial<DocumentChunkEntity> = {
+        id: generateKbRecordId(),
         tenant_id,
         deleted: 0n,
         create_by: audit.by,
@@ -347,6 +349,16 @@ export class DocumentChunkRepositoryOrm extends BaseRepository<DocumentChunkEnti
       joinParams.push(pid)
     }
     await this.executeQuery(sql, joinParams.map((value) => this.normalizeSqlValue(value)))
+  }
+
+  public async deleteByDocument(documentId: string): Promise<void> {
+    const sc = this.scopeFilter()
+    const params: unknown[] = [documentId, ...sc.params]
+    let sql = `DELETE FROM ${this.tableName} WHERE document_id = ?`
+    if (sc.sql) {
+      sql += ` AND ${sc.sql}`
+    }
+    await this.executeQuery(sql, params.map((value) => this.normalizeSqlValue(value)))
   }
 
   public async logicalDeleteByDocument(documentId: string): Promise<void> {

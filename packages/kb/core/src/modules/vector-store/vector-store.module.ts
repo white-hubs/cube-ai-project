@@ -3,6 +3,7 @@ import { EMBEDDING_PORT_TOKEN, type EmbeddingPort } from '@cube-ai/contracts/pla
 import { QdrantClient, QdrantCollectionService } from '@cube-ai/vector-qdrant';
 import { loadAppConfig, APP_CONFIG_TOKEN } from '../../config/app.config';
 import { OrmDatabaseModule } from '../../infrastructure/orm/orm-database.module';
+import { PlatformDocumentSyncModule } from '../documents/platform-document-sync.module';
 import { SearchController } from './controllers/search.controller';
 import { EmbeddingProviderAdapter } from './infrastructure/embeddings/embedding-provider.adapter';
 import { EmbeddingProvider } from './infrastructure/embeddings/embedding-provider';
@@ -20,7 +21,7 @@ function createQdrantClient(config: typeof appConfig): QdrantClient {
 }
 
 @Module({
-  imports: [OrmDatabaseModule],
+  imports: [OrmDatabaseModule, PlatformDocumentSyncModule],
   controllers: [SearchController],
   providers: [
     { provide: APP_CONFIG_TOKEN, useValue: appConfig },
@@ -28,7 +29,11 @@ function createQdrantClient(config: typeof appConfig): QdrantClient {
       provide: QdrantClient,
       useFactory: () => createQdrantClient(appConfig),
     },
-    QdrantCollectionService,
+    {
+      provide: QdrantCollectionService,
+      useFactory: (client: QdrantClient) => new QdrantCollectionService(client),
+      inject: [QdrantClient],
+    },
     QdrantVectorRepository,
     {
       provide: EmbeddingProvider,

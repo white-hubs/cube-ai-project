@@ -57,3 +57,9 @@ export { createTestJwtKeyPair, signTestJwt, type TestJwtKeyPair } from './test-h
 export { getFileOperateClient, getFileCoreClient, type Cube2FileClients } from './cube2-file-client'
 export { getKnowledgeBaseClient, type Cube2ContentClients } from './cube2-content-client'
 export { Cube2ProviderIconStore } from './cube2-provider-icon-store'
+export { createCube2OutboundAuthMiddleware } from './cube2-outbound-auth.middleware'
+export {
+  isConnectError,
+  mapConnectErrorToHttpStatus,
+  formatConnectErrorMessage,
+} from './cube2-connect-error'

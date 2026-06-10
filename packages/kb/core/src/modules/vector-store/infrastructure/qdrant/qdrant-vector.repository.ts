@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@dangao/bun-server';
 import {
+  QdrantClient,
   type QdrantClientLike,
   QdrantCollectionService,
   QdrantVectorIndex,
@@ -71,8 +72,8 @@ export class QdrantVectorRepository {
 
   public constructor(
     @Inject(APP_CONFIG_TOKEN) private readonly config: AppConfig,
-    private readonly qdrantClient: QdrantClientLike,
-    qdrantCollectionService: QdrantCollectionService,
+    @Inject(QdrantClient) private readonly qdrantClient: QdrantClientLike,
+    @Inject(QdrantCollectionService) qdrantCollectionService: QdrantCollectionService,
   ) {
     this.vectorIndex = new QdrantVectorIndex(qdrantClient, qdrantCollectionService);
   }
@@ -159,6 +160,7 @@ export class QdrantVectorRepository {
   }
 
   public async search(params: QdrantVectorRepositorySearchParams): Promise<QdrantSearchResult[]> {
+    await this.ensureCollection();
     const hits = await this.vectorIndex.query({
       collectionName: this.config.qdrantCollectionName,
       dense: params.denseVector,

@@ -8,6 +8,7 @@ import {
   type Logger,
 } from '@dangao/bun-server'
 import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
+import { resolveKbRecordId } from '@/infra/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import { DocumentDirectoryEntity } from './document-directory.entity'
 
@@ -48,7 +49,8 @@ export class DocumentDirectoryRepositoryOrm extends BaseRepository<DocumentDirec
     const audit = this.getAuditInfo()
     const now = formatMysqlDateTimeShanghai()
 
-    const payload: Omit<DocumentDirectoryEntity, 'id'> = {
+    const payload: DocumentDirectoryEntity = {
+      id: resolveKbRecordId(undefined),
       tenant_id,
       deleted: 0n,
       create_by: audit.by,
@@ -70,10 +72,7 @@ export class DocumentDirectoryRepositoryOrm extends BaseRepository<DocumentDirec
     const sql = `INSERT INTO ${this.tableName} (${keys.join(', ')}) VALUES (${placeholders})`
     this.logger.info(`Creating directory record: ${String(payload.name)}`)
     await this.executeQuery(sql, values)
-
-    const lastIdResult = await this.executeQuery<{ id: number }>('SELECT LAST_INSERT_ID() as id')
-    const lastId = Array.isArray(lastIdResult) && lastIdResult[0] ? lastIdResult[0].id : null
-    return lastId !== null ? ((await this.findById(lastId)) as DocumentDirectoryEntity) : (payload as unknown as DocumentDirectoryEntity)
+    return (await this.findById(payload.id)) as DocumentDirectoryEntity
   }
 
   public override async findAll(): Promise<DocumentDirectoryEntity[]> {

@@ -11,6 +11,12 @@ export {
   type PlatformKbSourceDoc,
 } from './port/platform-source.port';
 export {
+  DOCUMENT_PLATFORM_SYNC_PORT_TOKEN,
+  type DocumentPlatformSyncPort,
+  type PlatformDocumentSyncContext,
+  parsePlatformDocumentSyncContext,
+} from './port/document-platform-sync.port';
+export {
   KnowledgeQueryPortImpl,
   mapKbIdsToDirectoryIds,
   mapSearchItemToKnowledgeHit,
@@ -26,3 +32,4 @@ export {
   type KbMysqlConfig,
 } from './infrastructure/orm/kb-mysql-database.service';
 export { RetrievalService } from './modules/vector-store/services/retrieval.service';
+export { createKbTenantContextMiddleware } from './infra/kb-tenant-context.middleware';

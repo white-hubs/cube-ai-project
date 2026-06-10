@@ -21,7 +21,12 @@ describe('PlatformSourceImportService', () => {
         },
       ]),
     )
-    const port: PlatformKbSourcePort = { listSourceDocs }
+    const port: PlatformKbSourcePort = {
+      listSourceDocs,
+      getSourceDocByExternalId: mock(() => Promise.resolve(null)),
+      getSourceDocByFileId: mock(() => Promise.resolve(null)),
+      getSourceDocByKnowledgeBaseId: mock(() => Promise.resolve(null)),
+    }
 
     const uploadDocument = mock(() =>
       Promise.resolve({
@@ -51,6 +56,9 @@ describe('PlatformSourceImportService', () => {
           { externalId: 'e2', fileName: 'bad.pdf', bytes: new Uint8Array([2]), mimeType: 'application/pdf' },
         ]),
       ),
+      getSourceDocByExternalId: mock(() => Promise.resolve(null)),
+      getSourceDocByFileId: mock(() => Promise.resolve(null)),
+      getSourceDocByKnowledgeBaseId: mock(() => Promise.resolve(null)),
     }
     let call = 0
     const documentService = {

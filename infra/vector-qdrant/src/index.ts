@@ -99,14 +99,25 @@ export class QdrantVectorIndex {
           ]
         : []),
     ];
-    const result = await client.query(params.collectionName, {
+    const queryPayload = {
       prefetch,
       query: {
         fusion: params.fusion ?? 'rrf',
       },
       limit: params.topK,
       with_payload: true,
-    });
+    };
+
+    let result;
+    try {
+      result = await client.query(params.collectionName, queryPayload);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return [];
+      }
+      throw error;
+    }
+
     return result.points.map((item) => ({
       id: String(item.id),
       score: item.score,

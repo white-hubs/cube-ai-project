@@ -50,7 +50,11 @@ export function createSessionContextMiddleware(holder: SessionContextHolder): Mi
     try {
       const headers = ctx.request.headers
       const tenantHeader = headers.get('tenant')
-      const tenantRaw = tenantHeader?.trim() ?? ''
+      const tenantFallback =
+        headers.get('x-tenant-id')?.trim() ||
+        headers.get('x-project-id')?.trim() ||
+        ''
+      const tenantRaw = tenantHeader?.trim() ?? tenantFallback
       const tenant = /^\d+$/.test(tenantRaw) ? tenantRaw : null
       const session: SessionContext = {
         uri: ctx.path,

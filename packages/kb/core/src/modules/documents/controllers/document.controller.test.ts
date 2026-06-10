@@ -90,6 +90,15 @@ describe('DocumentController', () => {
         tableChunkMode: 'window',
         textChunkMode: 'merge',
       },
+      {
+        chunkingOptions: {
+          separator: '***',
+          chunkSize: 300,
+          chunkOverlap: 20,
+          tableChunkMode: 'window',
+          textChunkMode: 'merge',
+        },
+      },
     ])
   })
 
@@ -119,9 +128,11 @@ describe('DocumentController', () => {
     const documentService = new FakeDocumentService()
     const controller = new DocumentController(documentService as never, null as never)
 
-    await controller.previewById('77')
+    await controller.previewById({
+      getBody: async () => ({}),
+    } as never, '77')
 
-    expect(documentService.previewDocumentCalls[0]).toEqual(['77'])
+    expect(documentService.previewDocumentCalls[0]).toEqual(['77', undefined])
   })
 
   test('lists document chunks and updates a chunk text', async () => {

@@ -225,6 +225,22 @@ describe('QdrantVectorIndex', () => {
     expect(qdrantClient.restClient.deleteCalls).toHaveLength(0);
   });
 
+  test('returns empty hits when collection query responds Not Found', async () => {
+    const qdrantClient = new FakeQdrantClient();
+    qdrantClient.restClient.query = async () => {
+      throw new Error('Not Found');
+    };
+    const index = new QdrantVectorIndex(qdrantClient, new QdrantCollectionService(qdrantClient));
+
+    const results = await index.query({
+      collectionName: 'missing-collection',
+      dense: [0.1, 0.2, 0.3],
+      topK: 5,
+    });
+
+    expect(results).toEqual([]);
+  });
+
   test('treats missing collection as no-op when deleting', async () => {
     const qdrantClient = new FakeQdrantClient();
     qdrantClient.restClient.getCollectionError = new Error('404 Not Found');

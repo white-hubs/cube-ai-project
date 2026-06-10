@@ -1,5 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, type AppConfig } from '../../../config/app.config'
+import type { DocumentPlatformSyncPort, PlatformDocumentSyncContext } from '../../../port/document-platform-sync.port'
+import { DOCUMENT_PLATFORM_SYNC_PORT_TOKEN } from '../../../port/document-platform-sync.port'
 import { DEFAULT_CHUNK_SEPARATOR } from '../../common/document-types'
 import type {
   ChunkPreviewItem,
@@ -43,6 +45,8 @@ export class DocumentService {
     private readonly qdrantVectorRepository: QdrantVectorRepository,
     private readonly documentChunkRepository: DocumentChunkRepositoryOrm,
     private readonly vectorizationService: VectorizationService,
+    @Inject(DOCUMENT_PLATFORM_SYNC_PORT_TOKEN)
+    private readonly documentPlatformSync: DocumentPlatformSyncPort,
   ) {}
 
   private parseHeadingPath(raw: string | string[] | undefined): string[] {
@@ -236,7 +240,12 @@ export class DocumentService {
     }
   }
 
-  public async uploadDocument(file: File, directoryId: string, chunkingOptions?: ChunkingOptions): Promise<UploadDocumentResult> {
+  public async uploadDocument(
+    file: File,
+    directoryId: string,
+    chunkingOptions?: ChunkingOptions,
+    presetDocumentId?: string,
+  ): Promise<UploadDocumentResult> {
     if (!(file instanceof File)) {
       throw new BadRequestException('file is required')
     }
@@ -258,6 +267,7 @@ export class DocumentService {
     })
 
     const document = await this.documentRepository.createDocument({
+      ...(presetDocumentId?.trim() ? { id: presetDocumentId.trim() } : {}),
       name: file.name,
       mime_type: file.type || 'application/octet-stream',
       extension,
@@ -369,7 +379,11 @@ export class DocumentService {
     }
   }
 
-  public async previewDocumentChunksById(documentId: string): Promise<ChunkPreviewResult> {
+  public async previewDocumentChunksById(
+    documentId: string,
+    syncContext?: PlatformDocumentSyncContext,
+  ): Promise<ChunkPreviewResult> {
+    await this.documentPlatformSync.ensureDocumentAvailable(documentId, syncContext)
     const document = await this.documentRepository.findById(documentId)
     if (!document) {
       throw new NotFoundException(`document not found: ${documentId}`)
@@ -433,7 +447,12 @@ export class DocumentService {
     await this.documentRepository.logicalDelete(documentId)
   }
 
-  public async reindexDocument(documentId: string, chunkingOptions?: ChunkingOptions): Promise<UploadDocumentResult> {
+  public async reindexDocument(
+    documentId: string,
+    chunkingOptions?: ChunkingOptions,
+    syncContext?: PlatformDocumentSyncContext,
+  ): Promise<UploadDocumentResult> {
+    await this.documentPlatformSync.ensureDocumentAvailable(documentId, syncContext)
     const document = await this.documentRepository.findById(documentId)
     if (!document) {
       throw new NotFoundException(`document not found: ${documentId}`)

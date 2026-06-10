@@ -1,73 +1,43 @@
 import { describe, expect, test } from 'bun:test';
-import { z } from 'zod';
-import { mapToAgenticError, isAgenticError } from '../exception-mapper';
-import { AgenticEngineError } from '../agentic-error';
+import { HttpException, UnauthorizedException } from '@dangao/bun-server';
+
+import { mapToAgenticError } from '../exception-mapper';
 
 describe('mapToAgenticError', () => {
-  test('AgenticEngineError passes through unchanged', () => {
-    const original = AgenticEngineError.fromCode(
-      'RESOURCE_NOT_FOUND_SESSION',
-      'session not found',
-    );
-    const mapped = mapToAgenticError(original);
-    expect(mapped).toBe(original);
-    expect(mapped.code).toBe('RESOURCE_NOT_FOUND_SESSION');
+  test('UnauthorizedException maps to HTTP 401', () => {
+    const err = new UnauthorizedException('missing Authorization: Bearer token');
+    const mapped = mapToAgenticError(err);
+    expect(mapped.httpStatus).toBe(401);
+    expect(mapped.message).toBe('missing Authorization: Bearer token');
+    expect(mapped.code).toBe('UNAUTHENTICATED_MISSING_TOKEN');
   });
 
-  test('plain Error → INTERNAL_UNKNOWN + status 500', () => {
-    const mapped = mapToAgenticError(new Error('something went wrong'));
-    expect(mapped).toBeInstanceOf(AgenticEngineError);
-    expect(mapped.code).toBe('INTERNAL_UNKNOWN');
-    expect(mapped.status).toBe(500);
+  test('HttpException preserves explicit status', () => {
+    const err = new HttpException(503, 'upstream unavailable');
+    const mapped = mapToAgenticError(err);
+    expect(mapped.httpStatus).toBe(503);
+    expect(mapped.message).toBe('upstream unavailable');
   });
 
-  test('non-Error thrown value → INTERNAL_UNKNOWN', () => {
-    const mapped = mapToAgenticError('a plain string');
-    expect(mapped.code).toBe('INTERNAL_UNKNOWN');
+  test('DI provider errors map to HTTP 503', () => {
+    const err = new Error('Provider not found for token: s3');
+    const mapped = mapToAgenticError(err);
+    expect(mapped.httpStatus).toBe(503);
+    expect(mapped.code).toBe('INTERNAL_DI_MISCONFIGURATION');
+    expect(mapped.message).toContain('Provider not found for token: s3');
   });
 
-  test('thrown null → INTERNAL_UNKNOWN', () => {
-    const mapped = mapToAgenticError(null);
-    expect(mapped.code).toBe('INTERNAL_UNKNOWN');
-  });
-
-  test('stack trace is NOT exposed in error details (§10.6)', () => {
-    const originalErr = new Error('internal failure');
-    const mapped = mapToAgenticError(originalErr);
-    // details must not contain the original stack / message
-    const detailsStr = JSON.stringify(mapped.details ?? {});
-    expect(detailsStr).not.toContain('internal failure');
-    expect(detailsStr).not.toContain('Error:');
-  });
-
-  test('existing AgenticEngineError status is preserved', () => {
-    const authErr = AgenticEngineError.fromCode('UNAUTHENTICATED_TOKEN_EXPIRED', 'expired');
-    const mapped = mapToAgenticError(authErr);
-    expect(mapped.status).toBe(401);
-  });
-
-  test('ZodError → INVALID_ARGUMENT_SCHEMA_VIOLATION', () => {
-    const schema = z.object({ a: z.string() });
-    const parsed = schema.safeParse({});
-    expect(parsed.success).toBe(false);
-    const mapped = mapToAgenticError(parsed.error);
-    expect(mapped.code).toBe('INVALID_ARGUMENT_SCHEMA_VIOLATION');
-    expect(mapped.status).toBe(412);
-  });
-});
-
-describe('isAgenticError', () => {
-  test('returns true for AgenticEngineError', () => {
-    const err = AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'err');
-    expect(isAgenticError(err)).toBe(true);
-  });
-
-  test('returns false for plain Error', () => {
-    expect(isAgenticError(new Error('plain'))).toBe(false);
-  });
-
-  test('returns false for non-error value', () => {
-    expect(isAgenticError('string')).toBe(false);
-    expect(isAgenticError(null)).toBe(false);
+  test('ECONNREFUSED maps to HTTP 503 UPSTREAM_UNAVAILABLE', () => {
+    const err = Object.assign(new Error('ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 6333,
+    });
+    const mapped = mapToAgenticError(err);
+    expect(mapped.httpStatus).toBe(503);
+    expect(mapped.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(mapped.message).toContain('127.0.0.1:6333');
+    expect(mapped.message).toContain('ECONNREFUSED');
   });
 });

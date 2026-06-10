@@ -42,7 +42,7 @@ const ADAPTER_NS = 'agentic.engine.adapter.observability';
  *   `info` 档仍保留 `llm_call_end`、`tool_call_*`、fallback 等「结果向」事件。
  */
 function mapEventTypeToLevel(
-  t: EngineEvent['type'],
+  t: EngineEvent['type'] | string,
 ): 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' {
   switch (t) {
     case 'error':
@@ -58,6 +58,12 @@ function mapEventTypeToLevel(
     case 'progress':
     case 'llm_call_start':
       return 'debug';
+    case 'knowledge_prefetch_skipped':
+      return 'debug';
+    case 'knowledge_prefetch_failed':
+      return 'warn';
+    case 'knowledge_prefetch_end':
+      return 'info';
     default:
       return 'info';
   }

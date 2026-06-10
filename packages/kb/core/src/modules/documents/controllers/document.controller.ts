@@ -18,6 +18,7 @@ import { MockableEndpoint } from '@/infra/mock-endpoint'
 import { DocumentService } from '../services/document.service'
 import type { ChunkingOptions, TableChunkMode, TextChunkMode } from '../../common/document-types'
 import { PlatformSourceImportService } from '../../ingestion/platform-source-import.service'
+import { parsePlatformDocumentSyncContext } from '../../../port/document-platform-sync.port'
 
 function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
   if (value === null || value === undefined || value === '') {
@@ -398,6 +399,7 @@ export class DocumentController {
     },
   })
   public async previewById(
+    @ContextParam() context: Context,
     @Param('id')
     @ApiParam({
       name: 'id',
@@ -408,7 +410,9 @@ export class DocumentController {
     })
     id: string,
   ) {
-    return this.documentService.previewDocumentChunksById(id)
+    const body = await context.getBody()
+    const payload = typeof body === 'object' && body !== null ? body as Record<string, unknown> : {}
+    return this.documentService.previewDocumentChunksById(id, parsePlatformDocumentSyncContext(payload))
   }
 
   /**
@@ -603,13 +607,18 @@ export class DocumentController {
   ) {
     const body = await context.getBody()
     const payload = typeof body === 'object' && body !== null ? body as Record<string, unknown> : {}
-    return this.documentService.reindexDocument(id, parseChunkingOptions({
+    const chunkingOptions = parseChunkingOptions({
       separator: payload.separator,
       chunkSize: payload.chunkSize,
       chunkOverlap: payload.chunkOverlap,
       tableChunkMode: payload.tableChunkMode,
       textChunkMode: payload.textChunkMode,
-    }))
+    })
+    return this.documentService.reindexDocument(
+      id,
+      chunkingOptions,
+      parsePlatformDocumentSyncContext(payload, chunkingOptions),
+    )
   }
 
   @POST('/import-from-platform')

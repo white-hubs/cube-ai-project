@@ -79,6 +79,20 @@ describe('createErrorResponseMiddleware', () => {
     expect(body.code).toBe('INTERNAL_UNKNOWN');
   });
 
+  test('UnauthorizedException → 401 with explicit message', async () => {
+    const { UnauthorizedException } = await import('@dangao/bun-server');
+    const ctx = makeCtx('aabbcc00112233445566778899aabbcc');
+    const result = await mw()(ctx, async () => {
+      throw new UnauthorizedException('missing Authorization: Bearer token');
+    });
+
+    expect(result.status).toBe(401);
+    const body = (await result.json()) as Record<string, unknown>;
+    expect(body.status).toBe(401);
+    expect(body.code).toBe('UNAUTHENTICATED_MISSING_TOKEN');
+    expect(body.message).toBe('missing Authorization: Bearer token');
+  });
+
   test('stack trace NOT in response body (§10.6 PII禁入)', async () => {
     const ctx = makeCtx('00000000000000000000000000000000');
     const result = await mw()(ctx, async () => {

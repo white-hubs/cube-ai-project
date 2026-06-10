@@ -1,6 +1,12 @@
 import { Inject, Injectable } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, type AppConfig } from '../../../config/app.config'
+import { runKbUpstreamStep } from '../../../infra/upstream-error'
 import type { ChunkType, RetrievalProfile, SearchItem } from '../../common/document-types'
+import {
+  DOCUMENT_PLATFORM_SYNC_PORT_TOKEN,
+  type DocumentPlatformSyncPort,
+  type PlatformDocumentSyncContext,
+} from '../../../port/document-platform-sync.port'
 import { EmbeddingProvider } from '../infrastructure/embeddings/embedding-provider'
 import type {
   EmbeddingProvider as EmbeddingProviderContract,
@@ -33,6 +39,7 @@ export interface RetrievalMultiDocumentSpec {
 export interface RetrievalMultiDocumentSearchParams {
   query: string
   documents: RetrievalMultiDocumentSpec[]
+  platformSync?: PlatformDocumentSyncContext
 }
 
 export interface RetrievalSearchResult {
@@ -72,6 +79,8 @@ export class RetrievalService {
     private readonly qdrantVectorRepository: QdrantVectorRepository,
     private readonly documentRepository: DocumentRepositoryOrm,
     private readonly documentChunkRepository: DocumentChunkRepositoryOrm,
+    @Inject(DOCUMENT_PLATFORM_SYNC_PORT_TOKEN)
+    private readonly documentPlatformSync?: DocumentPlatformSyncPort,
   ) {}
 
   private normalizeQuery(query: string, maxQueryLength: number): string {
@@ -603,23 +612,37 @@ export class RetrievalService {
    * 最终按请求中 `documents` 顺序拼接各文档结果。
    */
   public async searchMultiByDocuments(params: RetrievalMultiDocumentSearchParams): Promise<RetrievalSearchResult> {
+    if (this.documentPlatformSync) {
+      await runKbUpstreamStep('platform-document-sync', () =>
+        Promise.all(
+          params.documents.map((spec) =>
+            this.documentPlatformSync!.ensureDocumentAvailable(spec.documentId, params.platformSync),
+          ),
+        ),
+      )
+    }
+
     const config = this.config
     const normalizedQuery = this.normalizeQuery(params.query, config.retrievalMaxQueryLength)
     const queryProfile = resolveQueryRetrievalProfile(normalizedQuery)
-    const [queryVector] = await this.embeddingProvider.embed([normalizedQuery], 'query', [{ retrievalProfile: queryProfile }])
+    const [queryVector] = await runKbUpstreamStep('embedding', () =>
+      this.embeddingProvider.embed([normalizedQuery], 'query', [{ retrievalProfile: queryProfile }]),
+    )
     if (!queryVector || queryVector.dense.length === 0) {
       return { items: [] }
     }
 
-    const itemGroups = await Promise.all(
-      params.documents.map((spec) => {
-        const topK = typeof spec.topK === 'number' ? spec.topK : 5
-        return this.searchSingleDocument(normalizedQuery, params.query, queryVector, {
-          topK,
-          documentId: spec.documentId,
-          similarityThreshold: spec.similarityThreshold,
-        })
-      }),
+    const itemGroups = await runKbUpstreamStep('vector-search', () =>
+      Promise.all(
+        params.documents.map((spec) => {
+          const topK = typeof spec.topK === 'number' ? spec.topK : 5
+          return this.searchSingleDocument(normalizedQuery, params.query, queryVector, {
+            topK,
+            documentId: spec.documentId,
+            similarityThreshold: spec.similarityThreshold,
+          })
+        }),
+      ),
     )
     const items = itemGroups.flat()
     await this.recordRecallCounts(items)

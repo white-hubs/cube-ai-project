@@ -34,9 +34,9 @@ function resolveKbEmbeddingModel(
 }
 
 function resolveKbEmbeddingTenant(): number {
-  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? '0';
+  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? '1';
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 1;
 }
 
 /** Full kb HTTP surface for `/kb/*` domain prefix (AiKbModule + ORM bootstrap). */
