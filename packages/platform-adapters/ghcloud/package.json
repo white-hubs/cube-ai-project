@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "ghcloud thin platform adapter: JWT RS256 auth, tenant validation, session context (HTTP+gRPC).",
+  "description": "Platform Port adapters bridging agent-engine to ghcloud (Flow / Knowledge / LLM Catalog) plus JWT/session/gRPC.",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -11,6 +11,22 @@
     ".": {
       "import": "./src/index.ts",
       "types": "./src/index.ts"
+    },
+    "./tokens": {
+      "import": "./src/tokens.ts",
+      "types": "./src/tokens.ts"
+    },
+    "./flow": {
+      "import": "./src/flow/flow.module.ts",
+      "types": "./src/flow/flow.module.ts"
+    },
+    "./knowledge": {
+      "import": "./src/knowledge/knowledge.module.ts",
+      "types": "./src/knowledge/knowledge.module.ts"
+    },
+    "./catalog": {
+      "import": "./src/catalog/catalog.module.ts",
+      "types": "./src/catalog/catalog.module.ts"
     }
   },
   "scripts": {
@@ -23,7 +39,8 @@
     "@connectrpc/connect-node": "catalog:",
     "@cube-ai/contracts": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
-    "@dangao/nacos-client": "catalog:"
+    "@dangao/nacos-client": "catalog:",
+    "lru-cache": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

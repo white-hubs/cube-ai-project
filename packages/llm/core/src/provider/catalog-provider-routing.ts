@@ -36,6 +36,19 @@ export function isDashscopeText2Image(cfg: LlmModelRuntimeConfig): boolean {
   return cfg.endpointType === 'dashscope_text2image';
 }
 
+export function isDashscopeNativeChat(cfg: LlmModelRuntimeConfig): boolean {
+  return cfg.endpointType === 'dashscope';
+}
+
+export function isVolcengineArk(cfg: LlmModelRuntimeConfig): boolean {
+  return cfg.endpointType === 'volcengine_ark';
+}
+
+/** Seed3D 等 3D 生成；对话类豆包/DeepSeek 在中台通常标为 endpointType=openai。 */
+export function isVolcengineArk3dGeneration(cfg: LlmModelRuntimeConfig): boolean {
+  return isVolcengineArk(cfg) && cfg.modelTypes.includes('3d_generation');
+}
+
 export function isDoubaoMultimodalEmbed(cfg: LlmModelRuntimeConfig): boolean {
   return (
     cfg.endpointType === 'volcengine_ark' &&

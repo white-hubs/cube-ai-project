@@ -372,6 +372,7 @@
         "@cube-ai/contracts": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "@dangao/nacos-client": "catalog:",
+        "lru-cache": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
