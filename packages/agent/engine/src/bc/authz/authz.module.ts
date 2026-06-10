@@ -10,6 +10,7 @@ import Redis from 'ioredis';
 import { SessionSseEmitter, SseExtModule } from '@cube-ai/bun-server-ext-sse';
 import { SfidModule } from '../../infra/sfid/sfid.module';
 import { SfidService } from '../../infra/sfid/sfid.service';
+import { createMysqlPoolFromEnv } from '../../infra/mysql/mysql-pool.factory';
 import { GrantService, createGrantRepository } from './grant.service';
 import { GrantController } from './grant.controller';
 import { bridgeGrantRequestToSse } from './grant-sse-bridge';
@@ -31,16 +32,26 @@ export const AUTHZ_TOKENS = {
 /** @dangao/bun-server passes the DI container as the sole argument to useFactory. */
 type DiContainer = { resolve: (token: unknown) => unknown };
 
+function createAuthzMysqlPoolFromEnv(): Pool | null {
+  const fromUrl = createMysqlPoolFromEnv();
+  if (fromUrl) return fromUrl;
+  const dsn = process.env.AGENTIC_ENGINE_MYSQL_DSN?.trim();
+  if (!dsn) return null;
+  return createPool({
+    uri: dsn,
+    waitForConnections: true,
+    connectionLimit: 8,
+    supportBigNumbers: true,
+    bigNumberStrings: true,
+  });
+}
+
 @Module({
   imports: [SfidModule, SseExtModule],
   providers: [
     {
       provide: AUTHZ_MYSQL_POOL,
-      useFactory: (): Pool | null => {
-        const dsn = process.env.AGENTIC_ENGINE_MYSQL_DSN;
-        if (!dsn) return null;
-        return createPool({ uri: dsn, waitForConnections: true, connectionLimit: 8 });
-      },
+      useFactory: (): Pool | null => createAuthzMysqlPoolFromEnv(),
     },
     {
       provide: AUTHZ_TOKENS.REDIS_CLIENT,

@@ -277,7 +277,7 @@ const PLATFORM_FLOW_INVOKE_DESCRIPTOR_RAW = {
   name:          'platform.flow.invoke',
   displayName:   'Platform flow invoke',
   description:
-    'Invokes an AI middle-platform flow and returns the immediate result or a job-tracked response.',
+    'Invokes an AI middle-platform flow synchronously. Pass the user utterance in variables.input (preferred).',
   isPreset:      true,
   version:       '0.1.0',
   meta: {
@@ -299,8 +299,15 @@ const PLATFORM_FLOW_INVOKE_DESCRIPTOR_RAW = {
       },
       variables: {
         type:                 'object',
-        description:          'Flow input variables; shape depends on the flow definition',
+        description:
+          'Flow runtime variables. For chat-style flows put the user message in input (string). Server also accepts message, query, question, prompt, text as aliases for input. Other keys are flow-specific tweaks.',
         additionalProperties: true,
+        properties: {
+          input: {
+            type:        'string',
+            description: 'Primary user message text mapped to Langflow input_value',
+          },
+        },
       },
     },
     required: ['flowId'],

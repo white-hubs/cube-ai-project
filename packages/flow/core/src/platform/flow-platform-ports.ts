@@ -12,6 +12,16 @@ import { tenantContextAls } from '@cube-ai/server-shared';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowExecutionService } from '../flows/flow-execution.service';
 
+/** Resolve user text for Langflow `input_value`; LLM tools often guess non-standard keys. */
+export function resolveFlowInvokeInput(variables: Record<string, unknown> | undefined): string {
+  if (!variables) return '';
+  for (const key of ['input', 'message', 'query', 'question', 'prompt', 'text'] as const) {
+    const v = variables[key];
+    if (typeof v === 'string') return v;
+  }
+  return '';
+}
+
 @Injectable()
 export class FlowInvokerPortImpl implements FlowInvokerPort {
   constructor(private readonly execution: FlowExecutionService) {}
@@ -19,12 +29,7 @@ export class FlowInvokerPortImpl implements FlowInvokerPort {
   async invoke(req: FlowInvokeRequest, signal: AbortSignal): Promise<FlowInvokeSyncResponse> {
     void signal;
     const tenantId = String(req.tenant);
-    const input =
-      typeof req.variables?.['input'] === 'string'
-        ? req.variables['input']
-        : typeof req.variables?.['message'] === 'string'
-          ? req.variables['message']
-          : '';
+    const input = resolveFlowInvokeInput(req.variables);
     const body = { ...(req.variables ?? {}), input, stream: false };
 
     return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, async () => {

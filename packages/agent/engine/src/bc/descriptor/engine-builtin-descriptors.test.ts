@@ -21,5 +21,9 @@ describe('engine builtin descriptors', () => {
     expect(schema.properties).toHaveProperty('flowId');
     expect(schema.properties).toHaveProperty('variables');
     expect(schema.properties).not.toHaveProperty('flowCode');
+    const vars = schema.properties!.variables as { description?: string; properties?: Record<string, unknown> };
+    expect(vars.description).toContain('input');
+    expect(vars.properties).toHaveProperty('input');
+    expect(invoke!.description).toContain('variables.input');
   });
 });

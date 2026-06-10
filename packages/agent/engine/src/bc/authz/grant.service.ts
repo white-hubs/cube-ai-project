@@ -313,8 +313,16 @@ export class GrantService {
       if (this.redis) {
         const pending = await this.redis.get(RedisKeys.authzGrantRequest(input.grantRequestId));
         if (!pending) {
-          const recheck = await this.findActiveGrant(input.userId, input.toolName, { tenant: input.tenant });
-          return recheck ? 'APPROVED' : 'DENIED';
+          for (let attempt = 0; attempt < 5; attempt += 1) {
+            const recheck = await this.findActiveGrant(input.userId, input.toolName, {
+              tenant: input.tenant,
+            });
+            if (recheck) return 'APPROVED';
+            if (attempt < 4) {
+              await delay(Math.min(pollMs, 100));
+            }
+          }
+          return 'DENIED';
         }
       }
 
