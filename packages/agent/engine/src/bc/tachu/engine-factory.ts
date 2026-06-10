@@ -143,6 +143,18 @@ function truncateText(value: string, maxChars: number): string {
   return `${value.slice(0, Math.max(0, maxChars - 1))}…`;
 }
 
+/**
+ * Intent 分类只需用工具名 + 一句话用途做 include/exclude 路由判断，不需要完整的
+ * 工具说明（MCP 工具的中文描述往往很长）。压成首行 + 截断可显著降低 intent
+ * promptTokens 与模型在 intent 上的思考/输出量。
+ */
+const INTENT_TOOL_DESCRIPTION_MAX_CHARS = 160;
+
+function summarizeToolDescriptionForIntent(description: string): string {
+  const firstLine = description.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
+  return truncateText(firstLine, INTENT_TOOL_DESCRIPTION_MAX_CHARS);
+}
+
 function hasImageInput(content: MessageContentV1 | undefined): boolean {
   return (content?.blocks ?? []).some((block) => block.type === 'image_ref');
 }
@@ -741,7 +753,10 @@ export class EngineFactory {
     }>;
     const intentTools = registeredTools
       .filter((t) => t.description)
-      .map((t) => ({ name: t.name, description: t.description as string }));
+      .map((t) => ({
+        name: t.name,
+        description: summarizeToolDescriptionForIntent(t.description as string),
+      }));
     const intentSkills = registeredSkills
       .filter((s) => s.description)
       .map((s) => ({

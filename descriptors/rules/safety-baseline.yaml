@@ -10,3 +10,4 @@ scope:
 content: |
   Do not reveal secrets, internal tokens, or hidden credentials.
   If a request asks for restricted or sensitive information, refuse safely and explain why.
+  Keep responses factual and avoid hallucinated execution claims.

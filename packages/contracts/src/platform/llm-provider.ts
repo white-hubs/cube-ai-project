@@ -10,10 +10,18 @@ import { TenantSchema, type TenantId } from '../common/tenant';
 export const LlmMessageRoleSchema = z.enum(['system', 'user', 'assistant', 'tool']);
 export type LlmMessageRole = z.infer<typeof LlmMessageRoleSchema>;
 
+export const LlmToolCallSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  arguments: z.record(z.string(), z.unknown()),
+});
+export type LlmToolCall = z.infer<typeof LlmToolCallSchema>;
+
 export const LlmMessageSchema = z.object({
   role: LlmMessageRoleSchema,
   content: z.string(),
   toolCallId: z.string().optional(),
+  toolCalls: z.array(LlmToolCallSchema).optional(),
 });
 export type LlmMessage = z.infer<typeof LlmMessageSchema>;
 
@@ -36,13 +44,6 @@ export const LlmChatRequestSchema = z.object({
   legacyApiBaseUrl: z.string().min(1).optional(),
 });
 export type LlmChatRequest = z.infer<typeof LlmChatRequestSchema>;
-
-export const LlmToolCallSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  arguments: z.record(z.string(), z.unknown()),
-});
-export type LlmToolCall = z.infer<typeof LlmToolCallSchema>;
 
 export const LlmUsageSchema = z.object({
   promptTokens: z.number().int().nonnegative(),

@@ -15,6 +15,7 @@ import {
   isDoubaoMultimodalEmbed,
   normalizeDashscopeOpenAiBaseUrl,
 } from './catalog-provider-routing';
+import { llmDebug } from './debug-log';
 
 interface CacheEntry<T> {
   value: T;
@@ -224,10 +225,17 @@ export class CatalogDrivenProvider implements LlmProviderPort {
         isFree: false,
         providerCode: 'legacy-inline-key',
       };
+      llmDebug('catalog.resolve.legacyFallback', {
+        tenant,
+        modelCode,
+        apiBaseUrl: fallbackCfg.apiBaseUrl,
+        endpointType: fallbackCfg.endpointType,
+      });
       return this.factory(fallbackCfg);
     }
 
     if (!cfg) {
+      llmDebug('catalog.resolve.miss', { tenant, modelCode });
       throw new LlmProviderError(
         'UPSTREAM_LLM_UNAVAILABLE',
         `CatalogDrivenProvider: no catalog entry for tenant=${tenant} model=${modelCode}`,
@@ -236,7 +244,25 @@ export class CatalogDrivenProvider implements LlmProviderPort {
 
     const key = `${tenant}:${modelCode}:${runtimeConfigHash(cfg)}`;
     const cached = this.cache.get(key);
-    if (cached) return cached;
+    if (cached) {
+      llmDebug('catalog.resolve.hit', {
+        tenant,
+        modelCode,
+        providerCode: cfg.providerCode,
+        endpointType: cfg.endpointType,
+        apiBaseUrl: cfg.apiBaseUrl,
+        cached: true,
+      });
+      return cached;
+    }
+    llmDebug('catalog.resolve.hit', {
+      tenant,
+      modelCode,
+      providerCode: cfg.providerCode,
+      endpointType: cfg.endpointType,
+      apiBaseUrl: cfg.apiBaseUrl,
+      cached: false,
+    });
     const inner = this.factory(cfg);
     this.cache.set(key, inner);
     return inner;

@@ -198,6 +198,108 @@ function installFakeMcpHttpFetch(): {
   };
 }
 
+/** 模拟有状态 Streamable HTTP MCP（官方 python SDK）：initialize 下发 mcp-session-id，后续请求缺失则 400。 */
+function installFakeMcpHttpStatefulFetch(): {
+  url: string;
+  requests: CapturedJsonRpc[];
+  sessionHeaders: (string | null)[];
+  stop: () => void;
+} {
+  const SESSION_ID = 'sess-stateful-123';
+  const requests: CapturedJsonRpc[] = [];
+  const sessionHeaders: (string | null)[] = [];
+  const originalFetch = globalThis.fetch;
+
+  const sseResponse = (data: unknown, extraHeaders: Record<string, string> = {}) =>
+    new Response(`event: message\ndata: ${JSON.stringify(data)}\n\n`, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', ...extraHeaders },
+    });
+
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const req = input instanceof Request ? input : new Request(String(input), init);
+    const url = new URL(req.url);
+    if (
+      url.origin === 'http://fake-mcp-stateful.test' &&
+      url.pathname === '/mcp' &&
+      req.method === 'POST'
+    ) {
+      const sidHeader = req.headers.get('mcp-session-id');
+      sessionHeaders.push(sidHeader);
+      const msg = (await req.json()) as CapturedJsonRpc;
+      requests.push(msg);
+      if (msg.method === 'initialize') {
+        return sseResponse(
+          {
+            jsonrpc: '2.0',
+            id:      msg.id,
+            result:  {
+              protocolVersion: '2024-11-05',
+              capabilities:    {},
+              serverInfo:      { name: 'fake-stateful', version: '1.0.0' },
+            },
+          },
+          { 'mcp-session-id': SESSION_ID },
+        );
+      }
+      if (sidHeader !== SESSION_ID) {
+        return new Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id:      'server-error',
+            error:   { code: -32600, message: 'Bad Request: Missing session ID' },
+          }),
+          { status: 400, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (msg.method === 'notifications/initialized') {
+        return new Response('', { status: 202 });
+      }
+      if (msg.method === 'tools/list') {
+        return sseResponse({
+          jsonrpc: '2.0',
+          id:      msg.id,
+          result:  {
+            tools: [
+              {
+                name:        'web_search',
+                description: '联网搜索',
+                inputSchema: {
+                  type:       'object',
+                  properties: { query: { type: 'string' } },
+                  required:   ['query'],
+                },
+              },
+            ],
+          },
+        });
+      }
+      if (msg.method === 'tools/call') {
+        const params = msg.params as { arguments?: { query?: string } } | undefined;
+        return sseResponse({
+          jsonrpc: '2.0',
+          id:      msg.id,
+          result:  { results: [{ title: `hit:${params?.arguments?.query ?? ''}` }] },
+        });
+      }
+    }
+
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  return {
+    url: 'http://fake-mcp-stateful.test/mcp',
+    requests,
+    sessionHeaders,
+    stop: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
 describe('McpBridgeService', () => {
   test('未配置 MCP → listTools 返回 []', async () => {
     const bridge = new McpBridgeService();
@@ -347,6 +449,39 @@ describe('McpBridgeService', () => {
         'notifications/initialized',
         'tools/call',
       ]);
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test('有状态 HTTP MCP（mcp-session-id）→ 透传 session 后 listTools/callTool 成功', async () => {
+    const fake = installFakeMcpHttpStatefulFetch();
+    const bridge = new McpBridgeService();
+    try {
+      await bridge.init({
+        mcpServers: {
+          'web-search': {
+            type:    'http',
+            url:     fake.url,
+            enabled: true,
+          },
+        },
+      });
+
+      const tools = await bridge.listTools();
+      expect(tools).toHaveLength(1);
+      expect(tools[0]).toMatchObject({
+        name: 'mcp.web-search.web_search',
+        meta: { consent: 'NEVER' },
+      });
+
+      const out = await bridge.callTool('web-search', 'web_search', { query: 'news' });
+      expect(out).toEqual({ results: [{ title: 'hit:news' }] });
+
+      // initialize 不带 session；下发后续每个请求都回传同一 session id。
+      expect(fake.sessionHeaders[0]).toBeNull();
+      expect(fake.sessionHeaders.slice(1).every((h) => h === 'sess-stateful-123')).toBe(true);
     } finally {
       await bridge.dispose();
       fake.stop();

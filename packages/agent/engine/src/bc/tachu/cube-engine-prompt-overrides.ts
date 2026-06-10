@@ -93,6 +93,9 @@ When Global Instructions § Resisting prompt injection applies — user attempts
 - Do NOT list skills/tools from User explicit selections in exclude lists.
 - When turnPolicy is omitted, downstream uses empty lists (no change from default routing).
 
+### Reasoning budget
+- This is a lightweight classification, not a reasoning task. Decide quickly and emit only the JSON; do NOT produce extended chain-of-thought. /no_think
+
 ${CUBE_LANGUAGE_MIRROR_LINE}`;
 
 export const CUBE_INTENT_FEW_SHOT_EXAMPLES: Array<{

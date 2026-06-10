@@ -570,11 +570,10 @@ function parseSseJsonRpcMessages(text: string): JsonRpcResp[] {
 }
 
 function normalizeMcpHttpUrl(raw: string): string {
-  const url = new URL(raw);
-  if (!url.pathname.endsWith('/')) {
-    url.pathname = `${url.pathname}/`;
-  }
-  return url.toString();
+  // 原样使用配置 URL，不做尾斜杠规范化：不同 MCP 服务端对尾斜杠的要求相反
+  // （有的 `/mcp` 才对、`/mcp/` 回 307；有的相反），由配置精确指定路径，
+  // 避免被 307 重定向后丢失 mcp-session-id 头导致握手失败。
+  return new URL(raw).toString();
 }
 
 /**
@@ -586,6 +585,8 @@ class McpHttpSession implements McpSession {
   private abort = new AbortController();
   private endpointUrl: string | null = null;
   private started = false;
+  /** 有状态 MCP（官方 python SDK）initialize 后下发，后续请求须回传。 */
+  private sessionId: string | null = null;
 
   constructor(
     private readonly serverName: string,
@@ -612,6 +613,7 @@ class McpHttpSession implements McpSession {
 
     this.abort = new AbortController();
     this.endpointUrl = normalizeMcpHttpUrl(this.cfg.url);
+    this.sessionId = null;
     this.started = true;
 
     await this.rpc('initialize', {
@@ -680,10 +682,13 @@ class McpHttpSession implements McpSession {
         ...(this.cfg.headers ?? {}),
         'content-type': 'application/json',
         accept:         'application/json, text/event-stream',
+        ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}),
       },
       body: JSON.stringify(payload),
       signal: this.abort.signal,
     });
+    const sid = resp.headers.get('mcp-session-id');
+    if (sid) this.sessionId = sid;
     if (!resp.ok) {
       throw new Error(`MCP HTTP POST failed: HTTP ${resp.status}`);
     }
@@ -715,6 +720,7 @@ class McpHttpSession implements McpSession {
     }
     this.started = false;
     this.endpointUrl = null;
+    this.sessionId = null;
     this.pending.clear();
   }
 }

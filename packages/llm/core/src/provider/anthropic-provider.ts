@@ -3,8 +3,10 @@ import type {
   LlmChatResponse,
   LlmEmbedRequest,
   LlmEmbedResult,
+  LlmMessage,
   LlmProviderPort,
   LlmStreamChunk,
+  LlmToolCall,
 } from '@cube-ai/contracts';
 import { LlmProviderError } from './openai-compat-provider';
 
@@ -27,7 +29,8 @@ export class AnthropicProvider implements LlmProviderPort {
 
   async chat(req: LlmChatRequest, signal?: AbortSignal): Promise<LlmChatResponse> {
     const url = `${normalizeBaseUrl(this.config.baseURL)}/v1/messages`;
-    const { system, messages } = splitSystemMessage(req.messages);
+    const { system, messages } = messagesToAnthropic(req.messages);
+    const tools = toolsToAnthropic(req.tools);
     const body: Record<string, unknown> = {
       model: this.config.model,
       messages,
@@ -36,6 +39,7 @@ export class AnthropicProvider implements LlmProviderPort {
     };
     if (system) body.system = system;
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (tools?.length) body.tools = tools;
 
     const response = await this.fetchImpl(url, {
       method: 'POST',
@@ -52,7 +56,8 @@ export class AnthropicProvider implements LlmProviderPort {
 
   async *chatStream(req: LlmChatRequest, signal?: AbortSignal): AsyncIterable<LlmStreamChunk> {
     const url = `${normalizeBaseUrl(this.config.baseURL)}/v1/messages`;
-    const { system, messages } = splitSystemMessage(req.messages);
+    const { system, messages } = messagesToAnthropic(req.messages);
+    const tools = toolsToAnthropic(req.tools);
     const body: Record<string, unknown> = {
       model: this.config.model,
       messages,
@@ -61,6 +66,7 @@ export class AnthropicProvider implements LlmProviderPort {
     };
     if (system) body.system = system;
     if (req.temperature !== undefined) body.temperature = req.temperature;
+    if (tools?.length) body.tools = tools;
 
     const response = await this.fetchImpl(url, {
       method: 'POST',
@@ -75,8 +81,9 @@ export class AnthropicProvider implements LlmProviderPort {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    const toolBuf = new Map<number, { id: string; name: string; json: string }>();
     let finishReason: LlmChatResponse['finishReason'] = 'stop';
-    let outputTokens = 0;
+    let usage: LlmChatResponse['usage'];
 
     while (true) {
       const { done, value } = await reader.read();
@@ -105,26 +112,74 @@ export class AnthropicProvider implements LlmProviderPort {
 
         const evtType = evt.type ?? currentEvent;
 
-        if (evtType === 'content_block_delta') {
+        if (evtType === 'message_start') {
+          const inputTokens = (evt as AnthropicMessageStart).message?.usage?.input_tokens ?? 0;
+          const outputTokens = (evt as AnthropicMessageStart).message?.usage?.output_tokens ?? 0;
+          if (inputTokens || outputTokens) {
+            usage = {
+              promptTokens: inputTokens,
+              completionTokens: outputTokens,
+              totalTokens: inputTokens + outputTokens,
+            };
+          }
+        } else if (evtType === 'content_block_start') {
+          const block = (evt as AnthropicContentBlockStart).content_block;
+          if (block?.type === 'tool_use') {
+            toolBuf.set((evt as AnthropicContentBlockStart).index, {
+              id: block.id,
+              name: block.name,
+              json: '',
+            });
+          }
+        } else if (evtType === 'content_block_delta') {
           const delta = (evt as AnthropicContentBlockDelta).delta;
           if (delta?.type === 'text_delta' && delta.text) {
             yield { type: 'text-delta', delta: delta.text };
+          } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
+            const slot = toolBuf.get((evt as AnthropicContentBlockDelta).index);
+            if (slot) slot.json += delta.partial_json;
+            yield {
+              type: 'tool-call-delta',
+              index: (evt as AnthropicContentBlockDelta).index,
+              argumentsDelta: delta.partial_json,
+            };
+          } else if (delta?.type === 'thinking_delta') {
+            const thinking = (delta as { thinking?: string }).thinking;
+            if (typeof thinking === 'string' && thinking.length > 0) {
+              yield { type: 'reasoning-delta', delta: thinking };
+            }
+          }
+        } else if (evtType === 'content_block_stop') {
+          const slot = toolBuf.get((evt as AnthropicContentBlockStop).index);
+          if (slot?.name) {
+            let args: Record<string, unknown>;
+            try {
+              args = JSON.parse(slot.json || '{}') as Record<string, unknown>;
+            } catch {
+              throw new LlmProviderError('UPSTREAM_LLM_INVALID_INPUT', 'Anthropic tool input JSON 非法');
+            }
+            yield {
+              type: 'tool-call-complete',
+              call: { id: slot.id, name: slot.name, arguments: args },
+            };
           }
         } else if (evtType === 'message_delta') {
           const d = (evt as AnthropicMessageDelta).delta;
-          if (d?.stop_reason) {
-            finishReason = mapStopReason(d.stop_reason);
+          if (d?.stop_reason) finishReason = mapStopReason(d.stop_reason);
+          const outputTokens = (evt as AnthropicMessageDelta).usage?.output_tokens;
+          if (outputTokens !== undefined) {
+            const promptTokens = usage?.promptTokens ?? 0;
+            usage = {
+              promptTokens,
+              completionTokens: outputTokens,
+              totalTokens: promptTokens + outputTokens,
+            };
           }
-          const usage = (evt as AnthropicMessageDelta).usage;
-          if (usage?.output_tokens) outputTokens = usage.output_tokens;
-        } else if (evtType === 'message_start') {
-          const inputTokens = (evt as AnthropicMessageStart).message?.usage?.input_tokens ?? 0;
-          if (inputTokens) outputTokens = inputTokens;
         }
       }
     }
 
-    yield { type: 'finish', finishReason };
+    yield { type: 'finish', finishReason, usage };
   }
 
   async embed(_req: LlmEmbedRequest, _signal?: AbortSignal): Promise<LlmEmbedResult[]> {
@@ -135,28 +190,85 @@ export class AnthropicProvider implements LlmProviderPort {
   }
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+// ── Anthropic message / tool mapping (aligned with cube-agentic-engine) ─────
 
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: string;
+interface AnthropicTool {
+  name: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
 }
 
-function splitSystemMessage(messages: LlmChatRequest['messages']): {
+type AnthropicContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+interface AnthropicMessageParam {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
+
+function toolsToAnthropic(tools: LlmChatRequest['tools']): AnthropicTool[] | undefined {
+  if (!tools?.length) return undefined;
+  return tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: normalizeInputSchema(t.inputSchema ?? {}),
+  }));
+}
+
+function normalizeInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  if (schema.type === 'object') return schema;
+  return { type: 'object', ...schema };
+}
+
+function messagesToAnthropic(messages: LlmMessage[]): {
   system: string | undefined;
-  messages: AnthropicMessage[];
+  messages: AnthropicMessageParam[];
 } {
-  let system: string | undefined;
-  const out: AnthropicMessage[] = [];
+  const sys: string[] = [];
+  const out: AnthropicMessageParam[] = [];
+
   for (const m of messages) {
     if (m.role === 'system') {
-      system = system ? `${system}\n${m.content}` : m.content;
-    } else if (m.role === 'user' || m.role === 'assistant') {
-      out.push({ role: m.role, content: m.content });
+      sys.push(m.content);
+      continue;
     }
-    // tool messages not mapped — Anthropic uses tool_result blocks; skip for now
+    if (m.role === 'user') {
+      out.push({ role: 'user', content: m.content });
+    } else if (m.role === 'assistant') {
+      const blocks: AnthropicContentBlock[] = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      if (m.toolCalls?.length) {
+        for (const tc of m.toolCalls) {
+          blocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.name,
+            input: tc.arguments,
+          });
+        }
+      }
+      const first = blocks[0];
+      out.push({
+        role: 'assistant',
+        content: blocks.length === 1 && first?.type === 'text' ? first.text : blocks,
+      });
+    } else if (m.role === 'tool') {
+      out.push({
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: m.toolCallId ?? '',
+            content: m.content,
+          },
+        ],
+      });
+    }
   }
-  return { system, messages: out };
+
+  return { system: sys.length ? sys.join('\n\n') : undefined, messages: out };
 }
 
 function anthropicHeaders(apiKey: string): Record<string, string> {
@@ -171,19 +283,48 @@ function normalizeBaseUrl(baseURL: string): string {
   return baseURL.replace(/\/+$/, '');
 }
 
-// ── Response mapping ──────────────────────────────────────────────────────────
+// ── Response mapping ────────────────────────────────────────────────────────
 
 interface AnthropicMessagesResponse {
-  content?: Array<{ type: string; text?: string }>;
+  content?: Array<{
+    type: string;
+    text?: string;
+    id?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+    thinking?: string;
+  }>;
   stop_reason?: string | null;
   usage?: { input_tokens?: number; output_tokens?: number };
 }
 
 function mapNonStreamResponse(raw: AnthropicMessagesResponse): LlmChatResponse {
-  const textParts = (raw.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '');
-  const content = textParts.join('');
+  let text = '';
+  let reasoningText = '';
+  const toolCalls: LlmToolCall[] = [];
+
+  for (const block of raw.content ?? []) {
+    if (block.type === 'text') {
+      text += block.text ?? '';
+    } else if (block.type === 'thinking') {
+      const t = block.thinking;
+      if (typeof t === 'string' && t.length > 0) reasoningText += t;
+    } else if (block.type === 'tool_use') {
+      toolCalls.push({
+        id: block.id ?? '',
+        name: block.name ?? '',
+        arguments:
+          typeof block.input === 'object' && block.input !== null && !Array.isArray(block.input)
+            ? block.input
+            : {},
+      });
+    }
+  }
+
   return {
-    content,
+    content: text,
+    ...(reasoningText.length > 0 ? { reasoningContent: reasoningText } : {}),
+    ...(toolCalls.length ? { toolCalls } : {}),
     finishReason: mapStopReason(raw.stop_reason),
     usage: raw.usage
       ? {
@@ -198,6 +339,7 @@ function mapNonStreamResponse(raw: AnthropicMessagesResponse): LlmChatResponse {
 function mapStopReason(raw: string | null | undefined): LlmChatResponse['finishReason'] {
   switch (raw) {
     case 'end_turn':
+    case 'stop_sequence':
       return 'stop';
     case 'max_tokens':
       return 'length';
@@ -214,10 +356,21 @@ interface AnthropicStreamEvent {
   type?: string;
 }
 
+interface AnthropicContentBlockStart extends AnthropicStreamEvent {
+  type: 'content_block_start';
+  index: number;
+  content_block?: { type: string; id: string; name: string };
+}
+
 interface AnthropicContentBlockDelta extends AnthropicStreamEvent {
   type: 'content_block_delta';
   index: number;
-  delta?: { type: string; text?: string };
+  delta?: { type: string; text?: string; partial_json?: string };
+}
+
+interface AnthropicContentBlockStop extends AnthropicStreamEvent {
+  type: 'content_block_stop';
+  index: number;
 }
 
 interface AnthropicMessageDelta extends AnthropicStreamEvent {
@@ -228,10 +381,8 @@ interface AnthropicMessageDelta extends AnthropicStreamEvent {
 
 interface AnthropicMessageStart extends AnthropicStreamEvent {
   type: 'message_start';
-  message?: { usage?: { input_tokens?: number } };
+  message?: { usage?: { input_tokens?: number; output_tokens?: number } };
 }
-
-// ── Error mapping ─────────────────────────────────────────────────────────────
 
 function mapHttpError(status: number, body: string): LlmProviderError {
   if (status === 401 || status === 403) {

@@ -8,7 +8,7 @@
     },
     "biz-ontology": {
       "type": "http",
-      "url": "http://your-mcp-host:7168/mcp",
+      "url": "http://your-mcp-host:7168/mcp/",
       "name": "biz-ontology",
       "consent": "NEVER",
       "enabled": true
