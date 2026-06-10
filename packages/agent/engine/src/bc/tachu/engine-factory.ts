@@ -322,6 +322,10 @@ export class EngineFactory {
   private toolsMirrorSig = '';
   /** 与 SkillRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 skill 表。 */
   private skillsMirrorSig = '';
+  /** Lazily-resolved ToolService cache (see {@link getToolService}). */
+  private lazyToolService?: ToolService;
+  /** True once the lazy provider has thrown, so we don't spam the error log each call. */
+  private toolServiceResolveFailed = false;
 
   constructor(
     private readonly provider: ProviderAdapter,
@@ -334,6 +338,18 @@ export class EngineFactory {
     private readonly localFiles?: LocalFileService,
     private readonly projectionRelay?: MemoryProjectionRelayService,
     private readonly llmProvider?: LlmProviderPort,
+    /**
+     * 惰性解析 ToolService 的回调（DI 注入时由 SessionModule 传入
+     * `() => container.resolve(ToolService)`）。
+     *
+     * 为什么需要它：EngineFactory 是 SessionModule 容器里的 singleton，若在装配
+     * 早期（某些 ToolService 依赖尚不可解析的时机）被首次解析，旧实现会把
+     * `c.resolve(ToolService)` 的异常静默吞成 `undefined` 并永久缓存，导致后续
+     * 真正的工具调用全部降级成 `[executed:tool] <ref>` 桩输出。改为惰性解析后，
+     * ToolService 只在真正执行工具（请求期、容器已完整装配）时才解析，彻底规避
+     * 该时机陷阱；解析失败也会显式抛错而非伪造成功。
+     */
+    private readonly toolServiceProvider?: () => ToolService | undefined,
   ) {
     this.descriptorRegistry = descriptorRegistry;
     this.skillRegistry = skillRegistry;
@@ -556,7 +572,8 @@ export class EngineFactory {
   ): Promise<{ chunks: StreamChunk[]; promptContext?: string }> {
     const refs = uniqueRuntimeKnowledgeRefs(arg.runtimeRefs);
     const query = truncateText(arg.prompt.trim(), 512);
-    if (refs.length === 0 || !this.toolService || query.length < 2) {
+    const toolService = this.getToolService();
+    if (refs.length === 0 || !toolService || query.length < 2) {
       return { chunks: [] };
     }
 
@@ -580,7 +597,7 @@ export class EngineFactory {
 
     try {
       const controller = new AbortController();
-      const output = await this.toolService.invoke(
+      const output = await toolService.invoke(
         RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
         input,
         this.toToolHandlerCtx(context, controller.signal),
@@ -835,12 +852,44 @@ export class EngineFactory {
   }
 
   /**
+   * 惰性解析业务 ToolService。
+   *
+   * 解析顺序：构造期直传的实例 → 已缓存的惰性实例 → 惰性 provider（请求期解析）。
+   * provider 抛错时只在首次记录一条 error 日志，返回 `undefined` 由调用方按
+   * 各自语义降级（工具执行路径会显式失败，而不是伪造成功）。
+   */
+  private getToolService(): ToolService | undefined {
+    if (this.toolService) return this.toolService;
+    if (this.lazyToolService) return this.lazyToolService;
+    if (!this.toolServiceProvider || this.toolServiceResolveFailed) return undefined;
+    try {
+      const resolved = this.toolServiceProvider();
+      if (resolved) {
+        this.lazyToolService = resolved;
+        return resolved;
+      }
+      this.toolServiceResolveFailed = true;
+      return undefined;
+    } catch (error) {
+      this.toolServiceResolveFailed = true;
+      // EngineFactory 没有注入 logger；此路径属于"本不该发生"的装配级故障，
+      // 用 console.error 显式喷出，避免再次被静默吞掉。
+      console.error(
+        '[EngineFactory] failed to resolve ToolService lazily; tool calls will fail:',
+        error instanceof Error ? error.stack ?? error.message : String(error),
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Tachu TaskExecutor adapter：tool-use 子流程选中 Tool 后，由这里回调到业务
    * ToolService，复用 DescriptorRegistry / AuthZ / Safety / Audit / MCP handler。
    */
   private buildToolTaskExecutor(): TaskExecutor {
     return async (task, context, signal) => {
-      if (task.type !== 'tool' || !this.toolService) {
+      // 非 tool 任务（agent / sub-flow 占位）保持占位输出语义。
+      if (task.type !== 'tool') {
         return {
           ok: true,
           output: {
@@ -851,12 +900,28 @@ export class EngineFactory {
         };
       }
 
+      // 真正的工具调用：ToolService 不可用时必须显式失败，绝不伪造成功——
+      // 否则 LLM 会拿到 `[executed:tool] <ref>` 这种假结果并据此作答，
+      // 既统计不出真实数据，又把内部占位串泄露给用户。
+      const toolService = this.getToolService();
+      if (!toolService) {
+        return {
+          ok: false,
+          error: {
+            code: 'TOOL_SERVICE_UNAVAILABLE',
+            message: `Tool "${task.ref}" cannot run: ToolService is not available in the engine runtime.`,
+            retryable: false,
+            source: 'engine',
+          },
+        };
+      }
+
       const handlerCtx = this.toToolHandlerCtx(context, signal);
       const toolCallId = task.id.startsWith('tool-use:')
         ? task.id.slice('tool-use:'.length)
         : task.id;
 
-      const output = await this.toolService.invoke(task.ref, task.input, handlerCtx, { toolCallId });
+      const output = await toolService.invoke(task.ref, task.input, handlerCtx, { toolCallId });
       return { ok: true, output };
     };
   }

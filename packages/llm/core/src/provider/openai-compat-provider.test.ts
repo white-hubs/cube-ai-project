@@ -170,6 +170,128 @@ describe('OpenAiCompatProvider', () => {
     expect(finish?.finishReason).toBe('tool_calls');
   });
 
+  it('chatStream parses plain JSON when gateway ignores stream flag (geekai)', async () => {
+    const json =
+      '{"choices":[{"message":{"role":"assistant","content":"汇总结果"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}}';
+
+    stubFetch(async () =>
+      new Response(json, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const provider = new OpenAiCompatProvider({
+      baseURL: 'https://geekai.co/api/v1',
+      apiKey: 'sk-test',
+      model: 'gpt-5.5',
+    });
+
+    const chunks: Array<{ type: string; delta?: string }> = [];
+    for await (const ch of provider.chatStream({
+      tenant: 1,
+      modelCode: 'gpt-5.5',
+      messages: [{ role: 'user', content: '统计报警' }],
+      tools: [{ name: 'query', inputSchema: { type: 'object' } }],
+    })) {
+      chunks.push(ch);
+    }
+
+    const text = chunks
+      .filter((c) => c.type === 'text-delta')
+      .map((c) => c.delta)
+      .join('');
+    expect(text).toBe('汇总结果');
+  });
+
+  it('chatStream falls back to non-stream chat when stream body is empty (geekai)', async () => {
+    stubFetch(async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { stream?: boolean };
+      if (body.stream) {
+        return new Response('', {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        });
+      }
+      return Response.json({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_fb',
+                  type: 'function',
+                  function: { name: 'query_database', arguments: '{"year":2026}' },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+      });
+    });
+
+    const provider = new OpenAiCompatProvider({
+      baseURL: 'https://geekai.co/api/v1',
+      apiKey: 'sk-test',
+      model: 'gpt-5.5',
+    });
+
+    const chunks: Array<{ type: string; call?: { name: string } }> = [];
+    for await (const ch of provider.chatStream({
+      tenant: 1,
+      modelCode: 'gpt-5.5',
+      messages: [{ role: 'user', content: '统计报警' }],
+      tools: [{ name: 'query_database', inputSchema: { type: 'object' } }],
+    })) {
+      chunks.push(ch as { type: string; call?: { name: string } });
+    }
+
+    const complete = chunks.find((c) => c.type === 'tool-call-complete');
+    expect(complete?.call?.name).toBe('query_database');
+  });
+
+  it('chatStream flushes a final SSE data line that lacks a trailing newline (geekai single-frame)', async () => {
+    // geekai consolidates the whole turn into one SSE frame and may omit the
+    // terminating newline on the final `data:` line. The previous reader loop
+    // kept that line in `buffer` and dropped it on stream end → sseChunks=0 →
+    // empty terminal → TOOL_LOOP_PROVIDER_NO_RESPONSE.
+    const sse =
+      'data: {"choices":[{"message":{"role":"assistant","content":"今日新闻摘要"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}}';
+
+    stubFetch(async () =>
+      new Response(sse, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    );
+
+    const provider = new OpenAiCompatProvider({
+      baseURL: 'https://geekai.co/api/v1',
+      apiKey: 'sk-test',
+      model: 'gpt-5.5',
+    });
+
+    const chunks: Array<{ type: string; delta?: string }> = [];
+    for await (const ch of provider.chatStream({
+      tenant: 1,
+      modelCode: 'gpt-5.5',
+      messages: [{ role: 'user', content: '搜索今日新闻' }],
+    })) {
+      chunks.push(ch);
+    }
+
+    const text = chunks
+      .filter((c) => c.type === 'text-delta')
+      .map((c) => c.delta)
+      .join('');
+    expect(text).toBe('今日新闻摘要');
+    const finish = chunks.find((c) => c.type === 'finish') as { finishReason?: string };
+    expect(finish?.finishReason).toBe('stop');
+  });
+
   it('sends tools in request body when tools are provided', async () => {
     let capturedBody: unknown;
     const capturingFetch: FetchLike = async (_input, init) => {
@@ -195,6 +317,59 @@ describe('OpenAiCompatProvider', () => {
     const body = capturedBody as { tools?: unknown[]; tool_choice?: string };
     expect(body.tools?.length).toBe(1);
     expect(body.tool_choice).toBe('auto');
+  });
+
+  it('encodes dotted MCP tool names for OpenAI wire format and decodes tool_calls', async () => {
+    let capturedBody: unknown;
+    const capturingFetch: FetchLike = async (_input, init) => {
+      capturedBody = JSON.parse(init?.body as string);
+      return Response.json({
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'mcp_biz-ontology_query_database',
+                    arguments: '{"year":2026}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+      });
+    };
+
+    const provider = new OpenAiCompatProvider({
+      baseURL: 'https://geekai.co/api/v1',
+      apiKey: 'sk-test',
+      model: 'gpt-5.5',
+      fetch: capturingFetch as typeof fetch,
+    });
+
+    const res = await provider.chat({
+      tenant: 1,
+      modelCode: 'gpt-5.5',
+      messages: [{ role: 'user', content: '统计报警' }],
+      tools: [
+        { name: 'currentDate', inputSchema: { type: 'object' } },
+        { name: 'mcp.biz-ontology.query_database', inputSchema: { type: 'object' } },
+      ],
+    });
+
+    const body = capturedBody as {
+      tools?: Array<{ function?: { name?: string } }>;
+    };
+    expect(body.tools?.[0]?.function?.name).toBe('currentDate');
+    expect(body.tools?.[1]?.function?.name).toBe('mcp_biz-ontology_query_database');
+    expect(res.toolCalls?.[0]?.name).toBe('mcp.biz-ontology.query_database');
+    expect(res.toolCalls?.[0]?.arguments).toEqual({ year: 2026 });
   });
 
   it('embed returns dense vectors (G3 sparse optional on openai path)', async () => {

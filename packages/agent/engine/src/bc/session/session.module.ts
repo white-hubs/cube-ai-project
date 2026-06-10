@@ -111,12 +111,13 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           descriptorRegistry = undefined;
         }
-        let toolService: ToolService | undefined;
-        try {
-          toolService = c.resolve(ToolService) as ToolService;
-        } catch {
-          toolService = undefined;
-        }
+        // 不再在装配期 eager 解析 ToolService：EngineFactory 是本容器的 singleton，
+        // 若在某些依赖尚不可解析的早期时机被首次创建，旧的静默 try-catch 会把
+        // 异常吞成 undefined 并永久缓存，导致所有工具调用降级成 `[executed:tool]`
+        // 桩输出。改为传入惰性 provider，ToolService 仅在真正执行工具（请求期、
+        // 容器已完整装配）时解析。
+        const toolServiceProvider = (): ToolService | undefined =>
+          c.resolve(ToolService) as ToolService;
         let skillRegistry: SkillRegistryService | undefined;
         try {
           skillRegistry = c.resolve(SkillRegistryService) as SkillRegistryService;
@@ -153,11 +154,12 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           memorySystem,
           turnContext,
           descriptorRegistry,
-          toolService,
+          undefined,
           skillRegistry,
           localFiles,
           projectionRelay,
           llmProvider,
+          toolServiceProvider,
         );
       },
     },

@@ -124,6 +124,7 @@ function resolveLlmProvider(c: Container): LlmProviderPort {
     FlowFilesService,
     FlowCrudService,
     FlowLangflowSyncService,
+    FlowExecutionService,
     CustomComponentTemplatesService,
     FLOW_REPOSITORY_TOKEN,
     SqliteFlowRepository,

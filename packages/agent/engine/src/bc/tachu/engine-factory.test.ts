@@ -1190,4 +1190,139 @@ describe('EngineFactory', () => {
       toolCallId: 'call-web-1',
     });
   });
+
+  test('tool-use resolves ToolService lazily via toolServiceProvider (no eager instance) so a slow/late DI binding never degrades to a stub', async () => {
+    const searchDesc = ToolDescriptor.parse({
+      schemaVersion: 1,
+      kind: 'TOOL',
+      name: 'mcp.web-search.search',
+      displayName: 'Web Search',
+      isPreset: false,
+      version: '1.0.0',
+      meta: {
+        execution: 'REMOTE',
+        consent: 'NEVER',
+        requiresPrincipal: 'USER',
+        timeoutMs: 120_000,
+        idempotent: true,
+        sideEffects: ['read:web.search'],
+      },
+      inputSchema: {
+        type: 'object',
+        required: ['query'],
+        properties: { query: { type: 'string', description: 'Search query' } },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { results: { type: 'array', description: 'Search results' } },
+      },
+      requires: { principal: 'USER', oauthScope: [], obo: null },
+      execute: 'mcp:web-search:search',
+      handler: { kind: 'mcp', config: {} },
+      category: 'MCP',
+      tags: ['web', 'search'],
+    });
+    const mockRegistry = {
+      listAll: () => [searchDesc],
+      resolve: (name: string) =>
+        name === 'mcp.web-search.search' ? searchDesc : undefined,
+    } as unknown as DescriptorRegistryService;
+
+    let invokeCount = 0;
+    let providerCalls = 0;
+    const toolService = {
+      invoke: async () => {
+        invokeCount += 1;
+        return { results: [{ title: 'hit', url: 'https://example.test' }] };
+      },
+    } satisfies Pick<ToolService, 'invoke'>;
+
+    let chatCalls = 0;
+    let toolCallIssued = false;
+    const provider: ProviderAdapter = {
+      id: 'agentic-platform-llm-catalog',
+      name: 'ToolCallingProvider',
+      async listAvailableModels() {
+        return [];
+      },
+      async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+        chatCalls += 1;
+        if (!request.tools && chatCalls === 1) {
+          return {
+            content: JSON.stringify({
+              complexity: 'complex',
+              intent: 'Search the web for current context',
+              contextRelevance: 'related',
+            }),
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        }
+        if (
+          request.tools?.some((t) => t.name === 'mcp.web-search.search') &&
+          !toolCallIssued
+        ) {
+          toolCallIssued = true;
+          return {
+            content: '',
+            finishReason: 'tool_calls',
+            toolCalls: [
+              { id: 'call-web-1', name: 'mcp.web-search.search', arguments: { query: 'cube ai' } },
+            ],
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        }
+        return {
+          content: 'Search complete.',
+          finishReason: 'stop',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+      async *chatStream(request: ChatRequest, ctx: AdapterCallContext) {
+        const r = await provider.chat(request, ctx);
+        if (typeof r.content === 'string' && r.content.length > 0) {
+          yield { type: 'text-delta', delta: r.content } as const;
+        }
+        for (const call of r.toolCalls ?? []) {
+          yield { type: 'tool-call-complete', call } as const;
+        }
+        yield { type: 'finish', finishReason: r.finishReason ?? 'stop', usage: r.usage } as const;
+      },
+    };
+
+    // Eager ToolService slot is intentionally `undefined`; ToolService is only
+    // reachable through the lazy provider (mirrors SessionModule wiring).
+    const factory = new EngineFactory(
+      provider,
+      undefined,
+      new InMemoryStore(),
+      createTurnContextHolder(),
+      mockRegistry,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (provider as CaptureProvider).llmProvider,
+      () => {
+        providerCalls += 1;
+        return toolService as ToolService;
+      },
+    );
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: '2054102360564695080',
+        turnId: '2054102360564695081',
+        tenant: 42,
+        userId: 'u-42',
+        scopes: ['web.search'],
+        prompt: '最新 cube ai 新闻是什么？',
+      }),
+    );
+
+    expect(chunks.some((c) => c.type === 'done')).toBe(true);
+    // The lazy provider was consulted and the real ToolService actually ran —
+    // i.e. the call did NOT degrade to a `[executed:tool] <ref>` stub.
+    expect(providerCalls).toBeGreaterThan(0);
+    expect(invokeCount).toBe(1);
+  });
 });

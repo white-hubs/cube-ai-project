@@ -87,10 +87,19 @@ export class AnthropicProvider implements LlmProviderPort {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+      let lines: string[];
+      if (done) {
+        // Flush any trailing partial line so a final SSE event that lacks a
+        // terminating newline is not silently dropped on stream end.
+        const tail = buffer.trim();
+        if (!tail) break;
+        lines = [buffer];
+        buffer = '';
+      } else {
+        buffer += decoder.decode(value, { stream: true });
+        lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+      }
 
       let currentEvent = '';
       for (const line of lines) {

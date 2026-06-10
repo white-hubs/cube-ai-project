@@ -114,6 +114,43 @@ describe('AnthropicProvider', () => {
     expect((finish as { finishReason?: string })?.finishReason).toBe('stop');
   });
 
+  it('flushes a final SSE data line that lacks a trailing newline', async () => {
+    // Same latent bug as the OpenAI-compat provider: if the final SSE event has
+    // no terminating newline, the reader must still flush the buffered line on
+    // stream end instead of silently dropping it.
+    const sse =
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n' +
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"tail"}}';
+
+    const streamFetch: typeof fetch = (async () =>
+      new Response(new TextEncoder().encode(sse), {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })) as unknown as typeof fetch;
+
+    const provider = new AnthropicProvider({
+      baseURL: 'https://api.anthropic.com',
+      apiKey: 'sk-test',
+      model: 'claude-3-5-sonnet',
+      fetchImpl: streamFetch,
+    });
+
+    const chunks: Array<{ type: string; delta?: string }> = [];
+    for await (const chunk of provider.chatStream({
+      tenant: 1,
+      modelCode: 'claude-3-5-sonnet',
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      chunks.push(chunk as { type: string; delta?: string });
+    }
+
+    const text = chunks
+      .filter((c) => c.type === 'text-delta')
+      .map((c) => c.delta)
+      .join('');
+    expect(text).toBe('tail');
+  });
+
   it('maps tool_use blocks to toolCalls', async () => {
     const provider = new AnthropicProvider({
       baseURL: 'https://api.anthropic.com',
