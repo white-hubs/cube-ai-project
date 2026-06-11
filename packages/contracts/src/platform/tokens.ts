@@ -6,7 +6,7 @@
  * symbols via the shared global registry.
  *
  * **Naming decision (M0.T6, 2026-06-06):** retain `agentic.*` namespace — do not migrate to `agent.*`
- * in one shot (global Symbol.for strings). See `docs/migration/decisions/M0-T6-di-token-namespace.md`.
+ * in one shot (global Symbol.for strings). See `docs/adr/ADR-0015-di-token-namespace.md`.
  *
  * ref: docs/technical-design/plans/2026-05-08-platform-adapters-ghcloud.md
  */

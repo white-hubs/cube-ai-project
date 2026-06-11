@@ -1,35 +1,43 @@
-# 迁移后仓库布局与子包依赖图（v6）
+# 仓库布局与子包依赖图
 
-> 配套：CONTEXT.md（术语）、docs/adr/（决策）。本文是 ADR-0001/0002/0005/0009/0010/0011/0012 的**结构落地视图**。
-> 约束来源：ADR-0001（新仓 copy-not-move）、ADR-0002（包边界与依赖铁律）、**ADR-0005（向量化=capability / 向量存储=infra `vector-qdrant`）**、ADR-0009（单进程拓扑）、ADR-0010（greenfield 并行构建）、**ADR-0011（命名哲学：包=seam、路径派生包名、SDK 按面）**、ADR-0012（运行时单一真源 + 三域平级下游）。
+> 配套：CONTEXT.md（术语）、docs/adr/（决策）。本文是 ADR-0001/0002/0005/0009/0011/0012/0014 的**结构落地视图**。
+> 约束来源：ADR-0002（包边界与依赖铁律）、**ADR-0005（向量化=capability / 向量存储=infra `vector-qdrant`）**、ADR-0009（单进程拓扑）、**ADR-0011（命名哲学：包=seam、路径派生包名、SDK 按面）**、ADR-0012（运行时单一真源 + 三域平级下游）、ADR-0014（flow-studio 投影层）。
 
-## 1. 目录结构示意（迁移后）
+## 1. 目录结构示意
 
 Bun workspaces monorepo。三个顶层根：`packages/*`（能力包与 SDK，多包领域开子目录）、`apps/*`（组合根/部署单元）、`infra/*`（基础设施扩展与测试夹具）。
 
 ```
 cube-ai-project/
+├── AGENTS.md                           # AI 开发入口（渐进式披露索引）
 ├── CONTEXT.md                          # 领域术语表（glossary）
 ├── README.md
 ├── package.json                        # bun workspaces: ["apps/*","packages/*","packages/*/*","infra/*","infra/*/*"]
 ├── bun.lock · bunfig.toml · tsconfig.base.json
 │
 ├── docs/
-│   ├── adr/                            # ADR-0001 .. 0012 + README 索引
-│   └── architecture/                  # 本文所在：结构与依赖视图
+│   ├── adr/                            # ADR-0001 .. 0015 + README 索引
+│   ├── architecture/                   # 本文所在：结构与依赖视图 + 直连 vendor 例外登记
+│   ├── operations/                     # cutover runbook 等运维手册
+│   └── backlog.md                      # 未关闭事项清单
 │
-├── deploy/                             # ADR-0009 部署形态
-│   ├── docker-compose/                # ai-center(1 容器) + MySQL/Redis/Qdrant(+可选 Nacos/otel)
-│   ├── k8s/                            # 1×Deployment + HPA；中间件托管/StatefulSet
-│   └── buildkit/
+├── deploy/
+│   └── docker-compose/                 # ai-center(1 容器) + MySQL/Redis/Qdrant(+可选 Nacos/otel)（ADR-0009）
 │
 ├── descriptors/                        # 声明式资产：agents / tools / skills / rules
+├── config/                             # mcp-servers 等本地配置（example 入库，实配 gitignore）
+├── scripts/                            # 构建/发布/容器测试脚本（见各文件头注释）
+├── tools/
+│   └── migration/                      # ghcloud catalog 数据迁移脚本（cutover 完成后删除）
+├── patches/                            # bun patch 产物（@dangao/nacos-client）
 │
 ├── apps/
-│   └── ai-center/                      # ★ 单进程组合根（ADR-0009；原 ai-core）
-│       ├── src/bootstrap.ts            #   DI 装配：agent-engine + flow-core + kb-core + llm-core + embedding 经 port 互调（向量存储 infra/vector-qdrant 直连）
-│       ├── src/routes/                 #   领域路由 agent /v1/* /flow/* /kb/* /llm/* LLM 网关 /v1/*（ADR-0008 addendum）
-│       └── src/main.ts                 #   进程入口 + 后台 loop（worker.* / SSE drain）
+│   ├── ai-center/                      # ★ 单进程组合根（ADR-0009）
+│   │   ├── src/bootstrap.ts            #   DI 装配：agent-engine + flow-core + kb-core + llm-core + embedding 经 port 互调（向量存储 infra/vector-qdrant 直连）
+│   │   ├── src/routes/                 #   领域路由 agent /v1/* /flow/* /kb/* /llm/* LLM 网关 /v1/*（ADR-0008 addendum）
+│   │   ├── src/platform/               #   server-base/server-shared/server-mock 横切基础设施
+│   │   └── src/main.ts                 #   进程入口 + 后台 loop（worker.* / SSE drain）
+│   └── ai-console/                     # @cube-ai/ai-console —— 单 origin Vue 控制台（/agent /flow /kb /llm）
 │
 ├── packages/
 │   ├── contracts/                      # ★ 唯一共享内核（零依赖，仅 zod）→ @cube-ai/contracts
@@ -40,7 +48,7 @@ cube-ai-project/
 │   ├── agent/                          # 领域分组目录（无 package.json）
 │   │   ├── engine/                     # @cube-ai/agent-engine —— 活跃运行时
 │   │   │   └── src/bc/                 #   session · tools(+mcp-bridge) · jobs · safety · authz · usage …
-│   │   ├── sdk-client/                 # @cube-ai/agent-sdk-client（框架无关消费面，重命名自 agentic-sdk-core）
+│   │   ├── sdk-client/                 # @cube-ai/agent-sdk-client（框架无关消费面）
 │   │   ├── sdk-client-vue/             # @cube-ai/agent-sdk-client-vue
 │   │   ├── sdk-client-assistant/       # @cube-ai/agent-sdk-client-assistant
 │   │   └── sdk-client-mock/            # @cube-ai/agent-sdk-client-mock
@@ -48,24 +56,25 @@ cube-ai-project/
 │   ├── llm/                            # 多包领域
 │   │   ├── core/                       # @cube-ai/llm-core —— provider BC + catalog BC（registry/凭据权威）
 │   │   │   └── src/{provider,catalog}/ #   provider：chat·stream·embed·tool·vision + 网关面 /v1/*
-│   │   │                               #   catalog：model registry + 远程同步 + 连通测试（自 ghcloud 收编）/llm/*
+│   │   │                               #   catalog：model registry + 远程同步 + 连通测试 /llm/*
 │   │   └── sdk-console/                # @cube-ai/llm-sdk-console —— 模型接入管理面
 │   │
 │   ├── flow/                           # 多包领域
 │   │   ├── core/                       # @cube-ai/flow-core —— cube 线性引擎 · Langflow adapter · DSL 编译
-│   │   ├── sdk-client/                 # @cube-ai/flow-sdk-client —— 执行
-│   │   └── sdk-console/                # @cube-ai/flow-sdk-console —— 编辑器（按需）
+│   │   ├── studio/                     # @cube-ai/flow-studio —— flow-editor 投影层（editorFlowJson → DSL v2，ADR-0014）
+│   │   ├── sdk-client/                 # @cube-ai/flow-sdk-client —— 执行 + editor-model 面
+│   │   └── sdk-console/                # @cube-ai/flow-sdk-console —— 管理面
 │   │
 │   ├── kb/                             # 多包领域
 │   │   ├── core/                       # @cube-ai/kb-core —— ingestion(切片) · retrieval · object-storage
 │   │   ├── sdk-client/                 # @cube-ai/kb-sdk-client —— 检索
-│   │   └── sdk-console/                # @cube-ai/kb-sdk-console —— 文档管理（按需）
+│   │   └── sdk-console/                # @cube-ai/kb-sdk-console —— 文档管理
 │   │
 │   ├── embedding/                      # @cube-ai/embedding —— 单包扁平·向量化 capability（文本→向量，经 LlmProviderPort.embed）
 │   │                                   #   embedding=capability(port)；向量存储=infra(vector-qdrant，见 infra/)（ADR-0005）
 │   │
 │   └── platform-adapters/              # 集合目录（复数）；包名前缀单数化
-│       └── ghcloud/                    # @cube-ai/platform-adapter-ghcloud —— 平台租户身份（鉴权/租户解析）
+│       └── ghcloud/                    # @cube-ai/platform-adapter-ghcloud —— 平台租户身份（鉴权/租户解析）+ cube2 桥
 │
 └── infra/
     ├── bun-server-ext/                 # 框架扩展（单数目录）
@@ -90,6 +99,7 @@ cube-ai-project/
 | `packages/llm/core` | `@cube-ai/llm-core` | provider + catalog 两 BC |
 | `packages/llm/sdk-console` | `@cube-ai/llm-sdk-console` | console 面 |
 | `packages/flow/core` | `@cube-ai/flow-core` | 被动库（`core`） |
+| `packages/flow/studio` | `@cube-ai/flow-studio` | 编辑器投影层（ADR-0014） |
 | `packages/kb/sdk-client` | `@cube-ai/kb-sdk-client` | client 面 |
 | `packages/embedding` | `@cube-ai/embedding` | 单包扁平·向量化 capability |
 | `packages/platform-adapters/ghcloud` | `@cube-ai/platform-adapter-ghcloud` | 集合目录复数→前缀单数 |
@@ -97,6 +107,7 @@ cube-ai-project/
 | `infra/vector-qdrant` | `@cube-ai/vector-qdrant` | 向量存储 infra·Qdrant 驱动（kb/engine 直连） |
 | `infra/test-infra` | `@cube-ai/test-infra` | |
 | `apps/ai-center` | `@cube-ai/ai-center` | 组合根 app |
+| `apps/ai-console` | `@cube-ai/ai-console` | 单 origin 控制台前端 |
 
 ## 3. 运行时端口图（必须无环，ADR-0002）
 

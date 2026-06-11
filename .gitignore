@@ -42,3 +42,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # local MCP server config (copy from config/mcp-servers.example.json)
 config/mcp-servers.json
+
+# codegraph local index (rebuild with `codegraph index`)
+.codegraph

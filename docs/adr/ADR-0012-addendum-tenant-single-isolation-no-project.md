@@ -72,4 +72,4 @@ ADR-0012 D1（运行时单一真源、assistant 不迁）、D2（身份权威在
 - [ADR-0003](./ADR-0003-llm-gateway-and-credential-boundary.md) — 凭据边界（vendor key 归 catalog）
 - [ADR-0010](./ADR-0010-consolidation-roadmap.md) — 收编路线图（fresh-start 切换、回退=用老系统）
 - `CONTEXT.md` — 词条「租户隔离主键 (tenant)」「能力包无自有鉴权」
-- [能力补充清单](../migration/capability-supplement-plan.md)
+- 能力补充清单 `docs/migration/capability-supplement-plan.md`（已随迁移收尾移除，git 历史可溯）

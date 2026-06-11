@@ -7,8 +7,8 @@ import {
   Repository,
   type Logger,
 } from '@dangao/bun-server'
-import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
-import { resolveKbRecordId } from '@/infra/kb-record-id'
+import { currentTenantId, isGlobalAccessEnabled } from '@/infrastructure/access-scope'
+import { resolveKbRecordId } from '@/infrastructure/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import { DocumentEntity } from './document.entity'
 

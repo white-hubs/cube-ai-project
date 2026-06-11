@@ -1,6 +1,6 @@
 # ADR-0010: 收编路线图 —— 另起并行新系统，copy 实现串联，C1 先行验证 port seam
 
-- **Status**: Accepted
+- **Status**: Done（路线图 M0–M6 已全部走完，仅存历史价值；生产 cutover 待办见 docs/backlog.md）
 - **Date**: 2026-06-05
 - **Deciders**: 架构组（经 `/grill-with-docs` 收敛）
 - **Tags**: migration, roadmap, sequencing, greenfield, consolidation

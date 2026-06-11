@@ -7,7 +7,7 @@
 
 ## Context
 
-cube-ai（`redesign/cube-ai`）经一次「全面架构改造——服务拆分」(`400b45e`，HEAD `1c9d172`) 后，结构与早前 ADR 写入时的假设明显错位。完整勘察见 **[`../architecture/cube-ai-current-state.md`](../architecture/cube-ai-current-state.md)**。两个关键事实改变了既有判断：
+cube-ai（`redesign/cube-ai`）经一次「全面架构改造——服务拆分」(`400b45e`，HEAD `1c9d172`) 后，结构与早前 ADR 写入时的假设明显错位。完整勘察见旧仓勘察 `docs/architecture/cube-ai-current-state.md`（已随迁移收尾移除，git 历史可溯）。两个关键事实改变了既有判断：
 
 1. **出现了第二个运行时**：cube-ai 新增 `assistant` 服务——自带 OpenAI 客户端（`ASSISTANT_API_KEY`）、8 轮 tool loop、flow 操作类工具（`chat_with_configured_flow`/`generate_image`/…）、session 存在 flow 的 repo。它与 `cube-agentic-engine` 的 `agent-engine` **机制重叠**（chat + LLM + tool + SSE + session），但定位是「flow 平台副驾」、成熟度低（玩具级），且带反模式（自带 LLM、session 进 flow repo、module 直连 flow）。早前 v6 包计划只给了 agent-engine 一个运行时位置，没有 assistant 的位置。
 
@@ -63,5 +63,5 @@ cube-ai（`redesign/cube-ai`）经一次「全面架构改造——服务拆分�
 
 ## References
 
-- [`../architecture/cube-ai-current-state.md`](../architecture/cube-ai-current-state.md) — cube-ai 现状勘察（迁移基线）
+- 旧仓现状勘察（迁移基线）`docs/architecture/cube-ai-current-state.md`（已随迁移收尾移除，git 历史可溯）
 - ADR-0002（包边界）/ ADR-0003（llm·凭据）/ ADR-0004（flow 收编）/ ADR-0005（kb·向量）/ ADR-0009（运行时拓扑·身份旁路）

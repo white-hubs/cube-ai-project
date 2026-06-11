@@ -7,7 +7,7 @@ import type {
 import { Inject, Injectable } from '@dangao/bun-server';
 import type { SearchItem } from '../modules/common/document-types';
 import { RetrievalService } from '../modules/vector-store/services/retrieval.service';
-import { tenantContextAls } from '../infra/access-scope';
+import { tenantContextAls } from '../infrastructure/access-scope';
 
 /** tenant:number → projectId:string (ghcloud parity: numeric tenant id as string). */
 export function mapTenantToProjectId(tenant: number): string {

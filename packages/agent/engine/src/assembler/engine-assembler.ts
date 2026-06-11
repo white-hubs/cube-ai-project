@@ -9,6 +9,7 @@ import {
   TachuObservabilityModule,
   TachuExecutionBackendModule,
   NoopFlowPlatformModule,
+  KbDatabaseModule,
   KbPlatformModule,
   LlmCatalogModule,
   LlmProviderModule,
@@ -129,6 +130,7 @@ export class EngineAssembler {
       EngineSafetyModule,
       TachuExecutionBackendModule,
       NoopFlowPlatformModule,
+      KbDatabaseModule,      // engine standalone：补 ai-center 才有的全局 DATABASE_SERVICE_TOKEN
       KbPlatformModule,
       DescriptorModule,
       AuthModule,

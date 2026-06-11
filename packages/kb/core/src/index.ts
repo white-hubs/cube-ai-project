@@ -29,7 +29,8 @@ export {
   KbMysqlDatabaseService,
   buildKbMysqlConfigFromEnv,
   createKbMysqlDatabaseServiceFromEnv,
+  hasKbMysqlConfigFromEnv,
   type KbMysqlConfig,
 } from './infrastructure/orm/kb-mysql-database.service';
 export { RetrievalService } from './modules/vector-store/services/retrieval.service';
-export { createKbTenantContextMiddleware } from './infra/kb-tenant-context.middleware';
+export { createKbTenantContextMiddleware } from './infrastructure/kb-tenant-context.middleware';

@@ -7,7 +7,7 @@
 
 ## Context
 
-> 本 ADR 早前版本假设 flow「切两半、分布 `cube-ai/server/flow` + `ghcloud ai-application`、engine 经 **4 跳浅链**才碰到实现」。经 cube-ai「全面架构改造——服务拆分」(`400b45e`) 重评，该假设已过时。完整勘察见 **[`../architecture/cube-ai-current-state.md`](../architecture/cube-ai-current-state.md) §3**。
+> 本 ADR 早前版本假设 flow「切两半、分布 `cube-ai/server/flow` + `ghcloud ai-application`、engine 经 **4 跳浅链**才碰到实现」。经 cube-ai「全面架构改造——服务拆分」(`400b45e`) 重评，该假设已过时。完整勘察见旧仓勘察 `docs/architecture/cube-ai-current-state.md` §3（已随迁移收尾移除，git 历史可溯）。
 
 flow 现状（cube-ai 服务拆分后）：`@cube-ai/flow` 已是**自洽完整域**（107 文件），含：
 

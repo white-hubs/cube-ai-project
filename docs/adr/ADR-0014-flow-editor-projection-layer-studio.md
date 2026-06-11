@@ -70,8 +70,8 @@ ghcloud 前端 `cube/apps/ai-application/app`（qiankun 子应用，x6 流程编
 
 ## References
 
-- [`../migration/2026-06-09-ai-application-sdk-migration-gap.md`](../migration/2026-06-09-ai-application-sdk-migration-gap.md) — 前端消费面排查 + 本 ADR 的 grill 裁决表
-- [`../migration/inventory/ghcloud.md`](../migration/inventory/ghcloud.md) — ai-application 定性「第二 DSL 作者 / 投影层消失」
+- 前端消费面排查 + 本 ADR 的 grill 裁决表见 `docs/migration/2026-06-09-ai-application-sdk-migration-gap.md`（已随迁移收尾移除，git 历史可溯）
+- ai-application 定性「第二 DSL 作者 / 投影层消失」见 `docs/migration/inventory/ghcloud.md`（同上）
 - ADR-0004（flow 收编与 DSL 编译归 flow-core）
 - ADR-0008 / addendum（前端消费 seam、领域 SDK 家族、退役 gateway façade）
 - ADR-0012 / addendum（运行时单一真源；tenant 单一隔离、project 退役；换源不动本体）

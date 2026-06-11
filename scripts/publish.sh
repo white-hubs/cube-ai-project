@@ -10,12 +10,14 @@
 # 3. bun run typecheck (all workspaces)
 # 4. bun test (full suite must pass)
 # 5. build SDK packages (emit dist/) + artifact validation
-# 6. bun publish in dependency order (see scripts/sdk-publish-manifest.ts)
+# 6. rewrite package.json for publish (merge publishConfig, resolve deps)
+# 7. bun publish in dependency order (see scripts/sdk-publish-manifest.ts)
 #
 # Usage:
-#   scripts/publish.sh                  # publish with default tag "rc"
+#   scripts/publish.sh                  # publish with default tag "alpha"
 #   scripts/publish.sh --dry-run        # inspect tarball contents only
 #   scripts/publish.sh --tag=latest     # promote to stable (blocked for pre-release versions)
+#   scripts/publish.sh --tag=alpha      # publish to the alpha channel (default)
 #   scripts/publish.sh --tag=rc         # publish to the release-candidate channel
 #   scripts/publish.sh --access=public  # scoped public release (default)
 #   scripts/publish.sh --skip-git-check # skip dirty workspace gate
@@ -37,7 +39,7 @@ BOLD=$'\033[1m'
 RESET=$'\033[0m'
 
 DRY_RUN=""
-TAG="rc"
+TAG="alpha"
 ACCESS="public"
 SKIP_GIT_CHECK=0
 
@@ -107,7 +109,12 @@ cleanup_mirrored_files() {
     done
   done
 }
-trap cleanup_mirrored_files EXIT
+
+cleanup_publish_manifests() {
+  bun scripts/prepare-sdk-package-for-publish.ts restore-all
+}
+
+trap 'cleanup_publish_manifests; cleanup_mirrored_files' EXIT
 
 log_step() {
   printf "\n%s▶ %s%s\n" "$CYAN" "$1" "$RESET"
@@ -198,8 +205,16 @@ log_step "validating release artifacts"
 bun scripts/validate-release-artifacts.ts --require-built-artifacts --require-mirrored-docs
 log_ok "release artifact validation OK"
 
+log_step "preparing publish manifests (merge publishConfig, resolve workspace/catalog)"
+bun scripts/prepare-sdk-package-for-publish.ts apply-all
+bun scripts/prepare-sdk-package-for-publish.ts validate-all
+log_ok "publish manifest prepare OK"
+
 # ---- 6/6 publish -------------------------------------------------------------
 log_step "6/6 publishing — version ${BOLD}${VERSION}${RESET}${CYAN}, registry=${BOLD}${REGISTRY}${RESET}${CYAN}, tag=${BOLD}${TAG}${RESET}${CYAN}, access=${BOLD}${ACCESS}${RESET}${CYAN}${DRY_RUN:+, dry-run}${RESET}"
+
+PACK_DEST="$ROOT/.tmp/publish-pack"
+mkdir -p "$PACK_DEST"
 
 PUBLISHED=()
 for pkg in "${PACKAGES[@]}"; do
@@ -208,10 +223,26 @@ for pkg in "${PACKAGES[@]}"; do
   (
     cd "$pkg"
     # shellcheck disable=SC2086
-    bunx npm publish --registry "$REGISTRY" --access "$ACCESS" --tag "$TAG" $DRY_RUN
+    bun publish --registry "$REGISTRY" --access "$ACCESS" --tag "$TAG" $DRY_RUN
   )
   PUBLISHED+=("$PKG_NAME@$VERSION")
   log_ok "$PKG_NAME@$VERSION"
+
+  # Local tarball sanity (works for dry-run and real publish)
+  TARBALL="$(cd "$pkg" && npm pack --pack-destination "$PACK_DEST" --silent 2>/dev/null | tail -1)"
+  if [[ -n "$TARBALL" ]]; then
+    TARBALL_PATH="$PACK_DEST/$TARBALL"
+    if tar -tzf "$TARBALL_PATH" 2>/dev/null | rg -q '^package/src/'; then
+      log_fail "$PKG_NAME tarball contains package/src/ — manifest/files misconfigured"
+      exit 1
+    fi
+    if tar -xOf "$TARBALL_PATH" package/package.json 2>/dev/null | rg '"main"|"import"' | rg -q 'src/'; then
+      log_fail "$PKG_NAME tarball package.json still references src/"
+      tar -xOf "$TARBALL_PATH" package/package.json | rg '"main"|"import"' >&2 || true
+      exit 1
+    fi
+    rm -f "$TARBALL_PATH"
+  fi
 done
 
 echo ""

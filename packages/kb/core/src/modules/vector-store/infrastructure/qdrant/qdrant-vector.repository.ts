@@ -8,7 +8,7 @@ import {
   type QdrantFilter,
   type SparseVector,
 } from '@cube-ai/vector-qdrant';
-import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope';
+import { currentTenantId, isGlobalAccessEnabled } from '@/infrastructure/access-scope';
 import { APP_CONFIG_TOKEN, type AppConfig } from '@/config/app.config';
 
 export interface QdrantPointPayload extends Record<string, unknown> {

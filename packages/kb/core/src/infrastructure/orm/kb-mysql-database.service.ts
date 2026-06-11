@@ -21,14 +21,46 @@ function envNumber(key: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** `KB_MYSQL_URL`/`AGENTIC_ENGINE_MYSQL_URL`（mysql://…）作为离散 MYSQL_* 变量缺省时的回退来源（ADR-0013 单库）。 */
+function parseMysqlUrlFromEnv(): Partial<KbMysqlConfig> {
+  const raw =
+    Bun.env.KB_MYSQL_URL ??
+    process.env.KB_MYSQL_URL ??
+    Bun.env.AGENTIC_ENGINE_MYSQL_URL ??
+    process.env.AGENTIC_ENGINE_MYSQL_URL;
+  if (raw === undefined || raw.trim() === '') return {};
+  try {
+    const u = new URL(raw.trim());
+    return {
+      host: u.hostname || undefined,
+      port: u.port ? Number(u.port) : undefined,
+      database: u.pathname.replace(/^\//, '') || undefined,
+      user: u.username ? decodeURIComponent(u.username) : undefined,
+      password: u.password ? decodeURIComponent(u.password) : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export function buildKbMysqlConfigFromEnv(): KbMysqlConfig {
+  const fromUrl = parseMysqlUrlFromEnv();
   return {
-    host: envString('MYSQL_HOST', '127.0.0.1'),
-    port: envNumber('MYSQL_PORT', 3306),
-    database: envString('MYSQL_DATABASE', envString('MYSQL_DB', 'agentic_engine')),
-    user: envString('MYSQL_USERNAME', envString('MYSQL_USER', 'root')),
-    password: envString('MYSQL_PASSWORD', ''),
+    host: envString('MYSQL_HOST', fromUrl.host ?? '127.0.0.1'),
+    port: envNumber('MYSQL_PORT', fromUrl.port ?? 3306),
+    database: envString('MYSQL_DATABASE', envString('MYSQL_DB', fromUrl.database ?? 'agentic_engine')),
+    user: envString('MYSQL_USERNAME', envString('MYSQL_USER', fromUrl.user ?? 'root')),
+    password: envString('MYSQL_PASSWORD', fromUrl.password ?? ''),
   };
+}
+
+/** 是否存在任何 kb MySQL 配置来源（离散变量或 URL）。 */
+export function hasKbMysqlConfigFromEnv(): boolean {
+  const candidates = ['MYSQL_HOST', 'KB_MYSQL_URL', 'AGENTIC_ENGINE_MYSQL_URL'] as const;
+  return candidates.some((key) => {
+    const raw = Bun.env[key] ?? process.env[key];
+    return raw !== undefined && raw.trim() !== '';
+  });
 }
 
 /** Static mysql2 adapter for compiled Bun binaries (ADR-0013). */

@@ -48,14 +48,14 @@
 
    > **源码勘察订正（两点，落地见 M1.T1/M3.T2）**：
    > **M1 决策（2026-06-06）**：**保留独立 `EmbeddingPort`**（M3 `@cube-ai/embedding` capability 包对外暴露）；底层 vendor 调用走 **`LlmProviderPort.embed`**（已在 llm-core 实现，含 doubao multimodal `{dense,sparse}`）。不采用「仅复用 `LlmProviderPort.embed` 作为 kb/engine 公共 seam、取消 EmbeddingPort」方案——遵守本 ADR 约束#4 分层。
-   > 2. **稀疏向量必须贯通（硬约束 G3）**：kb 的 `dense + sparse` 由 doubao 多模态模型**一次调用同时产出**（请求 `multi_embedding`+`sparse_embedding`，sparse 非本地 BM25/SPLADE）。因此 **`LlmProviderPort.embed` 已返回 `{dense, sparse?}`**（`llm-core` `DoubaoMultimodalEmbedProvider`）；M3 `EmbeddingPort` 须保真 doubao 的 query/document×4 画像 `instructions`——否则 sparse 丢失 → Qdrant RRF 退化为纯 dense → 混合检索失效、检索质量回归。详见 [`../migration/inventory/kb.md §7/§12-1`](../migration/inventory/kb.md)。
+   > 2. **稀疏向量必须贯通（硬约束 G3）**：kb 的 `dense + sparse` 由 doubao 多模态模型**一次调用同时产出**（请求 `multi_embedding`+`sparse_embedding`，sparse 非本地 BM25/SPLADE）。因此 **`LlmProviderPort.embed` 已返回 `{dense, sparse?}`**（`llm-core` `DoubaoMultimodalEmbedProvider`）；M3 `EmbeddingPort` 须保真 doubao 的 query/document×4 画像 `instructions`——否则 sparse 丢失 → Qdrant RRF 退化为纯 dense → 混合检索失效、检索质量回归。详见迁移勘察 `docs/migration/inventory/kb.md §7/§12-1`（已随迁移收尾移除，git 历史可溯）。
 2. **向量存储是 infra，不走 contracts port**：`agent-engine` / `kb-core` **直连** `@cube-ai/vector-qdrant`，正如直连 `bun-server-ext-*`。ADR-0002「跨域只走 port」治的是**跨域 capability 消费**（flow/kb/llm/embedding），**infra 依赖豁免**于该铁律（infra 不是领域能力）。
 3. **chunk 语义留 kb-core**：`vector-qdrant` 只存「向量 + 不透明 payload + id」，**不理解 chunk 业务字段**；kb 的 chunk 感知 payload、hybrid、RRF、rerank、section 聚合**全在 kb-core**。
 4. **embed 分层，禁止旁路**：`LlmProviderPort.embed` 是**低层 vendor/模型调用**，仅供 `@cube-ai/embedding` 内部使用；`EmbeddingPort` 才是面向 kb/engine 的**公共向量化能力**。消费者不得直接调 `LlmProviderPort.embed` 绕过 embedding 包。
 5. **依赖链**：`kb-core` → `EmbeddingPort`（DI 注入 `@cube-ai/embedding`，内部再经 `LlmProviderPort.embed`）+ **直连** `@cube-ai/vector-qdrant`（kb 自建 chunk 感知向量层）。`agent-engine` 同理（memory：`EmbeddingPort` + 直连 `vector-qdrant`）。「先 embed 再 store」的编排在各消费者自身。
 6. **维度与命名向量集合对齐归组合根**：向量维度须与 `vector-qdrant` 的 collection `vectorSize` 一致——该绑定在组合根 config 按 collection 注入（engine memory 与 kb 各用不同 collection / 可能不同模型），不是任一包的内部不变量。
 
-   > **源码勘察订正（落地见 M3.T1/M3.T7）**：两域的 collection 形态**不同**，`vector-qdrant.ensureCollection` 必须**参数化「命名向量集合」而非仅 `vectorSize`**：**kb = `dense + sparse`@1024**（hybrid，`hasHybridVectorSchema` 校验）；**engine memory = 仅 `dense`@1536**（simple，无 sparse）。组合根为两域分别建 collection、注入各自的命名向量 spec 与维度。源 kb 的 `ensureCollection`/`hasHybridVectorSchema` 把 hybrid 写死，迁入 infra 时须改为可参数化（sparse 可选）。详见 [`../migration/inventory/kb.md §6/§13-7`](../migration/inventory/kb.md)。
+   > **源码勘察订正（落地见 M3.T1/M3.T7）**：两域的 collection 形态**不同**，`vector-qdrant.ensureCollection` 必须**参数化「命名向量集合」而非仅 `vectorSize`**：**kb = `dense + sparse`@1024**（hybrid，`hasHybridVectorSchema` 校验）；**engine memory = 仅 `dense`@1536**（simple，无 sparse）。组合根为两域分别建 collection、注入各自的命名向量 spec 与维度。源 kb 的 `ensureCollection`/`hasHybridVectorSchema` 把 hybrid 写死，迁入 infra 时须改为可参数化（sparse 可选）。详见迁移勘察 `docs/migration/inventory/kb.md §6/§13-7`（已随迁移收尾移除，git 历史可溯）。
 7. ghcloud knowledge 转发层退役为 legacy 过渡 adapter；in-repo kb adapter 坐实 `KnowledgeQueryPort` seam（与 ghcloud HTTP adapter 两 adapter 一 seam）。
 
 ## Consequences

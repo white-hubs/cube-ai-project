@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, type AppConfig } from '../../../config/app.config'
-import { runKbUpstreamStep } from '../../../infra/upstream-error'
+import { runKbUpstreamStep } from '../../../infrastructure/upstream-error'
 import type { ChunkType, RetrievalProfile, SearchItem } from '../../common/document-types'
 import {
   DOCUMENT_PLATFORM_SYNC_PORT_TOKEN,

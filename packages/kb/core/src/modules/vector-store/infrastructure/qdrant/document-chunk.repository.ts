@@ -7,8 +7,8 @@ import {
   Repository,
   type Logger,
 } from '@dangao/bun-server'
-import { currentTenantId, isGlobalAccessEnabled } from '@/infra/access-scope'
-import { generateKbRecordId } from '@/infra/kb-record-id'
+import { currentTenantId, isGlobalAccessEnabled } from '@/infrastructure/access-scope'
+import { generateKbRecordId } from '@/infrastructure/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import type { TextChunkRecord } from '../../../common/document-types'
 import { buildStableQdrantPointId } from '@cube-ai/vector-qdrant';

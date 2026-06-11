@@ -19,12 +19,8 @@ _Avoid_: 业务功能, 页面功能
 _Avoid_: 杂烩 adapters 包, 按技术分层切的包, 按 port 派生包名
 
 **agent-engine（活跃运行时）**:
-主动驱动 turn（session/turn/SSE/tool 编排）的运行时核心包；经 contracts port 调各能力包。是「engine」一词在本仓的权威所指，与被动能力库（`*-core`）相对。**是唯一运行时真源**（ADR-0012）——cube-ai 的 `assistant` 是玩具、不迁；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，engine→flow/kb 是能力调用边而非身份层级。
-_Avoid_: 把 agent-engine 当能力包之一, 让能力包反向依赖它, 把 cube-ai assistant 当第二运行时迁入, 让 engine 凌驾 flow/kb 当身份权威
-
-**assistant（玩具，不迁）**:
-cube-ai 服务拆分后出现的「flow 平台副驾」服务（自带 OpenAI 客户端、session 存 flow repo、module 直连 flow）；与 agent-engine 机制重叠但成熟度低、带反模式。**判定为玩具，留原仓、不迁入中台**（ADR-0012 D1）；其产品价值若需要，以 agent-engine 的 preset 重建。
-_Avoid_: 把 assistant 迁入新仓, 搬运其自带 LLM/session 实现
+主动驱动 turn（session/turn/SSE/tool 编排）的运行时核心包；经 contracts port 调各能力包。是「engine」一词在本仓的权威所指，与被动能力库（`*-core`）相对。**是唯一运行时真源**（ADR-0012，旧 assistant 弃迁亦见该 ADR）；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，engine→flow/kb 是能力调用边而非身份层级。
+_Avoid_: 把 agent-engine 当能力包之一, 让能力包反向依赖它, 引入第二运行时, 让 engine 凌驾 flow/kb 当身份权威
 
 **共享内核 (contracts)**:
 零依赖的 port + wire schema + 不变量常量包；跨领域耦合的唯一真源，任何包都可自由 import。
@@ -41,8 +37,8 @@ _Avoid_: 把 catalog 与 provider 拆两个 workspace 包, 沿用旧名 llm-prov
 _Avoid_: 模型目录, 把「列模型」与「调模型」混为一谈
 
 **LLM 目录 (Catalog)**:
-「有哪些模型 + 其 endpointType/凭据/modelTypes」的目录解析，由 `LlmCatalogPort` 表达；**权威数据住在中台 `llm-core` 的 catalog BC**（自 ghcloud `llm-catalog` 收编），ghcloud 不再持有。
-_Avoid_: 调用能力, runtime 调用, 把 catalog 权威留在 ghcloud
+「有哪些模型 + 其 endpointType/凭据/modelTypes」的目录解析，由 `LlmCatalogPort` 表达；**权威数据住在中台 `llm-core` 的 catalog BC**（ADR-0003），平台侧不持有。
+_Avoid_: 调用能力, runtime 调用, 把 catalog 权威放在中台之外
 
 **LLM 网关 (Gateway)**:
 LLM 调用能力的**网络面** —— 对外暴露 OpenAI 兼容端点的统一收口，底层复用同一 Provider + Catalog；供异构运行时与远程消费者使用。
@@ -64,7 +60,7 @@ _Avoid_: 隐式直连, 无登记的旁路
 
 **Flow 运行时**:
 在 AI 中台内执行 flow 图的能力；内部自行选择 **执行后端**，对消费者不可见。**两种消费模式**（ADR-0004）：被 agent-engine 经 `FlowInvokerPort` 编排，**或**前端经 `/flow/*`（独立 SSE）**直达**——flow 是可直达的平级下游域，不只藏在 port 后。
-_Avoid_: ghcloud flow.service, DSL 映射层, 把后端选择暴露给 engine, 把 flow 当「只藏在 port 后」的库
+_Avoid_: 平台侧 flow 转发层, DSL 映射层, 把后端选择暴露给 engine, 把 flow 当「只藏在 port 后」的库
 
 **执行后端**:
 真正运行 flow 图的可替换引擎 —— **Cube 线性引擎** 或 **Langflow 外部运行时**；由 **Flow 运行时** 内部选择。
@@ -133,7 +129,7 @@ _Avoid_: 让 flow 依赖 engine 的 tool bc, 抽公共 tool 装配层
 _Avoid_: gateway façade 聚合层, 多 origin 分散调用, 深相对 import 戳后端
 
 **领域 SDK 家族**:
-按「领域 + 面」前缀的前端 SDK，`<domain>-sdk-<face>[-<framework>]`：agent 有 `agent-sdk-client`（重命名自 agentic-sdk-*）、flow/kb 有 `*-sdk-client` 与 `*-sdk-console`、llm 有 `llm-sdk-console`；前端按需引入，只走 HTTP/SSE。
+按「领域 + 面」前缀的前端 SDK，`<domain>-sdk-<face>[-<framework>]`：agent 有 `agent-sdk-client*`、flow/kb 有 `*-sdk-client` 与 `*-sdk-console`、llm 有 `llm-sdk-console`；前端按需引入，只走 HTTP/SSE。
 _Avoid_: 单包收全部能力, 前端 import 后端包, 走 gateway façade, 笼统 sdk-core
 
 **SDK 面（client / console）**:
@@ -155,20 +151,20 @@ AI-center 拿 `auth` header 经 `platform-adapter-ghcloud` **旁路**校验 toke
 _Avoid_: 让鉴权中心串在 AI 调用链上当网关
 
 **ghcloud 薄平台 adapter**:
-收编后 ghcloud 残留职责 = 实现平台侧**租户身份** port（鉴权/租户解析/可选 L7 透传），不承载任何 AI 业务逻辑、不持 catalog 数据或 vendor 凭据；`ai-server` 退役。
+ghcloud 的职责 = 实现平台侧**租户身份** port（鉴权/租户解析/可选 L7 透传），不承载任何 AI 业务逻辑、不持 catalog 数据或 vendor 凭据（ADR-0009）。
 _Avoid_: 在 ghcloud 保留 flow/kb/llm 业务逻辑, 让 ghcloud 持 catalog 权威, L7 入口解析或路由 AI 语义
 
 **host 身份权威 / 三域平级下游**:
-身份/租户权威在 **host**（`apps/ai-center`，经 `platform-adapter-ghcloud` 解析），注入请求上下文；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，各自从上下文消费身份、互不为权威。`agent-engine → flow-core/kb-core` 是**能力调用边**，非身份层级；flow/kb 亦**可直达**（独立 SSE）。身份是**注入式 seam**，收编换源时身份源换 host。
-_Avoid_: 让某域当其它域的身份权威, 把 engine→flow/kb 当身份层级, 收编时改动 flow/kb 本体去换身份源
+身份/租户权威在 **host**（`apps/ai-center`，经 `platform-adapter-ghcloud` 解析），注入请求上下文；`agent-engine` / `flow-core` / `kb-core` 是三个**平级下游域**，各自从上下文消费身份、互不为权威。`agent-engine → flow-core/kb-core` 是**能力调用边**，非身份层级；flow/kb 亦**可直达**（独立 SSE）。身份是**注入式 seam**，换身份源只换 host 装配。
+_Avoid_: 让某域当其它域的身份权威, 把 engine→flow/kb 当身份层级, 改动 flow/kb 本体去换身份源
 
 **能力包无自有鉴权**:
-`flow-core` / `kb-core` 等能力包**不承载任何自己的鉴权概念**——只管核心功能（执行 flow 图 / 文档摄入检索）。鉴权唯一权威 = host 的 `platform-adapter-ghcloud`（JWT/tenant/PAT）。原 cube-ai server 外壳带来的 flow `auth`（OAuth2 用户登录）、`api-keys`（PAT 签发/校验）、`allowed_tools` 工具白名单**全是平台外壳概念、随收编弃**，非 flow 本体概念。flow 调 Langflow 用的 key 属 **Langflow 的鉴权**（外部依赖凭据，见直连 vendor 例外清单），亦非 flow 自有鉴权。agent 运行时调工具的授权/consent 是 **agent-engine 自带 `bc/authz`**（与已弃的 flow `allowed_tools` 是两回事），保留。
-_Avoid_: 让 flow/kb 自管登录/PAT/用户表, 把 cube-ai 外壳的 auth 当 flow 本体功能搬入, 把 flow allowed_tools 与 engine authz 混为一谈
+`flow-core` / `kb-core` 等能力包**不承载任何自己的鉴权概念**——只管核心功能（执行 flow 图 / 文档摄入检索）。鉴权唯一权威 = host 的 `platform-adapter-ghcloud`（JWT/tenant/PAT）。flow 调 Langflow 用的 key 属 **Langflow 的鉴权**（外部依赖凭据，见直连 vendor 例外清单），不是 flow 自有鉴权。agent 运行时调工具的授权/consent 是 **agent-engine 自带 `bc/authz`**，与能力包鉴权无关。
+_Avoid_: 让 flow/kb 自管登录/PAT/用户表, 给能力包加自有 auth/api-key/工具白名单, 把 engine authz 当能力包鉴权
 
 **租户隔离主键 (tenant)**:
-合并后系统的**唯一隔离主键 = tenant**（来自鉴权中心 JWT，经 `platform-adapter-ghcloud` 解析）。**cube-ai 自有的 `project` 概念已整体退役**——既删 ghcloud `ai_center_api_key`（项目 key），也删 flow 的 `projects` 容器表/CRUD 与"自助建 project"流程，并把 flow/kb 本体的物理列 `project_id` 全量改名为 `tenant_id`（含 Qdrant payload 键、access-scope 读符号 `currentProjectId()`→`currentTenantId()`）。**这是对 ADR-0012「换源不动本体」在 project 维度的有意覆盖**：tenant 成为贯穿三域的单一隔离语义，不再有 project 这层中间容器。
-_Avoid_: 保留 cube-ai project 概念, 一个 tenant 下多个 project, tenant→project 目录映射, 把 projectId 当独立于 tenant 的隔离层
+系统的**唯一隔离主键 = tenant**（来自鉴权中心 JWT，经 `platform-adapter-ghcloud` 解析）。**不存在 `project` 维度**（ADR-0012 addendum：project 概念已整体退役）：tenant 是贯穿三域的单一隔离语义，物理列 / Qdrant payload 键 / 上下文读符号统一为 `tenant_id` / `currentTenantId()`。
+_Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 projectId 当独立于 tenant 的隔离层
 
 ## Relationships
 
@@ -191,9 +187,9 @@ _Avoid_: 保留 cube-ai project 概念, 一个 tenant 下多个 project, tenant�
 - 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-client*` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
 - 前端直流式 LLM 走 **统一前门** 下的 **LLM 网关**（`/v1/*`），不直连 vendor
 - **AI 数据面直连** 是目标不变量：前端 AI 调用直达 AI-center、绕开 bff-gw/java-gateway；**qiankun micro-app 外壳** 提供带外统一登录，**鉴权中心** 经 **ghcloud 薄平台 adapter** 被 AI-center 旁路调用
-- **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；cube-ai 的 **assistant（玩具，不迁）** 不入中台，其产品价值若需要以 agent-engine preset 重建
+- **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；不引入第二运行时
 - **三域平级下游**：`agent-engine` / `flow-core` / `kb-core` 各自从 **host 身份权威 / 三域平级下游** 注入的上下文消费身份、互不为权威；`agent-engine → flow-core/kb-core` 是能力调用边；**flow-core / kb-core 自带独立 SSE 可直达**
-- **flow / kb 整套收编**，自带横切收归：身份→host 注入源、凭据→`llm-core` catalog；因身份是**注入式 seam**，换源不动本体（ADR-0004/0012）
+- 身份是**注入式 seam**：身份→host 注入源、凭据→`llm-core` catalog；换身份源不动能力包本体（ADR-0004/0012）
 
 ## Example dialogue
 

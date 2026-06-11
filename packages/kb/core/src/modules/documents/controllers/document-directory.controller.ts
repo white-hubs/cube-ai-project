@@ -11,7 +11,7 @@ import {
   POST,
   PUT,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@/infra/mock-endpoint'
+import { MockableEndpoint } from '@/infrastructure/mock-endpoint'
 import { openApiTableChunkModeProperty, openApiTextChunkModeProperty } from './document.controller'
 import { DocumentDirectoryService } from '../services/document-directory.service'
 import { DocumentService } from '../services/document.service'

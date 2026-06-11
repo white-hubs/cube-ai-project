@@ -1,6 +1,6 @@
 # ADR-0007: 迁移期 @cube-ai/* 权威治理（workspace 内部包、按包单一权威、旧仓冻结、新仓 ADR 唯一权威）
 
-- **Status**: Accepted
+- **Status**: Done（迁移期决策，迁移已完成；「新仓 ADR 唯一权威」条款长期有效）
 - **Date**: 2026-06-05
 - **Deciders**: 架构组（经 `/grill-with-docs` 收敛）
 - **Tags**: migration, governance, packages, adr-authority, transition

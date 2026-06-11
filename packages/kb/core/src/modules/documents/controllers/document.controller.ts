@@ -14,7 +14,7 @@ import {
   POST,
   PUT,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@/infra/mock-endpoint'
+import { MockableEndpoint } from '@/infrastructure/mock-endpoint'
 import { DocumentService } from '../services/document.service'
 import type { ChunkingOptions, TableChunkMode, TextChunkMode } from '../../common/document-types'
 import { PlatformSourceImportService } from '../../ingestion/platform-source-import.service'

@@ -7,7 +7,7 @@ import {
   Controller,
   POST,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@/infra/mock-endpoint'
+import { MockableEndpoint } from '@/infrastructure/mock-endpoint'
 import { parsePlatformDocumentSyncContext } from '../../../port/document-platform-sync.port'
 import { RetrievalService } from '../services/retrieval.service'
 

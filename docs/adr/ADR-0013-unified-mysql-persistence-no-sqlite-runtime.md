@@ -80,7 +80,7 @@ llm-catalog 从 SQLite warm-load 迁 MySQL 的动因（单库、写回可见、�
 - ADR-0005（kb 检索叠 MySQL 词法）
 - ADR-0009（compose MySQL 中间件）
 - ADR-0010（有状态数据迁移总议题）
-- [`../migration/inventory/kb.md §8`](../migration/inventory/kb.md) — kb 四表 MySQL 权威
+- 迁移勘察 `docs/migration/inventory/kb.md §8`（kb 四表 MySQL 权威；已随迁移收尾移除，git 历史可溯）
 - `deploy/docker-compose/mysql/init/` — engine / flow / llm-catalog DDL；kb 待增
 
 ## Supersedes / Clarifies

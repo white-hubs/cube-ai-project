@@ -1,3 +1,0 @@
-# 仅收集 src 下的用例，避免 build 产物 lib/ 中残留的历史 *.test.js 被重复执行
-[test]
-root = "src"

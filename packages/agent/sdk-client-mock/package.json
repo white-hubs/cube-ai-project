@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/agent-sdk-client-mock",
-  "version": "0.0.0-m2-skeleton-c",
+  "version": "0.0.1-alpha.0",
   "type": "module",
   "description": "In-process mock engine for SDK tests and local Storybook-style demos. Speaks the same Zod contracts as the real engine.",
   "sideEffects": false,

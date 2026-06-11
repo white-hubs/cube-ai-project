@@ -1,0 +1,28 @@
+stages:
+  - verify
+
+default:
+  image: docker.guhecloud.com:5000/ghcloud/bun-ci:1.3.14
+  interruptible: true
+
+variables:
+  BUN_INSTALL_CACHE_DIR: .bun-cache
+
+.bun-cache: &bun-cache
+  key:
+    files:
+      - bun.lock
+  paths:
+    - .bun-cache
+  policy: pull-push
+
+verify:
+  stage: verify
+  cache: *bun-cache
+  script:
+    - bun install --frozen-lockfile
+    - bun run typecheck
+    - bun test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

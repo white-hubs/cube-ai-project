@@ -4,7 +4,7 @@ import { AGENTIC_CONTRACTS_VERSION } from '@cube-ai/contracts';
  * Protocol version sent as `X-Agentic-SDK-Version` (must be `{major}.{minor}`).
  * Must fall within the engine `COMPATIBILITY_MATRIX` for `CURRENT_API_VERSION`
  * (today `1.0` accepts `1.0`…`1.99`). This is independent of the npm/package
- * semver in package.json (`0.0.0-m2-skeleton-c`, etc.).
+ * semver in package.json (`0.0.1-alpha.0`, etc.).
  */
 export const SDK_VERSION = '1.0';
 

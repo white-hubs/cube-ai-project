@@ -11,7 +11,7 @@
 
 事实基线：cube-ai 与 agentic-engine 的 app 层现状各自就是单 Bun 进程；Langflow 是外部服务（ADR-0004）；两边都依赖一组有状态后端（MySQL / Redis / Qdrant / 可选 Nacos·otel）。
 
-> **cube-ai 服务拆分后的事实修订**（详见 [`../architecture/cube-ai-current-state.md`](../architecture/cube-ai-current-state.md)）：cube-ai 的 `bootstrap` 已把 `assistant + flow + kb` 装成**单进程**；身份/租户**源**在 flow + server-base（经 `server-shared` async 上下文 + 中间件工厂注入），**非 ghcloud**；Nacos 注册已 `noop`。cube-ai 的 `assistant`（玩具）**不迁**（ADR-0012 D1）。
+> **cube-ai 服务拆分后的事实修订**（详见旧仓勘察 `docs/architecture/cube-ai-current-state.md`，已随迁移收尾移除，git 历史可溯）：cube-ai 的 `bootstrap` 已把 `assistant + flow + kb` 装成**单进程**；身份/租户**源**在 flow + server-base（经 `server-shared` async 上下文 + 中间件工厂注入），**非 ghcloud**；Nacos 注册已 `noop`。cube-ai 的 `assistant`（玩具）**不迁**（ADR-0012 D1）。
 
 ## Decision
 
