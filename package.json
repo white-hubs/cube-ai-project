@@ -81,7 +81,9 @@
     "dev:down": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center --profile ai-center-prebuilt down",
     "dev:ps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env ps -a",
     "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f",
-    "catalog:migrate": "bun tools/migration/catalog-migrate.ts"
+    "catalog:migrate": "bun tools/migration/catalog-migrate.ts",
+    "publish:sdk": "bash scripts/publish.sh",
+    "publish:sdk:dry-run": "bash scripts/publish.sh --dry-run --skip-git-check"
   },
   "patchedDependencies": {
     "@dangao/nacos-client@0.1.1": "patches/@dangao%2Fnacos-client@0.1.1.patch"

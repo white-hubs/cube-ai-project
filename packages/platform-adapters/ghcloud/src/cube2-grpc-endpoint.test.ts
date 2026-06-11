@@ -56,7 +56,7 @@ describe('cube2-grpc-endpoint', () => {
       serviceGroupEnvKey: 'CUBE2_CONTENT_SERVICE_GROUP',
       defaultServiceNames: ['contentManagement', 'content'],
       clientLabel: 'cube2-content-client',
-      fetchImpl,
+      fetchImpl: fetchImpl as typeof fetch,
     })
 
     expect(url).toBe('http://10.0.0.8:9090')

@@ -81,6 +81,7 @@ export class DocumentPlatformSyncService implements DocumentPlatformSyncPort {
       sourceDoc = await this.fetchSourceDoc(normalizedDocumentId, syncContext)
     } catch (err: unknown) {
       this.logger.error(
+        'platform document sync failed while fetching source document',
         {
           documentId: normalizedDocumentId,
           syncContext,
@@ -89,7 +90,6 @@ export class DocumentPlatformSyncService implements DocumentPlatformSyncPort {
               ? { name: err.name, message: err.message, stack: err.stack }
               : { thrown: String(err) },
         },
-        'platform document sync failed while fetching source document',
       )
       const mapped = toPlatformSyncHttpException(err)
       if (mapped) {

@@ -8,11 +8,11 @@ describe('createCube2GrpcAuthInterceptor', () => {
     process.env.CUBE2_INTERNAL_INVOKE_SECRET_KEY = secret
 
     const interceptor = createCube2GrpcAuthInterceptor()
-    const next = mock((req: { header: Headers }) => {
+    const next = mock(async (req: { header: Headers }) => {
       expect(req.header.get('tenant')).toBe('58197260')
       expect(req.header.get('authorization')).toBe('Bearer user-token')
       expect(req.header.get('feign_inner_invoke')).toBeTruthy()
-      return Promise.resolve('ok')
+      return {} as never
     })
 
     await cube2OutboundAuthAls.run(

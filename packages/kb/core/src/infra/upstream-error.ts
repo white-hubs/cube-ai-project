@@ -17,7 +17,7 @@ function extractNetworkError(err: unknown): {
   if (!(err instanceof Error)) {
     return null
   }
-  const nodeErr = err as NodeJS.ErrnoException
+  const nodeErr = err as NodeJS.ErrnoException & { address?: string; port?: number }
   if (nodeErr.code && NETWORK_ERROR_CODES.has(nodeErr.code)) {
     return {
       code: nodeErr.code,

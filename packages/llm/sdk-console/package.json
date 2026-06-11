@@ -1,7 +1,6 @@
 {
   "name": "@cube-ai/llm-sdk-console",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.0-m2-skeleton-c",
   "type": "module",
   "description": "LLM catalog management console — /llm/providers against ai-center.",
   "sideEffects": false,
@@ -13,9 +12,27 @@
       "types": "./src/index.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
+    }
+  },
   "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target=browser --format=esm --sourcemap=external --external @cube-ai/contracts && bunx tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@cube-ai/contracts": "workspace:*",

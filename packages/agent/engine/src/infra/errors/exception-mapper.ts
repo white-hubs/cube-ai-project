@@ -112,7 +112,7 @@ export function mapToAgenticError(err: unknown): AgenticEngineError {
       503,
       'UPSTREAM_UNAVAILABLE',
       formatNetworkErrorMessage(networkError),
-      networkError,
+      { ...networkError },
     );
   }
 

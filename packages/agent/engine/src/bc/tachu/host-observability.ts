@@ -22,5 +22,5 @@ export function emitHostEngineEvent(
     ...event,
     correlation: context.correlation,
     ...(context.subject !== undefined ? { subject: context.subject } : {}),
-  } as EngineEvent);
+  } as unknown as EngineEvent);
 }

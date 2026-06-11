@@ -1,7 +1,6 @@
 {
   "name": "@cube-ai/contracts",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.0-m2-skeleton-c",
   "type": "module",
   "description": "Single source of truth for Zod schemas (SDK + Mock + Engine + tests).",
   "sideEffects": false,
@@ -37,9 +36,51 @@
       "types": "./src/platform/index.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      },
+      "./errors": {
+        "import": "./dist/errors/index.js",
+        "types": "./dist/errors/index.d.ts"
+      },
+      "./ids": {
+        "import": "./dist/common/ids.js",
+        "types": "./dist/common/ids.d.ts"
+      },
+      "./session": {
+        "import": "./dist/session/index.js",
+        "types": "./dist/session/index.d.ts"
+      },
+      "./sse": {
+        "import": "./dist/sse/index.js",
+        "types": "./dist/sse/index.d.ts"
+      },
+      "./versioning": {
+        "import": "./dist/versioning/index.js",
+        "types": "./dist/versioning/index.d.ts"
+      },
+      "./platform": {
+        "import": "./dist/platform/index.js",
+        "types": "./dist/platform/index.d.ts"
+      }
+    }
+  },
   "scripts": {
+    "build": "bun run clean && bunx tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "zod": "catalog:"

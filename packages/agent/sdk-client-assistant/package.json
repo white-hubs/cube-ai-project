@@ -1,7 +1,6 @@
 {
   "name": "@cube-ai/agent-sdk-client-assistant",
   "version": "0.0.0-m2-skeleton-c",
-  "private": true,
   "type": "module",
   "description": "Framework-agnostic application-domain SDK for chatbot/assistant UIs built on top of cube-agentic-engine. Owns: AssistantStore (multi-session, multi-stream), reasoning tree reducer, IDB persistence, ID-replacement, error normalization. ADR-0008.",
   "sideEffects": false,
@@ -21,7 +20,13 @@
       "types": "./src/reasoning-store/index.ts"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "publishConfig": {
+    "access": "public",
+    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -40,7 +45,7 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target=browser --format=esm --sourcemap=external --external @cube-ai/agent-sdk-client --external @cube-ai/contracts && tsc -p tsconfig.build.json",
+    "build": "bun build src/index.ts src/utils/index.ts src/reasoning-store/index.ts --outdir dist --target=browser --format=esm --sourcemap=external --external @cube-ai/agent-sdk-client --external @cube-ai/contracts && bunx tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",
     "clean": "rm -rf dist *.tsbuildinfo"

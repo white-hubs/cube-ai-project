@@ -16,6 +16,7 @@ describe('kb tenant context middleware', () => {
 
     await middleware(createCtx('/search/by-documents', { 'x-project-id': '58197260' }) as never, async () => {
       seen = tenantContextAls.getStore()?.tenantId === '58197260';
+      return new Response();
     });
 
     expect(seen).toBe(true);
@@ -27,6 +28,7 @@ describe('kb tenant context middleware', () => {
 
     await middleware(createCtx('/flow/flows', { 'x-project-id': '58197260' }) as never, async () => {
       passed = tenantContextAls.getStore() === undefined;
+      return new Response();
     });
 
     expect(passed).toBe(true);

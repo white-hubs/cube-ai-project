@@ -7,6 +7,8 @@ exact = true
 preload = ["./packages/agent/engine/test-preload.ts"]
 
 [install.scopes]
-# Private Nexus (ghcloud npm-group); @tachu/@dangao published here
+# Private Nexus (ghcloud npm-group); install/resolve via group
 "@tachu" = "http://nexus.guhecloud.com:8888/repository/npm-group/"
 "@dangao" = "http://nexus.guhecloud.com:8888/repository/npm-group/"
+# @cube-ai: install via npm-group; publish target is npm-hosted (see publishConfig + scripts/publish.sh)
+"@cube-ai" = "http://nexus.guhecloud.com:8888/repository/npm-group/"
