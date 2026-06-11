@@ -3,8 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "jsx": "preserve",
+    "jsxImportSource": "vue",
     "noEmit": true,
     "types": ["bun-types"]
   },
-  "include": ["src/**/*", "index.html", "env.d.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "index.html", "env.d.ts", "vite.config.ts"]
 }

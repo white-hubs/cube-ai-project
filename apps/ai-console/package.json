@@ -5,10 +5,10 @@
   "type": "module",
   "description": "Single-origin AI console — domain routes /agent /flow /kb /llm",
   "scripts": {
-    "dev": "bun --hot src/dev-server.ts",
+    "dev": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test",
-    "build": "bun build ./index.html --outdir dist --target=browser"
+    "build": "vite build"
   },
   "dependencies": {
     "@cube-ai/agent-sdk-client": "workspace:*",
@@ -24,7 +24,9 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "catalog:",
+    "@types/bun": "catalog:",
+    "@vitejs/plugin-vue-jsx": "^5.0.1",
     "typescript": "catalog:",
-    "@types/bun": "catalog:"
+    "vite": "^7.3.0"
   }
 }

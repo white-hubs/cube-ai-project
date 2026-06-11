@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import AgentView from './views/AgentView.vue';
-import FlowView from './views/FlowView.vue';
-import KbView from './views/KbView.vue';
-import LlmView from './views/LlmView.vue';
-import HomeView from './views/HomeView.vue';
+import { AgentView } from './views/AgentView';
+import { FlowView } from './views/FlowView';
+import { HomeView } from './views/HomeView';
+import { KbView } from './views/KbView';
+import { LlmView } from './views/LlmView';
 
 export const router = createRouter({
   history: createWebHistory(),

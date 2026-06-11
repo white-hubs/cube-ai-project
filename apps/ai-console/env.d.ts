@@ -1,7 +1,12 @@
-/// <reference types="bun-types" />
+/// <reference types="vite/client" />
+/// <reference types="vue/jsx" />
 
-declare module '*.vue' {
-  import type { DefineComponent } from 'vue';
-  const component: DefineComponent<object, object, unknown>;
-  export default component;
+interface ImportMetaEnv {
+  readonly VITE_AI_CENTER_TENANT?: string;
+  readonly VITE_AI_CENTER_TERMINAL?: string;
+  readonly VITE_AI_CENTER_DEV_TOKEN?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }
