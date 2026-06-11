@@ -15,4 +15,4 @@ export * from './sse';
  * pulling `@cube-ai/contracts` directly. */
 export type { SseEvent } from '@cube-ai/contracts';
 
-export const SDK_CORE_VERSION = '0.0.1-alpha.0';
+export const SDK_CORE_VERSION = '0.0.1-alpha.1';

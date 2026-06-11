@@ -59,6 +59,34 @@ function validateFileExists(
   }
 }
 
+/** bun build drops implementations when index.ts uses named re-exports without `from`. */
+const EMPTY_SHELL_EXPORT_RE = /^export\s*\{[^}]+\}\s*;?\s*$/;
+
+export function validateSdkDistBundle(
+  errors: string[],
+  pkgName: string,
+  pkgRoot: string,
+  mainPath: string,
+): void {
+  const abs = join(pkgRoot, mainPath);
+  if (!existsSync(abs)) return;
+
+  const content = readFileSync(abs, "utf8");
+  const trimmed = content.trim();
+  if (EMPTY_SHELL_EXPORT_RE.test(trimmed)) {
+    errors.push(
+      `${pkgName} ${mainPath} is an empty re-export shell (missing bundled implementation)`,
+    );
+    return;
+  }
+  const bytes = Buffer.byteLength(content, "utf8");
+  if (bytes <= 500) {
+    errors.push(
+      `${pkgName} ${mainPath} is only ${bytes} bytes — expected bundled implementation`,
+    );
+  }
+}
+
 function validateSdkPackage(
   root: string,
   relPath: SdkPublishPackagePath,
@@ -116,6 +144,9 @@ function validateSdkPackage(
     const rel = normalizePackageRelativePath(declaredPath);
     if (opts.requireBuiltArtifacts) {
       validateFileExists(errors, pkgRoot, rel, `${name} declared artifact`);
+      if (rel === "dist/index.js") {
+        validateSdkDistBundle(errors, name, pkgRoot, rel);
+      }
     }
   }
 

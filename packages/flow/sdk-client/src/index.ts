@@ -1,4 +1,4 @@
-export { createFlowClient, FlowClient, type RunFlowBody, type RunFlowResult } from './client';
+export * from './client';
 export type { FlowSdkConfig } from './http';
 export type {
   FlowEditorNode,

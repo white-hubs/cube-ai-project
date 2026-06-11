@@ -175,7 +175,7 @@
     },
     "packages/agent/sdk-client": {
       "name": "@cube-ai/agent-sdk-client",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "zod": "catalog:",
@@ -187,7 +187,7 @@
     },
     "packages/agent/sdk-client-assistant": {
       "name": "@cube-ai/agent-sdk-client-assistant",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/agent-sdk-client": "workspace:*",
         "@cube-ai/contracts": "workspace:*",
@@ -200,7 +200,7 @@
     },
     "packages/agent/sdk-client-mock": {
       "name": "@cube-ai/agent-sdk-client-mock",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -212,7 +212,7 @@
     },
     "packages/agent/sdk-client-vue": {
       "name": "@cube-ai/agent-sdk-client-vue",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/agent-sdk-client": "workspace:*",
         "@cube-ai/agent-sdk-client-assistant": "workspace:*",
@@ -229,7 +229,7 @@
     },
     "packages/contracts": {
       "name": "@cube-ai/contracts",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -267,7 +267,7 @@
     },
     "packages/flow/sdk-client": {
       "name": "@cube-ai/flow-sdk-client",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -277,7 +277,7 @@
     },
     "packages/flow/sdk-console": {
       "name": "@cube-ai/flow-sdk-console",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "devDependencies": {
         "typescript": "catalog:",
       },
@@ -323,7 +323,7 @@
     },
     "packages/kb/sdk-client": {
       "name": "@cube-ai/kb-sdk-client",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -333,7 +333,7 @@
     },
     "packages/kb/sdk-console": {
       "name": "@cube-ai/kb-sdk-console",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "devDependencies": {
         "typescript": "catalog:",
       },
@@ -355,7 +355,7 @@
     },
     "packages/llm/sdk-console": {
       "name": "@cube-ai/llm-sdk-console",
-      "version": "0.0.1-alpha.0",
+      "version": "0.0.1-alpha.1",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "zod": "catalog:",

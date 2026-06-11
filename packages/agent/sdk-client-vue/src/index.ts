@@ -23,4 +23,4 @@ export {
   type SseEvent,
 } from '@cube-ai/agent-sdk-client';
 
-export const SDK_VUE_VERSION = '0.0.1-alpha.0';
+export const SDK_VUE_VERSION = '0.0.1-alpha.1';
