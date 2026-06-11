@@ -80,8 +80,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
+PUBLISH_BUNFIG="$SCRIPT_DIR/publish.bunfig.toml"
 
 # Keep in sync with scripts/sdk-publish-manifest.ts
 PACKAGES=(
@@ -222,8 +224,9 @@ for pkg in "${PACKAGES[@]}"; do
   printf "\n  %s•%s publishing %s%s%s\n" "$CYAN" "$RESET" "$BOLD" "$PKG_NAME" "$RESET"
   (
     cd "$pkg"
+    # bunfig.toml routes @cube-ai install via npm-group; publish.bunfig.toml overrides scope for npm-hosted.
     # shellcheck disable=SC2086
-    bun publish --registry "$REGISTRY" --access "$ACCESS" --tag "$TAG" $DRY_RUN
+    bun publish --config="$PUBLISH_BUNFIG" --registry="$REGISTRY" --access="$ACCESS" --tag="$TAG" $DRY_RUN
   )
   PUBLISHED+=("$PKG_NAME@$VERSION")
   log_ok "$PKG_NAME@$VERSION"

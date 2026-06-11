@@ -1,0 +1,4 @@
+# Publish-only bunfig: override install.scopes so @cube-ai publishes to npm-hosted
+# (repo bunfig.toml routes @cube-ai install/resolve via npm-group).
+[install.scopes]
+"@cube-ai" = "http://nexus.guhecloud.com:8888/repository/npm-hosted/"
