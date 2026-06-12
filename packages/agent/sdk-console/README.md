@@ -6,10 +6,33 @@
 
 ## 安装
 
+**场景 A：本仓库内（monorepo workspace）** —— 用 workspace 协议，bun 直接软链本地源码：
+
 ```jsonc
-// package.json
+// 你的包 package.json
 "dependencies": { "@cube-ai/agent-sdk-console": "workspace:*" }
 ```
+
+```bash
+bun install
+```
+
+**场景 B：外部前端工程（独立仓库）** —— 从私有 npm registry 安装发布版本（包是私有 scope，需先配好 registry）：
+
+```bash
+# 一次性：把 @cube-ai scope 指向私有 registry（或写进项目 .npmrc）
+npm config set @cube-ai:registry http://nexus.guhecloud.com:8888/repository/npm-hosted/
+
+# 安装（按需锁版本；当前为 alpha）
+npm i @cube-ai/agent-sdk-console        # 或 pnpm add / yarn add / bun add
+```
+
+```ini
+# 推荐：项目根 .npmrc，避免每人手动配
+@cube-ai:registry=http://nexus.guhecloud.com:8888/repository/npm-hosted/
+```
+
+> 发布产物是浏览器 ESM（`dist/index.js` + d.ts），仅依赖 `@cube-ai/contracts` 类型与 `zod`，无 Node 内置依赖，可直接在前端打包器中用。
 
 ## 30 秒上手
 
