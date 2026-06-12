@@ -1,6 +1,6 @@
 import { loadAppConfig, type AppConfig } from '@cube-ai/server-base'
 import { currentTenantId } from '@cube-ai/server-shared'
-import mysql, { type Connection } from 'mysql2/promise'
+import mysql, { type Pool } from 'mysql2/promise'
 
 /** Minimal query surface backing the flow_studio_* repositories (mirrors flow-core MysqlQueryService). */
 export interface MysqlQueryService {
@@ -89,13 +89,13 @@ export class StudioRepositoryBase {
 
 /** mysql2-backed query service, constructed once from AppConfig (mirrors flow-core Mysql2FlowQueryService). */
 export class Mysql2StudioQueryService implements MysqlQueryService {
-  private connection: Connection | null = null
+  private pool: Pool | null = null
 
   public constructor(private readonly config: AppConfig) {}
 
   public async initialize(): Promise<void> {
-    if (this.connection) return
-    this.connection = await mysql.createConnection({
+    if (this.pool) return
+    this.pool = mysql.createPool({
       host: this.config.mysqlHost,
       port: this.config.mysqlPort,
       database: this.config.mysqlDatabase,
@@ -103,15 +103,17 @@ export class Mysql2StudioQueryService implements MysqlQueryService {
       password: this.config.mysqlPassword,
       supportBigNumbers: true,
       bigNumberStrings: true,
+      waitForConnections: true,
+      connectionLimit: 10,
+      timezone: '+08:00',
     })
-    await this.connection.query("SET time_zone = '+08:00'")
   }
 
   public async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
-    if (!this.connection) {
+    if (!this.pool) {
       throw new Error('Flow Studio MySQL connection is not initialized')
     }
-    const [rows] = await this.connection.query(sql, params)
+    const [rows] = await this.pool.query(sql, params)
     return Array.isArray(rows) ? (rows as T[]) : []
   }
 }

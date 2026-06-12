@@ -1,4 +1,4 @@
-import mysql, { type Connection } from 'mysql2/promise';
+import mysql, { type Pool } from 'mysql2/promise';
 import type { DatabaseService } from '@dangao/bun-server';
 
 export interface KbMysqlConfig {
@@ -65,13 +65,13 @@ export function hasKbMysqlConfigFromEnv(): boolean {
 
 /** Static mysql2 adapter for compiled Bun binaries (ADR-0013). */
 export class KbMysqlDatabaseService {
-  private connection: Connection | null = null;
+  private pool: Pool | null = null;
 
   public constructor(private readonly config: KbMysqlConfig) {}
 
   public async initialize(): Promise<void> {
-    if (this.connection) return;
-    this.connection = await mysql.createConnection({
+    if (this.pool) return;
+    this.pool = mysql.createPool({
       host: this.config.host,
       port: this.config.port,
       database: this.config.database,
@@ -79,15 +79,17 @@ export class KbMysqlDatabaseService {
       password: this.config.password,
       supportBigNumbers: true,
       bigNumberStrings: true,
+      waitForConnections: true,
+      connectionLimit: 10,
+      timezone: '+08:00',
     });
-    await this.connection.query("SET time_zone = '+08:00'");
   }
 
   public async query<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {
-    if (!this.connection) {
+    if (!this.pool) {
       throw new Error('KB MySQL connection is not initialized');
     }
-    const [rows] = await this.connection.query(sql, params);
+    const [rows] = await this.pool.query(sql, params);
     if (/^\s*(SELECT|SHOW|DESCRIBE|WITH)\b/i.test(sql)) {
       return Array.isArray(rows) ? (rows as T[]) : [];
     }

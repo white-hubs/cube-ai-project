@@ -1,5 +1,5 @@
 import { loadAppConfig, type AppConfig } from '@cube-ai/server-base'
-import mysql, { type Connection } from 'mysql2/promise'
+import mysql, { type Pool } from 'mysql2/promise'
 import {
   FLOW_REPOSITORY_TOKEN,
   type FlowRepository,
@@ -16,13 +16,13 @@ let _sharedRepositories: SharedRepositoriesState | null = null
 let _sharedRepositoriesPromise: Promise<FlowRepositoryBundle> | null = null
 
 class Mysql2FlowQueryService implements MysqlQueryService {
-  private connection: Connection | null = null
+  private pool: Pool | null = null
 
   public constructor(private readonly config: AppConfig) {}
 
   public async initialize(): Promise<void> {
-    if (this.connection) return
-    this.connection = await mysql.createConnection({
+    if (this.pool) return
+    this.pool = mysql.createPool({
       host: this.config.mysqlHost,
       port: this.config.mysqlPort,
       database: this.config.mysqlDatabase,
@@ -30,15 +30,17 @@ class Mysql2FlowQueryService implements MysqlQueryService {
       password: this.config.mysqlPassword,
       supportBigNumbers: true,
       bigNumberStrings: true,
+      waitForConnections: true,
+      connectionLimit: 10,
+      timezone: '+08:00',
     })
-    await this.connection.query("SET time_zone = '+08:00'")
   }
 
   public async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
-    if (!this.connection) {
+    if (!this.pool) {
       throw new Error('Flow MySQL connection is not initialized')
     }
-    const [rows] = await this.connection.query(sql, params)
+    const [rows] = await this.pool.query(sql, params)
     return Array.isArray(rows) ? (rows as T[]) : []
   }
 }
