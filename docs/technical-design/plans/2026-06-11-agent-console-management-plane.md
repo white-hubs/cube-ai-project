@@ -3,9 +3,9 @@
 > **决策权威**：[ADR-0016](../../adr/ADR-0016-agent-console-and-descriptor-dual-authority.md)。术语见 [CONTEXT.md](../../../CONTEXT.md)（Descriptor 资产一节）。
 > **执行约定**：每个里程碑完成后 `bun run typecheck && bun test` 全绿再进下一个；测试与源文件同目录（`*.test.ts`），需要 MySQL/Redis 的用例写成 `*.testcontainers.test.ts`（离线自动 skip）。
 
-**Goal:** 上游可经 HTTP API + `@cube-ai/agent-sdk-console` 对 agent / skill / rule 做租户级 CRUD / 版本 / 发布，已发布资产可被会话运行时解析；连带补全 rule 水合。
+**Goal:** 上游可经 HTTP API + `@cube-ai/agent-sdk-console` 对 agent / skill / rule 做租户级 CRUD / 版本 / 发布，已发布资产可被会话运行时解析；连带补全 rule 水合。另提供 **Descriptor Document** 入口（`:fromDocument` 端点），支持直接提交 YAML frontmatter + markdown body 格式的文档落库，最终效果与结构化创建等价。
 
-**Architecture:** contracts 定 wire schema 与 id 前缀 → engine 新 BC `tenant-descriptor`（MySQL 双表 + draft/publish）→ `/agent/*` 控制器 → 运行时条目级缓存 + outbox `descriptor_reload` 广播失效 → `agent-sdk-console` 封装 HTTP。
+**Architecture:** contracts 定 wire schema 与 id 前缀 → engine 新 BC `tenant-descriptor`（MySQL 双表 + draft/publish）→ `/agent/*` 控制器 → 运行时条目级缓存 + outbox `descriptor_reload` 广播失效 → `agent-sdk-console` 封装 HTTP。**DescriptorDocumentParser**（从 `descriptor-loader.ts` 提取）为文件加载与 `:fromDocument` 入口提供统一 document→structured 解析。
 
 **不做（v1）：** tool 租户 CRUD、skill 附属资源文件、draft 预览运行、角色级权限（平台侧负责）、UI。
 
@@ -42,7 +42,7 @@ export type TenantDescriptorKind = keyof typeof TENANT_DESCRIPTOR_ID_PREFIXES;
 export function parseTenantDescriptorId(ref: string):
   { kind: TenantDescriptorKind; sfid: string } | null;
 
-export const TenantAgentContentSchema = z.object({
+export const TenantAgentContentSchema = TenantDescriptorMetaSchema.extend({
   prompt: z.string().min(1),
   modelConfig: z.object({
     provider: z.string().optional(),
@@ -56,13 +56,21 @@ export const TenantAgentContentSchema = z.object({
   maxDepth: z.number().int().positive().optional(),
 });
 
-export const TenantSkillContentSchema = z.object({
+/** 三种 kind 共有的可选展示/检索字段（对齐 Descriptor Document frontmatter，见 CONTEXT.md） */
+const TenantDescriptorMetaSchema = z.object({
+  displayName: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  version: z.string().optional(),        // 内容语义版本，独立于 DB head_version_no
+});
+
+export const TenantSkillContentSchema = TenantDescriptorMetaSchema.extend({
   description: z.string().min(1),
-  trigger: z.string().optional(),        // 对齐 SKILL.md frontmatter 字段
+  trigger: z.string().optional(),        // 对齐 SKILL.md frontmatter trigger 字段
   instructions: z.string().min(1),       // markdown 文本
 });
 
-export const TenantRuleContentSchema = z.object({
+export const TenantRuleContentSchema = TenantDescriptorMetaSchema.extend({
+  description: z.string().optional(),    // 人类可读说明
   content: z.string().min(1),            // 注入 system prompt 的规则文本
 });
 
@@ -93,12 +101,33 @@ export const TenantDescriptorViewSchema = z.object({
 ## M2 — engine：`bc/tenant-descriptor` 持久化与服务
 
 **Files:**
+- Create: `packages/agent/engine/src/bc/descriptor/descriptor-document-parser.ts`（+ `descriptor-document-parser.test.ts`）
+- Modify: `packages/agent/engine/src/bc/descriptor/descriptor-loader.ts`（内部改用 DescriptorDocumentParser）
 - Create: `packages/agent/engine/src/bc/tenant-descriptor/`
   - `tenant-descriptor.repository.ts`（mysql2，模式对齐 `bc/session/session.repository`）
   - `tenant-descriptor.service.ts` + `tenant-descriptor.service.test.ts`
   - `tenant-descriptor.module.ts`、`index.ts`
 - Modify: `infra/test-infra/fixtures/minimal-mysql.sql`（追加 DDL）
 - Modify: `packages/agent/engine/src/infra/tenant-guard/isolation-matrix.ts`（登记新表的租户隔离）
+
+**DescriptorDocumentParser — 纯函数，无 I/O（见 CONTEXT.md `DescriptorDocumentParser`）：**
+
+```ts
+// packages/agent/engine/src/bc/descriptor/descriptor-document-parser.ts
+export function parseSkillDocument(raw: string):
+  { name: string; content: TenantSkillContent }
+
+export function parseRuleDocument(raw: string):
+  { name: string; content: TenantRuleContent }
+
+export function parseAgentDocument(raw: string):
+  { name: string; content: TenantAgentContent }
+```
+
+- 三者统一：YAML frontmatter 提取 `name`（必填）+ schema 字段（`displayName / tags / version` + kind 特定字段），markdown body 作为主文本内容（skill→`instructions`，rule→`content`，agent→`prompt`）。
+- frontmatter 中 `resources / requires / deprecated` 等不在目标 schema 的字段静默丢弃。
+- `descriptor-loader.ts` 内的 `parseSkillMarkdown` 重构为调用 `parseSkillDocument`（保持行为不变，消除重复）。
+- 测试：三种 kind 的 valid 文档、缺 name、缺 body、无 frontmatter、多余字段被丢弃。
 
 **DDL（两表，audit 列对齐既有表）：**
 
@@ -130,6 +159,7 @@ CREATE TABLE tenant_descriptor_versions (
 
 **Service 行为（每条都要有测试）：**
 - `create(kind, name, content)`：content 按 kind schema 校验 → 引用校验 → 插 head 行（draft, v1）+ 版本行；name 撞 `uk_tenant_kind_name` 报 409 语义错误。
+- `upsertFromDocument(kind, rawText)`：调 `DescriptorDocumentParser.parseXxxDocument(rawText)` 提取 `{name, content}` → 按 `(tenant, kind, name)` 查找；不存在则 `create()`，已存在则 `update(id, content, currentHeadVersionNo)`（跳过乐观锁冲突检查，直接用当前 head_version_no）→ 返回 `{ id, name, action: 'created' | 'updated', headVersionNo, status: 'draft' }`。结果始终为 draft，需显式 publish 才对运行时可见。
 - `update(id, content, expectedHeadVersionNo)`：乐观锁不符报 409；写新版本行、head_version_no+1、status 回 `draft`（已发布的资产被编辑 = published_version_no 不动、运行时继续解析旧发布版）。
 - `publish(id, versionNo?)`：默认发布 head；`published_version_no = versionNo`、status=`published`；事务内经 `OutboxWriter.append` 写 `descriptor_reload` 事件（payload: `{tenant, id, kind}`）。
 - `rollback` = `publish(id, 旧 versionNo)`（不需要独立方法，文档化即可）。
@@ -151,16 +181,22 @@ CREATE TABLE tenant_descriptor_versions (
 
 **路由（`domain-path-rewrite.middleware` 已剥 `/agent` 前缀，控制器注册裸路径）：**
 
-| Method | Path（对外） | 行为 |
-|---|---|---|
-| POST | `/agent/agents` | create（skills/rules 同构，路径换 `/skills` `/rules`） |
-| GET | `/agent/agents` | list（仅本租户，含 draft/published 状态） |
-| GET | `/agent/agents/:id` | detail（head 内容） |
-| GET | `/agent/agents/:id/versions` | 版本历史 |
-| PUT | `/agent/agents/:id` | update（新草稿版本） |
-| POST | `/agent/agents/:id/publish` | publish（body 可带 versionNo 做回滚） |
-| DELETE | `/agent/agents/:id` | 软删 |
-| GET | `/agent/system/agents` `/agent/system/skills` `/agent/system/rules` | 系统级只读列表 |
+| Method | Path（对外） | Content-Type | 行为 |
+|---|---|---|---|
+| POST | `/agent/agents` | application/json | create（skills/rules 同构） |
+| GET | `/agent/agents` | — | list（仅本租户，含 draft/published 状态） |
+| GET | `/agent/agents/:id` | — | detail（head 内容） |
+| GET | `/agent/agents/:id/versions` | — | 版本历史 |
+| PUT | `/agent/agents/:id` | application/json | update（新草稿版本） |
+| POST | `/agent/agents/:id/publish` | application/json | publish（body 可带 versionNo 做回滚） |
+| DELETE | `/agent/agents/:id` | — | 软删 |
+| POST | `/agent/agents:fromDocument` | text/plain | **Descriptor Document upsert**（skill/rule 同构，路径换 `:fromDocument`） |
+| GET | `/agent/system/agents` `/agent/system/skills` `/agent/system/rules` | — | 系统级只读列表 |
+
+**`:fromDocument` 端点行为：**
+- 读取 `text/plain` request body → 调 `service.upsertFromDocument(kind, rawText)`。
+- 响应：`{ id, name, action: 'created'|'updated', headVersionNo, status: 'draft' }`，HTTP 200（created/updated 均如此，调用方按 `action` 字段区分）。
+- parse 失败（缺 frontmatter、name 为空、content 不合 schema）→ 422。
 
 **注意：**
 - 复用既有 tenant-context / 鉴权中间件链（与 `/sessions` 同链路），不加任何新鉴权概念。
@@ -208,10 +244,13 @@ CREATE TABLE tenant_descriptor_versions (
 ```ts
 const console = createAgentConsoleClient({ baseUrl, auth, headersProvider });
 console.agents.create / list / get / versions / update / publish / remove
-console.skills.*   // 同构
-console.rules.*    // 同构
+console.agents.createFromDocument(rawText: string)  // POST :fromDocument, text/plain
+console.skills.*   // 同构（含 createFromDocument）
+console.rules.*    // 同构（含 createFromDocument）
 console.system.listAgents / listSkills / listRules
 ```
+
+`createFromDocument` 的返回类型：`{ id: string; name: string; action: 'created' | 'updated'; headVersionNo: number; status: 'draft' }`。
 
 只走 HTTP，不 import 任何后端包（ADR-0011/0002 红线，`composition-root-import-boundary.test.ts` 会兜底）。
 

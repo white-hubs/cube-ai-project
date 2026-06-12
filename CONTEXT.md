@@ -144,6 +144,14 @@ _Avoid_: 把管理面塞进 `/v1/*` 消费面, 手工部署 descriptor 文件当
 租户级 descriptor 的草稿版本成为运行时可解析版本的动作；只有已发布版本可被新会话引用，编辑草稿不影响运行时。
 _Avoid_: 编辑即生效, 把版本历史当发布
 
+**Descriptor Document（声明式资产文档）**:
+向 **agent 管理面** 提交**租户级 descriptor** 的另一种格式：YAML frontmatter（结构化元数据：name、description、displayName、tags、version 及 kind 特定字段）+ markdown body（skill 的 instructions、rule 的规则正文、agent 的 system prompt）；与系统级 `descriptors/` 目录中的 SKILL.md 格式对齐，经 **DescriptorDocumentParser** 在写入时解析为结构化内容，最终存储效果与结构化创建路径相同。frontmatter 中不在目标 schema 的字段（如 `resources`、`requires`、`deprecated`）静默丢弃。
+_Avoid_: 把 document 格式当原始存储（应解析后落结构化字段）, 在 HTTP 控制器层内联解析逻辑（应走 DescriptorDocumentParser seam）
+
+**DescriptorDocumentParser**:
+从 `descriptor-loader.ts` 提取的纯函数解析模块（`bc/descriptor/descriptor-document-parser.ts`），为文件加载路径与管理面 `:fromDocument` 入口提供统一的 document→structured 转换；无 I/O 依赖，可独立测试。
+_Avoid_: 解析逻辑分散在 loader 私有函数与 HTTP 控制器之间
+
 ### 前端消费
 
 **统一前门**:
