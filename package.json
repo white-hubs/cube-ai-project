@@ -66,6 +66,8 @@
     "build": "bun run --filter '*' build",
     "build:host-binary": "bash scripts/build-host-binary.sh",
     "build:host-binary:x64": "bash scripts/build-host-binary.sh --target=linux-x64",
+    "build:image": "bash scripts/build-image.sh",
+    "build:image:push": "bash scripts/build-image.sh --push",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
     "test:integration": "USE_TESTCONTAINERS=1 bun test --timeout 3600000 packages/agent/engine/test/integration/mysql-redis-qdrant.testcontainers.test.ts",

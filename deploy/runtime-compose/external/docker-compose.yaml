@@ -1,0 +1,88 @@
+# cube-ai-center — 外置依赖运行时模板
+#
+# 面向 **共享部署环境**：只运行 ai-center 容器，MySQL / Redis / Qdrant 等
+# 依赖通过 .env 指向外部已有服务。
+#
+# 前置：先用 scripts/build-image.sh --push 推送 **发布镜像**，再在本机 .env 填
+# AI_CENTER_IMAGE=<registry>/cube-ai-center:<sha7>。
+#
+# 用法：
+#   cd deploy/runtime-compose/external
+#   cp .env.example .env
+#   docker compose up -d
+#   ../../scripts/verify-ai-center-http.sh http://127.0.0.1:${AI_CENTER_HOST_PORT:-3000}
+
+name: cube-ai-center-runtime-external
+
+x-ai-center-env: &ai-center-env
+  AI_CENTER_PORT: "${AI_CENTER_CONTAINER_PORT:-3000}"
+  AI_CENTER_HOSTNAME: "0.0.0.0"
+  DEPLOY_ENV: "${DEPLOY_ENV:-DEV}"
+  AI_CENTER_VERSION: "${AI_CENTER_VERSION:-dev-local}"
+  BUILD_SHA: "${BUILD_SHA:-local}"
+  LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+
+  AGENTIC_ENGINE_MYSQL_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DB}"
+  AGENTIC_ENGINE_REDIS_URL: "${REDIS_URL}"
+  AGENTIC_ENGINE_QDRANT_URL: "${QDRANT_URL}"
+  MYSQL_HOST: "${MYSQL_HOST}"
+  MYSQL_PORT: "${MYSQL_PORT}"
+  MYSQL_USER: "${MYSQL_USER}"
+  MYSQL_USERNAME: "${MYSQL_USERNAME:-${MYSQL_USER}}"
+  MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+  MYSQL_DB: "${MYSQL_DB}"
+  MYSQL_DATABASE: "${MYSQL_DATABASE:-${MYSQL_DB}}"
+  REDIS_URL: "${REDIS_URL}"
+  QDRANT_URL: "${QDRANT_URL}"
+  QDRANT_BASE_URL: "${QDRANT_BASE_URL:-${QDRANT_URL}}"
+
+  NACOS_ADDRESS: "${NACOS_ADDRESS:-}"
+  NACOS_SERVER_ADDR: "${NACOS_SERVER_ADDR:-${NACOS_ADDRESS:-}}"
+  NACOS_NAMESPACE_ID: "${NACOS_NAMESPACE_ID:-${NACOS_NAMESPACE:-}}"
+  NACOS_NAMESPACE: "${NACOS_NAMESPACE:-}"
+  NACOS_USERNAME: "${NACOS_USERNAME:-}"
+  NACOS_PASSWORD: "${NACOS_PASSWORD:-}"
+
+  AGENTIC_ENGINE_AUTH_MODE: "${AGENTIC_ENGINE_AUTH_MODE:-mock}"
+  USE_GHCLOUD_IDENTITY: "${USE_GHCLOUD_IDENTITY:-0}"
+  JWT_KEY_URL: "${JWT_KEY_URL:-}"
+
+  AGENTIC_ENGINE_PROVIDER: "${AGENTIC_ENGINE_PROVIDER:-agentic-platform-llm-catalog}"
+  CUBE_AI_CATALOG_DEV_SEED: "${CUBE_AI_CATALOG_DEV_SEED:-}"
+
+  AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR: "/app/descriptors/"
+  AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR: "/app/descriptors/agents"
+  AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR: "/app/descriptors/skills"
+  AGENTIC_ENGINE_GLOBAL_PROMPT_PATH: "/app/CUBE.md"
+  AGENTIC_ENGINE_MCP_SERVERS_CONFIG: "/app/config/mcp-servers.json"
+  AGENTIC_ENGINE_LOCAL_FILE_DIR: "/var/lib/ai-center/local-files"
+
+  OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+  OTEL_SERVICE_NAME: "cube-ai-center"
+  OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=${DEPLOY_ENV:-DEV},service.version=${AI_CENTER_VERSION:-dev-local}"
+
+services:
+  ai-center:
+    image: ${AI_CENTER_IMAGE:?Set AI_CENTER_IMAGE to a pushed release image tag}
+    container_name: ai-center-runtime
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      <<: *ai-center-env
+    ports:
+      - "${AI_CENTER_HOST_PORT:-3000}:${AI_CENTER_CONTAINER_PORT:-3000}"
+    volumes:
+      - ${DESCRIPTORS_DIR:-../../../descriptors}:/app/descriptors:ro
+      - ${CONFIG_DIR:-../../../config}:/app/config:ro
+      - ${GLOBAL_PROMPT_FILE:-../../../packages/agent/engine/CUBE.md}:/app/CUBE.md:ro
+      - ai-center-local-files:/var/lib/ai-center/local-files
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:${AI_CENTER_CONTAINER_PORT:-3000}/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  ai-center-local-files:

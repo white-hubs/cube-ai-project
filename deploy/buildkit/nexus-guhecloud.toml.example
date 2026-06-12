@@ -1,0 +1,8 @@
+# BuildKit registry config for nexus.guhecloud.com:5000 (HTTP / insecure).
+# Copy to a local path and pass to build-image.sh:
+#   cp deploy/buildkit/nexus-guhecloud.toml.example ~/.docker/buildkit/nexus-guhecloud.toml
+#   scripts/build-image.sh --buildkit-config ~/.docker/buildkit/nexus-guhecloud.toml --recreate-builder
+
+[registry."nexus.guhecloud.com:5000"]
+  http = true
+  insecure = true

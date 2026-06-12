@@ -20,7 +20,9 @@ WORKDIR /app
 
 COPY bun.lock package.json bunfig.toml tsconfig.base.json tsconfig.json ./
 COPY patches ./patches
+# workspaces 含 apps/*；缺任一 package.json 会导致 frozen lockfile 校验失败
 COPY apps/ai-center/package.json ./apps/ai-center/
+COPY apps/ai-console/package.json ./apps/ai-console/
 COPY packages ./packages
 COPY infra ./infra
 
@@ -44,9 +46,9 @@ FROM ${BUN_CI_IMAGE} AS build-binary
 
 WORKDIR /app
 
+# 全量源码 + 完整 install（不 seed deps 层 node_modules，避免 workspace 包级链接残缺）
 COPY . .
-COPY --from=deps /app/node_modules ./node_modules
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile
 
 RUN mkdir -p /out && \
     bun build apps/ai-center/src/main.ts \
@@ -93,6 +95,18 @@ CMD ["bun", "run", "src/main.ts"]
 # Stage: runtime-binary
 # ════════════════════════════════════════════════════════════════════════════
 FROM ${DEBIAN_RUNTIME_IMAGE} AS runtime-binary
+
+LABEL org.opencontainers.image.title="cube-ai-center"
+LABEL org.opencontainers.image.vendor="cube-ai"
+LABEL org.opencontainers.image.licenses="proprietary"
+LABEL com.cube-ai.ai-center.image-flavor="binary"
+
+ARG AI_CENTER_VERSION=unknown
+ARG BUILD_SHA=unknown
+ARG BUILD_CREATED=unknown
+LABEL org.opencontainers.image.version="${AI_CENTER_VERSION}"
+LABEL org.opencontainers.image.revision="${BUILD_SHA}"
+LABEL org.opencontainers.image.created="${BUILD_CREATED}"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \

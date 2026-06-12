@@ -26,8 +26,9 @@
     "@qdrant/js-client-rest": "catalog:",
     "jszip": "catalog:",
     "mammoth": "catalog:",
+    "mysql2": "catalog:",
     "reflect-metadata": "catalog:",
-    "mysql2": "catalog:"
+    "xlsx": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
