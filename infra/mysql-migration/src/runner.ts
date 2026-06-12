@@ -33,15 +33,13 @@ async function listMigrationFiles(dir: string, prefix: 'V' | 'S'): Promise<strin
   return sortByVersion(entries.filter((f) => f.startsWith(prefix) && f.endsWith('.sql')));
 }
 
+/**
+ * 整文件交给 MySQL 执行（连接已开 multipleStatements），不在客户端做语句切分——
+ * 正则切分对存储过程 / 触发器 / 字符串内 `;` 不可靠。
+ */
 async function execSql(conn: mysql.Connection, sql: string): Promise<void> {
-  const statements = sql
-    .split(/;\s*\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  for (const stmt of statements) {
-    await conn.query(stmt);
-  }
+  if (!sql.trim()) return;
+  await conn.query(sql);
 }
 
 export function createMigrationRunner(opts: MigrationRunnerOpts): { run(): Promise<void> } {
@@ -49,7 +47,7 @@ export function createMigrationRunner(opts: MigrationRunnerOpts): { run(): Promi
 
   return {
     async run(): Promise<void> {
-      const conn = await mysql.createConnection({ uri: mysqlUrl, multipleStatements: false });
+      const conn = await mysql.createConnection({ uri: mysqlUrl, multipleStatements: true });
       try {
         await conn.query(`
           CREATE TABLE IF NOT EXISTS \`${historyTable}\` (

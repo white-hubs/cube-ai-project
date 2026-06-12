@@ -45,6 +45,24 @@ async function queryScalar<T>(mysqlUrl: string, sql: string, params: unknown[] =
   }
 }
 
+/** MySQL testcontainers often accept TCP before the first session is stable. */
+async function waitForMysqlReady(url: string): Promise<void> {
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    try {
+      const conn = await mysql.createConnection({ uri: url });
+      try {
+        await conn.query('SELECT 1');
+        return;
+      } finally {
+        await conn.end();
+      }
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+  throw new Error('MySQL container not ready after 30 attempts');
+}
+
 async function makeTmpDir(): Promise<string> {
   const dir = join(tmpdir(), `migration-test-${Math.random().toString(36).slice(2)}`);
   await mkdir(dir, { recursive: true });
@@ -60,6 +78,7 @@ beforeAll(async () => {
   if (!should) return;
   stack = await startMysqlOnly();
   mysqlUrl = stack.mysqlUrl;
+  await waitForMysqlReady(mysqlUrl);
 });
 
 afterAll(async () => {
