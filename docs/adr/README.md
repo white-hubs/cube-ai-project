@@ -35,6 +35,7 @@
 | ADR-0014 | [flow-editor 投影层临时复刻为 `packages/flow/studio`（B→C 北极星）](./ADR-0014-flow-editor-projection-layer-studio.md) | Accepted |
 | ADR-0015 | [DI token 保留 `agentic.*` 命名空间](./ADR-0015-di-token-namespace.md) | Accepted |
 | ADR-0016 | [agent 管理面（console face）与 descriptor 双层权威 —— 租户 MySQL + 系统文件，前缀 id 命名空间，draft/publish 版本模型](./ADR-0016-agent-console-and-descriptor-dual-authority.md) | Accepted |
+| ADR-0017 | [Schema Migration —— 域自持 migrations/ + 独立 history 表 + 共享 infra runner，ai-center 启动时协调](./ADR-0017-schema-migration-per-domain-runner.md) | Accepted |
 
 ## 未决问题（贯穿）
 

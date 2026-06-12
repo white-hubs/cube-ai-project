@@ -1,0 +1,21 @@
+{
+  "name": "@cube-ai/mysql-migration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lightweight domain-scoped MySQL migration runner (V/S files, per-domain history table).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "mysql2": "catalog:"
+  },
+  "devDependencies": {
+    "@cube-ai/test-infra": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

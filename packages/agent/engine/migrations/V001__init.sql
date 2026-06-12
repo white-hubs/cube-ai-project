@@ -1,16 +1,8 @@
 -- =============================================================================
--- cube-agentic-engine — Dev / Test MySQL bootstrap schema
+-- agent-engine — 初始 schema（ADR-0017 迁入）
 -- =============================================================================
--- 由 mysql:8.4 镜像在首次启动时自动执行（/docker-entrypoint-initdb.d/）。
--- 仅当 mysql-data volume 为空时才会执行；如果改了 DDL，请：
---   docker compose down -v   # 清掉数据卷
---   docker compose up -d
---
--- 这里收口的是 dev 环境最小可用 schema，与 infra/test-infra/fixtures/
--- *.sql 同源；权威 DDL 见 docs/detailed-design/02-data/mysql-tables.md。
+-- 权威定义见 docs/detailed-design/02-data/mysql-tables.md。
 -- =============================================================================
-
-USE cube_ai_center;
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
@@ -72,8 +64,7 @@ CREATE TABLE IF NOT EXISTS turns (
   KEY idx_tenant_status_start   (tenant, status, start_time, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ─── messages ──────────────────────────────────────────────────────────────
--- ref: docs/detailed-design/02-data/mysql-tables.md §8（M2 GET /sessions/:id/messages / JobDataService.insertAssistantMessage）
+-- ─── messages ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS messages (
   id                 BIGINT(20)   NOT NULL COMMENT '主键 SFID',
   tenant             INT(10)      NOT NULL COMMENT '租户（冗余）',
@@ -102,8 +93,7 @@ CREATE TABLE IF NOT EXISTS messages (
   KEY idx_tool_call (tool_call_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ─── file_assets（本地文件扩展，POST /v1/files）──────────────────────────────
--- ref: docs/detailed-design/02-data/mysql-tables.md §8.7
+-- ─── file_assets ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS file_assets (
   file_id             VARCHAR(128) NOT NULL,
   tenant              INT          NOT NULL,
@@ -236,7 +226,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
   KEY idx_tenant_deleted     (tenant, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Memory projection outbox（RedisProjectedMemorySystem + MemoryProjectionRelay）
+-- ─── memory_projection_outbox ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS memory_projection_outbox (
   id                  BIGINT(20)   NOT NULL,
   tenant              INT(10)      NOT NULL,

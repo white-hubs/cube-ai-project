@@ -23,6 +23,7 @@
         "@cube-ai/flow-studio": "workspace:*",
         "@cube-ai/kb-core": "workspace:*",
         "@cube-ai/llm-core": "workspace:*",
+        "@cube-ai/mysql-migration": "workspace:*",
         "@cube-ai/platform-adapter-ghcloud": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "mysql2": "catalog:",
@@ -101,10 +102,22 @@
         "@dangao/bun-server": "catalog:bun-server",
       },
     },
+    "infra/mysql-migration": {
+      "name": "@cube-ai/mysql-migration",
+      "version": "0.0.0",
+      "dependencies": {
+        "mysql2": "catalog:",
+      },
+      "devDependencies": {
+        "@cube-ai/test-infra": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "infra/test-infra": {
       "name": "@cube-ai/test-infra",
       "version": "0.0.0",
       "dependencies": {
+        "@cube-ai/mysql-migration": "workspace:*",
         "@testcontainers/mysql": "catalog:",
         "@testcontainers/qdrant": "catalog:",
         "@testcontainers/redis": "catalog:",
@@ -608,6 +621,8 @@
     "@cube-ai/llm-core": ["@cube-ai/llm-core@workspace:packages/llm/core"],
 
     "@cube-ai/llm-sdk-console": ["@cube-ai/llm-sdk-console@workspace:packages/llm/sdk-console"],
+
+    "@cube-ai/mysql-migration": ["@cube-ai/mysql-migration@workspace:infra/mysql-migration"],
 
     "@cube-ai/platform-adapter-ghcloud": ["@cube-ai/platform-adapter-ghcloud@workspace:packages/platform-adapters/ghcloud"],
 

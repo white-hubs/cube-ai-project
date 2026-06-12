@@ -77,6 +77,7 @@ services:
       - "${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ../../docker-compose/mysql/conf.d:/etc/mysql/conf.d:ro
       - ../../docker-compose/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root_runtime_only}"]

@@ -1,4 +1,5 @@
 import type { Application } from '@dangao/bun-server';
+import { runAllDomainMigrations } from './migrations';
 import { ExceptionFilterRegistry } from '@dangao/bun-server';
 import { createExecutionAuthMiddleware, loadAppConfig } from '@cube-ai/ai-center/platform/server-base';
 import {
@@ -176,6 +177,10 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   app.use(createFlowTenantContextMiddleware());
 
   registerLifecycleHooks(app);
+
+  const mysqlUrl = Bun.env.AGENTIC_ENGINE_MYSQL_URL ?? process.env.AGENTIC_ENGINE_MYSQL_URL ?? '';
+  if (mysqlUrl) await runAllDomainMigrations(mysqlUrl);
+
   await app.listen(port, hostname);
   return app;
 }

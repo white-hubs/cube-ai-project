@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testInfraLog } from './log';
 import { findMonorepoRoot } from './repo-path';
+import { createMigrationRunner } from '@cube-ai/mysql-migration';
 
 const fixtureUrl = new URL('../fixtures/minimal-mysql.sql', import.meta.url);
 const grantsFixtureUrl = new URL('../fixtures/grants-mysql.sql', import.meta.url);
@@ -119,21 +120,24 @@ async function applySqlWithRetry(mysqlUrl: string, sql: string, label: string): 
   }
 }
 
-async function applyComposeInitSqlFile(mysqlUrl: string, fileName: string): Promise<void> {
-  const root = findMonorepoRoot(fileURLToPath(new URL('.', import.meta.url)));
-  const filePath = join(root, 'deploy/docker-compose/mysql/init', fileName);
-  let sql = await readFile(filePath, 'utf8');
-  sql = sql.replace(/^USE\s+[\w`]+\s*;\s*\n?/im, '');
-  await applySqlWithRetry(mysqlUrl, sql, `Compose init ${fileName}`);
-}
-
 /**
  * flow / kb / llm-catalog 域表 + engine minimal schema，供 ai-center 集成测试。
+ * 使用 mysql-migration runner（ADR-0017），与应用启动路径完全对齐。
  */
 export async function applyAiCenterDomainMysqlSchemas(mysqlUrl: string): Promise<void> {
   await applyMinimalMysqlSchema(mysqlUrl);
   await applyGrantsMysqlSchema(mysqlUrl);
-  for (const file of ['02-flow.sql', '03-llm-catalog.sql', '04-kb.sql', '05-flow-studio.sql'] as const) {
-    await applyComposeInitSqlFile(mysqlUrl, file);
+
+  const root = findMonorepoRoot(fileURLToPath(new URL('.', import.meta.url)));
+  const domainMigrations = [
+    { migrationsDir: join(root, 'packages/flow/core/migrations'),    historyTable: 'flow_schema_migrations' },
+    { migrationsDir: join(root, 'packages/llm/core/migrations'),     historyTable: 'llm_catalog_schema_migrations' },
+    { migrationsDir: join(root, 'packages/kb/core/migrations'),      historyTable: 'kb_schema_migrations' },
+    { migrationsDir: join(root, 'packages/flow/studio/migrations'),  historyTable: 'flow_studio_schema_migrations' },
+  ];
+
+  for (const domain of domainMigrations) {
+    testInfraLog(`Applying migrations: ${domain.historyTable}…`);
+    await createMigrationRunner({ mysqlUrl, ...domain }).run();
   }
 }

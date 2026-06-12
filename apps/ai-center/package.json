@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@cube-ai/agent-engine": "workspace:*",
+    "@cube-ai/mysql-migration": "workspace:*",
     "@cube-ai/contracts": "workspace:*",
     "@cube-ai/embedding": "workspace:*",
     "@cube-ai/flow-core": "workspace:*",

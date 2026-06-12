@@ -238,6 +238,12 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 > **Dev:** “租户在管理面建了个和内置 agent 同名的 agent，会覆盖内置的吗？”
 > **Domain expert:** “不会。**租户级 descriptor** 与 **系统级 descriptor** 以标识命名空间区分、互不遮蔽——租户资产用带类型前缀的 id 引用，裸 name 永远指系统级。另外租户编辑的是草稿，**发布** 后才对新会话生效，已建会话靠快照冻结不受影响。”
 
+### 持久化与演进
+
+**Schema Migration（模式迁移）**:
+各**能力包**自持 `migrations/` 目录、按版本号增量演进 MySQL schema 的机制（ADR-0017）；分 `V`（DDL，执行一次）与 `S`（Seed，幂等重跑）两轨。每个域有独立的 history 表，`infra/mysql-migration` 提供共享 runner，`apps/ai-center` 协调执行顺序。与「全量重建」不同——migration 是增量、可追溯的。
+_Avoid_: 手工执行 init SQL, 共享单张 history 表, 把 migration 文件集中放 deploy/ 目录
+
 ## Flagged ambiguities
 
 - “provider” 同时被用于「模型目录里的厂商(provider/typeCode)」与「调用能力(LlmProviderPort)” —— resolved: 目录里的厂商归 **LLM 目录 (Catalog)**；调用能力才叫 **LLM 调用 (Provider)**

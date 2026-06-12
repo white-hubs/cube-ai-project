@@ -1,4 +1,6 @@
-USE cube_ai_center;
+-- flow-core — 初始 schema（ADR-0017 迁入，来自 02-flow.sql）
+
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `flows` (
   `id` BIGINT(20) UNSIGNED NOT NULL,

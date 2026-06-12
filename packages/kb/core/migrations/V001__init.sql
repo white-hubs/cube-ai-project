@@ -1,4 +1,6 @@
-USE cube_ai_center;
+-- kb-core — 初始 schema（ADR-0017 迁入，来自 04-kb.sql；替换旧的 001_kb_core_schema.sql）
+
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS `document_directory_record` (
   `id` VARCHAR(64) NOT NULL,

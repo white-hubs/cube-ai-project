@@ -1,0 +1,9 @@
+# MySQL 官方 entrypoint 对每个 init/*.sql 单独起 mysql 客户端进程，且不带
+# --default-character-set。未显式 SET NAMES 时客户端默认 latin1，会把 UTF-8
+# 脚本里的中文 COMMENT 双重编码（Navicat 等 utf8mb4 客户端显示为乱码）。
+
+[client]
+default-character-set = utf8mb4
+
+[mysql]
+default-character-set = utf8mb4
