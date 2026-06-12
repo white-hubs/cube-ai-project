@@ -75,8 +75,8 @@ bun tools/migration/catalog-migrate.ts \
 # 验证映射 → InMemoryCatalogStore（见 catalog-migrate.test.ts）
 bun test tools/migration
 
-# 生产写入：与 engine/flow 同库 MySQL（agentic_engine 的 llm_catalog_* 表）
-bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:pass@host:3306/agentic_engine
+# 生产写入：与 engine/flow 同库 MySQL（cube_ai_center 的 llm_catalog_* 表）
+bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:pass@host:3306/cube_ai_center
 # （--mysql-url 缺省读 AGENTIC_ENGINE_MYSQL_URL）
 ```
 

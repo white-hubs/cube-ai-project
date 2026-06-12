@@ -65,7 +65,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-root_runtime_only}"
-      MYSQL_DATABASE: "${MYSQL_DB:-agentic_engine}"
+      MYSQL_DATABASE: "${MYSQL_DB:-cube_ai_center}"
       MYSQL_USER: "${MYSQL_USER:-agentic_engine}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-agentic_engine_runtime}"
       TZ: UTC

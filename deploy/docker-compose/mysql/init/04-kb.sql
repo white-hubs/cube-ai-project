@@ -1,4 +1,4 @@
-USE agentic_engine;
+USE cube_ai_center;
 
 CREATE TABLE IF NOT EXISTS `document_directory_record` (
   `id` VARCHAR(64) NOT NULL,

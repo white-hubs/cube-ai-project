@@ -21,7 +21,7 @@ function asEndpointType(value: string | null | undefined): LlmEndpointType | nul
 /**
  * MySQL 后端的 `LlmCatalogPort`，直读 ghcloud 真实列式表
  * （`ai_application_tenant_llm_provider` / `ai_application_tenant_llm_model`）。
- * 与 engine/flow 共享同一 MySQL（库 `agentic_engine`）；管理面 CRUD 写入实时可见、多实例一致。
+ * 与 engine/flow 共享同一 MySQL（库 `cube_ai_center`）；管理面 CRUD 写入实时可见、多实例一致。
  *
  * 首次 `ensure()` 执行权威系统目录 warm-load（幂等，多实例安全）；
  * 显式设 `CUBE_AI_CATALOG_SEED_SYSTEM=0` 可跳过。

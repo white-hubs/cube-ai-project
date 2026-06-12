@@ -49,7 +49,7 @@ bash ../../scripts/verify-ai-center-http.sh "http://127.0.0.1:${AI_CENTER_HOST_P
 | 项 | 默认 | 说明 |
 |---|---|---|
 | 鉴权 | mock（示例） | 共享部署应配 `JWT_KEY_URL`；mock 仅用于冒烟 |
-| LLM | **agentic-platform-llm-catalog** | catalog 数据在 MySQL `agentic_engine` 库 |
+| LLM | **agentic-platform-llm-catalog** | catalog 数据在 MySQL `cube_ai_center` 库 |
 | 配置源 | 纯 env | 可选 `NACOS_ADDRESS` 做 descriptor 发现 |
 | 进程模型 | 单进程 | agent + flow + kb + llm 同容器 |
 | 镜像来源 | `AI_CENTER_IMAGE` | 必须指向已推送的 **发布镜像** tag |

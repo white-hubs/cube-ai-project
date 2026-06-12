@@ -42,7 +42,7 @@ x-ai-center-http: &ai-center-http
 x-ai-center-env: &ai-center-env
   AI_CENTER_PORT: "${AI_CENTER_PORT:-3000}"
   AI_CENTER_HOSTNAME: "0.0.0.0"
-  AGENTIC_ENGINE_MYSQL_URL: "mysql://${MYSQL_USER:-agentic_engine}:${MYSQL_PASSWORD:-agentic_engine_dev}@${MYSQL_HOST:-host.docker.internal}:${MYSQL_PORT:-3306}/${MYSQL_DB:-agentic_engine}"
+  AGENTIC_ENGINE_MYSQL_URL: "mysql://${MYSQL_USER:-agentic_engine}:${MYSQL_PASSWORD:-agentic_engine_dev}@${MYSQL_HOST:-host.docker.internal}:${MYSQL_PORT:-3306}/${MYSQL_DB:-cube_ai_center}"
   AGENTIC_ENGINE_REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
   AGENTIC_ENGINE_QDRANT_URL: "${QDRANT_URL:-http://host.docker.internal:6333}"
   MYSQL_HOST: "${MYSQL_HOST:-host.docker.internal}"
@@ -50,8 +50,8 @@ x-ai-center-env: &ai-center-env
   MYSQL_USER: "${MYSQL_USER:-agentic_engine}"
   MYSQL_USERNAME: "${MYSQL_USERNAME:-${MYSQL_USER:-agentic_engine}}"
   MYSQL_PASSWORD: "${MYSQL_PASSWORD:-agentic_engine_dev}"
-  MYSQL_DATABASE: "${MYSQL_DATABASE:-${MYSQL_DB:-agentic_engine}}"
-  MYSQL_DB: "${MYSQL_DB:-agentic_engine}"
+  MYSQL_DATABASE: "${MYSQL_DATABASE:-${MYSQL_DB:-cube_ai_center}}"
+  MYSQL_DB: "${MYSQL_DB:-cube_ai_center}"
   REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
   QDRANT_URL: "${QDRANT_URL:-http://host.docker.internal:6333}"
   QDRANT_BASE_URL: "${QDRANT_BASE_URL:-${QDRANT_URL:-http://host.docker.internal:6333}}"
@@ -86,7 +86,7 @@ services:
     profiles: ["deps"]
     environment:
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-root_dev_only}"
-      MYSQL_DATABASE: "${MYSQL_DB:-agentic_engine}"
+      MYSQL_DATABASE: "${MYSQL_DB:-cube_ai_center}"
       MYSQL_USER: "${MYSQL_USER:-agentic_engine}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-agentic_engine_dev}"
       TZ: UTC

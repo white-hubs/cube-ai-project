@@ -79,7 +79,7 @@ const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() =
  * flow-studio HTTP 域模块（编辑器投影层）。
  *
  * 换源装配（ADR-0014 D1）：
- * - flow_studio_* 仓储：MySQL（agentic_engine 同库），经异步单例 + 代理懒解析。
+ * - flow_studio_* 仓储：MySQL（cube_ai_center 同库），经异步单例 + 代理懒解析。
  * - 模型实体：复用 llm-core `TenantLlm*Repository`（同 `CATALOG_MYSQL_POOL_TOKEN` 池 + 同租户 resolver）。
  * - 引擎：`FlowEngineBridge` 进程内委派已注册的 flow-core 服务（FlowModule 导出）。
  *

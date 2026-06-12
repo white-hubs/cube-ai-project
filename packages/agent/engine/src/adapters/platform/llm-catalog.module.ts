@@ -10,7 +10,7 @@ import {
 import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
 
 /**
- * 真实 LLM catalog 装配，与 engine/flow 共用同一 MySQL（库 `agentic_engine`）：
+ * 真实 LLM catalog 装配，与 engine/flow 共用同一 MySQL（库 `cube_ai_center`）：
  *   1. 有 MySQL 连接（`AGENTIC_ENGINE_MYSQL_URL`）→ `MysqlLlmCatalogPort`，
  *      数据由 `tools/migration/catalog-migrate.ts --target mysql` 从 ghcloud
  *      `cube_base_ai_application` 迁入真实 provider/model/凭据。

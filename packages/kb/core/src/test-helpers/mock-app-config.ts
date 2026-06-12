@@ -8,7 +8,7 @@ export function makeMockAppConfig(overrides: Partial<AppConfig> = {}): AppConfig
     serverIdleTimeoutMs: 240000,
     mysqlHost: 'localhost',
     mysqlPort: 3306,
-    mysqlDatabase: 'agentic_engine',
+    mysqlDatabase: 'cube_ai_center',
     mysqlUsername: 'root',
     mysqlPassword: '',
     langflowBaseUrl: undefined,

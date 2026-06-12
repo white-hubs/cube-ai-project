@@ -83,7 +83,7 @@ function buildAppConfigFromEnv(): AppConfig {
     serverIdleTimeoutMs: envNumber('SERVER_IDLE_TIMEOUT_MS', 240_000),
     mysqlHost: envString('MYSQL_HOST', '127.0.0.1'),
     mysqlPort: envNumber('MYSQL_PORT', 3306),
-    mysqlDatabase: envString('MYSQL_DATABASE', envString('MYSQL_DB', 'agentic_engine')),
+    mysqlDatabase: envString('MYSQL_DATABASE', envString('MYSQL_DB', 'cube_ai_center')),
     mysqlUsername: envString('MYSQL_USERNAME', 'root'),
     mysqlPassword: envString('MYSQL_PASSWORD', ''),
     qdrantBaseUrl: envString('QDRANT_BASE_URL', 'http://127.0.0.1:6333'),

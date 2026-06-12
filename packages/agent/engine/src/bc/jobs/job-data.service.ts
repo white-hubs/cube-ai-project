@@ -15,9 +15,9 @@ export function parseMysqlUrl(urlStr?: string): MysqlConfig {
   const raw =
     urlStr ??
     process.env['AGENTIC_ENGINE_MYSQL_URL'] ??
-    'mysql://root@127.0.0.1:3306/agentic_engine';
+    'mysql://root@127.0.0.1:3306/cube_ai_center';
   const u = new URL(raw);
-  const database = u.pathname.replace(/^\//, '') || 'agentic_engine';
+  const database = u.pathname.replace(/^\//, '') || 'cube_ai_center';
   return {
     host: u.hostname || '127.0.0.1',
     port: Number(u.port) || 3306,

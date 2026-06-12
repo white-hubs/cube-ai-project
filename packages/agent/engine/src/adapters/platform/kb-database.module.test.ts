@@ -47,7 +47,7 @@ describe('EngineKbDatabaseBootstrap', () => {
       },
     };
     const saved = process.env['AGENTIC_ENGINE_MYSQL_URL'];
-    process.env['AGENTIC_ENGINE_MYSQL_URL'] = 'mysql://u:p@127.0.0.1:3306/agentic_engine';
+    process.env['AGENTIC_ENGINE_MYSQL_URL'] = 'mysql://u:p@127.0.0.1:3306/cube_ai_center';
     try {
       const bootstrap = new EngineKbDatabaseBootstrap(
         fakeDb as unknown as ConstructorParameters<typeof EngineKbDatabaseBootstrap>[0],

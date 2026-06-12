@@ -4,7 +4,7 @@
 -- 适用：库中 document_* 表仍为 project_id，而代码已切换为 tenant_id 时。
 -- 幂等：若列已是 tenant_id，对应 ALTER 会失败，可跳过该表。
 
-USE agentic_engine;
+USE cube_ai_center;
 
 ALTER TABLE `document_directory_record` CHANGE COLUMN `project_id` `tenant_id` VARCHAR(64) NULL;
 ALTER TABLE `document_record` CHANGE COLUMN `project_id` `tenant_id` VARCHAR(64) NULL;

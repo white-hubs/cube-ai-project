@@ -1,10 +1,10 @@
--- LLM catalog 持久化（与 engine/flow 同库 agentic_engine），1:1 对齐 ghcloud
+-- LLM catalog 持久化（与 engine/flow 同库 cube_ai_center），1:1 对齐 ghcloud
 -- cube_base_ai_application 的真实列式结构：system 供应商类型/供应商/模型/识别规则 +
 -- tenant 供应商/模型两层，含逻辑删除 deleted 与审计列。
 -- 运行期 MysqlLlmCatalogPort 亦会 CREATE TABLE IF NOT EXISTS（幂等）；本脚本用于全新 compose 预建 + 系统目录种子。
 -- 租户副本由 LlmCatalogService 首访（GET /ai/llm/providers）时自动 provisioning 同步。
 -- 模型目录扩展（百炼/火山/极客全量）：把 ghcloud scripts/sql/seed_*.sql 追加到本目录后续脚本即可。
-USE agentic_engine;
+USE cube_ai_center;
 
 CREATE TABLE IF NOT EXISTS `ai_system_llm_provider_type` (
     `code` VARCHAR(64) NOT NULL COMMENT '类型编码',

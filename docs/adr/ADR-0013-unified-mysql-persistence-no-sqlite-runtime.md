@@ -17,15 +17,15 @@ ADR-0009 已定运行时拓扑：单进程 `ai-center` + compose 编排 **MySQL 
 | **flow** | MySQL（`02-flow.sql`） | `CUBE_LOCAL_DEV=1` 或 prebuilt 下 `@dangao/bun-server` 动态 `createRequire('mysql2/promise')` 失败时回退 SQLite | prebuilt/compose 不应走 SQLite；flow 已改 **静态 `mysql2/promise` 适配器** |
 | **kb** | MySQL（四表 ORM） | `KbDatabaseBootstrap` 执行 `KB_SQLITE_SCHEMA`；prebuilt compose 设 `KB_LOCAL_DEV=1` + 本地 `kb.sqlite` | **与 flow/engine/catalog 同栈分裂**；README 误将此描述为「合理例外」 |
 
-engine（agent-engine）与 llm-catalog **早已只认 MySQL**（`AGENTIC_ENGINE_MYSQL_URL` / `MYSQL_POOL_TOKEN` → 库 `agentic_engine`）。flow 在 compose / prebuilt 下也已强制 MySQL。**kb 单独 SQLite 无架构依据**——仅是 bootstrap 尚未提供 MySQL DDL + 静态 mysql2 路径的过渡债。
+engine（agent-engine）与 llm-catalog **早已只认 MySQL**（`AGENTIC_ENGINE_MYSQL_URL` / `MYSQL_POOL_TOKEN` → 库 `cube_ai_center`）。flow 在 compose / prebuilt 下也已强制 MySQL。**kb 单独 SQLite 无架构依据**——仅是 bootstrap 尚未提供 MySQL DDL + 静态 mysql2 路径的过渡债。
 
 源仓与迁移期代码中仍有 **`bun:sqlite` / `KB_SQLITE_SCHEMA` / `flow/db/sqlite.ts` / `CUBE_LOCAL_DEV` / `applyAiCenterTestEnv(*.sqlite)`** 等路径。早期 ADR-0013 草案曾允许测试夹具使用 SQLite——**用户裁决废止该例外**：SQLite 在本仓 **无任何合法用途**，测试与 runtime 均须遵守。
 
 ## Decision
 
-### D1 — 单一关系型真源：MySQL `agentic_engine`
+### D1 — 单一关系型真源：MySQL `cube_ai_center`
 
-- **flow / kb / llm-catalog / engine 会话·作业等关系型数据** 一律持久化在 **同一 MySQL 实例、同一逻辑库 `agentic_engine`**（表前缀 / 命名空间区分域，见 `deploy/docker-compose/mysql/init/*.sql`）。
+- **flow / kb / llm-catalog / engine 会话·作业等关系型数据** 一律持久化在 **同一 MySQL 实例、同一逻辑库 `cube_ai_center`**（表前缀 / 命名空间区分域，见 `deploy/docker-compose/mysql/init/*.sql`）。
 - **禁止** 为任一领域配置 SQLite 文件路径、内存 SQLite、或 `bun:sqlite` / `better-sqlite3` 等 SQLite 驱动作为关系型数据源——**无论 runtime、本地开发、CI、单元测试、集成测试**。
 - Qdrant / Redis / 对象存储 仍按 ADR-0005 / ADR-0009 各自独立；本 ADR 只约束 **关系型元数据**。
 

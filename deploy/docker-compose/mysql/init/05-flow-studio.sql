@@ -1,8 +1,8 @@
 -- Flow Studio — replicated ai-application flow-editor projection layer (ADR-0014).
 -- Tables renamed ai_application_flow_* -> flow_studio_* and `tenant` INT -> `tenant_id` VARCHAR(64)
 -- to align with the cube-ai-project identity model (tenantContextAls.tenantId: string).
--- Lives in the same database as flow-core (agentic_engine). MySQL only (ADR-0013, no SQLite).
-USE agentic_engine;
+-- Lives in the same database as flow-core (cube_ai_center). MySQL only (ADR-0013, no SQLite).
+USE cube_ai_center;
 
 CREATE TABLE IF NOT EXISTS `flow_studio_flow` (
     `id` BIGINT NOT NULL COMMENT '主键ID',

@@ -336,7 +336,7 @@ async function _resolveAppConfig(): Promise<AppConfig> {
     (fileConfig.mysqlPort !== undefined ? String(fileConfig.mysqlPort) : null) ??
     process.env.MYSQL_PORT ??
     '3306'
-  const mysqlDatabase = cliMysqlDb ?? fileConfig.mysqlDatabase ?? process.env.MYSQL_DATABASE ?? 'ai'
+  const mysqlDatabase = cliMysqlDb ?? fileConfig.mysqlDatabase ?? process.env.MYSQL_DATABASE ?? 'cube_ai_center'
   const mysqlUsername = cliMysqlUser ?? fileConfig.mysqlUsername ?? process.env.MYSQL_USERNAME ?? 'root'
   const mysqlPassword = cliMysqlPwd ?? fileConfig.mysqlPassword ?? process.env.MYSQL_PASSWORD ?? ''
   const langflowBaseUrl =

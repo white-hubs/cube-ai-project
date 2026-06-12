@@ -44,7 +44,7 @@ export interface AuditInfo {
 export const SYSTEM_AUDIT: AuditInfo = { by: 'system', id: null, type: null };
 
 /**
- * catalog 真实列式表 DDL（与 engine/flow 同库 agentic_engine），对齐 ghcloud
+ * catalog 真实列式表 DDL（与 engine/flow 同库 cube_ai_center），对齐 ghcloud
  * cube_base_ai_application 的 system/tenant 两层 + match-rule。运行期幂等建表；
  * 全新 compose 由 mysql/init/03-llm-catalog.sql 预建。
  */

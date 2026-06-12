@@ -22,7 +22,7 @@ describe.skip(`outbox flow integration (TEST_PORT=${TEST_PORT})`, () => {
       port:     Number(process.env.AGENTIC_ENGINE_MYSQL_PORT ?? 3306),
       user:     process.env.AGENTIC_ENGINE_MYSQL_USER ?? 'root',
       password: process.env.AGENTIC_ENGINE_MYSQL_PASSWORD ?? '',
-      database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? 'agentic',
+      database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? 'cube_ai_center',
     });
 
     const writer = new OutboxWriterImpl({

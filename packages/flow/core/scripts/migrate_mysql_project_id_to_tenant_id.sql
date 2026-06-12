@@ -4,7 +4,7 @@
 -- 适用：库中 flows 等表仍为 project_id，而代码已切换为 tenant_id 时。
 -- 幂等：若列已是 tenant_id 则跳过（需手动逐表确认，或先 SHOW COLUMNS）。
 
-USE agentic_engine;
+USE cube_ai_center;
 
 ALTER TABLE `flows` CHANGE COLUMN `project_id` `tenant_id` VARCHAR(64) NOT NULL;
 ALTER TABLE `flow_graphs` CHANGE COLUMN `project_id` `tenant_id` VARCHAR(64) NOT NULL;

@@ -40,11 +40,11 @@ afterEach(() => {
 
 describe('buildKbMysqlConfigFromEnv', () => {
   test('falls back to AGENTIC_ENGINE_MYSQL_URL when discrete MYSQL_* are unset (engine standalone / testcontainers)', () => {
-    setEnv({ AGENTIC_ENGINE_MYSQL_URL: 'mysql://eng:s3cret@10.0.0.9:32768/agentic_engine' });
+    setEnv({ AGENTIC_ENGINE_MYSQL_URL: 'mysql://eng:s3cret@10.0.0.9:32768/cube_ai_center' });
     expect(buildKbMysqlConfigFromEnv()).toEqual({
       host: '10.0.0.9',
       port: 32768,
-      database: 'agentic_engine',
+      database: 'cube_ai_center',
       user: 'eng',
       password: 's3cret',
     });
@@ -80,7 +80,7 @@ describe('buildKbMysqlConfigFromEnv', () => {
     expect(buildKbMysqlConfigFromEnv()).toEqual({
       host: '127.0.0.1',
       port: 3306,
-      database: 'agentic_engine',
+      database: 'cube_ai_center',
       user: 'root',
       password: '',
     });

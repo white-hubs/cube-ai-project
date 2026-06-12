@@ -21,7 +21,7 @@ bun run dev:up
 
 宿主机 `bun build --compile` 产出 `dist/ai-center`，容器仅 COPY 二进制。
 
-> **说明**：预编译形态下 flow / kb / agent-engine 均直连 compose MySQL（库 `agentic_engine`）。
+> **说明**：预编译形态下 flow / kb / agent-engine 均直连 compose MySQL（库 `cube_ai_center`）。
 > flow 与 kb 经静态导入的 `mysql2/promise` 适配器初始化，避开 compiled Bun executable 中
 > `@dangao/bun-server` 动态 `createRequire('mysql2/promise')` 解析问题（ADR-0013）。
 

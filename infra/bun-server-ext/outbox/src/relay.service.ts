@@ -162,7 +162,7 @@ function createPoolFromEnv(): Pool {
     port:     Number(process.env.AGENTIC_ENGINE_MYSQL_PORT ?? 3306),
     user:     process.env.AGENTIC_ENGINE_MYSQL_USER ?? 'root',
     password: process.env.AGENTIC_ENGINE_MYSQL_PASSWORD ?? '',
-    database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? 'agentic',
+    database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? 'cube_ai_center',
     waitForConnections: true,
     connectionLimit:    10,
   });

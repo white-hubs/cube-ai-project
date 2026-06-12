@@ -10,7 +10,7 @@
 -- *.sql 同源；权威 DDL 见 docs/detailed-design/02-data/mysql-tables.md。
 -- =============================================================================
 
-USE agentic_engine;
+USE cube_ai_center;
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';

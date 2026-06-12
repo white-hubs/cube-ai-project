@@ -48,7 +48,7 @@ export function buildKbMysqlConfigFromEnv(): KbMysqlConfig {
   return {
     host: envString('MYSQL_HOST', fromUrl.host ?? '127.0.0.1'),
     port: envNumber('MYSQL_PORT', fromUrl.port ?? 3306),
-    database: envString('MYSQL_DATABASE', envString('MYSQL_DB', fromUrl.database ?? 'agentic_engine')),
+    database: envString('MYSQL_DATABASE', envString('MYSQL_DB', fromUrl.database ?? 'cube_ai_center')),
     user: envString('MYSQL_USERNAME', envString('MYSQL_USER', fromUrl.user ?? 'root')),
     password: envString('MYSQL_PASSWORD', fromUrl.password ?? ''),
   };

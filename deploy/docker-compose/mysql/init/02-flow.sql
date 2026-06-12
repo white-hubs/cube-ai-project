@@ -1,4 +1,4 @@
-USE agentic_engine;
+USE cube_ai_center;
 
 CREATE TABLE IF NOT EXISTS `flows` (
   `id` BIGINT(20) UNSIGNED NOT NULL,
