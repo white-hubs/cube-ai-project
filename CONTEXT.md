@@ -122,14 +122,36 @@ _Avoid_: 把 MCP 凭据并入 LLM **凭据边界**
 每个需要工具的运行时各自装配同构的 **Tool Handler** 薄适配（engine 现有；未来去 LF 后的 flow 自建），互不共享 **Tool 编排**。
 _Avoid_: 让 flow 依赖 engine 的 tool bc, 抽公共 tool 装配层
 
+### Descriptor 资产
+
+**Descriptor（声明式资产）**:
+agent / skill / rule / tool 行为的声明式定义，运行时据此装配会话行为；分系统级与租户级两层权威。
+_Avoid_: 把 descriptor 当运行时状态, 笼统叫「配置」
+
+**系统级 descriptor**:
+随部署交付的内置声明式资产，全租户可见、只读；其权威在部署物自身（文件/运维推送）。
+_Avoid_: 让租户改写内置资产, 把 dev 占位当系统资产带上生产
+
+**租户级 descriptor**:
+租户经 **agent 管理面** 自助创建/维护的声明式资产（agent / skill / rule），仅本租户可见，按 **租户隔离主键 (tenant)** 隔离；与系统级以标识命名空间区分，互不遮蔽。
+_Avoid_: 与系统级同名遮蔽（shadow）, 跨租户共享, 把 tool 纳入租户自助 CRUD
+
+**agent 管理面 (agent console)**:
+agent 域的管理面 —— 对 **租户级 descriptor** 的 CRUD / 版本 / 发布；与消费面（chat 运行时）相对，经 `agent-sdk-console` 消费。
+_Avoid_: 把管理面塞进 `/v1/*` 消费面, 手工部署 descriptor 文件当管理能力
+
+**发布 (publish)**:
+租户级 descriptor 的草稿版本成为运行时可解析版本的动作；只有已发布版本可被新会话引用，编辑草稿不影响运行时。
+_Avoid_: 编辑即生效, 把版本历史当发布
+
 ### 前端消费
 
 **统一前门**:
-前端只认的单一 origin —— AI-center 进程按领域命名空间（agent `/v1/*`（[ADR-0008 addendum](docs/adr/ADR-0008-addendum-agent-consumption-face.md)）、`/flow/*`、`/kb/*`、`/llm/*`、LLM 网关 `/v1/*`）服务所有路由。
+前端只认的单一 origin —— AI-center 进程按领域命名空间（agent 消费 `/v1/*`（[ADR-0008 addendum](docs/adr/ADR-0008-addendum-agent-consumption-face.md)）、agent 管理 `/agent/*`、`/flow/*`、`/kb/*`、`/llm/*`、LLM 网关 `/v1/*`）服务所有路由。
 _Avoid_: gateway façade 聚合层, 多 origin 分散调用, 深相对 import 戳后端
 
 **领域 SDK 家族**:
-按「领域 + 面」前缀的前端 SDK，`<domain>-sdk-<face>[-<framework>]`：agent 有 `agent-sdk-client*`、flow/kb 有 `*-sdk-client` 与 `*-sdk-console`、llm 有 `llm-sdk-console`；前端按需引入，只走 HTTP/SSE。
+按「领域 + 面」前缀的前端 SDK，`<domain>-sdk-<face>[-<framework>]`：agent 有 `agent-sdk-client*` 与 `agent-sdk-console`、flow/kb 有 `*-sdk-client` 与 `*-sdk-console`、llm 有 `llm-sdk-console`；前端按需引入，只走 HTTP/SSE。
 _Avoid_: 单包收全部能力, 前端 import 后端包, 走 gateway façade, 笼统 sdk-core
 
 **SDK 面（client / console）**:
@@ -184,7 +206,9 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 - **Tool 编排** 归运行时自身（agent-engine）；**Tool Handler** 经 contracts port 消费各 **AI 基础能力**，与 agent-engine 调能力同一依赖方向
 - **MCP 桥接** 的 **Tool 凭据** 独立于 LLM **凭据边界**；二者是两类凭据
 - **运行时自装配**：agent-engine 与（未来的）flow-core 各自装配 **Tool Handler**，不共享 **Tool 编排**
-- 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-client*` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
+- 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-{client*,console}` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
+- **租户级 descriptor** 权威在中台持久层、按 **租户隔离主键 (tenant)** 隔离；**系统级 descriptor** 权威在部署物；二者以标识命名空间区分，运行时合并解析、互不遮蔽
+- **agent 管理面** 只管 **租户级 descriptor**（含 **发布** 生命周期）；系统级资产对管理面只读；已建会话靠快照冻结不受 descriptor 变更影响
 - 前端直流式 LLM 走 **统一前门** 下的 **LLM 网关**（`/v1/*`），不直连 vendor
 - **AI 数据面直连** 是目标不变量：前端 AI 调用直达 AI-center、绕开 bff-gw/java-gateway；**qiankun micro-app 外壳** 提供带外统一登录，**鉴权中心** 经 **ghcloud 薄平台 adapter** 被 AI-center 旁路调用
 - **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；不引入第二运行时
@@ -210,6 +234,9 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 >
 > **Dev:** “agent-engine 想加个新能力，能直接 import flow-core 包的实现吗？”
 > **Domain expert:** “不能。跨领域只有 **共享内核 (contracts)** 的 port 一条路。flow-core 是 **能力包**，agent-engine 经 `FlowInvokerPort` 调它，绝不直接 import 实现。”
+>
+> **Dev:** “租户在管理面建了个和内置 agent 同名的 agent，会覆盖内置的吗？”
+> **Domain expert:** “不会。**租户级 descriptor** 与 **系统级 descriptor** 以标识命名空间区分、互不遮蔽——租户资产用带类型前缀的 id 引用，裸 name 永远指系统级。另外租户编辑的是草稿，**发布** 后才对新会话生效，已建会话靠快照冻结不受影响。”
 
 ## Flagged ambiguities
 
