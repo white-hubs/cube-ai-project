@@ -240,6 +240,17 @@
         "vue": "catalog:",
       },
     },
+    "packages/agent/sdk-console": {
+      "name": "@cube-ai/agent-sdk-console",
+      "version": "0.0.1-alpha.1",
+      "dependencies": {
+        "@cube-ai/contracts": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "typescript": "catalog:",
+      },
+    },
     "packages/contracts": {
       "name": "@cube-ai/contracts",
       "version": "0.0.1-alpha.1",
@@ -589,6 +600,8 @@
     "@cube-ai/agent-sdk-client-mock": ["@cube-ai/agent-sdk-client-mock@workspace:packages/agent/sdk-client-mock"],
 
     "@cube-ai/agent-sdk-client-vue": ["@cube-ai/agent-sdk-client-vue@workspace:packages/agent/sdk-client-vue"],
+
+    "@cube-ai/agent-sdk-console": ["@cube-ai/agent-sdk-console@workspace:packages/agent/sdk-console"],
 
     "@cube-ai/ai-center": ["@cube-ai/ai-center@workspace:apps/ai-center"],
 

@@ -5,3 +5,8 @@ export * from './descriptor-loader';
 export * from './versioned-registry';
 export * from './descriptor-document-parser';
 export * from './rule-registry.service';
+export * from './tenant-descriptor.repository';
+export * from './tenant-descriptor-resolver';
+export * from './descriptor-management.service';
+export * from './descriptor-management.controller';
+export * from './descriptor-management-http.module';

@@ -55,6 +55,10 @@
       "import": "./src/assembler/engine-assembler.ts",
       "types": "./src/assembler/engine-assembler.ts"
     },
+    "./descriptor/http": {
+      "import": "./src/bc/descriptor/descriptor-management-http.module.ts",
+      "types": "./src/bc/descriptor/descriptor-management-http.module.ts"
+    },
     "./bootstrap": {
       "import": "./src/bootstrap.ts",
       "types": "./src/bootstrap.ts"

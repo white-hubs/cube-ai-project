@@ -12,15 +12,18 @@ export {
   BullMQDispatcher,
   KafkaDispatcher,
   WebhookDispatcher,
+  PubSubDispatcher,
   CompositeDispatcher,
   OutboxDispatchError,
   OUTBOX_DISPATCHER_TOKEN,
   BULLMQ_ENQUEUE_TOKEN,
+  REDIS_PUBSUB_PORT_TOKEN,
   CODE_UNIMPLEMENTED_PHASE4,
   CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL,
 } from './dispatcher';
 export type {
   BullMqEnqueuePort,
+  RedisPubSubPort,
   OutboxChannel,
   OutboxDispatcherI,
   OutboxEventRow as DispatchableOutboxRow,

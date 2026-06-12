@@ -21,6 +21,10 @@ import {
   snapshotRuleTexts,
   type RuleRegistryResolveLike,
 } from './snapshot-rule-hydration';
+import { parseTenantDescriptorId } from '@cube-ai/contracts';
+import type { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
+import type { RuleDescriptor } from '../descriptor/rule-registry.service';
+import type { SkillDescriptor } from '@tachu/core';
 
 const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -61,6 +65,55 @@ function toHttpView(row: SessionRow): SessionHttpView {
   };
 }
 
+/**
+ * 把 ruleRefs 里的前缀 id 经 tenantResolver 预取，合并成与系统 registry 同构的同步 resolve()。
+ * 无前缀 ref 或无 resolver 时直接返回系统 registry，零额外查询。
+ */
+async function mergeTenantRules(
+  refs: readonly string[],
+  base: RuleRegistryResolveLike | undefined,
+  resolver: TenantDescriptorResolver | undefined,
+  tenant: number,
+): Promise<RuleRegistryResolveLike | undefined> {
+  if (!resolver || refs.length === 0) return base;
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'rule');
+  if (!hasTenantRef) return base;
+  const tenantRules = new Map<string, RuleDescriptor>();
+  for (const ref of refs) {
+    if (parseTenantDescriptorId(ref)?.kind !== 'rule') continue;
+    const rule = await resolver.getRule(tenant, ref);
+    if (rule) tenantRules.set(ref, rule);
+  }
+  // 即便预取为空（全部未发布）也返回 wrapper：让 hydrate 逐 ref 抛 not-found，
+  // 而非命中「registry 缺失」的内部错误。
+  return {
+    resolve: (name: string, version?: string) =>
+      tenantRules.get(name) ?? base?.resolve(name, version),
+  };
+}
+
+/** 同 {@link mergeTenantRules}，skill 版本。 */
+async function mergeTenantSkills(
+  refs: readonly string[],
+  base: SkillRegistryResolveLike | undefined,
+  resolver: TenantDescriptorResolver | undefined,
+  tenant: number,
+): Promise<SkillRegistryResolveLike | undefined> {
+  if (!resolver || refs.length === 0) return base;
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'skill');
+  if (!hasTenantRef) return base;
+  const tenantSkills = new Map<string, SkillDescriptor>();
+  for (const ref of refs) {
+    if (parseTenantDescriptorId(ref)?.kind !== 'skill') continue;
+    const skill = await resolver.getSkill(tenant, ref);
+    if (skill) tenantSkills.set(ref, skill);
+  }
+  return {
+    resolve: (name: string, version?: string) =>
+      tenantSkills.get(name) ?? base?.resolve(name, version),
+  };
+}
+
 async function buildSnapshots(params: {
   tenant: number;
   userId: string;
@@ -71,24 +124,35 @@ async function buildSnapshots(params: {
   descriptorLoader?: DescriptorLoaderLike;
   skillRegistry?: SkillRegistryResolveLike;
   ruleRegistry?: RuleRegistryResolveLike;
+  tenantResolver?: TenantDescriptorResolver;
 }): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown> }> {
   const frozen = Date.now();
   const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? '';
+  // 前缀 id（agt_）→ 租户持久层（仅已发布）；裸 name → 系统级文件/registry（ADR-0016 §5）。
+  const agentIsTenantRef = parseTenantDescriptorId(params.agentId)?.kind === 'agent';
   const agentDescriptor =
-    (await params.descriptorLoader?.getAgent?.(params.agentId)) ??
-    (await params.descriptorLoader?.loadIndexedAgentDescriptor?.(params.agentId)) ??
+    (agentIsTenantRef && params.tenantResolver
+      ? await params.tenantResolver.getAgentRecord(params.tenant, params.agentId)
+      : null) ??
+    (agentIsTenantRef
+      ? null
+      : ((await params.descriptorLoader?.getAgent?.(params.agentId)) ??
+        (await params.descriptorLoader?.loadIndexedAgentDescriptor?.(params.agentId)))) ??
     null;
-  if (params.descriptorLoader && agentDescriptor == null) {
+  if ((params.descriptorLoader || params.tenantResolver) && agentDescriptor == null) {
     throw AgenticEngineError.fromCode(
       'RESOURCE_NOT_FOUND_DESCRIPTOR',
       `Agent descriptor not found: ${params.agentId}`,
       { agentId: params.agentId },
     );
   }
+  // 系统级文件用 `instructions`，租户级 agent content 用 `prompt`：两者择一。
   const agentInstructions =
     (agentDescriptor && typeof agentDescriptor['instructions'] === 'string'
       ? (agentDescriptor['instructions'] as string).trim()
-      : '');
+      : agentDescriptor && typeof agentDescriptor['prompt'] === 'string'
+        ? (agentDescriptor['prompt'] as string).trim()
+        : '');
   // TODO(prompt-injection): sessionSuffix is currently injected verbatim into
   // the system prompt with the same trust level as agentInstructions, but it
   // originates from caller-supplied `context.systemSuffix` and should be
@@ -130,14 +194,26 @@ async function buildSnapshots(params: {
       ? Number(agentDescriptor['maxDepth'])
       : undefined);
   const requestedModel = params.modelCode?.trim() ?? '';
+  // 前缀 ref（skl_/rul_）经 tenantResolver 预取（仅已发布），与系统 registry 合并成同构 resolve()；
+  // 未发布 / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。
+  const skillResolver = await mergeTenantSkills(
+    skillRefs,
+    params.skillRegistry,
+    params.tenantResolver,
+    params.tenant,
+  );
   const skills =
-    skillRefs.length > 0
-      ? hydrateSnapshotSkills(skillRefs, params.skillRegistry)
-      : [];
+    skillRefs.length > 0 ? hydrateSnapshotSkills(skillRefs, skillResolver) : [];
   // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，并注入 system prompt
   // （global prompt 之后、agent prompt 之前）。
+  const ruleResolver = await mergeTenantRules(
+    ruleRefs,
+    params.ruleRegistry,
+    params.tenantResolver,
+    params.tenant,
+  );
   const rules =
-    ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, params.ruleRegistry) : [];
+    ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, ruleResolver) : [];
   const promptBody = [globalPrompt, ...snapshotRuleTexts(rules), agentInstructions, sessionSuffix]
     .filter((x) => x.length > 0)
     .join('\n\n');
@@ -253,6 +329,7 @@ export class SessionService {
     private readonly descriptorLoader?: DescriptorLoaderLike,
     private readonly skillRegistry?: SkillRegistryResolveLike,
     private readonly ruleRegistry?: RuleRegistryResolveLike,
+    private readonly tenantResolver?: TenantDescriptorResolver,
   ) {}
 
   private async withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
@@ -290,6 +367,7 @@ export class SessionService {
       descriptorLoader: this.descriptorLoader,
       skillRegistry: this.skillRegistry,
       ruleRegistry: this.ruleRegistry,
+      tenantResolver: this.tenantResolver,
     });
 
     return this.withTransaction(async (conn) => {

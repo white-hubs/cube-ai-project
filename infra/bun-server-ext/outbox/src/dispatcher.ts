@@ -34,6 +34,11 @@ export interface OutboxDispatcherI {
   dispatch(row: OutboxEventRow): Promise<void>;
 }
 
+/** Inject Redis pub/sub (lazy client in prod; fake in tests). */
+export interface RedisPubSubPort {
+  publish(channel: string, message: string): Promise<void>;
+}
+
 /** Inject BullMQ enqueue (lazy Queue factory in prod; fake in tests). */
 export interface BullMqEnqueuePort {
   add(
@@ -126,13 +131,44 @@ export class WebhookDispatcher implements OutboxDispatcherI {
   }
 }
 
+// ─── Redis pub/sub dispatcher (ADR-0016 §5) ───────────────────────────────────
+
+/**
+ * Dispatches pub/sub channels (`descriptor_reload`, `authz_invalidate`,
+ * `session_lifecycle`) by publishing the row payload to the mapped redis channel.
+ */
+export class PubSubDispatcher implements OutboxDispatcherI {
+  constructor(private readonly pubsub: RedisPubSubPort) {}
+
+  async dispatch(row: OutboxEventRow): Promise<void> {
+    const redisChannel = REDIS_PUBSUB_CHANNELS[row.channel as string];
+    if (!redisChannel) {
+      throw new OutboxDispatchError(
+        `OUTBOX_CHANNEL_NO_PUBSUB_MAPPING: ${row.channel}`,
+        false,
+      );
+    }
+
+    const payload =
+      typeof row.payloadJson === 'string'
+        ? row.payloadJson
+        : JSON.stringify(row.payloadJson);
+
+    await this.pubsub.publish(redisChannel, payload);
+  }
+}
+
 // ─── Composite ────────────────────────────────────────────────────────────────
 
 /**
  * Routes by `channel`; `bullmq_job` is fully wired; others explicit errors for Phase 4 / backlog.
  */
 export class CompositeDispatcher implements OutboxDispatcherI {
-  constructor(private readonly bullmq: OutboxDispatcherI) {}
+  constructor(
+    private readonly bullmq: OutboxDispatcherI,
+    /** Optional; when absent, pub/sub channels fall back to NOT_IMPLEMENTED. */
+    private readonly pubsub?: OutboxDispatcherI,
+  ) {}
 
   async dispatch(row: OutboxEventRow): Promise<void> {
     const ch = row.channel as string;
@@ -146,6 +182,10 @@ export class CompositeDispatcher implements OutboxDispatcherI {
         `${CODE_UNIMPLEMENTED_PHASE4}: kafka_event`,
         false,
       );
+    }
+
+    if (this.pubsub && Object.prototype.hasOwnProperty.call(REDIS_PUBSUB_CHANNELS, ch)) {
+      return this.pubsub.dispatch(row);
     }
 
     if ((OUTBOX_CHANNELS as readonly string[]).includes(ch)) {
@@ -179,3 +219,4 @@ export class OutboxDispatchError extends Error {
 
 export const OUTBOX_DISPATCHER_TOKEN = Symbol.for('agentic.outbox.dispatcher');
 export const BULLMQ_ENQUEUE_TOKEN = Symbol.for('agentic.outbox.bullmqEnqueue');
+export const REDIS_PUBSUB_PORT_TOKEN = Symbol.for('agentic.outbox.redisPubSub');

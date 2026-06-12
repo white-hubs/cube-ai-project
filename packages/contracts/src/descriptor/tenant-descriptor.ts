@@ -82,6 +82,20 @@ export type TenantRuleContent = z.infer<typeof TenantRuleContentSchema>;
 export const TenantDescriptorStatusSchema = z.enum(['draft', 'published']);
 export type TenantDescriptorStatus = z.infer<typeof TenantDescriptorStatusSchema>;
 
+/**
+ * `:fromDocument` upsert 响应（ADR-0018 §4）。结果恒为 draft，需显式 publish 才生效。
+ */
+export const FromDocumentResultSchema = z.object({
+  /** 带前缀完整 id（agt_/skl_/rul_） */
+  id: z.string(),
+  name: z.string(),
+  /** 不存在 → created；已存在 → updated（新草稿版本） */
+  action: z.enum(['created', 'updated']),
+  headVersionNo: z.number().int(),
+  status: z.literal('draft'),
+});
+export type FromDocumentResult = z.infer<typeof FromDocumentResultSchema>;
+
 export const TenantDescriptorViewSchema = z.object({
   /** 带前缀完整 id */
   id: z.string(),

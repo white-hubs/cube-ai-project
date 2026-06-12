@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  FromDocumentResultSchema,
   parseTenantDescriptorId,
   TENANT_DESCRIPTOR_ID_PREFIXES,
   TenantAgentContentSchema,
@@ -120,5 +121,39 @@ describe('TenantRuleContentSchema', () => {
     expect(
       TenantRuleContentSchema.safeParse({ content: 'r', description: 'why' }).success,
     ).toBe(true);
+  });
+});
+
+describe('FromDocumentResultSchema', () => {
+  it('accepts a valid :fromDocument upsert result (ADR-0018 §4)', () => {
+    const parsed = FromDocumentResultSchema.parse({
+      id: 'skl_123',
+      name: 'review-pr',
+      action: 'created',
+      headVersionNo: 1,
+      status: 'draft',
+    });
+    expect(parsed.action).toBe('created');
+    expect(parsed.status).toBe('draft');
+    expect(FromDocumentResultSchema.safeParse({
+      id: 'skl_1',
+      name: 'n',
+      action: 'updated',
+      headVersionNo: 2,
+      status: 'draft',
+    }).success).toBe(true);
+  });
+
+  it('rejects published status and unknown action (always draft, ADR-0018 §4)', () => {
+    expect(
+      FromDocumentResultSchema.safeParse({
+        id: 'skl_1', name: 'n', action: 'created', headVersionNo: 1, status: 'published',
+      }).success,
+    ).toBe(false);
+    expect(
+      FromDocumentResultSchema.safeParse({
+        id: 'skl_1', name: 'n', action: 'deleted', headVersionNo: 1, status: 'draft',
+      }).success,
+    ).toBe(false);
   });
 });

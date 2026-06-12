@@ -20,6 +20,8 @@
 - [ ] flow-studio：debugFlow 的 `RunResponse.raw` 输出解析与 flow-core run 结果对齐
 - [ ] flow-studio：remote-sync / FlowController 单测补全（参考 `packages/flow/studio/ws3-wip/*.wip`）
 - [ ] engine memory 统一到 `infra/vector-qdrant`（当前用包内 `CubeQdrantMemoryIndex`，ADR-0005 不强制）
+- [ ] 租户 descriptor 缓存失效闭环（ADR-0016 §5）：管理面 publish/softDelete → outbox `descriptor_reload` 事件 → Redis pubsub（`PubSubDispatcher` 已就绪）→ `TenantDescriptorResolver` 订阅端 `invalidate`。当前 resolver 靠 30s 条目级 TTL 兜底最终一致，emit/subscribe 两端尚未接线。
+- [ ] `:fromDocument` parse 失败 HTTP 码：ADR-0018 §4 写 422，但 engine 错误模型（ADR-0015 闭集）禁用 422、校验类统一 412；现按 412（`INVALID_ARGUMENT_DESCRIPTOR_DOCUMENT`）落地。若要严格 422 需扩 ADR-0015 类别集，另起 ADR。
 
 ## 明确不做（再议需新 ADR）
 

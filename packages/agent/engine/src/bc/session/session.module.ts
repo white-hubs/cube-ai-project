@@ -21,6 +21,8 @@ import { DescriptorRegistryService } from '../descriptor/descriptor-registry.ser
 import { DescriptorLoader } from '../descriptor/descriptor-loader';
 import { SkillRegistryService } from '../descriptor/skill-registry.service';
 import { RuleRegistryService } from '../descriptor/rule-registry.service';
+import { TenantDescriptorRepositoryImpl } from '../descriptor/tenant-descriptor.repository';
+import { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import { SessionService } from './session.service';
 import { TurnService } from './turn.service';
@@ -195,6 +197,10 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           ruleRegistry = undefined;
         }
+        // 租户级 descriptor 运行时解析器（前缀路由 + 已发布 head + 条目缓存，ADR-0016 §5）。
+        const tenantResolver = new TenantDescriptorResolver(
+          new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
+        );
         return new SessionService(
           sharedSfidService,
           repo,
@@ -203,6 +209,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           descriptorLoader,
           skillRegistry,
           ruleRegistry,
+          tenantResolver,
         );
       },
     },
