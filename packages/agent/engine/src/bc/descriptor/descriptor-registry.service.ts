@@ -8,6 +8,7 @@
  *   ADR-0007 D1（版本化）/ D2（快照绑定）
  *
  * Phase 3（P3-11）：扩展 get / list / getEffectiveVersion；支持 Nacos 全量快照替换。
+ * 版本索引/单调不变量收敛于 {@link VersionedRegistry}。
  */
 import { Inject, Injectable } from '@dangao/bun-server';
 import {
@@ -19,19 +20,7 @@ import {
   TOOL_EFFECTIVE_VERSION_SOURCE_TOKEN,
   type ToolEffectiveVersionSource,
 } from './tool-effective-version.provider';
-
-/** semver 简单比较（只支持 x.y.z 格式）*/
-function semverCompare(a: string, b: string): number {
-  const parse = (v: string): [number, number, number] => {
-    const parts = v.split('.').map(Number);
-    return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
-  };
-  const [am, ai, ap] = parse(a);
-  const [bm, bi, bp] = parse(b);
-  if (am !== bm) return am - bm;
-  if (ai !== bi) return ai - bi;
-  return ap - bp;
-}
+import { VersionedRegistry } from './versioned-registry';
 
 export interface DescriptorListFilter {
   /** 按 ToolDescriptor.category（PLATFORM | MEMORY | CUSTOM | MCP）过滤 */
@@ -42,10 +31,31 @@ export interface DescriptorListFilter {
 
 @Injectable()
 export class DescriptorRegistryService {
-  /** key = `${name}@${version}` — registration-lifecycle.md §4.2 */
-  private readonly byKey = new Map<string, ToolDescriptor>();
-  /** name → latest version string */
-  private readonly latestByName = new Map<string, string>();
+  private readonly registry = new VersionedRegistry<ToolDescriptor>({
+    itemName: (d) => d.name,
+    itemVersion: (d) => d.version,
+    defaultVersion: '1.0.0',
+    // 跨字段一致性校验（descriptor-schema.md §8.5）
+    validate: (d) => {
+      const { ok, errors } = validateDescriptorConsistency(d);
+      if (!ok) {
+        throw AgenticEngineError.fromCode(
+          'INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY',
+          errors.join('; '),
+        );
+      }
+    },
+    duplicateError: (key) =>
+      AgenticEngineError.fromCode(
+        'RESOURCE_CONFLICT_DESCRIPTOR_DUPLICATE',
+        `Duplicate descriptor: ${key}`,
+      ),
+    nonMonotonicError: (name, version, prev) =>
+      AgenticEngineError.fromCode(
+        'RESOURCE_CONFLICT_DESCRIPTOR_VERSION_NOT_MONOTONIC',
+        `Descriptor ${name}: version ${version} is not monotonically greater than ${prev}`,
+      ),
+  });
 
   constructor(
     @Inject(TOOL_EFFECTIVE_VERSION_SOURCE_TOKEN)
@@ -61,55 +71,14 @@ export class DescriptorRegistryService {
    *  3. 版本单调（ADR-0007 D1）：新版本必须 > 已知最新版本
    */
   register(d: ToolDescriptor): void {
-    const { ok, errors } = validateDescriptorConsistency(d);
-    if (!ok) {
-      throw AgenticEngineError.fromCode(
-        'INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY',
-        errors.join('; '),
-      );
-    }
-
-    const version = d.version ?? '1.0.0';
-    const key = `${d.name}@${version}`;
-
-    if (this.byKey.has(key)) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_CONFLICT_DESCRIPTOR_DUPLICATE',
-        `Duplicate descriptor: ${key}`,
-      );
-    }
-
-    const prev = this.latestByName.get(d.name);
-    if (prev !== undefined && semverCompare(version, prev) <= 0) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_CONFLICT_DESCRIPTOR_VERSION_NOT_MONOTONIC',
-        `Descriptor ${d.name}: version ${version} is not monotonically greater than ${prev}`,
-      );
-    }
-
-    this.byKey.set(key, d);
-    this.latestByName.set(d.name, version);
+    this.registry.register(d);
   }
 
   /**
    * Nacos / 目录全量热更：清空后按版本递增顺序重新注册。
    */
   replaceAllFromSnapshot(descriptors: ToolDescriptor[]): void {
-    this.clear();
-    const byName = new Map<string, ToolDescriptor[]>();
-    for (const d of descriptors) {
-      const list = byName.get(d.name) ?? [];
-      list.push(d);
-      byName.set(d.name, list);
-    }
-    for (const [, list] of byName) {
-      list.sort((a, b) =>
-        semverCompare(a.version ?? '1.0.0', b.version ?? '1.0.0'),
-      );
-      for (const d of list) {
-        this.register(d);
-      }
-    }
+    this.registry.replaceAllFromSnapshot(descriptors);
   }
 
   /**
@@ -124,28 +93,13 @@ export class DescriptorRegistryService {
       );
     }
 
+    let hit: ToolDescriptor | undefined;
     if (trimmed.includes('@')) {
       const at = trimmed.lastIndexOf('@');
-      const name = trimmed.slice(0, at);
-      const ver = trimmed.slice(at + 1);
-      const d = this.byKey.get(`${name}@${ver}`);
-      if (!d) {
-        throw AgenticEngineError.fromCode(
-          'RESOURCE_NOT_FOUND_DESCRIPTOR',
-          `Descriptor not found: ${trimmed}`,
-        );
-      }
-      return d;
+      hit = this.registry.resolve(trimmed.slice(0, at), trimmed.slice(at + 1));
+    } else {
+      hit = this.registry.resolve(trimmed);
     }
-
-    const latest = this.latestByName.get(trimmed);
-    if (!latest) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_DESCRIPTOR',
-        `Descriptor not found: ${trimmed}`,
-      );
-    }
-    const hit = this.byKey.get(`${trimmed}@${latest}`);
     if (!hit) {
       throw AgenticEngineError.fromCode(
         'RESOURCE_NOT_FOUND_DESCRIPTOR',
@@ -159,7 +113,7 @@ export class DescriptorRegistryService {
    * 按 category / tags 过滤（AND：category 命中且 tags 全包含）。
    */
   list(filter?: DescriptorListFilter): ToolDescriptor[] {
-    let rows = Array.from(this.byKey.values());
+    let rows = this.registry.all();
     if (!filter) return rows;
 
     if (filter.category) {
@@ -181,7 +135,7 @@ export class DescriptorRegistryService {
   async getEffectiveVersion(toolName: string): Promise<string | undefined> {
     const pinned = await this.pinSource?.getPinnedVersion(toolName);
     if (pinned) return pinned;
-    return this.latestByName.get(toolName);
+    return this.registry.latestVersionOf(toolName);
   }
 
   /**
@@ -192,25 +146,19 @@ export class DescriptorRegistryService {
    * 对齐 registration-lifecycle.md §4.2 L1 查询路径。
    */
   resolve(name: string, version?: string): ToolDescriptor | undefined {
-    if (version) {
-      return this.byKey.get(`${name}@${version}`);
-    }
-    const latest = this.latestByName.get(name);
-    if (!latest) return undefined;
-    return this.byKey.get(`${name}@${latest}`);
+    return this.registry.resolve(name, version);
   }
 
   listAll(): ToolDescriptor[] {
-    return Array.from(this.byKey.values());
+    return this.registry.all();
   }
 
   size(): number {
-    return this.byKey.size;
+    return this.registry.size();
   }
 
   /** 清空注册表（用于测试 teardown / Nacos 热更）*/
   clear(): void {
-    this.byKey.clear();
-    this.latestByName.clear();
+    this.registry.clear();
   }
 }

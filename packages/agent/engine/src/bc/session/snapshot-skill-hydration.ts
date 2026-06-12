@@ -12,7 +12,7 @@ export type SkillRegistryResolveLike = {
   resolve(name: string, version?: string): SkillDescriptor | undefined;
 };
 
-function semverMajorAsVersionNo(version: string | undefined): number {
+export function semverMajorAsVersionNo(version: string | undefined): number {
   const raw = (version ?? '0.0.0').split('.')[0];
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 1;

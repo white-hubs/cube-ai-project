@@ -16,6 +16,11 @@ import {
   hydrateSnapshotSkills,
   type SkillRegistryResolveLike,
 } from './snapshot-skill-hydration';
+import {
+  hydrateSnapshotRules,
+  snapshotRuleTexts,
+  type RuleRegistryResolveLike,
+} from './snapshot-rule-hydration';
 
 const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -65,6 +70,7 @@ async function buildSnapshots(params: {
   context?: Record<string, unknown>;
   descriptorLoader?: DescriptorLoaderLike;
   skillRegistry?: SkillRegistryResolveLike;
+  ruleRegistry?: RuleRegistryResolveLike;
 }): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown> }> {
   const frozen = Date.now();
   const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? '';
@@ -95,12 +101,6 @@ async function buildSnapshots(params: {
     (params.context && typeof params.context['systemSuffix'] === 'string'
       ? String(params.context['systemSuffix']).trim()
       : '');
-  const promptBody = [globalPrompt, agentInstructions, sessionSuffix]
-    .filter((x) => x.length > 0)
-    .join('\n\n');
-  // session 创建时一次性把 UTC 时钟锚点冻结进 snapshot.prompt。
-  // 整个 session 复用，不再在每个 turn 重复注入；新鲜时间由 `currentDate` 工具兜底。
-  const prompt = appendEngineUtcClockBlock(promptBody, frozen);
   const toolRefs =
     (agentDescriptor && Array.isArray(agentDescriptor['availableTools'])
       ? (agentDescriptor['availableTools'] as unknown[]).filter(
@@ -134,6 +134,16 @@ async function buildSnapshots(params: {
     skillRefs.length > 0
       ? hydrateSnapshotSkills(skillRefs, params.skillRegistry)
       : [];
+  // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，并注入 system prompt
+  // （global prompt 之后、agent prompt 之前）。
+  const rules =
+    ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, params.ruleRegistry) : [];
+  const promptBody = [globalPrompt, ...snapshotRuleTexts(rules), agentInstructions, sessionSuffix]
+    .filter((x) => x.length > 0)
+    .join('\n\n');
+  // session 创建时一次性把 UTC 时钟锚点冻结进 snapshot.prompt。
+  // 整个 session 复用，不再在每个 turn 重复注入；新鲜时间由 `currentDate` 工具兜底。
+  const prompt = appendEngineUtcClockBlock(promptBody, frozen);
   const agentSnapshotJson: Record<string, unknown> = {
     schema: 'agent-snapshot-v1',
     agent: {
@@ -149,7 +159,7 @@ async function buildSnapshots(params: {
         ...(typeof maxDepth === 'number' ? { maxDepth } : {}),
       },
     },
-    rules: [],
+    rules,
     skills,
     tools: [],
     frozenTime: frozen,
@@ -242,6 +252,7 @@ export class SessionService {
     private readonly outbox: OutboxWriter,
     private readonly descriptorLoader?: DescriptorLoaderLike,
     private readonly skillRegistry?: SkillRegistryResolveLike,
+    private readonly ruleRegistry?: RuleRegistryResolveLike,
   ) {}
 
   private async withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
@@ -278,6 +289,7 @@ export class SessionService {
       context: body.context,
       descriptorLoader: this.descriptorLoader,
       skillRegistry: this.skillRegistry,
+      ruleRegistry: this.ruleRegistry,
     });
 
     return this.withTransaction(async (conn) => {

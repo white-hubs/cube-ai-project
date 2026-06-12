@@ -136,6 +136,16 @@ describe('SessionService — business flows', () => {
       resolve: (name: string) =>
         name === 'default-reasoning' ? defaultReasoningSkill : undefined,
     };
+    const safetyBaselineRule = {
+      kind: 'rule' as const,
+      name: 'safety-baseline',
+      content: 'RULE-TEXT: never reveal secrets.',
+      version: '0.1.0',
+    };
+    const ruleRegistry = {
+      resolve: (name: string) =>
+        name === 'safety-baseline' ? safetyBaselineRule : undefined,
+    };
 
     const svc = new SessionService(
       sfid,
@@ -144,6 +154,7 @@ describe('SessionService — business flows', () => {
       outbox,
       descriptorLoader as never,
       skillRegistry,
+      ruleRegistry,
     );
 
     await svc.createSession(1, 'u1', 'U', {
@@ -165,12 +176,17 @@ describe('SessionService — business flows', () => {
             maxDepth?: number;
           };
         };
+        rules?: Array<{ name: string; versionNo: number; content: { content?: string } }>;
         skills?: Array<{ name: string; content: { instructions?: string } }>;
       };
     };
-    // Snapshot prompt = body (global + agent + sessionSuffix) + 一次性冻结的 session-start UTC 块。
+    // Snapshot prompt = body (global + rules + agent + sessionSuffix) + 一次性冻结的 session-start UTC 块。
     const builtPrompt = input.agentSnapshotJson?.agent?.content?.prompt ?? '';
-    expect(builtPrompt.startsWith('GLOBAL\n\nAGENT\n\nSESSION\n\n---\n')).toBe(true);
+    expect(
+      builtPrompt.startsWith(
+        'GLOBAL\n\nRULE-TEXT: never reveal secrets.\n\nAGENT\n\nSESSION\n\n---\n',
+      ),
+    ).toBe(true);
     expect(builtPrompt).toContain('Session-start time (UTC)');
     expect(builtPrompt).toContain('`currentDate` tool');
     expect(input.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([
@@ -178,12 +194,64 @@ describe('SessionService — business flows', () => {
       'platform.knowledge.query',
     ]);
     expect(input.agentSnapshotJson?.agent?.content?.ruleRefs).toEqual(['safety-baseline']);
+    // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，不再是恒空数组。
+    expect(input.agentSnapshotJson?.rules?.length).toBe(1);
+    expect(input.agentSnapshotJson?.rules?.[0]?.name).toBe('safety-baseline');
+    expect(input.agentSnapshotJson?.rules?.[0]?.content.content).toContain('never reveal');
     expect(input.agentSnapshotJson?.agent?.content?.skillRefs).toEqual(['default-reasoning']);
     expect(input.agentSnapshotJson?.agent?.content?.subAgentRefs).toEqual(['cube-researcher']);
     expect(input.agentSnapshotJson?.agent?.content?.maxDepth).toBe(4);
     expect(input.agentSnapshotJson?.skills?.length).toBe(1);
     expect(input.agentSnapshotJson?.skills?.[0]?.name).toBe('default-reasoning');
     expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain('concise');
+  });
+
+  test('createSession throws when ruleRef cannot be resolved', async () => {
+    const sfid = new SfidService();
+    const repo: SessionRepository = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async () => fakeRow('1')),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    };
+    const pool: Pool = {
+      getConnection: mock(async () =>
+        ({
+          beginTransaction: mock(async () => {}),
+          commit: mock(async () => {}),
+          rollback: mock(async () => {}),
+          release: mock(() => {}),
+        }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const descriptorLoader = {
+      getGlobalPrompt: () => '',
+      getAgent: mock(async () => ({
+        kind: 'agent',
+        name: 'a1',
+        instructions: '',
+        ruleRefs: ['missing-rule'],
+      })),
+    };
+    const svc = new SessionService(
+      sfid,
+      repo,
+      pool,
+      outbox,
+      descriptorLoader as never,
+      { resolve: () => undefined },
+      { resolve: () => undefined },
+    );
+
+    await expect(
+      svc.createSession(1, 'u1', 'U', { agentId: 'a1' }),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
   });
 
   test('createSession throws when skillRef cannot be resolved', async () => {

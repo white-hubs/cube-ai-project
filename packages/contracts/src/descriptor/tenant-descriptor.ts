@@ -1,0 +1,98 @@
+import { z } from 'zod';
+
+/**
+ * 租户级 descriptor 的 wire schema 与 id 前缀命名空间。
+ *
+ * ADR-0016：租户资产 id = 类型前缀 + SFID（`agt_` / `skl_` / `rul_`），服务端生成；
+ * 裸 name（无前缀）永远指系统级资产。
+ * ADR-0018：三种 kind 的 content schema 对称扩展 displayName / tags / version。
+ */
+export const TENANT_DESCRIPTOR_ID_PREFIXES = {
+  agent: 'agt_',
+  skill: 'skl_',
+  rule: 'rul_',
+} as const;
+
+export type TenantDescriptorKind = keyof typeof TENANT_DESCRIPTOR_ID_PREFIXES;
+
+const PREFIX_TO_KIND: ReadonlyMap<string, TenantDescriptorKind> = new Map(
+  (Object.entries(TENANT_DESCRIPTOR_ID_PREFIXES) as [TenantDescriptorKind, string][]).map(
+    ([kind, prefix]) => [prefix, kind],
+  ),
+);
+
+/**
+ * `'agt_123' -> { kind: 'agent', sfid: '123' }`；裸 name / 未知前缀 / 空 sfid 返回 null（= 系统级）。
+ */
+export function parseTenantDescriptorId(
+  ref: string,
+): { kind: TenantDescriptorKind; sfid: string } | null {
+  const underscore = ref.indexOf('_');
+  if (underscore < 0) return null;
+  const prefix = ref.slice(0, underscore + 1);
+  const kind = PREFIX_TO_KIND.get(prefix);
+  if (!kind) return null;
+  const sfid = ref.slice(underscore + 1);
+  if (!sfid) return null;
+  return { kind, sfid };
+}
+
+/** 三种 kind 共有的可选展示/检索字段（对齐 Descriptor Document frontmatter，ADR-0018 §6） */
+const TenantDescriptorMetaSchema = z.object({
+  displayName: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  /** 内容语义版本，独立于 DB head_version_no */
+  version: z.string().optional(),
+});
+
+export const TenantAgentContentSchema = TenantDescriptorMetaSchema.extend({
+  prompt: z.string().min(1),
+  modelConfig: z
+    .object({
+      provider: z.string().optional(),
+      model: z.string().optional(),
+      temperature: z.number().min(0).max(2).optional(),
+    })
+    .optional(),
+  ruleRefs: z.array(z.string()).default([]),
+  skillRefs: z.array(z.string()).default([]),
+  availableTools: z.array(z.string()).default([]),
+  subAgentRefs: z.array(z.string()).default([]),
+  maxDepth: z.number().int().positive().optional(),
+});
+export type TenantAgentContent = z.infer<typeof TenantAgentContentSchema>;
+
+export const TenantSkillContentSchema = TenantDescriptorMetaSchema.extend({
+  description: z.string().min(1),
+  /** 对齐 SKILL.md frontmatter trigger 字段 */
+  trigger: z.string().optional(),
+  /** markdown 文本 */
+  instructions: z.string().min(1),
+});
+export type TenantSkillContent = z.infer<typeof TenantSkillContentSchema>;
+
+export const TenantRuleContentSchema = TenantDescriptorMetaSchema.extend({
+  /** 人类可读说明 */
+  description: z.string().optional(),
+  /** 注入 system prompt 的规则文本 */
+  content: z.string().min(1),
+});
+export type TenantRuleContent = z.infer<typeof TenantRuleContentSchema>;
+
+export const TenantDescriptorStatusSchema = z.enum(['draft', 'published']);
+export type TenantDescriptorStatus = z.infer<typeof TenantDescriptorStatusSchema>;
+
+export const TenantDescriptorViewSchema = z.object({
+  /** 带前缀完整 id */
+  id: z.string(),
+  kind: z.enum(['agent', 'skill', 'rule']),
+  name: z.string(),
+  status: TenantDescriptorStatusSchema,
+  headVersionNo: z.number().int(),
+  publishedVersionNo: z.number().int().nullable(),
+  /** head 版本内容（按 kind 再 parse） */
+  content: z.unknown(),
+  createTime: z.number(),
+  updateTime: z.number(),
+});
+export type TenantDescriptorView = z.infer<typeof TenantDescriptorViewSchema>;

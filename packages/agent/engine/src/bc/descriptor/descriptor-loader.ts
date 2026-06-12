@@ -23,6 +23,8 @@ import {
   ensureBuiltinImageQwenDescriptor,
   ensureBuiltinPlatformToolDescriptors,
 } from './engine-builtin-descriptors';
+import { extractDescriptorDocumentParts } from './descriptor-document-parser';
+import { RuleRegistryService, type RuleDescriptor } from './rule-registry.service';
 import { SkillRegistryService } from './skill-registry.service';
 import {
   createNacosClientFromEnv,
@@ -180,19 +182,46 @@ function parseSkillDescriptorFromRecord(
 }
 
 function parseSkillMarkdown(raw: string, sourceDir: string, hintPath: string): SkillDescriptor {
-  const normalized = raw.replace(/\r\n/g, '\n');
-  const match = /^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/u.exec(normalized);
-  if (!match) throw new Error('SKILL.md requires YAML frontmatter');
-  const data = parseYaml(match[1] ?? '') as unknown;
-  if (!data || typeof data !== 'object') {
-    throw new Error('SKILL.md frontmatter must be an object');
+  // frontmatter 提取统一走 DescriptorDocumentParser seam（ADR-0018 §5）
+  const { record, body } = extractDescriptorDocumentParts(raw);
+  return parseSkillDescriptorFromRecord(record, body, sourceDir, hintPath);
+}
+
+/** `descriptors/rules/*.yaml`（kind: rule）→ RuleDescriptor；缺 name/content 抛错。 */
+function parseRuleDescriptorContent(raw: string, hintPath: string): RuleDescriptor {
+  const parsed = parseStructuredContent(raw, hintPath);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('rule descriptor must be an object');
   }
-  return parseSkillDescriptorFromRecord(
-    data as Record<string, unknown>,
-    match[2] ?? '',
-    sourceDir,
-    hintPath,
-  );
+  const rec = parsed as Record<string, unknown>;
+  if (rec['kind'] !== 'rule') {
+    throw new Error('rule descriptor kind must be rule');
+  }
+  const name = readOptionalString(rec, 'name');
+  if (!name) throw new Error('rule descriptor requires non-empty name');
+  const content =
+    typeof rec['content'] === 'string' && rec['content'].trim().length > 0
+      ? rec['content'].trim()
+      : undefined;
+  if (!content) throw new Error(`rule ${name} requires non-empty content`);
+
+  return {
+    kind: 'rule',
+    name,
+    content,
+    ...(readOptionalString(rec, 'version') !== undefined
+      ? { version: readOptionalString(rec, 'version') }
+      : {}),
+    ...(readOptionalString(rec, 'description') !== undefined
+      ? { description: readOptionalString(rec, 'description') }
+      : {}),
+    ...(readOptionalString(rec, 'displayName') !== undefined
+      ? { displayName: readOptionalString(rec, 'displayName') }
+      : {}),
+    ...(Array.isArray(rec['tags'])
+      ? { tags: rec['tags'].filter((x): x is string => typeof x === 'string') }
+      : {}),
+  };
 }
 
 function parseLegacySkillDescriptor(
@@ -245,6 +274,7 @@ export class DescriptorLoader {
     @Inject(TOOL_EFFECTIVE_VERSION_SOURCE_TOKEN)
     private readonly pinSource: ToolEffectiveVersionSource,
     private readonly skillRegistry?: SkillRegistryService,
+    private readonly ruleRegistry?: RuleRegistryService,
   ) {}
 
   /** 外部下发的引擎内置工具与本地内置冲突时丢弃并告警（内置在 apply 末尾 ensure）。 */
@@ -316,6 +346,7 @@ export class DescriptorLoader {
     this.reportDevAgentPlaceholders();
 
     await this.loadSkillsFromDir(skillDir);
+    await this.loadRulesFromDir(this.configuredRuleDir());
 
     if (toolDir) {
       const toolResult = await this.loadFromDir(toolDir);
@@ -480,6 +511,64 @@ export class DescriptorLoader {
       process.env.AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR?.trim() ||
       join(process.cwd(), 'descriptors', 'skills')
     );
+  }
+
+  private configuredRuleDir(): string {
+    return (
+      process.env.AGENTIC_ENGINE_RULE_DESCRIPTOR_DIR?.trim() ||
+      join(process.cwd(), 'descriptors', 'rules')
+    );
+  }
+
+  async loadRulesFromConfiguredDir(): Promise<{ loaded: number; skipped: number }> {
+    return this.loadRulesFromDir(this.configuredRuleDir());
+  }
+
+  /**
+   * 扫描 `descriptors/rules` 目录（kind: rule YAML/JSON）进 RuleRegistry。
+   * session 创建时 `ruleRefs`（裸 name）经该注册表水合进 snapshot.rules（ADR-0016 §7）。
+   */
+  async loadRulesFromDir(dir: string): Promise<{ loaded: number; skipped: number }> {
+    if (!this.ruleRegistry) {
+      warn(`rule registry unavailable; skip rule loading dir=${dir}`);
+      return { loaded: 0, skipped: 0 };
+    }
+
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (e) {
+      warn(`cannot readdir rules dir ${dir}: ${(e as Error).message}`);
+      return { loaded: 0, skipped: 0 };
+    }
+
+    const supported = ['.yaml', '.yml', '.json'];
+    const files = entries.filter((f) => supported.includes(extname(f).toLowerCase()));
+    let loaded = 0;
+    let skipped = 0;
+    const rules: RuleDescriptor[] = [];
+
+    for (const file of files) {
+      const fullPath = join(dir, file);
+      try {
+        const content = await readFile(fullPath, 'utf-8');
+        rules.push(parseRuleDescriptorContent(content, fullPath));
+        loaded++;
+      } catch (e) {
+        warn(`skip invalid rule descriptor file ${file}: ${(e as Error).message}`);
+        skipped++;
+      }
+    }
+
+    this.ruleRegistry.replaceAllFromSnapshot(rules);
+    info(
+      `rule descriptor scan complete dir=${dir} loaded=${loaded} skipped=${skipped} ` +
+        `registrySize=${this.ruleRegistry.size()} latest=[${this.ruleRegistry
+          .list()
+          .map((r) => `${r.name}@${r.version ?? '0.0.0'}`)
+          .join(', ')}]`,
+    );
+    return { loaded, skipped };
   }
 
   async loadSkillsFromConfiguredDir(): Promise<{ loaded: number; skipped: number }> {
@@ -663,6 +752,7 @@ export class DescriptorLoader {
 
     this.applyToolDescriptorBatch(descriptors);
     await this.loadSkillsFromConfiguredDir();
+    await this.loadRulesFromConfiguredDir();
     await this.pinSource?.refreshFromNacos?.();
     info(`Nacos descriptor reload complete tools=${descriptors.length}`);
 

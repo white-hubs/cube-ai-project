@@ -20,6 +20,7 @@ import { DescriptorModule } from '../descriptor/descriptor.module';
 import { DescriptorRegistryService } from '../descriptor/descriptor-registry.service';
 import { DescriptorLoader } from '../descriptor/descriptor-loader';
 import { SkillRegistryService } from '../descriptor/skill-registry.service';
+import { RuleRegistryService } from '../descriptor/rule-registry.service';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import { SessionService } from './session.service';
 import { TurnService } from './turn.service';
@@ -188,6 +189,12 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           skillRegistry = undefined;
         }
+        let ruleRegistry: RuleRegistryService | undefined;
+        try {
+          ruleRegistry = c.resolve(RuleRegistryService) as RuleRegistryService;
+        } catch {
+          ruleRegistry = undefined;
+        }
         return new SessionService(
           sharedSfidService,
           repo,
@@ -195,6 +202,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           outbox,
           descriptorLoader,
           skillRegistry,
+          ruleRegistry,
         );
       },
     },

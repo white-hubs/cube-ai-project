@@ -1,17 +1,6 @@
 import { Injectable } from '@dangao/bun-server';
 import type { SkillDescriptor } from '@tachu/core';
-
-function semverCompare(a: string, b: string): number {
-  const parse = (v: string): [number, number, number] => {
-    const parts = v.split('.').map(Number);
-    return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
-  };
-  const [am, ai, ap] = parse(a);
-  const [bm, bi, bp] = parse(b);
-  if (am !== bm) return am - bm;
-  if (ai !== bi) return ai - bi;
-  return ap - bp;
-}
+import { VersionedRegistry } from './versioned-registry';
 
 function stableSkillSignature(skill: SkillDescriptor): string {
   return JSON.stringify({
@@ -32,55 +21,31 @@ function stableSkillSignature(skill: SkillDescriptor): string {
 
 @Injectable()
 export class SkillRegistryService {
-  private readonly byKey = new Map<string, SkillDescriptor>();
-  private readonly latestByName = new Map<string, string>();
+  private readonly registry = new VersionedRegistry<SkillDescriptor>({
+    itemName: (s) => s.name,
+    itemVersion: (s) => s.version,
+    defaultVersion: '0.0.0',
+    duplicateError: (key) => new Error(`Duplicate skill descriptor: ${key}`),
+    nonMonotonicError: (name, version, prev) =>
+      new Error(
+        `Skill ${name}: version ${version} is not monotonically greater than ${prev}`,
+      ),
+  });
 
   register(skill: SkillDescriptor): void {
-    const version = skill.version ?? '0.0.0';
-    const key = `${skill.name}@${version}`;
-    if (this.byKey.has(key)) {
-      throw new Error(`Duplicate skill descriptor: ${key}`);
-    }
-    const prev = this.latestByName.get(skill.name);
-    if (prev !== undefined && semverCompare(version, prev) <= 0) {
-      throw new Error(
-        `Skill ${skill.name}: version ${version} is not monotonically greater than ${prev}`,
-      );
-    }
-    this.byKey.set(key, skill);
-    this.latestByName.set(skill.name, version);
+    this.registry.register(skill);
   }
 
   replaceAllFromSnapshot(skills: SkillDescriptor[]): void {
-    this.clear();
-    const byName = new Map<string, SkillDescriptor[]>();
-    for (const skill of skills) {
-      const list = byName.get(skill.name) ?? [];
-      list.push(skill);
-      byName.set(skill.name, list);
-    }
-    for (const list of byName.values()) {
-      list.sort((a, b) =>
-        semverCompare(a.version ?? '0.0.0', b.version ?? '0.0.0'),
-      );
-      for (const skill of list) this.register(skill);
-    }
+    this.registry.replaceAllFromSnapshot(skills);
   }
 
   resolve(name: string, version?: string): SkillDescriptor | undefined {
-    if (version) return this.byKey.get(`${name}@${version}`);
-    const latest = this.latestByName.get(name);
-    if (!latest) return undefined;
-    return this.byKey.get(`${name}@${latest}`);
+    return this.registry.resolve(name, version);
   }
 
   list(): SkillDescriptor[] {
-    const out: SkillDescriptor[] = [];
-    for (const [name, version] of this.latestByName.entries()) {
-      const skill = this.byKey.get(`${name}@${version}`);
-      if (skill) out.push(skill);
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
+    return this.registry.latest();
   }
 
   signature(): string {
@@ -88,11 +53,10 @@ export class SkillRegistryService {
   }
 
   size(): number {
-    return this.byKey.size;
+    return this.registry.size();
   }
 
   clear(): void {
-    this.byKey.clear();
-    this.latestByName.clear();
+    this.registry.clear();
   }
 }

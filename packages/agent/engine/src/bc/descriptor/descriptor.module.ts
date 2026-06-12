@@ -1,6 +1,7 @@
 import { Module } from '@dangao/bun-server';
 import { DescriptorRegistryService } from './descriptor-registry.service';
 import { DescriptorLoader } from './descriptor-loader';
+import { RuleRegistryService } from './rule-registry.service';
 import { SkillRegistryService } from './skill-registry.service';
 import {
   TOOL_EFFECTIVE_VERSION_SOURCE_TOKEN,
@@ -23,8 +24,9 @@ import {
     },
     DescriptorRegistryService,
     SkillRegistryService,
+    RuleRegistryService,
     DescriptorLoader,
   ],
-  exports: [DescriptorRegistryService, SkillRegistryService, DescriptorLoader],
+  exports: [DescriptorRegistryService, SkillRegistryService, RuleRegistryService, DescriptorLoader],
 })
 export class DescriptorModule {}

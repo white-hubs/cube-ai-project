@@ -11,6 +11,7 @@ import { describe, test, expect, mock, afterEach } from 'bun:test';
 import { basename } from 'node:path';
 import { DescriptorLoader } from './descriptor-loader';
 import { DescriptorRegistryService } from './descriptor-registry.service';
+import { RuleRegistryService } from './rule-registry.service';
 import { SkillRegistryService } from './skill-registry.service';
 import type { ToolEffectiveVersionSource } from './tool-effective-version.provider';
 
@@ -209,6 +210,39 @@ describe('DescriptorLoader', () => {
     } finally {
       console.log = origLog;
     }
+  });
+
+  test('可扫描 rules 目录（kind: rule YAML）进 RuleRegistry，无效文件跳过', async () => {
+    mock.module('node:fs/promises', () => ({
+      readdir: async () => ['safety-baseline.yaml', 'broken.yaml', 'README.md'],
+      readFile: async (p: string) => {
+        if (p.endsWith('/safety-baseline.yaml')) {
+          return [
+            'kind: rule',
+            'name: safety-baseline',
+            'version: 0.1.0',
+            'description: baseline',
+            'content: |',
+            '  Do not reveal secrets.',
+          ].join('\n');
+        }
+        if (p.endsWith('/broken.yaml')) {
+          return 'kind: rule\nname: no-content';
+        }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      },
+    }));
+
+    const registry = new DescriptorRegistryService(noopPin);
+    const ruleRegistry = new RuleRegistryService();
+    const loader = new DescriptorLoader(registry, noopPin, undefined, ruleRegistry);
+
+    const result = await loader.loadRulesFromDir('/repo/descriptors/rules');
+    expect(result).toEqual({ loaded: 1, skipped: 1 });
+    expect(ruleRegistry.resolve('safety-baseline')?.content).toContain(
+      'Do not reveal secrets.',
+    );
+    expect(ruleRegistry.size()).toBe(1);
   });
 
   test('SKILL.md 优先于同目录 legacy descriptor.yaml', async () => {
