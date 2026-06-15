@@ -51,8 +51,38 @@ function mockService(over: Partial<DescriptorManagementService> = {}): Descripto
       headVersionNo: 1,
       status: 'draft',
     })),
+    proposeStream: mock((_t: number, _k: string, _r: unknown) =>
+      (async function* () {
+        yield { type: 'delta', delta: 'You are a concise ' };
+        yield { type: 'delta', delta: 'helpful agent.' };
+        yield {
+          type: 'proposal',
+          result: {
+            content: { prompt: 'You are a concise helpful agent.', skillRefs: ['web-search'] },
+            suggestions: [{ kind: 'skill', ref: 'web-search', rationale: 'lookup' }],
+            valid: true,
+          },
+        };
+      })(),
+    ),
     ...over,
   } as unknown as DescriptorManagementService;
+}
+
+/** Parse a text/event-stream body into ordered { event, data } records. */
+function parseSse(text: string): Array<{ event: string; data: unknown }> {
+  const out: Array<{ event: string; data: unknown }> = [];
+  for (const block of text.split('\n\n')) {
+    const lines = block.split('\n');
+    let event = 'message';
+    let data = '';
+    for (const line of lines) {
+      if (line.startsWith('event: ')) event = line.slice(7);
+      else if (line.startsWith('data: ')) data += line.slice(6);
+    }
+    if (data) out.push({ event, data: JSON.parse(data) });
+  }
+  return out;
 }
 
 const run = <T>(ctx: Context, fn: () => Promise<T>) => contextStore.run(ctx, fn);
@@ -138,6 +168,32 @@ describe('DescriptorManagementController — REST wiring', () => {
       code: 'INVALID_ARGUMENT_DESCRIPTOR_DOCUMENT',
     });
     expect(svc.fromDocument).not.toHaveBeenCalled();
+  });
+
+  test('POST /agent/agents:propose streams prose deltas then a terminal proposal event', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const ctx = baseCtx({ tenant: 7, userId: 'alice', body: { intent: 'a concise agent' } });
+    const res = (await run(ctx, () => ctl.agentPropose())) as Response;
+
+    expect(svc.proposeStream).toHaveBeenCalledWith(7, 'agent', { intent: 'a concise agent' });
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+
+    const events = parseSse(await res.text());
+    const deltas = events.filter((e) => e.event === 'delta');
+    const terminals = events.filter((e) => e.event === 'proposal');
+    expect(deltas.length).toBeGreaterThan(0);
+    // prose deltas reconstruct the generated prompt
+    const prose = deltas.map((d) => (d.data as { delta: string }).delta).join('');
+    expect(prose).toBe('You are a concise helpful agent.');
+    // exactly one terminal proposal carrying the full envelope
+    expect(terminals.length).toBe(1);
+    expect((terminals[0].data as { valid: boolean }).valid).toBe(true);
+    expect((terminals[0].data as { suggestions: unknown[] }).suggestions).toEqual([
+      { kind: 'skill', ref: 'web-search', rationale: 'lookup' },
+    ]);
+    // proposal must be the last event
+    expect(events[events.length - 1].event).toBe('proposal');
   });
 
   test('missing subject → UNAUTHENTICATED', async () => {

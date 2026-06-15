@@ -15,9 +15,16 @@
  */
 import 'reflect-metadata';
 import { Controller, POST, GET, PATCH, DELETE, Context, contextStore } from '@dangao/bun-server';
-import type { DualSubject, TenantDescriptorKind } from '@cube-ai/contracts';
+import {
+  ProposeRequestSchema,
+  type DualSubject,
+  type TenantDescriptorKind,
+} from '@cube-ai/contracts';
 import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import { DescriptorManagementService } from './descriptor-management.service';
+import {
+  DescriptorManagementService,
+  type ProposeStreamEvent,
+} from './descriptor-management.service';
 
 function requireCtx(): Context {
   const ctx = contextStore.getStore();
@@ -99,6 +106,10 @@ export class DescriptorManagementController {
   agentFromDocument() {
     return this.fromDocument('agent');
   }
+  @POST('/agents:propose')
+  agentPropose() {
+    return this.propose('agent');
+  }
 
   // ─── skill ────────────────────────────────────────────────────────────────
   @POST('/skills')
@@ -129,6 +140,10 @@ export class DescriptorManagementController {
   skillFromDocument() {
     return this.fromDocument('skill');
   }
+  @POST('/skills:propose')
+  skillPropose() {
+    return this.propose('skill');
+  }
 
   // ─── rule ─────────────────────────────────────────────────────────────────
   @POST('/rules')
@@ -158,6 +173,10 @@ export class DescriptorManagementController {
   @POST('/rules:fromDocument')
   ruleFromDocument() {
     return this.fromDocument('rule');
+  }
+  @POST('/rules:propose')
+  rulePropose() {
+    return this.propose('rule');
   }
 
   // ─── shared handlers ────────────────────────────────────────────────────────
@@ -202,6 +221,65 @@ export class DescriptorManagementController {
     const raw = await rawTextBody(ctx);
     return this.svc.fromDocument(tenantOf(ctx), kind, raw, actorOf(ctx));
   }
+
+  /**
+   * ADR-0027 §5：`POST /agent/{kind}:propose` SSE。
+   * 先流 prose token delta（生成的 prompt/instructions/rule 文本）供人实时看，
+   * 末尾一个 `proposal` 事件搭载完整 {@link ProposeResult} 信封。
+   */
+  private async propose(kind: TenantDescriptorKind): Promise<Response> {
+    const ctx = requireCtx();
+    const tenant = tenantOf(ctx);
+    const body = await jsonBody(ctx);
+    const parsed = ProposeRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      throw AgenticEngineError.fromCode(
+        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+        'propose request body validation failed',
+        { issues: parsed.error.issues },
+      );
+    }
+    return proposeSseResponse(this.svc.proposeStream(tenant, kind, parsed.data));
+  }
+}
+
+function sseRecord(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+/**
+ * 两阶段真流式（ADR-0027 §5）：直接把 {@link ProposeStreamEvent} 序列映射到 SSE——
+ * phase-1 的每个 prose token → `delta` 事件，phase-2 终态信封 → `proposal` 事件；正常 EOF 关闭。
+ * 流中途异常以 `error` 事件透出，避免悬挂。
+ */
+function proposeSseResponse(events: AsyncIterable<ProposeStreamEvent>): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enc = new TextEncoder();
+      const push = (s: string) => controller.enqueue(enc.encode(s));
+      try {
+        for await (const ev of events) {
+          if (ev.type === 'delta') {
+            push(sseRecord('delta', { delta: ev.delta }));
+          } else {
+            push(sseRecord('proposal', ev.result));
+          }
+        }
+      } catch (e) {
+        push(sseRecord('error', { message: e instanceof Error ? e.message : String(e) }));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
 
 function requireId(ctx: Context): string {

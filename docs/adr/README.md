@@ -37,6 +37,9 @@
 | ADR-0016 | [agent 管理面（console face）与 descriptor 双层权威 —— 租户 MySQL + 系统文件，前缀 id 命名空间，draft/publish 版本模型](./ADR-0016-agent-console-and-descriptor-dual-authority.md) | Accepted |
 | ADR-0017 | [Schema Migration —— 域自持 migrations/ + 独立 history 表 + 共享 infra runner，ai-center 启动时协调](./ADR-0017-schema-migration-per-domain-runner.md) | Accepted |
 | ADR-0018 | [Descriptor Document 提交格式 —— `:fromDocument` 独立端点、text/plain upsert、draft 落库、DescriptorDocumentParser seam、三种 kind schema 对称扩展](./ADR-0018-descriptor-document-submission-format.md) | Accepted |
+| ADR-0027 | [AI-native descriptor 创作 —— `propose` 纯建议能力 + 管理 ops 工具集一核两面（进程内 Tool Handler + MCP server 门面），ref LLM-in-context 接地](./ADR-0027-ai-native-descriptor-authoring.md) | Accepted |
+
+> 编号 0019–0026 在代码注释中被引用（runtime / tachu 系列决策），未在本索引建档；本仓文档化 ADR 由 0027 续接。
 
 ## 未决问题（贯穿）
 

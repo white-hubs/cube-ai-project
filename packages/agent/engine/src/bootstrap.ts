@@ -5,6 +5,8 @@ import { agenticEngineExceptionFilter } from './infra/errors/agentic-engine-exce
 import { DescriptorLoader } from './bc/descriptor/descriptor-loader';
 import { DescriptorRegistryService } from './bc/descriptor/descriptor-registry.service';
 import { McpBridgeService } from './bc/tools/mcp-bridge.service';
+import { DescriptorMcpModule } from './bc/descriptor-mcp/descriptor-mcp.module';
+import { buildManagementToolDescriptors } from './bc/tools/handlers/descriptor-ops';
 import {
   traceIdMiddleware,
   createErrorResponseMiddleware,
@@ -37,6 +39,32 @@ function parsePositiveRateLimitEnv(raw: string | undefined, fallback: number): n
   if (raw === undefined || raw.trim().length === 0) return fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * ADR-0027 §7：把管理 ops 工具集（系统级 ToolDescriptor）注册进 registry，使任何进程内
+ * agent 经 `availableTools` 即可获得管理能力。在 loader 首轮加载（其快照替换会清掉非内置项）
+ * 之后注册，并在每次 reload 后补登记。
+ */
+function registerManagementToolDescriptors(container: DiContainer): void {
+  let registry: DescriptorRegistryService;
+  try {
+    registry = container.resolve(DescriptorRegistryService) as DescriptorRegistryService;
+  } catch {
+    return;
+  }
+  for (const descriptor of buildManagementToolDescriptors()) {
+    if (registry.resolve(descriptor.name)) continue;
+    try {
+      registry.register(descriptor);
+    } catch (e) {
+      console.warn(
+        `[bootstrap] skip management descriptor ${descriptor.name}: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
+  }
 }
 
 async function registerMcpDiscoveredTools(container: DiContainer): Promise<void> {
@@ -121,6 +149,8 @@ export async function bootstrap(
 
   const assembler = new EngineAssembler({ port, hostname });
   const app = assembler.assemble();
+  // ADR-0027 §8: engine 出站 MCP server 门面（管理 ops 工具集对外面）。
+  app.registerModule(DescriptorMcpModule);
   const container = app.getContainer();
 
   ExceptionFilterRegistry.getInstance().register(agenticEngineExceptionFilter);
@@ -136,8 +166,10 @@ export async function bootstrap(
     DescriptorLoader,
   ) as DescriptorLoader;
   await descriptorLoader.start();
+  registerManagementToolDescriptors(container);
   await registerMcpDiscoveredToolsAtBoot(container);
   descriptorLoader.reloadEvents.addEventListener('descriptor.reload', () => {
+    registerManagementToolDescriptors(container);
     registerMcpDiscoveredTools(container).catch((e) =>
       console.warn(
         `[bootstrap] MCP descriptor discovery failed after reload: ${

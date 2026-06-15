@@ -20,6 +20,9 @@ import { FlowListHandler } from './handlers/flow-list-handler';
 import { KnowledgeHandler } from './handlers/knowledge-handler';
 import { ClockHandler } from './handlers/clock-handler';
 import { QwenImageHandler } from './handlers/qwen-image-handler';
+import { DescriptorOpsHandler } from './handlers/descriptor-ops-handler';
+import { descriptorManagementServiceProvider } from '../descriptor/descriptor-management.provider';
+import { DescriptorManagementService } from '../descriptor/descriptor-management.service';
 
 /**
  * Tools BC Module。
@@ -50,8 +53,10 @@ import { QwenImageHandler } from './handlers/qwen-image-handler';
     KnowledgeHandler,
     ClockHandler,
     QwenImageHandler,
+    descriptorManagementServiceProvider,
+    DescriptorOpsHandler,
     ToolService,
   ],
-  exports: [ToolService, McpBridgeService],
+  exports: [ToolService, McpBridgeService, DescriptorManagementService],
 })
 export class ToolsModule {}

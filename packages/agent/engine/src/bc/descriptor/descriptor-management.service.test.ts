@@ -1,10 +1,49 @@
 import { describe, test, expect, mock } from 'bun:test';
-import { DescriptorManagementService } from './descriptor-management.service';
+import {
+  DescriptorManagementService,
+  type ProposeCandidate,
+  type ProposeCandidateSource,
+} from './descriptor-management.service';
 import type {
   TenantDescriptorRepository,
   UpsertDescriptorResult,
 } from './tenant-descriptor.repository';
-import type { TenantDescriptorView } from '@cube-ai/contracts';
+import type { LlmChatResponse, LlmProviderPort, TenantDescriptorView } from '@cube-ai/contracts';
+
+/**
+ * 两阶段假 LLM（ADR-0027 §5）：
+ *  - phase 1 `chatStream` 把 `prose` 作为 text-delta 流出（真流式）。
+ *  - phase 2 `chat` 返回结构化 `{suggestions, meta}` JSON。
+ */
+function fakeLlm(opts: { prose: string; structured: unknown }): {
+  provider: LlmProviderPort;
+  chat: ReturnType<typeof mock>;
+  chatStream: ReturnType<typeof mock>;
+} {
+  const chat = mock(
+    async (): Promise<LlmChatResponse> => ({
+      content: JSON.stringify(opts.structured),
+      finishReason: 'stop',
+    }),
+  );
+  const chatStream = mock((_req: unknown) =>
+    (async function* () {
+      if (opts.prose) yield { type: 'text-delta', delta: opts.prose };
+      yield { type: 'finish', finishReason: 'stop' };
+    })(),
+  );
+  const provider = { chat, chatStream, embed: async () => [] } as unknown as LlmProviderPort;
+  return { provider, chat, chatStream };
+}
+
+function fakeCandidateSource(over: Partial<ProposeCandidateSource> = {}): ProposeCandidateSource {
+  return {
+    systemSkills: () => [] as ProposeCandidate[],
+    systemRules: () => [] as ProposeCandidate[],
+    systemTools: () => [] as ProposeCandidate[],
+    ...over,
+  };
+}
 
 function fakeView(over: Partial<TenantDescriptorView> = {}): TenantDescriptorView {
   return {
@@ -132,5 +171,150 @@ describe('DescriptorManagementService — validation + lifecycle orchestration',
     await svc.remove(1, 'agt_1', 'alice');
     expect(repo.publish).toHaveBeenCalledWith(1, 'agt_1', 'alice');
     expect(repo.softDelete).toHaveBeenCalledWith(1, 'agt_1', 'alice');
+  });
+});
+
+describe('DescriptorManagementService.propose — ADR-0027 ① pure suggestion (two-phase)', () => {
+  test('generate mode returns schema-valid agent content (valid:true) with grounded ref', async () => {
+    const repo = fakeRepo();
+    const { provider } = fakeLlm({
+      prose: 'You are a helpful support agent.',
+      structured: {
+        suggestions: [{ kind: 'skill', ref: 'web-search', rationale: 'answer questions' }],
+        meta: {},
+      },
+    });
+    const candidates = fakeCandidateSource({
+      systemSkills: () => [{ kind: 'skill', ref: 'web-search', description: 'Search the web' }],
+    });
+    const svc = new DescriptorManagementService(repo, provider, candidates);
+
+    const result = await svc.propose(7, 'agent', { intent: 'a support agent that can search' });
+
+    expect(result.valid).toBe(true);
+    const content = result.content as { prompt: string; skillRefs: string[] };
+    expect(content.prompt).toBe('You are a helpful support agent.');
+    expect(content.skillRefs).toEqual(['web-search']);
+    expect(result.suggestions).toEqual([
+      { kind: 'skill', ref: 'web-search', rationale: 'answer questions' },
+    ]);
+    // pure / read-only: never persists
+    expect(repo.upsert).not.toHaveBeenCalled();
+    expect(repo.publish).not.toHaveBeenCalled();
+  });
+
+  test('proposeStream emits prose deltas then a terminal proposal envelope', async () => {
+    const repo = fakeRepo();
+    const { provider } = fakeLlm({
+      prose: 'You are a concise agent.',
+      structured: { suggestions: [], meta: {} },
+    });
+    const svc = new DescriptorManagementService(repo, provider, fakeCandidateSource());
+
+    const events: Array<{ type: string }> = [];
+    let deltaText = '';
+    let proposalResult: { valid: boolean } | undefined;
+    for await (const ev of svc.proposeStream(7, 'agent', { intent: 'x' })) {
+      events.push(ev);
+      if (ev.type === 'delta') deltaText += ev.delta;
+      if (ev.type === 'proposal') proposalResult = ev.result;
+    }
+
+    expect(events.filter((e) => e.type === 'delta').length).toBeGreaterThan(0);
+    expect(events[events.length - 1]!.type).toBe('proposal');
+    expect(deltaText).toBe('You are a concise agent.');
+    expect(proposalResult?.valid).toBe(true);
+  });
+
+  test('hallucinated refs are dropped from both content and suggestions', async () => {
+    const repo = fakeRepo();
+    const { provider } = fakeLlm({
+      prose: 'agent',
+      structured: {
+        suggestions: [
+          { kind: 'skill', ref: 'web-search', rationale: 'ok' },
+          { kind: 'skill', ref: 'made-up-skill', rationale: 'hallucinated' },
+          { kind: 'tool', ref: 'ghost-tool', rationale: 'hallucinated' },
+        ],
+        meta: {},
+      },
+    });
+    const candidates = fakeCandidateSource({
+      systemSkills: () => [{ kind: 'skill', ref: 'web-search' }],
+    });
+    const svc = new DescriptorManagementService(repo, provider, candidates);
+
+    const result = await svc.propose(7, 'agent', { intent: 'x' });
+
+    const content = result.content as { skillRefs: string[]; availableTools: string[] };
+    expect(content.skillRefs).toEqual(['web-search']);
+    expect(content.availableTools).toEqual([]);
+    expect(result.suggestions.map((s) => s.ref)).toEqual(['web-search']);
+    expect(JSON.stringify(result)).not.toContain('made-up-skill');
+    expect(JSON.stringify(result)).not.toContain('ghost-tool');
+  });
+
+  test('optimize mode streams the base prose to phase-1 and preserves identity via meta', async () => {
+    const repo = fakeRepo();
+    const base = { prompt: 'old prompt', displayName: 'Support', skillRefs: [] };
+    const { provider, chatStream } = fakeLlm({
+      prose: 'new improved prompt',
+      structured: { suggestions: [], meta: { displayName: 'Support' } },
+    });
+    const svc = new DescriptorManagementService(repo, provider, fakeCandidateSource());
+
+    const result = await svc.propose(7, 'agent', { base, focus: 'be more concise' });
+
+    expect(result.valid).toBe(true);
+    const content = result.content as { prompt: string; displayName: string };
+    expect(content.displayName).toBe('Support');
+    expect(content.prompt).toBe('new improved prompt');
+    // base prose was fed into phase-1 (optimize mode)
+    const messages = chatStream.mock.calls[0][0].messages as Array<{ content: string }>;
+    expect(JSON.stringify(messages)).toContain('old prompt');
+  });
+
+  test('invalid generated content → valid:false + issues, no throw, no persist', async () => {
+    const repo = fakeRepo();
+    // empty prose → agent prompt is empty → invalid
+    const { provider } = fakeLlm({ prose: '', structured: { suggestions: [], meta: {} } });
+    const svc = new DescriptorManagementService(repo, provider, fakeCandidateSource());
+
+    const result = await svc.propose(7, 'agent', { intent: 'broken' });
+
+    expect(result.valid).toBe(false);
+    expect(result.issues && result.issues.length).toBeGreaterThan(0);
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  test('only published tenant descriptors become candidates', async () => {
+    const repo = fakeRepo({
+      list: mock(async (_t: number, kind: string) => {
+        if (kind === 'skill') {
+          return [
+            fakeView({ id: 'skl_pub', kind: 'skill', name: 'pub', status: 'published', publishedVersionNo: 1, content: { description: 'published skill' } }),
+            fakeView({ id: 'skl_draft', kind: 'skill', name: 'draft', status: 'draft', content: { description: 'draft skill' } }),
+          ];
+        }
+        return [];
+      }),
+    });
+    const { provider } = fakeLlm({
+      prose: 'p',
+      structured: {
+        suggestions: [
+          { kind: 'skill', ref: 'skl_pub', rationale: 'ok' },
+          { kind: 'skill', ref: 'skl_draft', rationale: 'should drop (draft)' },
+        ],
+        meta: {},
+      },
+    });
+    const svc = new DescriptorManagementService(repo, provider, fakeCandidateSource());
+
+    const result = await svc.propose(7, 'agent', { intent: 'x' });
+
+    const content = result.content as { skillRefs: string[] };
+    expect(content.skillRefs).toEqual(['skl_pub']);
+    expect(result.suggestions.map((s) => s.ref)).toEqual(['skl_pub']);
   });
 });

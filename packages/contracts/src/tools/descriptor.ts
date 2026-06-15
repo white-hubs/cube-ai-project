@@ -58,6 +58,7 @@ export const HandlerKind = z.enum([
   'knowledge',
   'clock',
   'qwenImage',
+  'descriptorOps',
 ]);
 export type HandlerKind = z.infer<typeof HandlerKind>;
 

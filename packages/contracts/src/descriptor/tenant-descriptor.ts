@@ -96,6 +96,45 @@ export const FromDocumentResultSchema = z.object({
 });
 export type FromDocumentResult = z.infer<typeof FromDocumentResultSchema>;
 
+/**
+ * `propose` 纯建议创作（ADR-0027 ①）。同步无写副作用：
+ *   - `intent`（NL 意图）→ 生成模式；`base`（现有 kind content）+ `focus` → 优化模式。
+ *   - `modelCode` 可选覆盖辅助「创作模型」（缺省走 env，ADR-0027 §10）。
+ */
+export const ProposeRequestSchema = z.object({
+  /** NL intent → generate mode */
+  intent: z.string().optional(),
+  /** existing kind content → optimize mode */
+  base: z.unknown().optional(),
+  /** optional instruction to focus the change */
+  focus: z.string().optional(),
+  /** optional model override */
+  modelCode: z.string().optional(),
+});
+export type ProposeRequest = z.infer<typeof ProposeRequestSchema>;
+
+/** 单条 ref 推荐（供 diff/确认 UI 渲染「可选 ref 卡片 + 理由」，ADR-0027 §4）。 */
+export const ProposeSuggestionSchema = z.object({
+  kind: z.enum(['skill', 'rule', 'tool', 'agent']),
+  ref: z.string(),
+  rationale: z.string(),
+  confidence: z.number().min(0).max(1).optional(),
+});
+export type ProposeSuggestion = z.infer<typeof ProposeSuggestionSchema>;
+
+/**
+ * `propose` 输出结构化信封（ADR-0027 §4）。`content` 为 kind 形态、refs 已 inline，
+ * 可直接喂 create/update；`valid:false` 时附 `issues`（调用方/UI 决策，服务端不抛）。
+ */
+export const ProposeResultSchema = z.object({
+  /** kind-shaped content, refs already inlined, ready to feed create/update */
+  content: z.unknown(),
+  suggestions: z.array(ProposeSuggestionSchema),
+  valid: z.boolean(),
+  issues: z.array(z.string()).optional(),
+});
+export type ProposeResult = z.infer<typeof ProposeResultSchema>;
+
 export const TenantDescriptorViewSchema = z.object({
   /** 带前缀完整 id */
   id: z.string(),

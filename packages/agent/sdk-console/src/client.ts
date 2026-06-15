@@ -1,5 +1,7 @@
 import type { z } from 'zod';
 import type {
+  ProposeRequest,
+  ProposeResult,
   TenantAgentContentSchema,
   TenantDescriptorKind,
   TenantDescriptorStatus,
@@ -10,8 +12,15 @@ import type {
 import {
   agentConsoleRequestJson,
   agentConsoleRequestText,
+  agentConsoleStreamSse,
   type AgentConsoleConfig,
 } from './http';
+
+/** Options for {@link AgentConsoleClient.propose} (ADR-0027 §5 SSE). */
+export interface ProposeOptions {
+  /** Called with each streamed prose token delta (the generated prompt/instructions text). */
+  onDelta?: (delta: string) => void;
+}
 
 /**
  * Create/update bodies use the schema *input* shape (defaults like `ruleRefs` are optional);
@@ -164,6 +173,43 @@ export class AgentConsoleClient {
 
   publishRule(id: string): Promise<TenantDescriptorView> {
     return this.publish(KIND_PLURAL.rule, id);
+  }
+
+  // --- propose (AI authoring assistance, ADR-0027 ①) ---
+
+  /**
+   * `POST /{plural}:propose` — pure-suggestion authoring (ADR-0027). Consumes the SSE
+   * stream: forwards prose token deltas to `opts.onDelta` and resolves to the terminal
+   * `proposal` envelope ({@link ProposeResult}).
+   */
+  async propose(
+    kind: TenantDescriptorKind,
+    req: ProposeRequest,
+    opts: ProposeOptions = {},
+  ): Promise<ProposeResult> {
+    const plural = KIND_PLURAL[kind];
+    let result: ProposeResult | undefined;
+    let streamError: string | undefined;
+    await agentConsoleStreamSse(this.config, 'POST', `/${plural}:propose`, req, (ev) => {
+      if (ev.event === 'delta') {
+        if (opts.onDelta) {
+          const parsed = JSON.parse(ev.data) as { delta?: unknown };
+          if (typeof parsed.delta === 'string') opts.onDelta(parsed.delta);
+        }
+      } else if (ev.event === 'proposal') {
+        result = JSON.parse(ev.data) as ProposeResult;
+      } else if (ev.event === 'error') {
+        const parsed = JSON.parse(ev.data) as { message?: unknown };
+        streamError = typeof parsed.message === 'string' ? parsed.message : 'unknown error';
+      }
+    });
+    if (streamError !== undefined) {
+      throw new Error(`agent-sdk-console propose: ${streamError}`);
+    }
+    if (!result) {
+      throw new Error('agent-sdk-console propose: stream ended without a proposal event');
+    }
+    return result;
   }
 
   // --- document ingest ---

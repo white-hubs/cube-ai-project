@@ -152,6 +152,22 @@ _Avoid_: 把 document 格式当原始存储（应解析后落结构化字段）,
 从 `descriptor-loader.ts` 提取的纯函数解析模块（`bc/descriptor/descriptor-document-parser.ts`），为文件加载路径与管理面 `:fromDocument` 入口提供统一的 document→structured 转换；无 I/O 依赖，可独立测试。
 _Avoid_: 解析逻辑分散在 loader 私有函数与 HTTP 控制器之间
 
+**Descriptor 创作辅助 (propose)**:
+中台以自身 LLM、依据租户意图与**平台内部 registry**（系统级 + 本租户已发布 skill/rule/tool）产出一份候选 descriptor content 的能力（ADR-0027）；既可从意图生成、也可以现有 content 为输入做优化。**纯建议、不落库**——返回结构化信封（含已接地的 ref 推荐），落库仍走 **agent 管理面** 的 CRUD。推荐的 ref 经「候选清单内选 + 产出后硬校验」杜绝幻觉。
+_Avoid_: 让 propose 直接写库, 把它当 ai-console 私有页面逻辑, 推荐 registry 里不存在的 ref
+
+**管理 ops 工具集**:
+把 **agent 管理面** 的 ops（**Descriptor 创作辅助 (propose)** + list/get/create/update/publish/softDelete）包装成的一组 **Tool Handler**（ADR-0027）；是「让 agent 管理 descriptor」的**可复用原语**——粒度是 ops 而非整个 agent，别的 agent 可只取其中几个。**一核两面**暴露（与 LLM 同构）：进程内面给任何进程内 agent、对外面经 **管理能力 MCP 门面** 给外部 agent。
+_Avoid_: 把整个管理 Agent 当复用原语（粒度过粗）, 把 tool descriptor 自身纳入此工具集（tool 仍走 Nacos 运维推送）
+
+**管理 Agent**:
+**管理 ops 工具集** 的一个进程内消费者——中台内置的**系统级 agent 预置**（system prompt + 该工具集），管理者经对话即可管理租户 agent/skill/rule（「AI 帮你写进库」）；复用 engine 现有 session/turn/**Tool 编排** consent，经消费面 `/v1/*` 被下游调用。是中台自举（dogfood）的体现。
+_Avoid_: 把它当独立运行时/特殊对话端点, 当成可复用原语（原语是工具集）, 把它当租户级资产, 绕开 consent 直接 publish/删除
+
+**管理能力 MCP 门面**:
+engine 作为 **MCP 服务端（出站角色）** 把 **管理 ops 工具集** 暴露出去，供 engine 之外、任何 MCP-capable 的 agent host（外部 IDE agent、其它系统）直接管理本中台 descriptor（ADR-0027）。与 **MCP 桥接**（入站：engine 连外部 MCP server 当客户端）**方向相反**。engine 是被调方非编排者：写操作服务端硬保证（create/update 只产 draft；publish/软删需显式确认），人面 consent 交 MCP client host；transport 携平台 token 经 `platform-adapter-ghcloud` 解析租户。
+_Avoid_: 与 MCP 桥接（入站）混为一谈, 让 MCP 写操作绕开 draft-safe 直接动运行时, 在门面里另搞鉴权（仍单源 platform-adapter）
+
 ### 前端消费
 
 **统一前门**:
@@ -217,6 +233,8 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 - 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-{client*,console}` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
 - **租户级 descriptor** 权威在中台持久层、按 **租户隔离主键 (tenant)** 隔离；**系统级 descriptor** 权威在部署物；二者以标识命名空间区分，运行时合并解析、互不遮蔽
 - **agent 管理面** 只管 **租户级 descriptor**（含 **发布** 生命周期）；系统级资产对管理面只读；已建会话靠快照冻结不受 descriptor 变更影响
+- AI-native 创作两种 UX（ADR-0027）：**Descriptor 创作辅助 (propose)**（表单可控、纯建议不落库）与 **管理 ops 工具集**（对话省心、agent 真执行）；**propose** 既是独立端点又是工具集成员（一原语两处复用）；propose 的「下游 diff+确认」≈ 工具写操作的 consent 把关，同一安全语义
+- **管理 ops 工具集** 一核两面（与 LLM 一核两面同构）：进程内面经 `availableTools` 给 **管理 Agent** / 任何进程内 agent；对外面经 **管理能力 MCP 门面** 给外部 agent；落库仍走 **agent 管理面** CRUD，draft/publish 不变；生成均走 **LLM 调用 (Provider)**、凭据单源 `llm-core`
 - 前端直流式 LLM 走 **统一前门** 下的 **LLM 网关**（`/v1/*`），不直连 vendor
 - **AI 数据面直连** 是目标不变量：前端 AI 调用直达 AI-center、绕开 bff-gw/java-gateway；**qiankun micro-app 外壳** 提供带外统一登录，**鉴权中心** 经 **ghcloud 薄平台 adapter** 被 AI-center 旁路调用
 - **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；不引入第二运行时

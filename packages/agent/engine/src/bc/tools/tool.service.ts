@@ -30,6 +30,8 @@ import { FlowListHandler } from './handlers/flow-list-handler';
 import { KnowledgeHandler } from './handlers/knowledge-handler';
 import { ClockHandler } from './handlers/clock-handler';
 import { QwenImageHandler } from './handlers/qwen-image-handler';
+import { DescriptorOpsHandler } from './handlers/descriptor-ops-handler';
+import { descriptorOpFromExecute } from './handlers/descriptor-ops';
 import { SfidService } from '../../infra/sfid/sfid.service';
 import { LoggerFactory } from '../../infra/observability/logger.factory';
 
@@ -137,6 +139,7 @@ export class ToolService {
     knowledgeHandler: KnowledgeHandler,
     clockHandler: ClockHandler,
     qwenImageHandler: QwenImageHandler,
+    descriptorOpsHandler: DescriptorOpsHandler,
     @Inject(AUTHZ_TOKENS.AUTHZ_GATEWAY) private readonly authz: AuthzGatewayService,
     @Inject(AUTHZ_TOKENS.GRANT_SERVICE) private readonly grantService: GrantService,
     @Inject(AGENTIC_SAFETY_MODULE_TOKEN) private readonly safety: SafetyModule,
@@ -160,6 +163,7 @@ export class ToolService {
       ['knowledge' as HandlerKindValue, knowledgeHandler],
       ['clock', clockHandler],
       ['qwenImage' as HandlerKindValue, qwenImageHandler],
+      ['descriptorOps' as HandlerKindValue, descriptorOpsHandler],
     ]);
   }
 
@@ -469,6 +473,9 @@ export class ToolService {
       return 'flowList' as HandlerKindValue;
     }
     if (descriptor.execute === 'builtin:platform.knowledge.query') return 'knowledge' as HandlerKindValue;
+    if (descriptor.execute.startsWith('builtin:platform.descriptor.')) {
+      return 'descriptorOps' as HandlerKindValue;
+    }
     if (descriptor.execute.startsWith('builtin:platform.')) return 'http';
 
     return null;
@@ -485,6 +492,20 @@ export class ToolService {
   ): unknown {
     if (kind === 'flow') {
       return this.normalizeFlowHandlerInput(input);
+    }
+    if (kind === 'descriptorOps') {
+      const op = descriptorOpFromExecute(descriptor.execute);
+      if (!op) {
+        throw AgenticEngineError.fromCode(
+          'INVALID_ARGUMENT_DESCRIPTOR_EXECUTE_REF',
+          `Invalid descriptor management execute ref: ${descriptor.execute}`,
+        );
+      }
+      const args =
+        input && typeof input === 'object' && !Array.isArray(input)
+          ? (input as Record<string, unknown>)
+          : {};
+      return { op, args };
     }
     if (kind !== 'mcp') return input;
 

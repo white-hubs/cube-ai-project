@@ -21,6 +21,8 @@ import { FlowListHandler } from './handlers/flow-list-handler';
 import { KnowledgeHandler } from './handlers/knowledge-handler';
 import { ClockHandler } from './handlers/clock-handler';
 import { QwenImageHandler } from './handlers/qwen-image-handler';
+import { DescriptorOpsHandler } from './handlers/descriptor-ops-handler';
+import type { DescriptorManagementService } from '../descriptor/descriptor-management.service';
 import { McpBridgeService } from './mcp-bridge.service';
 import { AgenticEngineError } from '../../infra/errors/agentic-error';
 import type { ToolHandlerCtx } from './tool-context';
@@ -140,6 +142,7 @@ function buildToolService(
     audit?: Pick<AuditLogWriter, 'write'>;
     mcpBridge?: Pick<McpBridgeService, 'callTool'>;
     flowPort?: FlowInvokerPort;
+    descriptorSvc?: Partial<DescriptorManagementService>;
   },
 ): ToolService {
   const safety: Pick<SafetyModule, 'checkBaseline'> = opts?.safety ?? {
@@ -195,6 +198,9 @@ function buildToolService(
     new KnowledgeHandler(knowledgePort),
     new ClockHandler(),
     qwenImageHandler,
+    new DescriptorOpsHandler(
+      (opts?.descriptorSvc ?? {}) as unknown as DescriptorManagementService,
+    ),
     authz as AuthzGatewayService,
     grantService as GrantService,
     safety as SafetyModule,
@@ -492,8 +498,42 @@ describe('ToolService', () => {
     expect(typed.epochMs).toBeLessThanOrEqual(after + 1);
   });
 
-  test('getRegisteredKinds 返回 13 个 handler', () => {
-    expect(service.getRegisteredKinds()).toHaveLength(13);
+  test('getRegisteredKinds 返回 14 个 handler', () => {
+    expect(service.getRegisteredKinds()).toHaveLength(14);
+  });
+
+  test('descriptorOps：execute ref → op 适配，tenant 取自 ctx 派发到管理 service', async () => {
+    const createCalls: Array<{ tenant: number; kind: string }> = [];
+    const svc = buildToolService(registry, {
+      descriptorSvc: {
+        create: (async (tenant: number, kind: string) => {
+          createCalls.push({ tenant, kind });
+          return { id: 'agt_1', status: 'draft' };
+        }) as unknown as DescriptorManagementService['create'],
+      },
+    });
+    registry.register(
+      makeDescriptor({
+        name: 'platform.descriptor.create',
+        displayName: 'Create descriptor',
+        execute: 'builtin:platform.descriptor.create',
+        handler: { kind: 'descriptorOps', config: {} },
+        inputSchema: {
+          type: 'object',
+          properties: { kind: { type: 'string' }, name: { type: 'string' }, content: { type: 'object' } },
+        },
+        outputSchema: { type: 'object', properties: {} },
+        requires: { principal: 'USER', oauthScope: [], obo: null },
+      }),
+    );
+
+    const out = await svc.invoke(
+      'platform.descriptor.create',
+      { kind: 'agent', name: 'a', content: { prompt: 'p' } },
+      MOCK_CTX,
+    );
+    expect(out).toMatchObject({ status: 'draft' });
+    expect(createCalls).toEqual([{ tenant: 1, kind: 'agent' }]);
   });
 
   test('platform.flow.invoke accepts flowId+variables', async () => {

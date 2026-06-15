@@ -1,0 +1,51 @@
+schemaVersion: 1
+kind: TOOL
+name: platform.descriptor.update
+version: 0.1.0
+description: Update an existing tenant descriptor. Produces a new DRAFT version; publish separately to take effect.
+displayName: Update a descriptor draft
+isPreset: true
+meta:
+  execution: LOCAL
+  consent: ON_FIRST_USE
+  requiresPrincipal: USER
+  timeoutMs: 120000
+  idempotent: false
+  sideEffects:
+    - write:platform.descriptor
+inputSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum: [agent, skill, rule]
+      description: Descriptor kind to manage (tenant agent / skill / rule).
+    id:
+      type: string
+      description: Prefixed descriptor id (agt_/skl_/rul_).
+    content:
+      type: object
+      additionalProperties: true
+      description: Descriptor content object shaped by the target kind schema.
+  required:
+    - kind
+    - id
+    - content
+outputSchema:
+  type: object
+  additionalProperties: true
+  properties: {}
+requires:
+  principal: USER
+  oauthScope: []
+  obo: null
+execute: builtin:platform.descriptor.update
+handler:
+  kind: descriptorOps
+  config: {}
+category: PLATFORM
+tags:
+  - descriptor
+  - management
+  - platform

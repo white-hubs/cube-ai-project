@@ -75,4 +75,52 @@ describe('AgentConsoleClient', () => {
     expect(capturedInit?.body).toBe(raw);
     expect(capturedInit?.body).not.toBe(JSON.stringify(raw));
   });
+
+  test('propose consumes the SSE stream and resolves the final ProposeResult', async () => {
+    const proposal = {
+      content: { prompt: 'You are a concise agent.', skillRefs: ['web-search'] },
+      suggestions: [{ kind: 'skill', ref: 'web-search', rationale: 'lookup' }],
+      valid: true,
+    };
+    const sseBody =
+      'event: delta\ndata: {"delta":"You are a "}\n\n' +
+      'event: delta\ndata: {"delta":"concise agent."}\n\n' +
+      `event: proposal\ndata: ${JSON.stringify(proposal)}\n\n`;
+
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
+      capturedUrl = url;
+      capturedInit = init;
+      return new Response(sseBody, {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    };
+
+    const client = createAgentConsoleClient({
+      baseUrl: 'http://ai-center.test',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const deltas: string[] = [];
+    const result = await client.propose(
+      'agent',
+      { intent: 'a concise agent' },
+      { onDelta: (d) => deltas.push(d) },
+    );
+
+    expect(capturedUrl).toBe('http://ai-center.test/agent/agents:propose');
+    expect(capturedInit?.method).toBe('POST');
+    expect((capturedInit?.headers as Record<string, string>)['content-type']).toBe(
+      'application/json',
+    );
+    expect(capturedInit?.body).toBe(JSON.stringify({ intent: 'a concise agent' }));
+
+    expect(deltas.join('')).toBe('You are a concise agent.');
+    expect(result.valid).toBe(true);
+    expect((result.content as { skillRefs: string[] }).skillRefs).toEqual(['web-search']);
+    expect(result.suggestions).toEqual([
+      { kind: 'skill', ref: 'web-search', rationale: 'lookup' },
+    ]);
+  });
 });

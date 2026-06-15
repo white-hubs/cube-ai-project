@@ -1,0 +1,48 @@
+schemaVersion: 1
+kind: TOOL
+name: platform.descriptor.publish
+version: 0.1.0
+description: "Publish the head version of a tenant descriptor — this affects runtime. In-process: requires consent. Over MCP: requires confirmed:true."
+displayName: Publish a descriptor
+isPreset: true
+meta:
+  execution: LOCAL
+  consent: EACH_CALL
+  requiresPrincipal: USER
+  timeoutMs: 120000
+  idempotent: false
+  sideEffects:
+    - write:platform.descriptor
+inputSchema:
+  type: object
+  additionalProperties: false
+  properties:
+    kind:
+      type: string
+      enum: [agent, skill, rule]
+      description: Descriptor kind to manage (tenant agent / skill / rule).
+    id:
+      type: string
+      description: Prefixed descriptor id (agt_/skl_/rul_).
+    confirmed:
+      type: boolean
+      description: "MCP server-side draft-safe gating: must be true to run runtime-affecting ops (publish / delete)."
+  required:
+    - id
+outputSchema:
+  type: object
+  additionalProperties: true
+  properties: {}
+requires:
+  principal: USER
+  oauthScope: []
+  obo: null
+execute: builtin:platform.descriptor.publish
+handler:
+  kind: descriptorOps
+  config: {}
+category: PLATFORM
+tags:
+  - descriptor
+  - management
+  - platform
