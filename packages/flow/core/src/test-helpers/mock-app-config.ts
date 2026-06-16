@@ -8,6 +8,9 @@ export function makeMockAppConfig(overrides: Partial<AppConfig> = {}): AppConfig
   return {
     name: '@cube-ai/test',
     port: 3210,
+    grpcPort: 3110,
+    registerGrpcPort: 3110,
+    internalInvokeSecretKey: undefined,
     hostname: '0.0.0.0',
     serverIdleTimeoutMs: 240000,
     localDev: false,
