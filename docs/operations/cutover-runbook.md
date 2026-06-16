@@ -119,7 +119,7 @@ bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:
 |---|---|
 | `@ghcloud/ai-server` 进程 | 宿主职能 → `apps/ai-center` |
 | ai-application catalog/flow/kb/agent 逻辑 | 已收编 llm/flow/kb/agent-engine |
-| gRPC `FlowServiceGrpc` | 退役；engine→flow 进程内 `FlowInvokerPort` |
+| gRPC `FlowServiceGrpc`（仅旧仓 ai-server 进程实例） | **不退役能力面，仅退役旧实例**；该面是**平台服务间调用面**（兄弟后端经 gRPC + Nacos 发现），在 `apps/ai-center` host 重建（ADR-0028）。注意：engine→flow 走进程内 `FlowInvokerPort` 是**另一条路**，不替代本对外 gRPC 面。 |
 | `TenantProjectService` / `ai_center_api_key` | **删除**，不迁移 |
 | `@ghcloud/cube-ai-application-service` gateway façade | M5 前端/SDK 替代 |
 | RocketMQ 租户初始化/catalog 同步 | 待定：platform port 主动拉取 vs MQ adapter（见 M6 决策记录） |

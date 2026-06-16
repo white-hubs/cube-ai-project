@@ -185,8 +185,12 @@ _Avoid_: 用笼统 core 混两面, 用 admin 代替 console
 ### 运行时拓扑与平台接入
 
 **AI 数据面直连**:
-前端的 AI 调用直达 AI-center 领域路由、**绕开 bff-gw 与 java-gateway**，是「4 跳→1 跳」的**目标不变量**；bff-gw/java-gateway 只承载非 AI 流量。
-_Avoid_: 把 AI 塞回 bff-gw/java-gateway 后面（退回 2 跳）, 在入口做 AI 语义转发
+前端的 AI 调用直达 AI-center 领域路由、**绕开 bff-gw 与 java-gateway**，是「4 跳→1 跳」的**目标不变量**；bff-gw/java-gateway 只承载非 AI 流量。**只约束前端数据面**——不覆盖平台内后端服务间调用（见 **平台服务间调用面 (gRPC)**）。
+_Avoid_: 把 AI 塞回 bff-gw/java-gateway 后面（退回 2 跳）, 在入口做 AI 语义转发, 用它否定后端服务间 gRPC 面
+
+**平台服务间调用面 (gRPC)**:
+平台内**兄弟后端服务**（Java 实现，经 Feign 内部调用签名鉴权）经 **gRPC** 直接调用中台能力（当前为 flow 的运行 / 流式 / 文件上传）的**入站服务面**；与前端 **统一前门**、同进程 `FlowInvokerPort` 并列，是中台的**第三类消费者**。经 **Nacos 服务注册** 广播自身端口供兄弟服务发现——与中台出站调 ouaa 等兄弟服务**方向相反、机制对称**。是用户口中「对外支撑」的精确所指（对平台内后端，非前端/公网），**不受 AI 数据面直连（前端专属）约束**。
+_Avoid_: 当作 engine→flow 进程内 `FlowInvokerPort` 的等价物（旧 cutover-runbook §5 误判）, 归入前端「AI 数据面直连 / 统一前门」, 因「单一前门」就强行让兄弟后端改走 HTTP/SSE
 
 **qiankun micro-app 外壳**:
 ghcloud 前端组合 + 统一登录层；外部登录拿 `auth` 后由各 api call 携带 header。带外、**不算后端跳**，不在 AI 调用链上。
@@ -237,6 +241,7 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 - **管理 ops 工具集** 一核两面（与 LLM 一核两面同构）：进程内面经 `availableTools` 给 **管理 Agent** / 任何进程内 agent；对外面经 **管理能力 MCP 门面** 给外部 agent；落库仍走 **agent 管理面** CRUD，draft/publish 不变；生成均走 **LLM 调用 (Provider)**、凭据单源 `llm-core`
 - 前端直流式 LLM 走 **统一前门** 下的 **LLM 网关**（`/v1/*`），不直连 vendor
 - **AI 数据面直连** 是目标不变量：前端 AI 调用直达 AI-center、绕开 bff-gw/java-gateway；**qiankun micro-app 外壳** 提供带外统一登录，**鉴权中心** 经 **ghcloud 薄平台 adapter** 被 AI-center 旁路调用
+- **平台服务间调用面 (gRPC)** 与 **AI 数据面直连** 是两类正交消费者：前者服务平台内兄弟后端（gRPC 入站 + Nacos 注册 + Feign 内部调用签名）、后者服务前端（HTTP/SSE 直达）；flow 因此有三类消费者（前端 `/flow/*` SSE · 进程内 `FlowInvokerPort` · 兄弟后端 gRPC），互不替代
 - **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；不引入第二运行时
 - **三域平级下游**：`agent-engine` / `flow-core` / `kb-core` 各自从 **host 身份权威 / 三域平级下游** 注入的上下文消费身份、互不为权威；`agent-engine → flow-core/kb-core` 是能力调用边；**flow-core / kb-core 自带独立 SSE 可直达**
 - 身份是**注入式 seam**：身份→host 注入源、凭据→`llm-core` catalog；换身份源不动能力包本体（ADR-0004/0012）
