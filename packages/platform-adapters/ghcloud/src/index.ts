@@ -63,3 +63,23 @@ export {
   mapConnectErrorToHttpStatus,
   formatConnectErrorMessage,
 } from './cube2-connect-error'
+
+export {
+  FlowServiceGrpc,
+} from './grpc-gen/guhecloud/cube/base/ai_application/flow/grpc/v1/flow_service_pb'
+export {
+  RunFlowRequestSchema,
+  RunFlowResponseSchema,
+  RunFlowStreamEventSchema,
+  FlowImageUploadPartSchema,
+  UploadFlowImageRequestSchema,
+  UploadFlowImageResponseSchema,
+  FlowInputImageRefSchema,
+  type RunFlowRequest,
+  type RunFlowResponse,
+  type RunFlowStreamEvent,
+  type FlowImageUploadPart,
+  type UploadFlowImageRequest,
+  type UploadFlowImageResponse,
+  type FlowInputImageRef,
+} from './grpc-gen/guhecloud/cube/base/ai_application/flow/grpc/v1/flow_types_pb'
