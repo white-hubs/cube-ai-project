@@ -13,6 +13,9 @@
       "name": "@cube-ai/ai-center",
       "version": "0.0.0",
       "dependencies": {
+        "@bufbuild/protobuf": "catalog:",
+        "@connectrpc/connect": "catalog:",
+        "@connectrpc/connect-node": "catalog:",
         "@cube-ai/agent-engine": "workspace:*",
         "@cube-ai/bun-server-ext-nacos": "workspace:*",
         "@cube-ai/bun-server-ext-outbox": "workspace:*",
