@@ -21,6 +21,8 @@
     "@cube-ai/kb-core": "workspace:*",
     "@cube-ai/llm-core": "workspace:*",
     "@cube-ai/platform-adapter-ghcloud": "workspace:*",
+    "@connectrpc/connect": "catalog:",
+    "@bufbuild/protobuf": "catalog:",
     "@dangao/bun-server": "catalog:bun-server",
     "@cube-ai/bun-server-ext-nacos": "workspace:*",
     "@cube-ai/bun-server-ext-outbox": "workspace:*",
