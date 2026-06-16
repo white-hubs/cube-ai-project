@@ -41,6 +41,7 @@ import {
   UsageModule,
 } from '../../../../packages/agent/engine/src/bc';
 import { FlowModule, FlowPlatformPortsModule } from '@cube-ai/flow-core';
+import { AiCenterNacosRegistrationModule } from '../nacos/nacos-registration.wiring';
 import { AiCenterDomainHttpModule } from '../routes/ai-center-domain-http.module';
 import { AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN } from '@cube-ai/contracts/platform';
 import {
@@ -72,6 +73,7 @@ export class AiCenterAssembler {
 
     const modules: ModuleClass[] = [
       NacosExtModule,
+      AiCenterNacosRegistrationModule,
       SecretsModule,
       InfraModule,
       MysqlModule,
