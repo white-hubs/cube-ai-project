@@ -9,12 +9,14 @@
 - [ ] 刷真实 catalog seed / 迁移数据（`bun run catalog:migrate` dry-run → 预发写入 → 抽样 runtime 对账 → 生产写入）
 - [ ] flow / kb MySQL + Qdrant 全量数据迁移与孤儿向量清理（原 M6.T6）
 - [ ] flow `app_kv` / Langflow doc key 清洗（原 M6.T5）
-- [ ] 生产流量 cutover + 旧组件退役（ai-server / ai-application / gRPC FlowServiceGrpc，按 runbook §5 退役清单）
+- [ ] 生产流量 cutover + 旧组件退役（ai-server / ai-application 旧进程实例，按 runbook §5 退役清单）。注意：gRPC `FlowServiceGrpc` **能力面不退役**，在 ai-center host 重建（ADR-0028）——退役的只是旧 ai-server 实例。
 - [ ] 端到端冒烟 + 安全 backlog 结清（原 M6.T9）
 - [ ] cutover 完成后删除 `tools/migration/`（catalog 迁移脚本即弃）
 
 ## 功能（可后补，待触发）
 
+- [x] **flow 对外 gRPC 服务面重建（ADR-0028）**：已落地。host gRPC server（`apps/ai-center/src/grpc/`：`FlowServiceGrpc` impl + http2 bootstrap，调 flow-core `FlowsService.run/runStream` + `FlowFilesService.uploadFlowFile`，复用 platform-adapter-ghcloud 入站鉴权 helper）；proto stub copy 进 `platform-adapter-ghcloud/src/grpc-gen/` 并 re-export；`parseSseEvents` SSE→gRPC stream 映射；`grpcPort`/`registerGrpcPort`/`internalInvokeSecretKey` 配置补齐；bootstrap 起服务 + `ShutdownRegistry` graceful close。计划见 `docs/plans/2026-06-16-flow-grpc-and-nacos-registration.md`。
+- [x] **Nacos 入站服务注册重建（ADR-0028）**：已落地。`NacosServiceRegistrationService`（register+心跳 renew+定期重注册+deregister/close）在 `infra/bun-server-ext/nacos/`，`AiCenterAssembler` 接 `ServiceRegistryModule.forRoot`，metadata 广播 `grpc_server_port`。
 - [ ] SDK 覆盖面对齐旧 ai-application 消费需求（剩余缺口见 ADR-0014）
 - [ ] cube2 `file_ref` gRPC 桥
 - [ ] flow-studio：debugFlow 的 `RunResponse.raw` 输出解析与 flow-core run 结果对齐
