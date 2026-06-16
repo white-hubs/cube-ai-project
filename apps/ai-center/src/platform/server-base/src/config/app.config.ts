@@ -529,7 +529,8 @@ async function _resolveAppConfig(): Promise<AppConfig> {
   const internalInvokeSecretKey =
     getCliArg('internal-invoke-secret-key') ??
     fileConfig.internalInvokeSecretKey ??
-    process.env.CUBE_INTERNAL_INVOKE_SECRET_KEY?.trim() ??
+    process.env.CUBE2_INTERNAL_INVOKE_SECRET_KEY?.trim() ??
+    process.env.GHCLOUD_INTERNAL_INVOKE_SECRET_KEY?.trim() ??
     process.env.INTERNAL_INVOKE_SECRET_KEY?.trim() ??
     undefined
 

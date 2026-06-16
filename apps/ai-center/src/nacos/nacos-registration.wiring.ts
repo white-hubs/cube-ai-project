@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { Module, ServiceRegistryModule } from '@dangao/bun-server'
 import {
@@ -106,6 +107,7 @@ function resolveNacosConfig(): {
   return {
     nacosServerAddr:
       getCliArg('nacos-server-addr') ??
+      process.env.NACOS_ADDRESS ??
       process.env.NACOS_SERVER_ADDR ??
       fileConfig.nacosServerAddr ??
       'localhost:8848',
@@ -136,11 +138,50 @@ function readPortSync(envKey: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function resolveRegistrationOptions(): NacosRegistrationOptions {
+/** 首个非内网回环的 IPv4；用于裸机/host 网络下的自动通告。容器 bridge 网络下应显式设 AI_CENTER_REGISTER_IP。 */
+function detectLanIpv4(): string | undefined {
+  const ifaces = os.networkInterfaces()
+  for (const infos of Object.values(ifaces)) {
+    for (const info of infos ?? []) {
+      if (info.family === 'IPv4' && !info.internal && info.address) {
+        return info.address
+      }
+    }
+  }
+  return undefined
+}
+
+/**
+ * 注册到 Nacos 的 IP 是“对外通告地址”，必须可被兄弟服务到达：
+ * 优先显式 AI_CENTER_REGISTER_IP（容器/NAT 必填，填宿主可达 IP）→ 非 0.0.0.0 的 register-hostname →
+ * 自动探测 LAN IPv4（裸机/host 网络）→ 最后兜底 127.0.0.1。
+ */
+function resolveRegisterIp(fileConfig: WiringFileConfig): string {
+  const explicit = (getCliArg('register-ip') ?? process.env.AI_CENTER_REGISTER_IP)?.trim()
+  if (explicit) {
+    return explicit
+  }
+  const hostname = (
+    getCliArg('register-hostname') ??
+    process.env.AI_CENTER_REGISTER_HOSTNAME ??
+    fileConfig.registerHostname ??
+    fileConfig.hostname ??
+    ''
+  ).trim()
+  if (hostname && hostname !== '0.0.0.0') {
+    return hostname
+  }
+  return detectLanIpv4() ?? '127.0.0.1'
+}
+
+export function resolveRegistrationOptions(): NacosRegistrationOptions {
   const fileConfig = loadConfigFileSync()
   const serviceName =
     getCliArg('app-name') ?? process.env.APP_NAME ?? fileConfig.name ?? 'aiCenter'
-  const port = readPortSync('AI_CENTER_PORT', Number(fileConfig.port ?? 3210))
+  const port = readPortSync(
+    'AI_CENTER_REGISTER_PORT',
+    readPortSync('AI_CENTER_PORT', Number(fileConfig.port ?? 3210)),
+  )
   const grpcPort = readPortSync(
     'AI_CENTER_REGISTER_GRPC_PORT',
     readPortSync(
@@ -148,12 +189,7 @@ function resolveRegistrationOptions(): NacosRegistrationOptions {
       Number(fileConfig.registerGrpcPort ?? fileConfig.grpcPort ?? 3110),
     ),
   )
-  const hostname =
-    getCliArg('register-hostname') ??
-    process.env.AI_CENTER_REGISTER_HOSTNAME ??
-    fileConfig.hostname ??
-    '0.0.0.0'
-  const ip = hostname === '0.0.0.0' ? '127.0.0.1' : hostname
+  const ip = resolveRegisterIp(fileConfig)
   return { serviceName, ip, port, grpcPort }
 }
 

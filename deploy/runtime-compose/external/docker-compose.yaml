@@ -17,6 +17,12 @@ name: cube-ai-center-runtime-external
 x-ai-center-env: &ai-center-env
   AI_CENTER_PORT: "${AI_CENTER_CONTAINER_PORT:-3000}"
   AI_CENTER_HOSTNAME: "0.0.0.0"
+  AI_CENTER_GRPC_PORT: "${AI_CENTER_GRPC_PORT:-3110}"
+  # 注册到 Nacos 的对外通告地址/端口（兄弟服务实际拨号目标）。
+  # 容器/NAT 下 AI_CENTER_REGISTER_IP 必须填宿主可达 IP，否则只会注册容器内地址。
+  AI_CENTER_REGISTER_IP: "${AI_CENTER_REGISTER_IP:-}"
+  AI_CENTER_REGISTER_PORT: "${AI_CENTER_REGISTER_PORT:-${AI_CENTER_HOST_PORT:-3000}}"
+  AI_CENTER_REGISTER_GRPC_PORT: "${AI_CENTER_REGISTER_GRPC_PORT:-${AI_CENTER_GRPC_HOST_PORT:-3110}}"
   DEPLOY_ENV: "${DEPLOY_ENV:-DEV}"
   AI_CENTER_VERSION: "${AI_CENTER_VERSION:-dev-local}"
   BUILD_SHA: "${BUILD_SHA:-local}"
@@ -72,6 +78,8 @@ services:
       <<: *ai-center-env
     ports:
       - "${AI_CENTER_HOST_PORT:-3000}:${AI_CENTER_CONTAINER_PORT:-3000}"
+      # 平台服务间 gRPC 面（兄弟后端经 Nacos 发现后直连，ADR-0028）
+      - "${AI_CENTER_GRPC_HOST_PORT:-3110}:${AI_CENTER_GRPC_PORT:-3110}"
     volumes:
       - ${DESCRIPTORS_DIR:-../../../descriptors}:/app/descriptors:ro
       - ${CONFIG_DIR:-../../../config}:/app/config:ro

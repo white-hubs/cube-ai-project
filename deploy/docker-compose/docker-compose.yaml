@@ -32,6 +32,8 @@ x-ai-center-base: &ai-center-base
 x-ai-center-http: &ai-center-http
   ports:
     - "${AI_CENTER_HOST_PORT:-3000}:${AI_CENTER_PORT:-3000}"
+    # 平台服务间 gRPC 面（兄弟后端经 Nacos 发现后直连，ADR-0028）
+    - "${AI_CENTER_GRPC_HOST_PORT:-3110}:${AI_CENTER_GRPC_PORT:-3110}"
   healthcheck:
     test: ["CMD-SHELL", "curl -fsS http://localhost:${AI_CENTER_PORT:-3000}/health/live || exit 1"]
     interval: 10s
@@ -42,6 +44,12 @@ x-ai-center-http: &ai-center-http
 x-ai-center-env: &ai-center-env
   AI_CENTER_PORT: "${AI_CENTER_PORT:-3000}"
   AI_CENTER_HOSTNAME: "0.0.0.0"
+  AI_CENTER_GRPC_PORT: "${AI_CENTER_GRPC_PORT:-3110}"
+  # 注册到 Nacos 的对外通告地址/端口（兄弟服务实际拨号目标）。
+  # 容器/NAT 下 AI_CENTER_REGISTER_IP 必须填宿主可达 IP，否则只会注册容器内地址。
+  AI_CENTER_REGISTER_IP: "${AI_CENTER_REGISTER_IP:-}"
+  AI_CENTER_REGISTER_PORT: "${AI_CENTER_REGISTER_PORT:-${AI_CENTER_HOST_PORT:-3000}}"
+  AI_CENTER_REGISTER_GRPC_PORT: "${AI_CENTER_REGISTER_GRPC_PORT:-${AI_CENTER_GRPC_HOST_PORT:-3110}}"
   AGENTIC_ENGINE_MYSQL_URL: "mysql://${MYSQL_USER:-agentic_engine}:${MYSQL_PASSWORD:-agentic_engine_dev}@${MYSQL_HOST:-host.docker.internal}:${MYSQL_PORT:-3306}/${MYSQL_DB:-cube_ai_center}"
   AGENTIC_ENGINE_REDIS_URL: "${REDIS_URL:-redis://host.docker.internal:6379/0}"
   AGENTIC_ENGINE_QDRANT_URL: "${QDRANT_URL:-http://host.docker.internal:6333}"
