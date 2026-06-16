@@ -233,4 +233,26 @@ describe('loadAppConfig', () => {
       }
     }
   })
+
+  test('grpcPort defaults to 3110 and registerGrpcPort falls back to grpcPort', async () => {
+    _resetAppConfigCache()
+    delete process.env.AI_CENTER_GRPC_PORT
+    delete process.env.AGENTIC_ENGINE_GRPC_PORT
+    delete process.env.AI_CENTER_REGISTER_GRPC_PORT
+    const cfg = await loadAppConfig()
+    expect(cfg.grpcPort).toBe(3110)
+    expect(cfg.registerGrpcPort).toBe(3110)
+  })
+
+  test('AI_CENTER_GRPC_PORT overrides and registerGrpcPort can split', async () => {
+    _resetAppConfigCache()
+    process.env.AI_CENTER_GRPC_PORT = '3211'
+    process.env.AI_CENTER_REGISTER_GRPC_PORT = '3110'
+    const cfg = await loadAppConfig()
+    expect(cfg.grpcPort).toBe(3211)
+    expect(cfg.registerGrpcPort).toBe(3110)
+    _resetAppConfigCache()
+    delete process.env.AI_CENTER_GRPC_PORT
+    delete process.env.AI_CENTER_REGISTER_GRPC_PORT
+  })
 })

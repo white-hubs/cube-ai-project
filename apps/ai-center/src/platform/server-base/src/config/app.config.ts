@@ -16,6 +16,12 @@ export interface AppPaths {
 export interface AppConfig {
   name: string
   port: number
+  /** 对外 gRPC 服务面监听端口（平台服务间调用，ADR-0028）。 */
+  grpcPort: number
+  /** 注册到 Nacos 时广播的 gRPC 端口；未配置回退到 grpcPort。 */
+  registerGrpcPort: number
+  /** Feign 内部调用签名校验密钥；为空则跳过 feign_inner_invoke 校验。 */
+  internalInvokeSecretKey?: string
   hostname?: string
   /** Bun HTTP 连接空闲超时（毫秒）。大文件上传时需高于默认 10s。 */
   serverIdleTimeoutMs: number
@@ -85,6 +91,9 @@ export interface AppConfigFile {
   /** 应用名（可选）；也可用环境变量 APP_NAME 或命令行 --app-name */
   name?: string
   port?: number
+  grpcPort?: number
+  registerGrpcPort?: number
+  internalInvokeSecretKey?: string
   hostname?: string
   serverIdleTimeoutMs?: number
   localDev?: boolean
@@ -498,9 +507,38 @@ async function _resolveAppConfig(): Promise<AppConfig> {
     process.env.OTEL_SERVICE_NAME?.trim() ??
     'cube-ai'
 
+  const grpcPortStr =
+    getCliArg('grpc-port') ??
+    (fileConfig.grpcPort !== undefined ? String(fileConfig.grpcPort) : null) ??
+    process.env.AI_CENTER_GRPC_PORT?.trim() ??
+    process.env.AGENTIC_ENGINE_GRPC_PORT?.trim() ??
+    '3110'
+  const grpcPort = (() => {
+    const parsed = parseInt(grpcPortStr, 10)
+    return Number.isFinite(parsed) ? parsed : 3110
+  })()
+  const registerGrpcPortStr =
+    getCliArg('register-grpc-port') ??
+    (fileConfig.registerGrpcPort !== undefined ? String(fileConfig.registerGrpcPort) : null) ??
+    process.env.AI_CENTER_REGISTER_GRPC_PORT?.trim() ??
+    null
+  const registerGrpcPort = (() => {
+    const parsed = registerGrpcPortStr !== null ? parseInt(registerGrpcPortStr, 10) : Number.NaN
+    return Number.isFinite(parsed) ? parsed : grpcPort
+  })()
+  const internalInvokeSecretKey =
+    getCliArg('internal-invoke-secret-key') ??
+    fileConfig.internalInvokeSecretKey ??
+    process.env.CUBE_INTERNAL_INVOKE_SECRET_KEY?.trim() ??
+    process.env.INTERNAL_INVOKE_SECRET_KEY?.trim() ??
+    undefined
+
   return {
     name,
     port: parseInt(portStr, 10),
+    grpcPort,
+    registerGrpcPort,
+    internalInvokeSecretKey,
     hostname,
     serverIdleTimeoutMs,
     localDev,
