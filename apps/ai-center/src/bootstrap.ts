@@ -34,6 +34,10 @@ import { createIdempotencyMiddleware } from '../../../packages/agent/engine/src/
 import { RedisRateLimiter } from '../../../packages/agent/engine/src/infra/rate-limit/redis-rate-limiter';
 import { createRateLimitMiddleware } from '../../../packages/agent/engine/src/infra/rate-limit/rate-limit.middleware';
 import { registerLifecycleHooks } from '../../../packages/agent/engine/src/infra/lifecycle/lifecycle-registrations';
+import { ShutdownRegistry } from '../../../packages/agent/engine/src/infra/lifecycle/shutdown-registry';
+import { FlowsService, FlowFilesService } from '@cube-ai/flow-core';
+import { startFlowGrpcServer, type StartedFlowGrpcServer } from './grpc/flow-grpc-server';
+import type { FlowGrpcBackend } from './grpc/flow-grpc-backend';
 import { AiCenterAssembler } from './assembler/ai-center-assembler';
 import { createDomainPathRewriteMiddleware } from './routes/domain-path-rewrite.middleware';
 
@@ -182,6 +186,40 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   if (mysqlUrl) await runAllDomainMigrations(mysqlUrl);
 
   await app.listen(port, hostname);
+
+  // ── Flow gRPC server ────────────────────────────────────────────────────
+  const flows = container.resolve(FlowsService) as FlowsService;
+  const flowFiles = container.resolve(FlowFilesService) as FlowFilesService;
+  const grpcBackend: FlowGrpcBackend = {
+    uploadFlowFile: (flowId, file) =>
+      flowFiles.uploadFlowFile(flowId, file) as Promise<Awaited<ReturnType<FlowGrpcBackend['uploadFlowFile']>>>,
+    runFlow: (flowId, body) =>
+      flows.run(flowId, body) as Promise<{ raw?: Record<string, unknown> }>,
+    runFlowStream: (flowId, body) => flows.runStream(flowId, body),
+  };
+
+  const grpcPort = Number(
+    Bun.env.AI_CENTER_GRPC_PORT ?? process.env.AI_CENTER_GRPC_PORT ?? flowConfig.grpcPort ?? 3110,
+  );
+  const grpcServer: StartedFlowGrpcServer = await startFlowGrpcServer({
+    port: grpcPort,
+    hostname,
+    flowService: grpcBackend,
+    internalInvokeSecretKey: flowConfig.internalInvokeSecretKey,
+  });
+  process.stdout.write(
+    JSON.stringify({ msg: 'ai-center.grpc.listening', port: grpcServer.port, hostname }) + '\n',
+  );
+
+  const shutdownRegistry = container.resolve(ShutdownRegistry) as ShutdownRegistry;
+  shutdownRegistry.register({
+    name: 'flow-grpc-server',
+    priority: 90,
+    close: async () => {
+      await grpcServer.close();
+    },
+  });
+
   return app;
 }
 
