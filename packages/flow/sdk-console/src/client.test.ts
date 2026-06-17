@@ -15,7 +15,7 @@ describe('FlowConsoleClient studio surface', () => {
       fetchImpl: fetchImpl as typeof fetch,
     });
     const result = await client.publishFlow('42', { releaseNote: 'note' });
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/42/publish');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/42/publish');
     expect(capturedInit?.method).toBe('POST');
     expect(result.releaseId).toBe('r1');
   });
@@ -31,7 +31,7 @@ describe('FlowConsoleClient studio surface', () => {
       fetchImpl: fetchImpl as typeof fetch,
     });
     await client.getFlowMonitorTraces('42', { page: 1, size: 10 });
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/42/monitor/traces?page=1&size=10');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/42/monitor/traces?page=1&size=10');
   });
 });
 
@@ -50,7 +50,7 @@ describe('FlowConsoleClient', () => {
     });
     const result = await client.listFlows();
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/flows');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/flows');
     expect(result.items?.[0]?.name).toBe('demo');
   });
 });

@@ -10,11 +10,11 @@ function createCtx(path: string, headers: Record<string, string>) {
 }
 
 describe('kb tenant context middleware', () => {
-  test('sets kb tenant ALS from x-project-id on /search routes', async () => {
+  test('sets kb tenant ALS from x-project-id on /kb/search routes', async () => {
     const middleware = createKbTenantContextMiddleware();
     let seen = false;
 
-    await middleware(createCtx('/search/by-documents', { 'x-project-id': '58197260' }) as never, async () => {
+    await middleware(createCtx('/kb/search/by-documents', { 'x-project-id': '58197260' }) as never, async () => {
       seen = tenantContextAls.getStore()?.tenantId === '58197260';
       return new Response();
     });

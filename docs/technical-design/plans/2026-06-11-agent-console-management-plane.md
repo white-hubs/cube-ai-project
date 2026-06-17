@@ -181,6 +181,8 @@ CREATE TABLE tenant_descriptor_versions (
 
 **路由（`domain-path-rewrite.middleware` 已剥 `/agent` 前缀，控制器注册裸路径）：**
 
+> **注**：以下路由描述已被「四域两轴前缀规整」方案取代。管理面实际挂载于 `/agent/console/*`（如 `/agent/console/agents`），`domain-path-rewrite.middleware` 已删除，前缀由 ai-center 装配期 helper 统一施加。见 ADR-0008 addendum。
+
 | Method | Path（对外） | Content-Type | 行为 |
 |---|---|---|---|
 | POST | `/agent/agents` | application/json | create（skills/rules 同构） |

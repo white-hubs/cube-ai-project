@@ -24,7 +24,7 @@
 
    > **事实订正**：早前版本称「flow 作 MCP server 对外暴露 flows，是 flow 的第 3 个面」。对 `cube-ai/server/flow` 的源码勘察（grep `McpServer`/`setRequestHandler`/`registerTool` 全仓 = 0）证明 **flow 并不暴露 MCP server**。其 `mcp/` 实为两个方向，**都是 MCP 客户端/同步行为，无服务端**。详见迁移勘察 `docs/migration/inventory/flow.md §6/§16`（已随迁移收尾移除，git 历史可溯）。
 
-   cube-ai flow 的 `mcp/` 是**两个方向**——(a) **flow 作 MCP 客户端探测外部 MCP server**（`mcp-tools.controller` 的 `/mcp/tools-list` + `mcp-list-tools-sdk`，经 StreamableHTTP/SSE 拉取外部 MCP 的工具列表，用于设计器选填）；(b) **flow 把外部 MCP 配置同步注入 Langflow**（`lf-mcp-server-sync` 推送前把 `MCPTools` 节点幂等 `POST /api/v2/mcp/servers` 注册进 LF；`lf-mcp-tool-options-enrich` 填实时工具列表）。二者皆 **flow 自用**，随 flow 整套迁入 `flow-core`（ADR-0004/0012），与 engine 的 tool/descriptor **各自装配**（印证「运行时各自装配」）。
+   cube-ai flow 的 `mcp/` 是**两个方向**——(a) **flow 作 MCP 客户端探测外部 MCP server**（`mcp-tools.controller` 的 `/flow/console/mcp/tools-list` + `mcp-list-tools-sdk`，经 StreamableHTTP/SSE 拉取外部 MCP 的工具列表，用于设计器选填）；(b) **flow 把外部 MCP 配置同步注入 Langflow**（`lf-mcp-server-sync` 推送前把 `MCPTools` 节点幂等 `POST /api/v2/mcp/servers` 注册进 LF；`lf-mcp-tool-options-enrich` 填实时工具列表）。二者皆 **flow 自用**，随 flow 整套迁入 `flow-core`（ADR-0004/0012），与 engine 的 tool/descriptor **各自装配**（印证「运行时各自装配」）。
 
    因此 **flow 对外只有两个面**：`FlowInvokerPort`（被 engine 编排）+ 直达 SSE（前端）——**不含 MCP server 面**。**engine↔flow 不经 MCP 回环**：engine 进程内调 flow **只走 `FlowInvokerPort`**；engine 自己的 mcp-bridge 连外部 MCP 是 engine-domain。两边共用的仅 MCP SDK（协议传输），不抽共享包。cube-ai `assistant`（玩具）的 tools 不迁（ADR-0012 D1）。
 

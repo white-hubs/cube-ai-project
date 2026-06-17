@@ -7,7 +7,7 @@
 
 ## Context
 
-ADR-0016 / ADR-0018 落地了 agent 管理面（`/agent/*`）对 agent / skill / rule 的人工 CRUD（结构化 + `:fromDocument`）、draft/publish 版本模型与双层权威。但管理者目前只能**纯人工**维护 descriptor：写 prompt、手挑 `skillRefs`/`ruleRefs`/`availableTools`、调 `modelConfig`。
+ADR-0016 / ADR-0018 落地了 agent 管理面（`/agent/console/*`）对 agent / skill / rule 的人工 CRUD（结构化 + `:fromDocument`）、draft/publish 版本模型与双层权威。但管理者目前只能**纯人工**维护 descriptor：写 prompt、手挑 `skillRefs`/`ruleRefs`/`availableTools`、调 `modelConfig`。
 
 作为「AI 基础能力提供方」，中台不应以传统业务平台思维交付管理面——应让管理者在创作 descriptor 时**深度感受到 AI 便利**：用 LLM 优化配置、甚至从意图自动生成配置。
 
@@ -70,7 +70,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-con
 
 可复用原语不是「整个管理 Agent」，而是把 `DescriptorManagementService` 的 ops（`propose` + list/get/create/update/publish/softDelete）包装成的一组 **Tool Handler**（ADR-0006 薄适配模式）。任何进程内 agent 经 `availableTools` 授予即获得管理能力。
 
-**「管理 Agent」退化为一个系统级预置**（`descriptors/agents/`：system prompt + 这批工具），是该原语的一个进程内消费者——复用 engine 现有 session/turn/Tool 编排，租户上下文自动隔离，经 `/v1/*` 被下游消费，体现中台自举（dogfood）。`propose` 同时是独立 HTTP 端点（§5）与该工具集成员——一原语两处复用。
+**「管理 Agent」退化为一个系统级预置**（`descriptors/agents/`：system prompt + 这批工具），是该原语的一个进程内消费者——复用 engine 现有 session/turn/Tool 编排，租户上下文自动隔离，经 `/agent/*` 消费面被下游消费，体现中台自举（dogfood）。`propose` 同时是独立 HTTP 端点（§5）与该工具集成员——一原语两处复用。
 
 粒度取「ops-as-tools」而非「整个 agent 包成 sub-agent」：前者最可组合（别的 agent 可只取其中几个 op），后者粒度过粗、diff/编排都难。
 
@@ -83,7 +83,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-con
 
 这是 engine **首次作为 MCP 服务端（出站角色）**，与 **MCP 桥接**（入站：engine 连外部 MCP server 当客户端）方向相反，是新边界；并部分回答 ADR-0006 的未决问题（`ToolInvokerPort` 对外暴露工具执行）。MCP transport 携带平台 token、经 `platform-adapter-ghcloud` 解析租户，与 HTTP 路径一致鉴权（能力包无自有鉴权不变）。
 
-**传输落地（Streamable HTTP，2025-03-26+）**：单端点 `POST /mcp/descriptor`——`Accept` 协商（默认 `application/json` 单响应；仅 `text/event-stream` 则 SSE 单消息流）；`initialize` 回 `Mcp-Session-Id`（无传入则新铸、有则回显）并协商 `protocolVersion`；仅通知请求回 `202`；`GET` 回 `405`（无服务端主动推流）、`DELETE` 回 `204`（无服务端 session 存储，本门面无状态、tenant 来自 token 而非 session）。standard MCP host 可直接接入。
+**传输落地（Streamable HTTP，2025-03-26+）**：单端点 `POST /agent/mcp/descriptor`——`Accept` 协商（默认 `application/json` 单响应；仅 `text/event-stream` 则 SSE 单消息流）；`initialize` 回 `Mcp-Session-Id`（无传入则新铸、有则回显）并协商 `protocolVersion`；仅通知请求回 `202`；`GET /agent/mcp/descriptor` 回 `405`（无服务端主动推流）、`DELETE /agent/mcp/descriptor` 回 `204`（无服务端 session 存储，本门面无状态、tenant 来自 token 而非 session）。standard MCP host 可直接接入。
 
 不取「仅 MCP、砍掉进程内管理 Agent」：进程内 agent 用管理能力会走 MCP 回环，荒谬。两面缺一不可。
 

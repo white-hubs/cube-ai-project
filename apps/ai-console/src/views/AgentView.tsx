@@ -11,7 +11,7 @@ export const AgentView = defineComponent({
     onMounted(async () => {
       status.value = 'loading';
       const client = createAgenticClient({
-        baseUrl: sdkConfig().baseUrl,
+        baseUrl: `${sdkConfig().baseUrl}/agent`,
         auth: { provider: () => sdkConfig().headers().authorization.replace(/^Bearer /, '') },
         headersProvider: () => {
           const h = sdkConfig().headers();

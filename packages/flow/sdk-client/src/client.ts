@@ -29,7 +29,7 @@ export interface RunFlowResult {
 }
 
 function studioPath(suffix = ''): string {
-  return `/studio${suffix}`;
+  return `/console/studio${suffix}`;
 }
 
 export class FlowClient {

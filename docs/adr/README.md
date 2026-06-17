@@ -25,7 +25,7 @@
 | ADR-0006 | [Tool/MCP 是 engine 编排域，非第四能力包；Handler 为可复制薄适配](./ADR-0006-tool-mcp-engine-owned.md) | Accepted |
 | ADR-0007 | [迁移期 @cube-ai/* 权威治理（workspace 内部包、按包单一权威、旧仓冻结）](./ADR-0007-migration-authority-and-package-governance.md) | Done（迁移期） |
 | ADR-0008 | [前端消费 seam —— 单一 origin、按领域命名空间路由、按「领域×面」SDK 家族（client/console）](./ADR-0008-frontend-consumption-seam.md) | Accepted |
-| ADR-0008 addendum | [Agent 消费面 `/v1/*` canonical；ai-console `/agent` 仅 UI](./ADR-0008-addendum-agent-consumption-face.md) | Accepted |
+| ADR-0008 addendum | [四域两轴路由规整 —— 域×面前缀方案（取代 `/v1/*` canonical 决议）](./ADR-0008-addendum-agent-consumption-face.md) | Accepted |
 | ADR-0009 | [运行时拓扑 —— 单进程 AI-center + compose 中间件；ghcloud 退化为薄平台 adapter](./ADR-0009-runtime-topology-and-ghcloud-thin-adapter.md) | Accepted |
 | ADR-0010 | [收编路线图 —— 另起并行新系统，copy 实现串联，C1 先行验证 port seam](./ADR-0010-consolidation-roadmap.md) | Done（迁移期） |
 | ADR-0011 | [包命名哲学 —— 包边界=seam 非 responsibility，路径派生包名，SDK 按「面」命名](./ADR-0011-package-naming-philosophy.md) | Accepted |

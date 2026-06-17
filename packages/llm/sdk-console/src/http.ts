@@ -11,7 +11,7 @@ export async function llmConsoleRequestJson<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const prefix = config.pathPrefix ?? '/llm';
+  const prefix = config.pathPrefix ?? '/llm/console';
   const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
   const extra =
     typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});

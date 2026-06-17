@@ -35,25 +35,40 @@ const run = shouldRunAiCenterIntegration;
     'x-api-key': 'sk_cube_builtin_system_ChangeMeInProduction',
   };
 
-  it('GET /flow/flows returns JSON list envelope', async () => {
-    const resp = await fetch(`${baseUrl}/flow/flows`, { headers: authHeaders });
+  it('GET /flow/console/flows returns JSON list envelope', async () => {
+    const resp = await fetch(`${baseUrl}/flow/console/flows`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as unknown;
     expect(Array.isArray(body)).toBe(true);
   });
 
-  it('GET /kb/documents returns JSON list envelope', async () => {
-    const resp = await fetch(`${baseUrl}/kb/documents`, { headers: authHeaders });
+  it('GET /kb/console/documents returns JSON list envelope', async () => {
+    const resp = await fetch(`${baseUrl}/kb/console/documents`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as { items?: unknown[] };
     expect(Array.isArray(body.items)).toBe(true);
   });
 
-  it('GET /llm/providers returns JSON list envelope', async () => {
-    const resp = await fetch(`${baseUrl}/llm/providers`, { headers: authHeaders });
+  it('GET /llm/console/providers returns JSON list envelope (catalog admin face)', async () => {
+    const resp = await fetch(`${baseUrl}/llm/console/providers`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as { items?: unknown[] };
     expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  // agent 管理面（/agent/console/*）：ai-center 装配期前缀挂载把 DescriptorManagementController
+  // 挂到 `/agent/console`，descriptor console CRUD 对外路径为 `/agent/console/agents` 等。
+  it('GET /agent/console/agents returns JSON items envelope (descriptor console face)', async () => {
+    const resp = await fetch(`${baseUrl}/agent/console/agents`, { headers: authHeaders });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { items?: unknown[] };
+    expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  // agent 消费面（/agent/*）：SessionController 挂到 `/agent/sessions`（agent-sdk-client 调用面）。
+  it('GET /agent/sessions is reachable (agent consumption face)', async () => {
+    const resp = await fetch(`${baseUrl}/agent/sessions`, { headers: authHeaders });
+    expect(resp.status).toBe(200);
   });
 
   it('POST /v1/chat/completions returns OpenAI-shaped completion', async () => {

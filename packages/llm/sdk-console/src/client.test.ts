@@ -24,7 +24,7 @@ describe('LlmConsoleClient', () => {
     });
     const providers = await client.listProviders();
 
-    expect(capturedUrl).toBe('http://ai-center.test/llm/providers');
+    expect(capturedUrl).toBe('http://ai-center.test/llm/console/providers');
     expect(providers[0]?.providerCode).toBe('openai');
   });
 
@@ -82,7 +82,7 @@ describe('LlmConsoleClient', () => {
     });
     const types = await client.listEndpointTypes();
 
-    expect(capturedUrl).toBe('http://ai-center.test/llm/endpoint-types');
+    expect(capturedUrl).toBe('http://ai-center.test/llm/console/endpoint-types');
     expect(types).toEqual([
       { code: 'openai', displayName: 'OpenAI', description: 'OpenAI Chat Completions 兼容协议' },
     ]);

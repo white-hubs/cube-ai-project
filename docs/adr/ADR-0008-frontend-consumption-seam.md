@@ -17,13 +17,15 @@
 
 AI-center 进程服务所有路由，前端只认**一个 base URL**。按**领域命名空间**分组：
 
-| 领域 | 路由前缀 | 后端包 |
-|---|---|---|
-| agent（chat） | **`/v1/*`**（sessions / turns(SSE) / files / grants / tools / jobs；canonical，见 [addendum](./ADR-0008-addendum-agent-consumption-face.md)） | `agent-engine` |
-| flow | `/flow/*`（CRUD / compile / run / components / playground / webhook / **mcp**(对外 MCP server，ADR-0006 #6) 等**整套**；**独立 SSE 直达**）。注：模型接入(原 flow `settings/model-providers`)**退役**→ llm `/llm/*`；developer key 认证归 host（ADR-0003/0012） | `flow-core` |
-| kb | `/kb/*`（documents / knowledge bases / query；**可直达**） | `kb-core` |
-| LLM 管理面（catalog） | `/llm/*`（providers / models CRUD / 远程同步 / 连通测试） | `llm-core`（catalog BC） |
-| LLM 网关 | `/v1/*`（OpenAI 兼容，见 ADR-0003；前端直流式走此） | `llm-core`（provider BC） |
+| 领域 | 消费面（client） | 管理面（console） | 后端包 |
+|---|---|---|---|
+| agent | `/agent/*`（sessions / turns(SSE) / files / grants / jobs / mcp/descriptor；见 [addendum](./ADR-0008-addendum-agent-consumption-face.md)） | `/agent/console/*`（agents / skills / rules CRUD，descriptor 管理） | `agent-engine` |
+| flow | `/flow/*`（run / webhook / files；**独立 SSE 直达**）。注：模型接入(原 flow `settings/model-providers`)**退役**→ llm 管理面 | `/flow/console/*`（flows / studio / components / mcp / execution / custom-component-templates） | `flow-core` |
+| kb | `/kb/*`（search / query；**可直达**） | `/kb/console/*`（documents / directories） | `kb-core` |
+| LLM 消费 | `/llm/providers`（provider 列表；消费侧只读） | `/llm/console/*`（providers / models CRUD / 远程同步 / 连通测试） | `llm-core`（catalog BC） |
+| LLM 网关 | `/v1/*`（OpenAI 兼容，见 ADR-0003；**顶层豁免，不加域前缀**；前端直流式走此） | — | `llm-core`（provider BC） |
+
+路由由 **ai-center 装配期** helper 在各 BC 控制器的 `@Controller` 基址上施加域×面前缀（消费面 `/{domain}/`，管理面 `/{domain}/console/`）。旧的 `domain-path-rewrite` 中间件已删除，`ctx.path` 即真实外部路径。
 
 各能力的管理面 controller 由其能力包提供，但都挂在同一进程同一 origin 下。
 

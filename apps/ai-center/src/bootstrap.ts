@@ -39,7 +39,6 @@ import { FlowsService, FlowFilesService } from '@cube-ai/flow-core';
 import { startFlowGrpcServer, type StartedFlowGrpcServer } from './grpc/flow-grpc-server';
 import type { FlowGrpcBackend } from './grpc/flow-grpc-backend';
 import { AiCenterAssembler } from './assembler/ai-center-assembler';
-import { createDomainPathRewriteMiddleware } from './routes/domain-path-rewrite.middleware';
 
 type DiContainer = { resolve: (token: unknown) => unknown };
 
@@ -112,7 +111,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   const flowConfig = await loadAppConfig();
 
   app.use(traceIdMiddleware);
-  app.use(createDomainPathRewriteMiddleware());
   app.use(createCube2OutboundAuthMiddleware());
   app.use(createVersionNegotiationMiddleware());
   app.use(createHttpMetricsMiddleware(metricsRegistry));

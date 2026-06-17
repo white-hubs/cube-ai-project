@@ -17,7 +17,7 @@ function resolveKbTenantHeader(ctx: Context): string {
 
 /** Injects kb-core tenant ALS for retrieval / document routes (separate from server-shared ALS). */
 export function createKbTenantContextMiddleware(): Middleware {
-  const prefixes = ['/search', '/documents'];
+  const prefixes = ['/kb'];
   return async (ctx: Context, next: NextFunction) => {
     const path = ctx.path;
     if (!prefixes.some((prefix) => matchesPrefix(path, prefix))) {

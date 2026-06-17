@@ -7,7 +7,7 @@
 
 ## Context
 
-当前 agent 域只有消费面（`/v1/*`，ADR-0008 addendum）：agent / skill / rule descriptor 由 `DescriptorLoader` 从 `descriptors/` 文件冷加载（tool 另有 Nacos 运维推送），上游**没有任何 HTTP 接口可自助 CRUD 这些资产**。ADR-0011 包清单里 `agent-sdk-console` 标注「暂无」。
+当前 agent 域只有消费面（`/agent/*`，ADR-0008 addendum 两轴方案）：agent / skill / rule descriptor 由 `DescriptorLoader` 从 `descriptors/` 文件冷加载（tool 另有 Nacos 运维推送），上游**没有任何 HTTP 接口可自助 CRUD 这些资产**。ADR-0011 包清单里 `agent-sdk-console` 标注「暂无」。
 
 上游平台（ghcloud 等）需要租户自助管理 agent / skill / rule 的能力（对标 `agent-sdk-client*` 的消费面 SDK 体验）。同时存在一个运行时缺口：agent YAML 的 `ruleRefs` 只以字符串进入 session snapshot，`descriptors/rules/*.yaml` 内容**从未被加载与注入**（snapshot `rules: []` 恒空）。
 
@@ -58,7 +58,7 @@ Tool descriptor 涉及 consent / safety / 凭据面，保留 Nacos 运维推送�
 
 ### 8. 路由与鉴权
 
-- 管理面挂 `/agent/*` 领域命名空间（`/agent/agents` `/agent/skills` `/agent/rules`），与 flow/kb/llm 的「领域命名空间=管理面」模式对齐；消费面继续独占 `/v1/*`（ADR-0008 addendum 不变）。`domain-path-rewrite.middleware` 已含 `/agent` 前缀。
+- 管理面挂 `/agent/console/*`（`/agent/console/agents` `/agent/console/skills` `/agent/console/rules`），与 flow/kb/llm 的 `/{domain}/console/*` 管理面模式对齐；消费面挂 `/agent/*`（`/agent/sessions` `/agent/jobs` 等，见 ADR-0008 addendum 两轴方案）。前缀由 **ai-center 装配期 helper** 统一施加，`domain-path-rewrite.middleware` 已删除。
 - list 只返回租户资产；系统级走独立只读 endpoint（如 `/agent/system/agents`）。
 - 鉴权与消费面一致：platform-adapter 解租户即可 CRUD，engine 不建角色模型（角色细分归平台侧）。
 

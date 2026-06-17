@@ -1,40 +1,73 @@
-# ADR-0008 Addendum: Agent 消费面路由 — `/v1/*` 为 canonical
+# ADR-0008 Addendum: 四域两轴路由规整 —— 域×面前缀方案（取代 `/v1/*` canonical 决议）
 
 - **Status**: Accepted
-- **Date**: 2026-06-06
+- **Date**: 2026-06-17
 - **Parent**: [ADR-0008 — 前端消费 seam](./ADR-0008-frontend-consumption-seam.md)
-- **Tags**: frontend, sdk, routing, agent-engine
+- **Tags**: frontend, sdk, routing, agent-engine, domain-routing
 
 ## Context
 
-ADR-0008 路由表将 agent（chat）消费面写作 `/engine/*`（sessions / turns(SSE) / …）。  
-`agent-engine` 在 cube-agentic-engine 时期已对外暴露 **`/v1/*`**（sessions、turns、SSE events、files、grants、tools、jobs），`@cube-ai/agent-sdk-client*` 全族硬编码该前缀。  
-`apps/ai-console` 的 vue-router 使用 **`/agent`** 作为 **UI 领域路由**（页面导航），并非 HTTP API 命名空间。
+本 addendum 旧版（2026-06-06）将 agent 消费面 canonical 定为 engine `/v1/*`，并声明 `/agent` 仅为 `ai-console` 的 UI 路由、禁止作 API pathPrefix。该决议在两个方面已与代码事实和命名空间一致性要求产生偏离：
 
-若强行把 SDK 与 engine 迁到 `/engine/*`，会破坏现有 wire 契约与已拷贝 SDK 测试矩阵，且与 OpenAI 兼容 `/v1/*` LLM 网关路径族混在同一 `/v1` 根下已由 ADR-0003 约定。
+1. **路径实现漂移**：ai-center 代码实际以裸路径注册控制器（`/sessions`、`/jobs` 等），并由装配期 helper 统一施加域前缀；旧决议所称「保持 `/v1/*`」既非实现路径，也与 LLM OpenAI 兼容网关（ADR-0003）共享同一 `/v1` 根造成歧义。
+2. **跨域命名空间一致性**：flow、kb、llm 管理面已分别挂载 `/flow/console/*`、`/kb/console/*`、`/llm/console/*`；agent 单独保持 `/v1/*` 破坏了四域一致的命名空间格局。
+
+旧版 addendum 的「`/v1/*` canonical」与「`/agent` 仅 UI」两项决议均已作废；本 addendum 以**四域两轴前缀规整**（下称「两轴方案」）替代，成为新的权威记录。
 
 ## Decision
 
-1. **Agent 消费面 HTTP canonical = engine `/v1/*`**  
-   - SDK（`@cube-ai/agent-sdk-client` 及 `-vue` / `-assistant` / `-mock`）继续以 `baseUrl + /v1/...` 为唯一消费面。  
-   - ai-center 单进程内 agent-engine SessionModule 等控制器保持 `/v1/*`，**不**加 `/engine` 或 `/agent` HTTP 前缀。
+### 1. 两轴路由：域×面
 
-2. **`/agent` 仅 UI 路由**  
-   - `apps/ai-console` 的 `/agent` 路由页只负责挂载 Assistant UI（`provideAssistant` + SDK）。  
-   - 页面内 SDK 仍直连同一 origin 的 `/v1/*`；**禁止**把 `/agent` 当作 API pathPrefix。
+所有 HTTP 路径按**领域（domain）× 面（plane）** 两个维度组织：
 
-3. **ADR-0008 路由表勘误**  
-   - 表内「agent（chat）| `/engine/*`」在实现层等价于 **「agent-engine `/v1/*`（非 LLM 网关段）」**。  
-   - LLM OpenAI 兼容网关仍为 `/v1/chat/completions`、`/v1/embeddings`（llm-core provider BC，ADR-0003）。
+- **消费面（client plane）**：`/{domain}/{resource}`
+- **管理面（console plane）**：`/{domain}/console/{resource}`
+
+四个领域前缀：`/agent`、`/flow`、`/kb`、`/llm`。
+
+典型路径示例：
+
+| 领域 | 消费面（client） | 管理面（console） |
+|---|---|---|
+| agent | `/agent/sessions` `/agent/jobs` `/agent/grants` `/agent/files` `/agent/mcp/descriptor` | `/agent/console/agents` `/agent/console/skills` `/agent/console/rules` |
+| flow | `/flow/run` `/flow/webhook` `/flow/files` | `/flow/console/flows` `/flow/console/studio` `/flow/console/components` `/flow/console/mcp` `/flow/console/execution` `/flow/console/custom-component-templates` |
+| kb | `/kb/search` | `/kb/console/documents` `/kb/console/directories` |
+| llm | `/llm/providers` | `/llm/console/*`（providers / models CRUD / 远程同步 / 连通测试） |
+
+### 2. `/v1/*` LLM OpenAI 兼容网关豁免（ADR-0003 不变）
+
+`/v1/chat/completions`、`/v1/embeddings` 等 OpenAI 兼容路径**维持顶层 `/v1/*`**，不加域前缀。这是 ADR-0003 确立的 LLM 网关面，与本两轴方案正交，不受影响。
+
+### 3. 装配期前缀挂载机制
+
+ai-center 装配期（`src/routes/`）使用 helper 函数重写各 BC 控制器的 `@Controller` 基址，统一施加域+面前缀。**旧的 `domain-path-rewrite` 中间件已删除**，`ctx.path` 即真实外部路径，日志天然携带域信息，无需中间件剥前缀再还原。
+
+各能力包控制器以裸路径注册内部路由，由 ai-center 装配层统一决定外部挂载点。
+
+### 4. SDK 侧对齐
+
+- **console SDK 默认 pathPrefix**：各 `<domain>-sdk-console` 的默认基路径加 `/console` 段，与管理面路径对齐。
+- **agent 消费 SDK baseUrl**：`@cube-ai/agent-sdk-client*` 的 `baseUrl` 从原 `/api`（或裸 origin）改为 `/api/agent`（即 `{origin}/agent`），消费面路径 `/agent/sessions` 等。
+- `ai-console` 的 Vue router `/agent` 路由继续负责挂载 Assistant UI（`provideAssistant`），SDK 基路径同步切换为 `/agent`（不再是 `/v1`）。
+
+### 5. 本 addendum 取代旧版的范围
+
+本 addendum 明确取代旧版（2026-06-06）的以下两项决议：
+
+- ~~Agent 消费面 HTTP canonical = engine `/v1/*`~~  
+- ~~`/agent` 仅 UI 路由，禁止作 API pathPrefix~~
+
+上述内容**全部失效**，以本文「两轴方案」为准。
 
 ## Consequences
 
-- **Positive**：零 SDK breaking change；ai-console 领域 UI 路由与 HTTP seam 解耦；与 engine 集成测试 / mock engine 路径一致。  
-- **Negative**：ADR-0008 原文 `/engine/*` 与实现 `/v1/*` 字面不一致，需本 addendum 作权威勘误。  
-- **Neutral**：Ingress 仍可按 `/v1/*` 对 agent 消费面限流；未来若需 `/engine` alias，应作为可选网关 rewrite，而非 SDK 默认。
+- **Positive**：四域命名空间一致，消费/管理面在路径层自描述；`domain-path-rewrite` 中间件删除后链路更短，`ctx.path` 即外部路径，日志/监控无歧义；SDK pathPrefix 与外部路径 1:1 对应，前端集成更直观；Ingress 可按 `/{domain}/*` 精确限流/灰度，按 `/{domain}/console/*` 收紧管理面权限。
+- **Negative**：SDK 消费基路径变更为 `/agent`（原 `/v1`），前端及集成方需同步更新 `baseUrl` 配置；旧 `/v1/*` agent 路径引用（文档、脚本、集成测试）须全面排查。
+- **Neutral**：LLM 网关 `/v1/*` 豁免不变；各能力包控制器注册路径本身不变，仅 ai-center 装配层挂载点变化。
 
 ## Verification
 
-- `agent-sdk-client*` 请求路径仍为 `/v1/sessions` 等（grep + 单测）。  
-- `ai-console` `/agent` 页使用 `createAgenticClient({ baseUrl })` 无 `/agent` pathPrefix。  
-- ai-console 核心流测试：`provideAssistant` → 建 session → SSE 收到 `turn-completed-v1`（mock engine）。
+- `domain-routes.test.ts`：覆盖四域消费面与管理面路由冒烟（`/agent/sessions`、`/agent/console/agents`、`/flow/run`、`/flow/console/flows`、`/kb/search`、`/kb/console/documents`、`/llm/providers`、`/llm/console/*`）。
+- `agent-sdk-client*` 请求基路径为 `/agent/...`（grep + 单测）。
+- `ai-console` 的 `provideAssistant` 调用中 `baseUrl` 不再含 `/v1`。
+- LLM 网关端点 `/v1/chat/completions` 仍可达（ADR-0003 豁免不变）。

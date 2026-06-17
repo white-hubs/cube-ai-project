@@ -18,7 +18,7 @@ describe('AgentConsoleClient', () => {
     const body = { prompt: 'hello', displayName: 'A' };
     await client.createAgent(body);
 
-    expect(capturedUrl).toBe('http://ai-center.test/agent/agents');
+    expect(capturedUrl).toBe('http://ai-center.test/agent/console/agents');
     expect(capturedInit?.method).toBe('POST');
     const headers = capturedInit?.headers as Record<string, string>;
     expect(headers['content-type']).toBe('application/json');
@@ -41,7 +41,7 @@ describe('AgentConsoleClient', () => {
     });
     await client.publishAgent('agt_1');
 
-    expect(capturedUrl).toBe('http://ai-center.test/agent/agents/agt_1/publish');
+    expect(capturedUrl).toBe('http://ai-center.test/agent/console/agents/agt_1/publish');
     expect(capturedMethod).toBe('POST');
   });
 
@@ -67,7 +67,7 @@ describe('AgentConsoleClient', () => {
     const raw = '---\nname: my-skill\n---\n# instructions';
     await client.createFromDocument('skill', raw);
 
-    expect(capturedUrl).toBe('http://ai-center.test/agent/skills:fromDocument');
+    expect(capturedUrl).toBe('http://ai-center.test/agent/console/skills:fromDocument');
     expect(capturedInit?.method).toBe('POST');
     const headers = capturedInit?.headers as Record<string, string>;
     expect(headers['content-type']).toBe('text/plain');
@@ -109,7 +109,7 @@ describe('AgentConsoleClient', () => {
       { onDelta: (d) => deltas.push(d) },
     );
 
-    expect(capturedUrl).toBe('http://ai-center.test/agent/agents:propose');
+    expect(capturedUrl).toBe('http://ai-center.test/agent/console/agents:propose');
     expect(capturedInit?.method).toBe('POST');
     expect((capturedInit?.headers as Record<string, string>)['content-type']).toBe(
       'application/json',

@@ -39,11 +39,9 @@ export function createTenantContextMiddleware(deps?: {
 }): Middleware {
   const skipPrefixes = deps?.skipPrefixes ?? [
     '/health',
-    '/run/',
-    '/webhook/',
-    '/search',
-    '/documents',
-    '/components',
+    '/flow/run/',
+    '/flow/webhook/',
+    '/kb',
     '/swagger',
     '/oauth2/',
     '/auth/',

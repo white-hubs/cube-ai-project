@@ -11,7 +11,7 @@ export async function flowConsoleRequestJson<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const prefix = config.pathPrefix ?? '/flow';
+  const prefix = config.pathPrefix ?? '/flow/console';
   const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
   const extra =
     typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});

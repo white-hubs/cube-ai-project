@@ -88,7 +88,7 @@ function parseSse(text: string): Array<{ event: string; data: unknown }> {
 const run = <T>(ctx: Context, fn: () => Promise<T>) => contextStore.run(ctx, fn);
 
 describe('DescriptorManagementController — REST wiring', () => {
-  test('POST /agent/agents → service.create(tenant, "agent", body, actor)', async () => {
+  test('POST /agent/console/agents → service.create(tenant, "agent", body, actor)', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ tenant: 7, userId: 'alice', body: { name: 'support', content: { prompt: 'hi' } } });
@@ -97,7 +97,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect((res as { id: string }).id).toBe('agt_1');
   });
 
-  test('GET /agent/skills → { items } from service.list(tenant, "skill")', async () => {
+  test('GET /agent/console/skills → { items } from service.list(tenant, "skill")', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ tenant: 9 });
@@ -106,7 +106,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect(res).toEqual({ items: [{ id: 'agt_1' }, { id: 'agt_2' }] });
   });
 
-  test('GET /agent/rules/:id → service.get(tenant, id)', async () => {
+  test('GET /agent/console/rules/:id → service.get(tenant, id)', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ params: { id: 'rul_55' } });
@@ -114,7 +114,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect(svc.get).toHaveBeenCalledWith(42, 'rul_55');
   });
 
-  test('PATCH /agent/agents/:id unwraps {content} envelope', async () => {
+  test('PATCH /agent/console/agents/:id unwraps {content} envelope', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ params: { id: 'agt_3' }, body: { content: { prompt: 'v2' } } });
@@ -131,7 +131,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect(svc.update).toHaveBeenCalledWith(42, 'rule', 'rul_3', 'rule text', 'u-1');
   });
 
-  test('DELETE /agent/skills/:id → soft delete + 204', async () => {
+  test('DELETE /agent/console/skills/:id → soft delete + 204', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ params: { id: 'skl_1' } });
@@ -141,7 +141,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect(res).toBeUndefined();
   });
 
-  test('POST /agent/agents/:id/publish → service.publish', async () => {
+  test('POST /agent/console/agents/:id/publish → service.publish', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ params: { id: 'agt_1' } });
@@ -150,7 +150,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect((res as { status: string }).status).toBe('published');
   });
 
-  test('POST /agent/skills:fromDocument reads text/plain body → service.fromDocument', async () => {
+  test('POST /agent/console/skills:fromDocument reads text/plain body → service.fromDocument', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const raw = '---\nname: review\n---\nDo the thing.';
@@ -170,7 +170,7 @@ describe('DescriptorManagementController — REST wiring', () => {
     expect(svc.fromDocument).not.toHaveBeenCalled();
   });
 
-  test('POST /agent/agents:propose streams prose deltas then a terminal proposal event', async () => {
+  test('POST /agent/console/agents:propose streams prose deltas then a terminal proposal event', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ tenant: 7, userId: 'alice', body: { intent: 'a concise agent' } });

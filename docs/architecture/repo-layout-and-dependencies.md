@@ -34,7 +34,7 @@ cube-ai-project/
 ├── apps/
 │   ├── ai-center/                      # ★ 单进程组合根（ADR-0009）
 │   │   ├── src/bootstrap.ts            #   DI 装配：agent-engine + flow-core + kb-core + llm-core + embedding 经 port 互调（向量存储 infra/vector-qdrant 直连）
-│   │   ├── src/routes/                 #   领域路由 agent /v1/* /flow/* /kb/* /llm/* LLM 网关 /v1/*（ADR-0008 addendum）
+│   │   ├── src/routes/                 #   领域路由 /agent/* /flow/* /kb/* /llm/*（装配期施加域×面前缀）+ LLM 网关 /v1/*（豁免，ADR-0003）；见 ADR-0008 addendum 两轴方案
 │   │   ├── src/platform/               #   server-base/server-shared/server-mock 横切基础设施
 │   │   └── src/main.ts                 #   进程入口 + 后台 loop（worker.* / SSE drain）
 │   └── ai-console/                     # @cube-ai/ai-console —— 单 origin Vue 控制台（/agent /flow /kb /llm）
@@ -55,8 +55,8 @@ cube-ai-project/
 │   │
 │   ├── llm/                            # 多包领域
 │   │   ├── core/                       # @cube-ai/llm-core —— provider BC + catalog BC（registry/凭据权威）
-│   │   │   └── src/{provider,catalog}/ #   provider：chat·stream·embed·tool·vision + 网关面 /v1/*
-│   │   │                               #   catalog：model registry + 远程同步 + 连通测试 /llm/*
+│   │   │   └── src/{provider,catalog}/ #   provider：chat·stream·embed·tool·vision + 网关面 /v1/*（豁免，ADR-0003）+ 消费面 /llm/providers
+│   │   │                               #   catalog：model registry + 远程同步 + 连通测试，管理面 /llm/console/*
 │   │   └── sdk-console/                # @cube-ai/llm-sdk-console —— 模型接入管理面
 │   │
 │   ├── flow/                           # 多包领域
@@ -206,7 +206,7 @@ flowchart LR
 |---|---|---|---|
 | `contracts` | （仅 zod） | — | 所有 port / wire schema / 常量 |
 | `agent-engine` | contracts（+ 直连 infra/vector-qdrant） | flow-core · kb-core · llm-core · embedding(memory) · platform-adapter-ghcloud(身份) | 运行时核心（消费 ports；向量存储直连 infra） |
-| `llm-core` | contracts | —（provider/catalog 两 BC 包内自洽，经包内 `LlmCatalogPort`） | `LlmProviderPort` + `/llm/*` 管理 + `/v1/*` 网关 |
+| `llm-core` | contracts | —（provider/catalog 两 BC 包内自洽，经包内 `LlmCatalogPort`） | `LlmProviderPort` + 消费面 `/llm/providers` + 管理面 `/llm/console/*` + 网关 `/v1/*`（豁免，ADR-0003） |
 | `flow-core` | contracts | llm-core | `FlowInvokerPort` |
 | `kb-core` | contracts（+ 直连 infra/vector-qdrant） | embedding | `KnowledgeQueryPort` |
 | `embedding` | contracts | llm-core（embed） | `EmbeddingPort` |

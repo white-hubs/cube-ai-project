@@ -43,6 +43,7 @@ import {
 import { FlowModule, FlowPlatformPortsModule } from '@cube-ai/flow-core';
 import { AiCenterNacosRegistrationModule } from '../nacos/nacos-registration.wiring';
 import { AiCenterDomainHttpModule } from '../routes/ai-center-domain-http.module';
+import { applyDomainPrefixMounts } from './domain-prefix-mounts';
 import { AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN } from '@cube-ai/contracts/platform';
 import {
   AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN,
@@ -67,6 +68,8 @@ export class AiCenterAssembler {
   }
 
   assemble(): Application {
+    applyDomainPrefixMounts();
+
     this.app.registerModule(SfidModule);
     this.app.registerModule(TenantGuardModule);
     this.app.registerModule(ErrorsModule);

@@ -32,7 +32,7 @@ async function expectRateLimited(run: () => Promise<unknown>): Promise<HttpExcep
 }
 
 describe('developer rate limit middleware', () => {
-  test('ignores paths outside /run/* and /webhook/*', async () => {
+  test('ignores paths outside /flow/run/* and /flow/webhook/*', async () => {
     const middleware = createDeveloperRateLimitMiddleware({ maxPerMin: 1 })
     const ip = nextIp()
 
@@ -46,15 +46,15 @@ describe('developer rate limit middleware', () => {
     expect(passes).toBe(3)
   })
 
-  test('allows /run/* requests within the per-minute budget', async () => {
+  test('allows /flow/run/* requests within the per-minute budget', async () => {
     const middleware = createDeveloperRateLimitMiddleware({ maxPerMin: 2 })
     const ip = nextIp()
 
     let passes = 0
-    await middleware(createCtx('/run/flow-1', ip) as never, async () => {
+    await middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {
       passes += 1
     })
-    await middleware(createCtx('/run/flow-1', ip) as never, async () => {
+    await middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {
       passes += 1
     })
 
@@ -65,10 +65,10 @@ describe('developer rate limit middleware', () => {
     const middleware = createDeveloperRateLimitMiddleware({ maxPerMin: 1 })
     const ip = nextIp()
 
-    await middleware(createCtx('/run/flow-1', ip) as never, async () => {})
+    await middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {})
 
     const error = await expectRateLimited(() =>
-      middleware(createCtx('/run/flow-1', ip) as never, async () => {}),
+      middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {}),
     )
 
     expect(error.status).toBe(429)
@@ -83,11 +83,11 @@ describe('developer rate limit middleware', () => {
     const middleware = createDeveloperRateLimitMiddleware({ maxPerMin: 1 })
     const ip = nextIp()
 
-    await middleware(createCtx('/webhook/hook-1', ip) as never, async () => {})
+    await middleware(createCtx('/flow/webhook/hook-1', ip) as never, async () => {})
 
     let nextCalled = false
     await expectRateLimited(() =>
-      middleware(createCtx('/webhook/hook-1', ip) as never, async () => {
+      middleware(createCtx('/flow/webhook/hook-1', ip) as never, async () => {
         nextCalled = true
       }),
     )
@@ -100,10 +100,10 @@ describe('developer rate limit middleware', () => {
     const ipA = nextIp()
     const ipB = nextIp()
 
-    await middleware(createCtx('/run/flow-1', ipA) as never, async () => {})
+    await middleware(createCtx('/flow/run/flow-1', ipA) as never, async () => {})
 
     let passed = false
-    await middleware(createCtx('/run/flow-1', ipB) as never, async () => {
+    await middleware(createCtx('/flow/run/flow-1', ipB) as never, async () => {
       passed = true
     })
 
@@ -117,16 +117,16 @@ describe('developer rate limit middleware', () => {
     const keyB = `key-b-${Date.now()}`
 
     await developerApiAls.run(devApiCtx(keyA), async () => {
-      await middleware(createCtx('/run/flow-1', sharedIp) as never, async () => {})
+      await middleware(createCtx('/flow/run/flow-1', sharedIp) as never, async () => {})
       await expectRateLimited(() =>
-        middleware(createCtx('/run/flow-1', sharedIp) as never, async () => {}),
+        middleware(createCtx('/flow/run/flow-1', sharedIp) as never, async () => {}),
       )
     })
 
     // 同一 IP、不同 API Key：独立配额
     let passed = false
     await developerApiAls.run(devApiCtx(keyB), async () => {
-      await middleware(createCtx('/run/flow-1', sharedIp) as never, async () => {
+      await middleware(createCtx('/flow/run/flow-1', sharedIp) as never, async () => {
         passed = true
       })
     })
@@ -139,14 +139,14 @@ describe('developer rate limit middleware', () => {
 
     let passes = 0
     for (let i = 0; i < 60; i += 1) {
-      await middleware(createCtx('/run/flow-1', ip) as never, async () => {
+      await middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {
         passes += 1
       })
     }
     expect(passes).toBe(60)
 
     const error = await expectRateLimited(() =>
-      middleware(createCtx('/run/flow-1', ip) as never, async () => {}),
+      middleware(createCtx('/flow/run/flow-1', ip) as never, async () => {}),
     )
     expect(error.status).toBe(429)
   })

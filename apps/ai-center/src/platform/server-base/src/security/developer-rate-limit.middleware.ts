@@ -14,7 +14,7 @@ export function createDeveloperRateLimitMiddleware(opts?: { maxPerMin?: number }
   const max = opts?.maxPerMin ?? 60
   return async (ctx: Context, next: NextFunction) => {
     const path = ctx.path
-    if (!path.startsWith('/run/') && !path.startsWith('/webhook/')) {
+    if (!path.startsWith('/flow/run/') && !path.startsWith('/flow/webhook/')) {
       return next()
     }
     const store = developerApiAls.getStore()

@@ -16,8 +16,9 @@ export function devAuthHeaders(): Record<string, string> {
 }
 
 /**
- * Single-origin SDK config. Agent consumption uses engine `/v1/*` (ADR-0008 addendum);
- * `/agent` is vue-router UI only — never an HTTP pathPrefix.
+ * Single-origin SDK config. Console SDKs append their own `/console` path segment via their
+ * default prefixes. Agent consumption hits `/api/agent` (baseUrl set per-view in AgentView);
+ * `/agent` in vue-router is the UI route, while `/api/agent` is the agent domain HTTP prefix.
  */
 export function sdkConfig() {
   return {

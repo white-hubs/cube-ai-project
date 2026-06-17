@@ -1,8 +1,9 @@
 /**
  * DescriptorManagementController —— agent 管理面（console face，ADR-0016 §8 / ADR-0018 §2）。
  *
- * 挂 `/agent` 领域命名空间（与 flow/kb/llm 的「领域命名空间=管理面」对齐）；消费面继续独占
- * `/v1/*`（ADR-0008 addendum 不变）。三种 kind（agent/skill/rule）对称暴露：
+ * 对外是 `/agent/console` 路径（ai-center 的 domain-prefix-mounts 在装配时将此控制器
+ * 的 @Controller 基路径覆写为 `/agent/console`，ADR-0008）；消费面继续独占 `/v1/*`（ADR-0008 addendum 不变）。
+ * 三种 kind（agent/skill/rule）对称暴露（下列为外部路径）：
  *   POST   /agent/{kind}                结构化创建（draft）
  *   GET    /agent/{kind}                列租户资产
  *   GET    /agent/{kind}/:id            取单个
@@ -73,7 +74,9 @@ async function jsonBody(ctx: Context): Promise<Record<string, unknown>> {
     : {};
 }
 
-@Controller('/agent')
+// @Controller('') 保持领域无关；ai-center 的 domain-prefix-mounts 在装配时将此控制器
+// 覆写挂载到 `/agent/console`（apps/ai-center/src/assembler/domain-prefix-mounts.ts）。
+@Controller('')
 export class DescriptorManagementController {
   constructor(private readonly svc: DescriptorManagementService) {}
 

@@ -6,7 +6,7 @@ async function kbConsoleRequestFormData<T>(
   path: string,
   formData: FormData,
 ): Promise<T> {
-  const prefix = config.pathPrefix ?? '/kb';
+  const prefix = config.pathPrefix ?? '/kb/console';
   const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
   const extra =
     typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});

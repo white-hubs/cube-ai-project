@@ -54,7 +54,7 @@
 
 收编后 ghcloud 退到调用链**旁路**而非**串联**：
 
-1. **AI 数据面直连**（target invariant）：前端的 AI 调用**直达 AI-center**（ADR-0008 的领域路由 agent `/v1/*`（见 [addendum](./ADR-0008-addendum-agent-consumption-face.md)）`/flow/*` …），**绕开 bff-gw 与 java-gateway**——这两个暴露只承载非 AI 流量。这是「4 跳→1 跳」的架构承诺；要把 AI 塞回 bff-gw/java-gateway 后面（退回 2 跳）须推翻本不变量。
+1. **AI 数据面直连**（target invariant）：前端的 AI 调用**直达 AI-center**（ADR-0008 的领域路由 agent `/agent/*`（见 [addendum](./ADR-0008-addendum-agent-consumption-face.md)）`/flow/*` …），**绕开 bff-gw 与 java-gateway**——这两个暴露只承载非 AI 流量。这是「4 跳→1 跳」的架构承诺；要把 AI 塞回 bff-gw/java-gateway 后面（退回 2 跳）须推翻本不变量。
 2. **统一登录带外**：ghcloud 应用基于 qiankun micro-app 外壳，外部统一登录后拿到 auth；后续 `auth` header 随各 api call 携带。该外壳是**前端组合 + 登录**层，带外、**不算后端跳**，不在 AI 调用链上。
 3. **鉴权旁路**：AI-center 拿 header 经 `platform-adapter-ghcloud` 向**鉴权中心**校验 token / 解析租户上下文——这是 AI-center *主动旁路*调用，非前置代理。
 4. **若将来需统一入口治理**：用「平台级 L7 透传」满足（SSO/WAF/TLS，多产品共用，**不解析也不路由 AI 语义**），而非退回 bff-gw/java-gateway 的语义转发。L7 一旦开始读 AI 路由做分发/改写即违反本不变量。

@@ -5,7 +5,7 @@ export interface AgentConsoleConfig {
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
 }
 
-const DEFAULT_PATH_PREFIX = '/agent';
+const DEFAULT_PATH_PREFIX = '/agent/console';
 
 async function resolveExtraHeaders(config: AgentConsoleConfig): Promise<Record<string, string>> {
   return typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});

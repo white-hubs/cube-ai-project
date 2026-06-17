@@ -37,7 +37,7 @@ describe('FlowClient', () => {
     });
     const result = await client.createFlow({ name: 'demo', editorFlowJson: { nodes: [], edges: [] } });
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/');
     expect(capturedInit?.method).toBe('POST');
     expect((result as { id: string }).id).toBe('123');
   });
@@ -53,7 +53,7 @@ describe('FlowClient', () => {
       fetchImpl: fetchImpl as typeof fetch,
     });
     await client.listFlowsPage({ pageNumber: 1, pageSize: 20, keyword: 'foo' });
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/?pageNumber=1&pageSize=20&keyword=foo');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/?pageNumber=1&pageSize=20&keyword=foo');
   });
 
   test('exportFlow GET /flow/studio/:id/export', async () => {
@@ -77,7 +77,7 @@ describe('FlowClient', () => {
     });
     const result = await client.exportFlow('flow-1');
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/flow-1/export');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/export');
     expect(capturedInit?.method).toBe('GET');
     expect(result.schemaVersion).toBe('1');
     expect(result.flow.id).toBe('flow-1');
@@ -98,7 +98,7 @@ describe('FlowClient', () => {
     const body = { name: 'imported', editorFlowJson: { nodes: [], edges: [] } };
     const result = await client.importFlow('flow-1', body);
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/flow-1/import');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/import');
     expect(capturedInit?.method).toBe('POST');
     expect(JSON.parse(String(capturedInit?.body))).toEqual(body);
     expect((result as { id: string; name: string }).id).toBe('flow-1');
@@ -120,7 +120,7 @@ describe('FlowClient', () => {
     const body = { input: 'hello', sessionId: 'sess-1' };
     const result = await client.runFlow('flow-1', body);
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/studio/flow-1/run');
+    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/run');
     expect(capturedInit?.method).toBe('POST');
     expect(JSON.parse(String(capturedInit?.body))).toEqual(body);
     expect(result).toEqual({ raw: { outputs: [{ text: 'done' }], session_id: 'sess-1' } });

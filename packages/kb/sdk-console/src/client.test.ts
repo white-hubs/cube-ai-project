@@ -16,7 +16,7 @@ describe('KbConsoleClient', () => {
     });
     const result = await client.listDocuments();
 
-    expect(capturedUrl).toBe('http://ai-center.test/kb/documents');
+    expect(capturedUrl).toBe('http://ai-center.test/kb/console/documents');
     expect(result.items?.[0]?.name).toBe('readme.md');
   });
 });

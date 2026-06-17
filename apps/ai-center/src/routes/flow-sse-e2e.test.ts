@@ -40,8 +40,8 @@ const run = shouldRunAiCenterIntegration;
     'x-api-key': 'sk_cube_builtin_system_ChangeMeInProduction',
   };
 
-  it('POST /flow/flows/:id/run with stream=true returns text/event-stream', async () => {
-    const resp = await fetch(`${baseUrl}/flow/flows/${MOCK_FLOW_ID}/run`, {
+  it('POST /flow/console/flows/:id/run with stream=true returns text/event-stream', async () => {
+    const resp = await fetch(`${baseUrl}/flow/console/flows/${MOCK_FLOW_ID}/run`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify({ stream: true, input: 'loop4-sse-e2e' }),
