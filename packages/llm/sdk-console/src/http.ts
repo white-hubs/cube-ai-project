@@ -5,14 +5,38 @@ export interface LlmConsoleConfig {
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
 }
 
+function resolveLlmConsoleUrl(config: LlmConsoleConfig, path: string): string {
+  const baseUrl = config.baseUrl.replace(/\/$/, '');
+  const rawPrefix = config.pathPrefix;
+  const prefix = rawPrefix ?? '/llm/console';
+
+  if (baseUrl.endsWith('/llm')) {
+    if (
+      rawPrefix === undefined ||
+      rawPrefix === '' ||
+      rawPrefix === '/llm' ||
+      rawPrefix === '/llm/' ||
+      rawPrefix === '/llm/console' ||
+      rawPrefix === '/llm/console/'
+    ) {
+      return `${baseUrl}/console${path}`;
+    }
+  }
+
+  if (prefix === '/llm' || prefix === '/llm/') {
+    return `${baseUrl}/llm/console${path}`;
+  }
+
+  return `${baseUrl}${prefix.replace(/\/$/, '')}${path}`;
+}
+
 export async function llmConsoleRequestJson<T>(
   config: LlmConsoleConfig,
   method: string,
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const prefix = config.pathPrefix ?? '/llm/console';
-  const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
+  const url = resolveLlmConsoleUrl(config, path);
   const extra =
     typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
   const fetchImpl = config.fetchImpl ?? fetch;

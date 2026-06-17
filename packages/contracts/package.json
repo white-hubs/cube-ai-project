@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/contracts",
-  "version": "0.0.1-alpha.5",
+  "version": "0.0.1-alpha.6",
   "type": "module",
   "description": "Single source of truth for Zod schemas (SDK + Mock + Engine + tests).",
   "sideEffects": false,

@@ -87,4 +87,38 @@ describe('LlmConsoleClient', () => {
       { code: 'openai', displayName: 'OpenAI', description: 'OpenAI Chat Completions 兼容协议' },
     ]);
   });
+
+  test('normalizes legacy pathPrefix /llm to the console management face', async () => {
+    let capturedUrl = '';
+    const fetchImpl = async (url: string): Promise<Response> => {
+      capturedUrl = url;
+      return Response.json([]);
+    };
+
+    const client = createLlmConsoleClient({
+      baseUrl: 'http://ai-center.test/api/ai-center',
+      pathPrefix: '/llm',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    await client.listProviders();
+
+    expect(capturedUrl).toBe('http://ai-center.test/api/ai-center/llm/console/providers');
+  });
+
+  test('normalizes legacy baseUrl ending in /llm to the console management face', async () => {
+    let capturedUrl = '';
+    const fetchImpl = async (url: string): Promise<Response> => {
+      capturedUrl = url;
+      return Response.json([]);
+    };
+
+    const client = createLlmConsoleClient({
+      baseUrl: 'http://ai-center.test/api/ai-center/llm',
+      pathPrefix: '',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    await client.listProviders();
+
+    expect(capturedUrl).toBe('http://ai-center.test/api/ai-center/llm/console/providers');
+  });
 });
