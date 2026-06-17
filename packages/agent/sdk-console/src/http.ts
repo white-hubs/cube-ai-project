@@ -20,7 +20,7 @@ function buildUrl(config: AgentConsoleConfig, path: string): string {
  * JSON request helper. Sends `content-type: application/json` and JSON.stringify's the body
  * when one is provided. Returns the parsed JSON response.
  */
-export async function agentConsoleRequestJson<T>(
+async function requestJsonImpl<T>(
   config: AgentConsoleConfig,
   method: string,
   path: string,
@@ -63,7 +63,7 @@ function parseSseBlock(block: string): AgentConsoleSseEvent | null {
  * invoking `onEvent` for each parsed record (incrementally when the body is a stream).
  * Used by `:propose` (ADR-0027 §5). Returns once the stream ends.
  */
-export async function agentConsoleStreamSse(
+async function streamSseImpl(
   config: AgentConsoleConfig,
   method: string,
   path: string,
@@ -119,7 +119,7 @@ export async function agentConsoleStreamSse(
  * text/plain request helper. Sends the raw string body verbatim (NOT JSON.stringify'd) with
  * `content-type: text/plain`. Used by the `:fromDocument` endpoints. Returns parsed JSON.
  */
-export async function agentConsoleRequestText<T>(
+async function requestTextImpl<T>(
   config: AgentConsoleConfig,
   method: string,
   path: string,
@@ -140,3 +140,9 @@ export async function agentConsoleRequestText<T>(
   }
   return (await res.json()) as T;
 }
+
+export {
+  requestJsonImpl as agentConsoleRequestJson,
+  requestTextImpl as agentConsoleRequestText,
+  streamSseImpl as agentConsoleStreamSse,
+};

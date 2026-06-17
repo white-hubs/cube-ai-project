@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/agent-sdk-client",
-  "version": "0.0.1-alpha.6",
+  "version": "0.0.1-alpha.7",
   "type": "module",
   "description": "Framework-agnostic client for the Agentic Engine (HTTP + SSE + Auth + Retry). Consumes Zod contracts from @cube-ai/contracts.",
   "sideEffects": false,

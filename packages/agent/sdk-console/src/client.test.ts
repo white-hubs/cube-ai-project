@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createAgentConsoleClient } from './client';
 
 describe('AgentConsoleClient', () => {
-  test('createAgent POSTs JSON to /agent/agents', async () => {
+  test('createAgent POSTs JSON to /agent/console/agents', async () => {
     let capturedUrl = '';
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -26,7 +26,7 @@ describe('AgentConsoleClient', () => {
     expect(capturedInit?.body).toBe(JSON.stringify(body));
   });
 
-  test('publishAgent POSTs to /agent/agents/<id>/publish', async () => {
+  test('publishAgent POSTs to /agent/console/agents/<id>/publish', async () => {
     let capturedUrl = '';
     let capturedMethod = '';
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -45,7 +45,7 @@ describe('AgentConsoleClient', () => {
     expect(capturedMethod).toBe('POST');
   });
 
-  test('createFromDocument(skill) POSTs text/plain to /agent/skills:fromDocument', async () => {
+  test('createFromDocument(skill) POSTs text/plain to /agent/console/skills:fromDocument', async () => {
     let capturedUrl = '';
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {

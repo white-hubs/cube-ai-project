@@ -1,6 +1,6 @@
 # @cube-ai/agent-sdk-console
 
-租户级 **agent 管理面** 的 HTTP SDK（控制台 / 后台用）。对接 ai-center 的 `/agent/*` 接口，统一管理租户自有的 **agent / skill / rule** descriptor：结构化 CRUD、`text/plain` 文档导入、草稿/发布生命周期。
+租户级 **agent 管理面** 的 HTTP SDK（控制台 / 后台用）。对接 ai-center 的 `/agent/console/*` 接口，统一管理租户自有的 **agent / skill / rule** descriptor：结构化 CRUD、`text/plain` 文档导入、草稿/发布生命周期。
 
 > 这是「管理面」SDK（创建/编辑/发布资产）。运行时「消费面」（创建会话、发消息、流式）用的是 `@cube-ai/agent-sdk-client`，两者不要混用。
 
@@ -40,15 +40,16 @@ npm i @cube-ai/agent-sdk-console        # 或 pnpm add / yarn add / bun add
 import { createAgentConsoleClient } from '@cube-ai/agent-sdk-console';
 
 const console = createAgentConsoleClient({
-  baseUrl: 'https://ai-center.example.com', // 不含 /agent 前缀
+  baseUrl: 'https://ai-center.example.com', // 不含 /agent/console 前缀
   // 鉴权 / 租户头：每次请求都会带上（支持同步或异步函数，便于刷新 token）
   headers: () => ({ authorization: `Bearer ${getToken()}` }),
 });
 
 // 1) 结构化创建一个 agent（落为草稿）
 const agent = await console.createAgent({
-  name: 'support',
-  content: { prompt: '你是客服助手。', ruleRefs: ['rul_123'] },
+  prompt: '你是客服助手。',
+  ruleRefs: ['rul_123'],
+  displayName: 'support',
 });
 
 // 2) 发布后才会被运行时解析（未发布 = 草稿，对运行时不可见）
@@ -66,8 +67,8 @@ await console.publishAgent(agent.id);
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `baseUrl` | 是 | ai-center 根地址，**不要**带 `/agent` |
-| `pathPrefix` | 否 | 默认 `/agent` |
+| `baseUrl` | 是 | ai-center 根地址，**不要**带 `/agent/console` |
+| `pathPrefix` | 否 | 默认 `/agent/console` |
 | `headers` | 否 | 对象或 `() => headers`（可 async）；放鉴权 / 租户头 |
 | `fetchImpl` | 否 | 自定义 fetch（测试 / 非浏览器环境） |
 
@@ -85,7 +86,7 @@ await console.publishAgent(agent.id);
 | 发布 head | `publishAgent(id)` | `publishSkill(id)` | `publishRule(id)` |
 | 文档导入 | `createFromDocument('agent', raw)` | `createFromDocument('skill', raw)` | `createFromDocument('rule', raw)` |
 
-内容字段（`content`，由 contracts schema 校验，服务端会补默认值）：
+结构化创建/更新直接传 kind 对应的 `content` 对象（由 contracts schema 校验，服务端会补默认值）：
 - **agent**：`prompt`(必填) + 可选 `modelConfig` / `ruleRefs` / `skillRefs` / `availableTools` / `subAgentRefs` / `maxDepth`
 - **skill**：`description` + `instructions`（均必填）+ 可选 `trigger`
 - **rule**：`content`(必填) + 可选 `description`

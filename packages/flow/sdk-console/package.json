@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/flow-sdk-console",
-  "version": "0.0.1-alpha.6",
+  "version": "0.0.1-alpha.7",
   "type": "module",
   "description": "Flow management console client — CRUD /flow/console/flows against ai-center.",
   "sideEffects": false,

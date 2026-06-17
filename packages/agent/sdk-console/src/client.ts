@@ -10,9 +10,9 @@ import type {
   TenantSkillContentSchema,
 } from '@cube-ai/contracts';
 import {
-  agentConsoleRequestJson,
-  agentConsoleRequestText,
-  agentConsoleStreamSse,
+  agentConsoleRequestJson as requestJson,
+  agentConsoleRequestText as requestText,
+  agentConsoleStreamSse as streamSse,
   type AgentConsoleConfig,
 } from './http';
 
@@ -46,13 +46,13 @@ export interface FromDocumentResult {
   status: TenantDescriptorStatus;
 }
 
-export class AgentConsoleClient {
+class AgentConsoleClientImpl {
   constructor(private readonly config: AgentConsoleConfig) {}
 
   // --- generic CRUD over a plural kind segment ---
 
   private create<C>(plural: string, body: C): Promise<TenantDescriptorView> {
-    return agentConsoleRequestJson<TenantDescriptorView>(
+    return requestJson<TenantDescriptorView>(
       this.config,
       'POST',
       `/${plural}`,
@@ -61,11 +61,11 @@ export class AgentConsoleClient {
   }
 
   private list(plural: string): Promise<TenantDescriptorView[]> {
-    return agentConsoleRequestJson<TenantDescriptorView[]>(this.config, 'GET', `/${plural}`);
+    return requestJson<TenantDescriptorView[]>(this.config, 'GET', `/${plural}`);
   }
 
   private get(plural: string, id: string): Promise<TenantDescriptorView> {
-    return agentConsoleRequestJson<TenantDescriptorView>(
+    return requestJson<TenantDescriptorView>(
       this.config,
       'GET',
       `/${plural}/${encodeURIComponent(id)}`,
@@ -73,7 +73,7 @@ export class AgentConsoleClient {
   }
 
   private update<C>(plural: string, id: string, body: C): Promise<TenantDescriptorView> {
-    return agentConsoleRequestJson<TenantDescriptorView>(
+    return requestJson<TenantDescriptorView>(
       this.config,
       'PATCH',
       `/${plural}/${encodeURIComponent(id)}`,
@@ -82,7 +82,7 @@ export class AgentConsoleClient {
   }
 
   private remove(plural: string, id: string): Promise<void> {
-    return agentConsoleRequestJson<void>(
+    return requestJson<void>(
       this.config,
       'DELETE',
       `/${plural}/${encodeURIComponent(id)}`,
@@ -90,7 +90,7 @@ export class AgentConsoleClient {
   }
 
   private publish(plural: string, id: string): Promise<TenantDescriptorView> {
-    return agentConsoleRequestJson<TenantDescriptorView>(
+    return requestJson<TenantDescriptorView>(
       this.config,
       'POST',
       `/${plural}/${encodeURIComponent(id)}/publish`,
@@ -190,7 +190,7 @@ export class AgentConsoleClient {
     const plural = KIND_PLURAL[kind];
     let result: ProposeResult | undefined;
     let streamError: string | undefined;
-    await agentConsoleStreamSse(this.config, 'POST', `/${plural}:propose`, req, (ev) => {
+    await streamSse(this.config, 'POST', `/${plural}:propose`, req, (ev) => {
       if (ev.event === 'delta') {
         if (opts.onDelta) {
           const parsed = JSON.parse(ev.data) as { delta?: unknown };
@@ -220,7 +220,7 @@ export class AgentConsoleClient {
    */
   createFromDocument(kind: TenantDescriptorKind, raw: string): Promise<FromDocumentResult> {
     const plural = KIND_PLURAL[kind];
-    return agentConsoleRequestText<FromDocumentResult>(
+    return requestText<FromDocumentResult>(
       this.config,
       'POST',
       `/${plural}:fromDocument`,
@@ -229,6 +229,8 @@ export class AgentConsoleClient {
   }
 }
 
-export function createAgentConsoleClient(config: AgentConsoleConfig): AgentConsoleClient {
-  return new AgentConsoleClient(config);
+export function createAgentConsoleClient(config: AgentConsoleConfig): AgentConsoleClientImpl {
+  return new AgentConsoleClientImpl(config);
 }
+
+export { AgentConsoleClientImpl as AgentConsoleClient };
