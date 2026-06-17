@@ -66,6 +66,29 @@ describe('LlmConsoleClient', () => {
     });
   });
 
+  test('listProviders accepts unconfigured providers with null apiBaseUrl', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit): Promise<Response> => {
+      expect(init?.method).toBe('GET');
+      return Response.json([
+        {
+          id: 'p1',
+          providerCode: 'dashscope',
+          typeCode: 'dashscope',
+          apiBaseUrl: null,
+          enabled: false,
+        },
+      ]);
+    };
+
+    const client = createLlmConsoleClient({
+      baseUrl: 'http://ai-center.test',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    const providers = await client.listProviders();
+
+    expect(providers[0]?.apiBaseUrl).toBeNull();
+  });
+
   test('listEndpointTypes GET /llm/console/endpoint-types', async () => {
     let capturedUrl = '';
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {

@@ -59,7 +59,7 @@ export class MysqlLlmCatalogPort implements LlmCatalogPort {
       id: String(row.id),
       providerCode: row.provider_code,
       typeCode: row.type_code,
-      apiBaseUrl: row.api_base_url ?? '',
+      apiBaseUrl: row.api_base_url,
       enabled: Boolean(row.enabled),
     }));
   }

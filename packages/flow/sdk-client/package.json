@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/flow-sdk-client",
-  "version": "0.0.1-alpha.7",
+  "version": "0.0.1-alpha.8",
   "type": "module",
   "description": "Flow execution client — POST /flow/run/:id against ai-center.",
   "sideEffects": false,

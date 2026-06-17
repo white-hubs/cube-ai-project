@@ -155,12 +155,9 @@ function expectProviderIdField(value: unknown, field: string): string {
 /**
  * `GET /ai/llm/providers` 单行里用于「发现 provider id」；真实 endpoint/apiKey 来自
  * `.../runtime-config`。中台 DTO 可能 `apiBaseUrl: null` 或只用 `baseUrl` 等别名，
- * 此处做宽松解析；全无则填占位符以满足 `LlmProviderSummarySchema`（不会被用于 HTTP）。
+ * 此处做宽松解析；全无则保持 null，表示供应商连接尚未配置。
  */
-const PROVIDER_LIST_API_BASE_PLACEHOLDER =
-  'https://invalid.invalid/cube-agentic-engine-catalog-provider-list-row';
-
-function apiBaseUrlFromProviderListRow(row: unknown): string {
+function apiBaseUrlFromProviderListRow(row: unknown): string | null {
   if (typeof row !== 'object' || row === null) {
     throw GhcloudPlatformError.fromCode(
       'INVALID_ARGUMENT_SCHEMA_VIOLATION',
@@ -177,7 +174,7 @@ function apiBaseUrlFromProviderListRow(row: unknown): string {
       if (t.length > 0) return t;
     }
   }
-  return PROVIDER_LIST_API_BASE_PLACEHOLDER;
+  return null;
 }
 
 function expectStringField(value: unknown, field: string): string {

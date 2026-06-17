@@ -48,7 +48,7 @@ describe('GhcloudLlmCatalogAdapter', () => {
     expect(out.map((p) => p.providerCode)).toEqual(['openai', 'qwen']);
   });
 
-  it('listProviders tolerates null apiBaseUrl and uses placeholder (runtime-config supplies real URL)', async () => {
+  it('listProviders preserves null apiBaseUrl for unconfigured providers', async () => {
     const m = mockFetch(() =>
       new Response(
         JSON.stringify([
@@ -70,7 +70,7 @@ describe('GhcloudLlmCatalogAdapter', () => {
     });
     const out = await adapter.listProviders(1, new AbortController().signal);
     expect(out).toHaveLength(1);
-    expect(out[0]!.apiBaseUrl).toContain('invalid.invalid');
+    expect(out[0]!.apiBaseUrl).toBeNull();
   });
 
   it('listProviders keeps vendor typeCode (geekai) without protocol enum validation', async () => {

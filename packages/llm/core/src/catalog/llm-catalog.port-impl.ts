@@ -20,7 +20,7 @@ export class InMemoryLlmCatalogPort implements LlmCatalogPort {
       id: row.id,
       providerCode: row.provider_code,
       typeCode: row.type_code,
-      apiBaseUrl: row.api_base_url ?? '',
+      apiBaseUrl: row.api_base_url,
       enabled: row.enabled,
     }));
   }

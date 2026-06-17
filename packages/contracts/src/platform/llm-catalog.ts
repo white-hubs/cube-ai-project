@@ -42,7 +42,8 @@ export const LlmProviderSummarySchema = z.object({
    * 与模型协议无关；实际 HTTP 协议以 `resolveModelRuntime` 返回的 `endpointType` 为准。
    */
   typeCode: z.string().min(1),
-  apiBaseUrl: z.string().min(1),
+  /** 管理面列表允许展示尚未配置连接信息的供应商；运行时配置仍要求非空 URL。 */
+  apiBaseUrl: z.string().min(1).nullable(),
   enabled: z.boolean(),
 });
 export type LlmProviderSummary = z.infer<typeof LlmProviderSummarySchema>;

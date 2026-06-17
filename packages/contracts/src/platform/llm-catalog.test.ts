@@ -42,6 +42,17 @@ describe('LlmCatalogPort contracts', () => {
     expect(ok.enabled).toBe(true);
   });
 
+  it('LlmProviderSummarySchema accepts unconfigured provider apiBaseUrl null', () => {
+    const ok = LlmProviderSummarySchema.parse({
+      id: 'prov-sfid-002',
+      providerCode: 'dashscope',
+      typeCode: 'dashscope',
+      apiBaseUrl: null,
+      enabled: false,
+    });
+    expect(ok.apiBaseUrl).toBeNull();
+  });
+
   it('LlmModelRuntimeConfigSchema requires apiKey and modelCode', () => {
     expect(() =>
       LlmModelRuntimeConfigSchema.parse({
