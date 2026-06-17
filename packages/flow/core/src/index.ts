@@ -9,7 +9,7 @@ export { FlowFilesService, type FlowFileDownloadOptions } from './flows/flow-fil
 export { CustomComponentTemplatesService } from './custom-component-templates/custom-component-templates.service'
 export { createDeveloperRateLimitMiddleware } from './middleware/developer-rate-limit.middleware'
 export { createTenantContextMiddleware } from './middleware/tenant-context.middleware'
-export { tenantContextAls, type TenantContext } from '@cube-ai/server-shared'
+export { tenantContextAls, type TenantContext } from '@cube-ai/ai-center/platform/server-shared'
 export { FlowRepository, defaultDbPath, initSharedFlowRepository, getSharedFlowRepository } from './db/sqlite'
 export {
   FLOW_REPOSITORY_TOKEN,

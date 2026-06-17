@@ -13,7 +13,7 @@ import {
   POST,
   PUT,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { CustomComponentTemplatesService } from './custom-component-templates.service'
 
 @Injectable()

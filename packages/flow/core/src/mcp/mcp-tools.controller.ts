@@ -1,5 +1,5 @@
 import { ApiBody, ApiOperation, ApiResponse, BadRequestException, Body, Controller, POST } from '@dangao/bun-server'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { listMcpToolNamesWithSdk } from './mcp-list-tools-sdk'
 
 function asHeaderRecord(raw: Record<string, unknown> | undefined): Record<string, string> {

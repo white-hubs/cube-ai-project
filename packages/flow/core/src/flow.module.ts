@@ -1,5 +1,5 @@
 import { Injectable, Module, type Container, type OnModuleInit } from '@dangao/bun-server'
-import { loadAppConfig, APP_CONFIG_TOKEN } from '@cube-ai/server-base'
+import { loadAppConfig, APP_CONFIG_TOKEN } from '@cube-ai/ai-center/platform/server-base'
 import type { LlmProviderPort } from '@cube-ai/contracts'
 import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from '@cube-ai/contracts/platform'
 import { NoopLlmProvider } from '@cube-ai/llm-core'

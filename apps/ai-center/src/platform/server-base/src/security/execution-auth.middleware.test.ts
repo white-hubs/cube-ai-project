@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { authenticatedUserAls, tenantContextAls } from '@cube-ai/server-shared'
+import { authenticatedUserAls, tenantContextAls } from '@cube-ai/ai-center/platform/server-shared'
 import { createExecutionAuthMiddleware } from './execution-auth.middleware'
 import type { AccessTokenReader } from './middleware-types'
 

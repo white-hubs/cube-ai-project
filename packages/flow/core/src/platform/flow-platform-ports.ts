@@ -8,7 +8,7 @@ import type {
   FlowInvokerPort,
 } from '@cube-ai/contracts';
 import { AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN, AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN } from '@cube-ai/contracts/platform';
-import { tenantContextAls } from '@cube-ai/server-shared';
+import { tenantContextAls } from '@cube-ai/ai-center/platform/server-shared';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowExecutionService } from '../flows/flow-execution.service';
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@dangao/bun-server'
-import { SnowflakeUtil } from '@cube-ai/server-base'
+import { SnowflakeUtil } from '@cube-ai/ai-center/platform/server-base'
 import type { LlmProviderPort } from '@cube-ai/contracts'
 import { NoopLlmProvider } from '@cube-ai/llm-core'
 import { SpanStatusCode, trace } from '@opentelemetry/api'

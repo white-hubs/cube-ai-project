@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
 /** 与 {@link MockInterceptor} 在 {@link InterceptorRegistry} 中注册的 metadataKey 一致 */
-export const MOCK_METADATA_KEY = Symbol('@cube-ai/server-mock:mock-endpoint')
+export const MOCK_METADATA_KEY = Symbol('@cube-ai/ai-center/platform/server-mock:mock-endpoint')
 
 export interface MockEndpointMeta {
   /** 如 `api-keys.list`，用于 MockRegistry 与 CUBE_AI_MOCK_<GROUP> */

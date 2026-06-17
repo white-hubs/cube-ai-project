@@ -1,4 +1,4 @@
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
 
 export function requireScopedTenantId(errorFactory: () => Error): string {
   const tid = currentTenantId()

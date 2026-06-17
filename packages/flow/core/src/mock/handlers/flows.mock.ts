@@ -2,7 +2,7 @@ import { normalizeRunBody } from '../../contracts/cube-run'
 import { emptyCubeFlowGraph } from '../../contracts/cube-flow'
 import { createSseResponse } from '../../http/sse-response'
 import { encodeCubeSseEvent } from '../../langflow/build-event-mapper'
-import { MockRegistry } from '@cube-ai/server-mock'
+import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
 
 const iso = '2025-01-01T00:00:00.000Z'
 const MOCK_FLOW_ID = '00000000-0000-4000-8000-000000000001'

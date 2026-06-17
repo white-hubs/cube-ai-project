@@ -9,7 +9,7 @@ import {
   authenticatedUserAls,
   developerApiAls,
   tenantContextAls,
-} from '@cube-ai/server-shared'
+} from '@cube-ai/ai-center/platform/server-shared'
 import type {
   AccessTokenReader,
   DeveloperApiKeyReader,

@@ -1,5 +1,5 @@
 import { HttpException, type Context, type Middleware, type NextFunction } from '@dangao/bun-server'
-import { developerApiAls } from '@cube-ai/server-shared'
+import { developerApiAls } from '@cube-ai/ai-center/platform/server-shared'
 
 const WINDOW_MS = 60_000
 

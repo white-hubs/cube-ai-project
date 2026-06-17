@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { tenantContextAls } from '@cube-ai/server-shared'
+import { tenantContextAls } from '@cube-ai/ai-center/platform/server-shared'
 import { currentTenantId, isGlobalAccessEnabled, requireScopedTenantId } from './access-context'
 
 describe('requireScopedTenantId', () => {
@@ -29,7 +29,7 @@ describe('requireScopedTenantId', () => {
 })
 
 describe('re-exported access helpers', () => {
-  test('currentTenantId mirrors @cube-ai/server-shared behavior', () => {
+  test('currentTenantId mirrors @cube-ai/ai-center/platform/server-shared behavior', () => {
     expect(currentTenantId()).toBeNull()
     tenantContextAls.run({ tenantId: ' 7 ' }, () => {
       expect(currentTenantId()).toBe('7')

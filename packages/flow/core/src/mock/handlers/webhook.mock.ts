@@ -1,7 +1,7 @@
 import type { Context } from '@dangao/bun-server'
 import { createSseResponse } from '../../http/sse-response'
 import { encodeCubeSseEvent } from '../../langflow/build-event-mapper'
-import { MockRegistry } from '@cube-ai/server-mock'
+import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
 
 function asRecord(x: unknown): Record<string, unknown> | null {
   if (x && typeof x === 'object' && !Array.isArray(x)) return x as Record<string, unknown>

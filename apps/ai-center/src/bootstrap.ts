@@ -92,7 +92,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   const container = app.getContainer();
 
   await import('@cube-ai/flow-core/mock');
-  const { registerMockInterceptor } = await import('@cube-ai/server-mock');
+  const { registerMockInterceptor } = await import('@cube-ai/ai-center/platform/server-mock');
   registerMockInterceptor(container);
 
   ExceptionFilterRegistry.getInstance().register(agenticEngineExceptionFilter);

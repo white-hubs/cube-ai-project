@@ -1,4 +1,4 @@
-import type { AccessTokenReader, DeveloperApiKeyReader } from '@cube-ai/server-base'
+import type { AccessTokenReader, DeveloperApiKeyReader } from '@cube-ai/ai-center/platform/server-base'
 import type { SecurityContextHolder } from './security-context'
 import type { SessionContextHolder } from './session-context'
 import { createJwtAuthMiddleware } from './jwt-auth'

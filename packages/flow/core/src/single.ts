@@ -4,7 +4,7 @@
  */
 import 'reflect-metadata'
 import { Application } from '@dangao/bun-server'
-import { loadAppConfig } from '@cube-ai/server-base'
+import { loadAppConfig } from '@cube-ai/ai-center/platform/server-base'
 import { registerMockInterceptor } from './mock/index'
 import { createDeveloperRateLimitMiddleware } from './middleware/developer-rate-limit.middleware'
 import { FlowModule } from './flow.module'

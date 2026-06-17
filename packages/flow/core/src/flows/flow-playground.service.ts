@@ -1,5 +1,5 @@
 import { BadRequestException, HttpException, Injectable, NotFoundException } from '@dangao/bun-server'
-import { SnowflakeUtil } from '@cube-ai/server-base'
+import { SnowflakeUtil } from '@cube-ai/ai-center/platform/server-base'
 import type { LlmProviderPort } from '@cube-ai/contracts'
 import { NoopLlmProvider } from '@cube-ai/llm-core'
 import { createSseResponse } from '../http/sse-response'

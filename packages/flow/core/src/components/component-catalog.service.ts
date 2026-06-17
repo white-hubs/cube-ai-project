@@ -1,5 +1,5 @@
 import { HttpException, Inject, Injectable } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/server-base'
+import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import { existsSync, readFileSync } from 'node:fs'
 
 export type CatalogEntry = {

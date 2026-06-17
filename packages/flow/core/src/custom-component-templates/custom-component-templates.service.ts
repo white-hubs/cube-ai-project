@@ -1,8 +1,8 @@
 import { BadRequestException, HttpException, Inject, Injectable, NotFoundException } from '@dangao/bun-server'
-import { SnowflakeUtil } from '@cube-ai/server-base'
+import { SnowflakeUtil } from '@cube-ai/ai-center/platform/server-base'
 import { buildCubeComponentSchemaFromDslPayload } from '../custom-component/dsl-to-cube-schema'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
 
 const MAX_DSL_JSON_BYTES = 512 * 1024
 

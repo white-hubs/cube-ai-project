@@ -18,7 +18,7 @@ import {
   type ApiResponseMetadata,
   type Context,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { FlowFilesService } from './flow-files.service'
 
 function openapiRespSchema(s: Record<string, unknown>): NonNullable<ApiResponseMetadata['schema']> {

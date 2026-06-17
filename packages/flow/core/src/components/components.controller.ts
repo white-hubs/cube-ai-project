@@ -11,7 +11,7 @@ import {
   Query,
 } from '@dangao/bun-server'
 import { buildCubeComponentSchemaFromDslPayload } from '../custom-component/dsl-to-cube-schema'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { ComponentCatalogService } from './component-catalog.service'
 import { ComponentSchemaService } from './component-schema.service'
 

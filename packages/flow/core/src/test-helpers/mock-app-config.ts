@@ -1,4 +1,4 @@
-import type { AppConfig } from '@cube-ai/server-base'
+import type { AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import { flowCoreFixturePaths } from './fixture-paths'
 
 export { flowCoreFixturePaths }

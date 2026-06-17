@@ -11,11 +11,11 @@ import {
   Param,
   POST,
 } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/server-base'
-import { currentTenantId } from '@cube-ai/server-shared'
+import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
+import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import { FlowsService } from '../flows/flows.service'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { verifyWebhookHmac } from './webhook-hmac'
 
 function asRecord(x: unknown): Record<string, unknown> | null {

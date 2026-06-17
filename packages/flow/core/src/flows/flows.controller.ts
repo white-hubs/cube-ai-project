@@ -17,7 +17,7 @@ import {
   type ApiResponseMetadata,
 } from '@dangao/bun-server'
 import { CUBE_FLOW_SCHEMA_VERSION } from '../contracts/cube-flow'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { FlowsService } from './flows.service'
 
 /** @dangao/bun-server 的 ApiResponse.schema 类型较窄，按 OpenAPI JSON Schema 子集断言 */

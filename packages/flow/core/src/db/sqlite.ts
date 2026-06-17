@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite'
 import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
-import { SnowflakeUtil } from '@cube-ai/server-base'
+import { SnowflakeUtil } from '@cube-ai/ai-center/platform/server-base'
 
 /** 与 MySQL 审计列一致；INSERT 可使用 DEFAULT，通过 `Omit<..., keyof AuditColumns>` 不要求调用方传入 */
 export type AuditColumns = {

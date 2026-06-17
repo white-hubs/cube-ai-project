@@ -1,5 +1,5 @@
 import { HttpException, Inject, Injectable, NotFoundException } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/server-base'
+import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import {
   LangflowClient,

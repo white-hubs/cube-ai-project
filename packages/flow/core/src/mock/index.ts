@@ -1,5 +1,5 @@
 /**
- * Flow 域 HTTP mock：仅注册本包 handlers；框架见 `@cube-ai/server-mock`。
+ * Flow 域 HTTP mock：仅注册本包 handlers；框架见 `@cube-ai/ai-center/platform/server-mock`。
  */
 
 import './handlers/run.mock'
@@ -20,4 +20,4 @@ export {
   type MockEndpointMeta,
   type MockHandlerFn,
   type MockRegistryEntry,
-} from '@cube-ai/server-mock'
+} from '@cube-ai/ai-center/platform/server-mock'

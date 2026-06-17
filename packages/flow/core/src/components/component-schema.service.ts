@@ -1,5 +1,5 @@
 import { HttpException, Inject, Injectable } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/server-base'
+import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import {
   CUBE_COMPONENT_SCHEMA_VERSION,
   CUBE_CUSTOM_COMPONENT_DSL_KEY,

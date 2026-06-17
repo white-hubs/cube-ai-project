@@ -1,7 +1,7 @@
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, Body, Controller, Injectable, Param, POST } from '@dangao/bun-server'
 import { normalizeRunBody } from '../contracts/cube-run'
 import { FlowsService } from '../flows/flows.service'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 
 /**
  * 开发者执行面：`POST /run/:flowId`（对外经由网关为 `/api/run/...`）。

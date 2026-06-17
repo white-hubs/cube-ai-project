@@ -1,4 +1,4 @@
-import { MockRegistry } from '@cube-ai/server-mock'
+import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
 
 const reg = MockRegistry.getInstance()
 const iso = '2025-01-01T00:00:00.000Z'

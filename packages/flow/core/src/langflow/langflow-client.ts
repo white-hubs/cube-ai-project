@@ -522,7 +522,7 @@ export function langflowConfigFromEnv(): LangflowClientConfig | null {
   return { baseUrl, apiKey, bearerToken }
 }
 
-import type { AppConfig } from '@cube-ai/server-base'
+import type { AppConfig } from '@cube-ai/ai-center/platform/server-base'
 
 export function langflowConfigFromAppConfig(config: AppConfig): LangflowClientConfig | null {
   if (!config.langflowBaseUrl) return null

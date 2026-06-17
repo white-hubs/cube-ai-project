@@ -1,5 +1,5 @@
 import { Injectable, Module, type Container, type OnModuleInit } from '@dangao/bun-server'
-import { loadAppConfig } from '@cube-ai/server-base'
+import { loadAppConfig } from '@cube-ai/ai-center/platform/server-base'
 import {
   CustomComponentTemplatesService,
   FlowCrudService,

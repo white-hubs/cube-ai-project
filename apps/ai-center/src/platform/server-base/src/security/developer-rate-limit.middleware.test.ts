@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { HttpException } from '@dangao/bun-server'
-import { developerApiAls, type DeveloperApiContext } from '@cube-ai/server-shared'
+import { developerApiAls, type DeveloperApiContext } from '@cube-ai/ai-center/platform/server-shared'
 import { createDeveloperRateLimitMiddleware } from './developer-rate-limit.middleware'
 
 // 模块级 buckets 为进程级共享状态：每个用例使用独立 IP / apiKeyId，避免相互污染。

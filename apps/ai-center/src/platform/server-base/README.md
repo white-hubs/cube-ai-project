@@ -1,6 +1,6 @@
-# @cube-ai/server-base
+# @cube-ai/ai-center/platform/server-base
 
-server 侧共享的横切基础设施，不包含业务能力，不单独启动。被 `apps/ai-center` 组合根及 `packages/flow/core`、`packages/kb/core` 等能力包复用（通过 `tsconfig.base.json` 的 `@cube-ai/server-base` 路径别名引用）。
+server 侧共享的横切基础设施，不包含业务能力，不单独启动。被 `apps/ai-center` 组合根及 `packages/flow/core`、`packages/kb/core` 等能力包复用（通过 `tsconfig.base.json` 的 `@cube-ai/ai-center/platform/server-base` 路径别名引用）。
 
 ## 目录结构
 

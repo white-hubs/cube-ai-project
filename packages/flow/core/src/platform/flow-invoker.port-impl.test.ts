@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { FlowInvokerPort } from '@cube-ai/contracts';
-import { tenantContextAls } from '@cube-ai/server-shared';
+import { tenantContextAls } from '@cube-ai/ai-center/platform/server-shared';
 import { FlowRepository } from '../db/sqlite';
 import { FlowCrudService } from '../flows/flow-crud.service';
 import { FlowLangflowSyncService } from '../flows/flow-langflow-sync.service';

@@ -1,6 +1,6 @@
 import { HttpException, Inject, Injectable, NotFoundException } from '@dangao/bun-server'
 import { BadRequestException } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/server-base'
+import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import type { CubeFlowGraph } from '../contracts/cube-flow'
 import { emptyCubeFlowGraph } from '../contracts/cube-flow'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'

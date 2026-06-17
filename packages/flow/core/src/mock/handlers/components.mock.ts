@@ -1,4 +1,4 @@
-import { MockRegistry } from '@cube-ai/server-mock'
+import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
 
 const minimalSchema = (cubeType: string) => ({
   version: 1,

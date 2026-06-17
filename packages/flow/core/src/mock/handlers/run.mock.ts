@@ -1,7 +1,7 @@
 import { normalizeRunBody } from '../../contracts/cube-run'
 import { createSseResponse } from '../../http/sse-response'
 import { encodeCubeSseEvent } from '../../langflow/build-event-mapper'
-import { MockRegistry } from '@cube-ai/server-mock'
+import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
 
 function sseForFlow(flowId: string, query: string): Response {
   const taskId = crypto.randomUUID()

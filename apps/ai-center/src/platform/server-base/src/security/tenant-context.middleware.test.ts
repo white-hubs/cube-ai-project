@@ -42,7 +42,7 @@ describe('tenant context middleware', () => {
 
   test('passes through when tenantContextAls already set', async () => {
     const middleware = createTenantContextMiddleware()
-    const { tenantContextAls } = await import('@cube-ai/server-shared')
+    const { tenantContextAls } = await import('@cube-ai/ai-center/platform/server-shared')
     let passed = false
     await tenantContextAls.run({ tenantId: '7', bypassTenantIsolation: false }, async () => {
       await middleware(createCtx('/llm/providers') as never, async () => {

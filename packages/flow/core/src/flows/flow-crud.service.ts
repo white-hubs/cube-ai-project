@@ -1,12 +1,12 @@
 import { BadRequestException, HttpException, Inject, Injectable, NotFoundException } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/server-base'
+import { APP_CONFIG_TOKEN, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
 import type { CubeFlowGraph, CubeFlowNode } from '../contracts/cube-flow'
 import { CUBE_FLOW_SCHEMA_VERSION, emptyCubeFlowGraph } from '../contracts/cube-flow'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import { getLfComponentDef } from '../langflow/lf-api-all-registry'
 import { normalizeRunBody, type NormalizedRunBody } from '../contracts/cube-run'
 import { applyInputGuardrails } from '../guardrails/guardrails'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
 
 /** Keys safe to expose in playground graph summaries (no secrets). */
 export const PLAYGROUND_VISIBLE_CONFIG_KEYS = [

@@ -10,7 +10,7 @@ import {
   Param,
   type Context,
 } from '@dangao/bun-server'
-import { MockableEndpoint } from '@cube-ai/server-mock'
+import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
 import { FlowCrudService } from './flow-crud.service'
 import { FlowLangflowSyncService } from './flow-langflow-sync.service'
 

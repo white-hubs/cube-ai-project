@@ -7,7 +7,7 @@ import {
 import {
   authenticatedUserAls,
   tenantContextAls,
-} from '@cube-ai/server-shared'
+} from '@cube-ai/ai-center/platform/server-shared'
 
 function matchesAnyPrefix(path: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => {

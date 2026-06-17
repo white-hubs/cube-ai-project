@@ -1,4 +1,4 @@
-import { currentTenantId } from '@cube-ai/server-shared'
+import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
 
 export type FlowRunMetric = {
   flowId: string
