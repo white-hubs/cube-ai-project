@@ -122,10 +122,18 @@ COPY --from=build-binary --chown=ai-center:ai-center /out/ai-center /app/ai-cent
 COPY --chown=ai-center:ai-center packages/flow/core/data/langflow-api-all.json /app/data/langflow-api-all.json
 COPY --chown=ai-center:ai-center packages/flow/core/generated/cube-component-catalog.json /app/data/cube-component-catalog.json
 
+# SQL 迁移文件：binary 模式下 import.meta.url 指向二进制本身，相对路径失效，需拷入镜像
+COPY --chown=ai-center:ai-center packages/agent/engine/migrations /app/packages/agent/engine/migrations
+COPY --chown=ai-center:ai-center packages/flow/core/migrations     /app/packages/flow/core/migrations
+COPY --chown=ai-center:ai-center packages/llm/core/migrations      /app/packages/llm/core/migrations
+COPY --chown=ai-center:ai-center packages/kb/core/migrations       /app/packages/kb/core/migrations
+COPY --chown=ai-center:ai-center packages/flow/studio/migrations   /app/packages/flow/studio/migrations
+
 ENV NODE_ENV=production \
     TZ=UTC \
     AI_CENTER_PORT=3000 \
-    AGENTIC_ENGINE_LOCAL_FILE_DIR=/var/lib/ai-center/local-files
+    AGENTIC_ENGINE_LOCAL_FILE_DIR=/var/lib/ai-center/local-files \
+    AGENTIC_ENGINE_MIGRATIONS_ROOT=/app
 
 EXPOSE 3000
 
@@ -157,6 +165,13 @@ COPY --chown=ai-center:ai-center packages/flow/core/data/langflow-api-all.json /
 COPY --chown=ai-center:ai-center packages/flow/core/generated/cube-component-catalog.json /app/data/cube-component-catalog.json
 RUN chmod +x /app/ai-center
 
+# SQL 迁移文件：binary 模式下 import.meta.url 指向二进制本身，相对路径失效，需拷入镜像
+COPY --chown=ai-center:ai-center packages/agent/engine/migrations /app/packages/agent/engine/migrations
+COPY --chown=ai-center:ai-center packages/flow/core/migrations     /app/packages/flow/core/migrations
+COPY --chown=ai-center:ai-center packages/llm/core/migrations      /app/packages/llm/core/migrations
+COPY --chown=ai-center:ai-center packages/kb/core/migrations       /app/packages/kb/core/migrations
+COPY --chown=ai-center:ai-center packages/flow/studio/migrations   /app/packages/flow/studio/migrations
+
 ENV NODE_ENV=production \
     TZ=UTC \
     AI_CENTER_PORT=3000 \
@@ -164,7 +179,8 @@ ENV NODE_ENV=production \
     AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR=/app/descriptors/ \
     AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR=/app/descriptors/agents \
     AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR=/app/descriptors/skills \
-    AGENTIC_ENGINE_GLOBAL_PROMPT_PATH=/app/CUBE.md
+    AGENTIC_ENGINE_GLOBAL_PROMPT_PATH=/app/CUBE.md \
+    AGENTIC_ENGINE_MIGRATIONS_ROOT=/app
 
 EXPOSE 3000
 

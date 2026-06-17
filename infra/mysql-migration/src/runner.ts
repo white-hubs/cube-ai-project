@@ -27,8 +27,11 @@ async function listMigrationFiles(dir: string, prefix: 'V' | 'S'): Promise<strin
   let entries: string[];
   try {
     entries = await readdir(dir);
-  } catch {
-    return [];
+  } catch (err) {
+    // 目录不存在时抛出，而非静默跳过——路径错误会导致迁移完全不运行且无任何提示
+    throw new Error(
+      `[mysql-migration] migrations directory not found: ${dir}\n${err instanceof Error ? err.message : String(err)}`,
+    );
   }
   return sortByVersion(entries.filter((f) => f.startsWith(prefix) && f.endsWith('.sql')));
 }

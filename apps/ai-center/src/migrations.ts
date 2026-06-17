@@ -1,7 +1,15 @@
 import { join } from 'node:path';
 import { createMigrationRunner } from '@cube-ai/mysql-migration';
 
-const root = new URL('../../../../', import.meta.url).pathname;
+/**
+ * 项目根目录。
+ * - source 模式（runtime-source）：import.meta.url 是源文件路径，../../../ 正好上溯到根
+ * - binary 模式（runtime-binary / runtime-binary-prebuilt）：import.meta.url 是二进制路径，
+ *   相对计算失效，必须通过 AGENTIC_ENGINE_MIGRATIONS_ROOT 显式传入
+ */
+const root =
+  process.env['AGENTIC_ENGINE_MIGRATIONS_ROOT'] ??
+  new URL('../../../', import.meta.url).pathname;
 
 const DOMAIN_MIGRATIONS = [
   { migrationsDir: join(root, 'packages/agent/engine/migrations'), historyTable: 'engine_schema_migrations' },
