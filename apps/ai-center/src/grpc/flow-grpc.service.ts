@@ -14,9 +14,28 @@ import {
   UploadFlowImageResponseSchema,
 } from '@cube-ai/platform-adapter-ghcloud'
 import { runWithConnectHandlerSession, streamWithConnectHandlerSession } from '@cube-ai/platform-adapter-ghcloud'
+import { tenantContextAls } from '@cube-ai/ai-center/platform/server-shared'
 import type { FlowGrpcBackend, FlowRunBody, FlowUploadResultLike } from './flow-grpc-backend'
 
 const FLOW_GRPC_LOG_PREFIX = '[FlowGrpc]'
+
+/**
+ * 从 gRPC/Connect 请求头中提取 tenant id（纯数字字符串），与 HTTP 侧 createSessionContextMiddleware 对齐。
+ * 返回 null 表示无 tenant 头或格式不符，由上层决定是否报错。
+ */
+function resolveTenantFromGrpcHeaders(headers: Headers): string | null {
+  const raw = headers.get('tenant')?.trim() ?? ''
+  return /^\d+$/.test(raw) ? raw : null
+}
+
+/**
+ * 在 tenantContextAls 上下文中执行 fn（有 tenantId 时），保持与 HTTP 中间件一致的租户隔离语义。
+ * gRPC 路径不经过 HTTP 中间件，需在 handler 层手动注入。
+ */
+function withTenant<T>(tenantId: string | null, fn: () => Promise<T>): Promise<T> {
+  if (!tenantId) return fn()
+  return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, fn)
+}
 
 export interface FlowGrpcServiceImplOptions {
   internalInvokeSecretKey?: string | null
@@ -169,19 +188,21 @@ export function createFlowGrpcServiceImpl(
       handlerContext: HandlerContext,
     ): Promise<UploadFlowImageResponse> {
       const flowId = String(request.flowId ?? '').trim()
+      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
       try {
-        return await runWithConnectHandlerSession(handlerContext, async () => {
-          const image = request.image
-          if (!image || image.content.length === 0) {
-            throw new ConnectError('image content is required', Code.InvalidArgument)
-          }
-          const filename = image.filename?.trim() || 'image'
-          const file = new File([Uint8Array.from(image.content)], filename, {
-            type: image.contentType?.trim() || 'application/octet-stream',
-          })
-          const uploaded = await flowService.uploadFlowFile(flowId, file)
-          return uploadedImageResponse(flowId, uploaded)
-        }, options)
+        return await runWithConnectHandlerSession(handlerContext, () =>
+          withTenant(tenantId, async () => {
+            const image = request.image
+            if (!image || image.content.length === 0) {
+              throw new ConnectError('image content is required', Code.InvalidArgument)
+            }
+            const filename = image.filename?.trim() || 'image'
+            const file = new File([Uint8Array.from(image.content)], filename, {
+              type: image.contentType?.trim() || 'application/octet-stream',
+            })
+            const uploaded = await flowService.uploadFlowFile(flowId, file)
+            return uploadedImageResponse(flowId, uploaded)
+          }), options)
       } catch (error) {
         logFlowGrpcFailure('uploadFlowImage', { flowId }, error)
         throw error
@@ -189,16 +210,18 @@ export function createFlowGrpcServiceImpl(
     },
     async runFlow(request: RunFlowRequest, handlerContext: HandlerContext): Promise<RunFlowResponse> {
       const flowId = String(request.flowId ?? '').trim()
+      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
       try {
-        return await runWithConnectHandlerSession(handlerContext, async () => {
-          const result = await flowService.runFlow(flowId, toFlowRunBody(request))
-          const raw = result.raw ?? {}
-          return create(RunFlowResponseSchema, {
-            sessionId: typeof raw.session_id === 'string' ? raw.session_id : '',
-            outputsJson: stringifyOrEmpty(raw.outputs ?? []),
-            rawJson: stringifyOrEmpty(raw),
-          })
-        }, options)
+        return await runWithConnectHandlerSession(handlerContext, () =>
+          withTenant(tenantId, async () => {
+            const result = await flowService.runFlow(flowId, toFlowRunBody(request))
+            const raw = result.raw ?? {}
+            return create(RunFlowResponseSchema, {
+              sessionId: typeof raw.session_id === 'string' ? raw.session_id : '',
+              outputsJson: stringifyOrEmpty(raw.outputs ?? []),
+              rawJson: stringifyOrEmpty(raw),
+            })
+          }), options)
       } catch (error) {
         logFlowGrpcFailure('runFlow', { flowId }, error)
         throw error
@@ -206,8 +229,9 @@ export function createFlowGrpcServiceImpl(
     },
     runFlowStream(request: RunFlowRequest, handlerContext: HandlerContext): AsyncIterable<RunFlowStreamEvent> {
       const flowId = String(request.flowId ?? '').trim()
-      return streamWithConnectHandlerSession(handlerContext, () =>
-        (async function* (): AsyncIterable<RunFlowStreamEvent> {
+      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
+      return streamWithConnectHandlerSession(handlerContext, () => {
+        async function* inner(): AsyncIterable<RunFlowStreamEvent> {
           try {
             const response = await flowService.runFlowStream(flowId, toFlowRunBody(request))
             yield* parseSseEvents(response.body)
@@ -215,9 +239,10 @@ export function createFlowGrpcServiceImpl(
             logFlowGrpcFailure('runFlowStream', { flowId }, error)
             throw error
           }
-        })(),
-        options,
-      )
+        }
+        if (!tenantId) return inner()
+        return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, inner)
+      }, options)
     },
   }
 }
