@@ -18,6 +18,7 @@ export const SDK_PUBLISH_PACKAGES = [
   "packages/kb/sdk-client",
   "packages/kb/sdk-console",
   "packages/llm/sdk-console",
+  "packages/agent/sdk-console",
   "packages/agent/sdk-client-assistant",
   "packages/agent/sdk-client-vue",
 ] as const;
