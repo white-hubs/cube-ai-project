@@ -19,6 +19,7 @@
     "test": "bun test --timeout 180000"
   },
   "dependencies": {
+    "@cube-ai/tenant-context": "workspace:*",
     "@cube-ai/contracts": "workspace:*",
     "@cube-ai/flow-core": "workspace:*",
     "@cube-ai/kb-core": "workspace:*",

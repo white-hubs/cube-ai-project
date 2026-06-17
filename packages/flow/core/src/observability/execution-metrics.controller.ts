@@ -1,6 +1,6 @@
 import { ApiOperation, ApiResponse, Controller, GET, Injectable } from '@dangao/bun-server'
 import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context'
 import { getExecutionMetricsSnapshot, getExecutionMetricsRecent } from './execution-metrics'
 
 /**

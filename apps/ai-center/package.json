@@ -12,6 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@cube-ai/tenant-context": "workspace:*",
     "@cube-ai/agent-engine": "workspace:*",
     "@cube-ai/mysql-migration": "workspace:*",
     "@cube-ai/contracts": "workspace:*",

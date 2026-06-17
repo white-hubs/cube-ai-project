@@ -1,5 +1,5 @@
 import type { Context, Middleware, NextFunction } from '@dangao/bun-server';
-import { tenantContextAls } from './access-scope';
+import { tenantContextAls } from '@cube-ai/tenant-context';
 
 function matchesPrefix(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);

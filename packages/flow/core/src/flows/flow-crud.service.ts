@@ -6,7 +6,7 @@ import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-con
 import { getLfComponentDef } from '../langflow/lf-api-all-registry'
 import { normalizeRunBody, type NormalizedRunBody } from '../contracts/cube-run'
 import { applyInputGuardrails } from '../guardrails/guardrails'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context'
 
 /** Keys safe to expose in playground graph summaries (no secrets). */
 export const PLAYGROUND_VISIBLE_CONFIG_KEYS = [

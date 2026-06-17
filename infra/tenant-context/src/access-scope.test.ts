@@ -3,34 +3,34 @@ import { currentTenantId, isGlobalAccessEnabled } from './access-scope'
 import { tenantContextAls } from './tenant-context'
 
 describe('currentTenantId', () => {
-  test('returns null when no tenant context is active', () => {
+  test('空上下文返回 null', () => {
     expect(currentTenantId()).toBeNull()
   })
 
-  test('returns the tenant id inside tenantContextAls.run', () => {
+  test('tenantContextAls.run 内返回正确 tenantId', () => {
     tenantContextAls.run({ tenantId: '42' }, () => {
       expect(currentTenantId()).toBe('42')
     })
   })
 
-  test('trims surrounding whitespace', () => {
+  test('去除首尾空白', () => {
     tenantContextAls.run({ tenantId: '  58197260  ' }, () => {
       expect(currentTenantId()).toBe('58197260')
     })
   })
 
-  test('treats blank tenant id as null', () => {
+  test('纯空白 tenantId 视为 null', () => {
     tenantContextAls.run({ tenantId: '   ' }, () => {
       expect(currentTenantId()).toBeNull()
     })
   })
 
-  test('context does not leak outside run', () => {
+  test('run 结束后上下文不泄漏', () => {
     tenantContextAls.run({ tenantId: '42' }, () => {})
     expect(currentTenantId()).toBeNull()
   })
 
-  test('nested run shadows then restores the outer tenant', () => {
+  test('嵌套 run 内层遮蔽外层，退出后恢复', () => {
     tenantContextAls.run({ tenantId: 'outer' }, () => {
       tenantContextAls.run({ tenantId: 'inner' }, () => {
         expect(currentTenantId()).toBe('inner')
@@ -41,11 +41,11 @@ describe('currentTenantId', () => {
 })
 
 describe('isGlobalAccessEnabled', () => {
-  test('is false without tenant context', () => {
+  test('无租户上下文时为 false', () => {
     expect(isGlobalAccessEnabled()).toBe(false)
   })
 
-  test('is false when bypassTenantIsolation is unset or false', () => {
+  test('bypassTenantIsolation 未设置或为 false 时为 false', () => {
     tenantContextAls.run({ tenantId: '1' }, () => {
       expect(isGlobalAccessEnabled()).toBe(false)
     })
@@ -54,7 +54,7 @@ describe('isGlobalAccessEnabled', () => {
     })
   })
 
-  test('is true only when bypassTenantIsolation === true', () => {
+  test('bypassTenantIsolation === true 时为 true', () => {
     tenantContextAls.run({ tenantId: '1', bypassTenantIsolation: true }, () => {
       expect(isGlobalAccessEnabled()).toBe(true)
     })

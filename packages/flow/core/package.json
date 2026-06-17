@@ -25,6 +25,7 @@
     "sync-components": "bun run scripts/sync-components.ts --from-file data/langflow-api-all.json --out generated/cube-component-catalog.json"
   },
   "dependencies": {
+    "@cube-ai/tenant-context": "workspace:*",
     "@cube-ai/contracts": "workspace:*",
     "@cube-ai/llm-core": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",

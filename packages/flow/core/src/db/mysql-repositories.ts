@@ -1,6 +1,6 @@
 import { Injectable } from '@dangao/bun-server'
 import { SnowflakeUtil } from '@cube-ai/ai-center/platform/server-base'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context'
 import {
   type AuditColumns,
   type CustomComponentTemplateRow,

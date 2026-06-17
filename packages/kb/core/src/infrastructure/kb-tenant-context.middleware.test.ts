@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { tenantContextAls } from './access-scope';
+import { tenantContextAls } from '@cube-ai/tenant-context';
 import { createKbTenantContextMiddleware } from './kb-tenant-context.middleware';
 
 function createCtx(path: string, headers: Record<string, string>) {

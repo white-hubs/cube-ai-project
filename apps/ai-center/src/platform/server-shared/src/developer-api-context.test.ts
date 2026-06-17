@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { developerApiAls, type DeveloperApiContext } from './developer-api-context'
+import { developerApiAls, type DeveloperApiContext } from '@cube-ai/tenant-context'
 
 describe('developerApiAls', () => {
   test('has no store outside run', () => {

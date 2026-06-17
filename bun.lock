@@ -28,6 +28,7 @@
         "@cube-ai/llm-core": "workspace:*",
         "@cube-ai/mysql-migration": "workspace:*",
         "@cube-ai/platform-adapter-ghcloud": "workspace:*",
+        "@cube-ai/tenant-context": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "mysql2": "catalog:",
         "reflect-metadata": "catalog:",
@@ -113,6 +114,14 @@
       },
       "devDependencies": {
         "@cube-ai/test-infra": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "infra/tenant-context": {
+      "name": "@cube-ai/tenant-context",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -280,6 +289,7 @@
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "@cube-ai/llm-core": "workspace:*",
+        "@cube-ai/tenant-context": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "@modelcontextprotocol/sdk": "catalog:",
         "@opentelemetry/api": "catalog:",
@@ -317,6 +327,7 @@
         "@cube-ai/flow-core": "workspace:*",
         "@cube-ai/kb-core": "workspace:*",
         "@cube-ai/llm-core": "workspace:*",
+        "@cube-ai/tenant-context": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "@opentelemetry/api": "catalog:",
         "mysql2": "catalog:",
@@ -335,6 +346,7 @@
         "@aws-sdk/client-s3": "catalog:",
         "@cube-ai/contracts": "workspace:*",
         "@cube-ai/embedding": "workspace:*",
+        "@cube-ai/tenant-context": "workspace:*",
         "@cube-ai/vector-qdrant": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "@qdrant/js-client-rest": "catalog:",
@@ -641,6 +653,8 @@
     "@cube-ai/mysql-migration": ["@cube-ai/mysql-migration@workspace:infra/mysql-migration"],
 
     "@cube-ai/platform-adapter-ghcloud": ["@cube-ai/platform-adapter-ghcloud@workspace:packages/platform-adapters/ghcloud"],
+
+    "@cube-ai/tenant-context": ["@cube-ai/tenant-context@workspace:infra/tenant-context"],
 
     "@cube-ai/test-infra": ["@cube-ai/test-infra@workspace:infra/test-infra"],
 

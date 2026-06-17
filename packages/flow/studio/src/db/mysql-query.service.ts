@@ -1,5 +1,5 @@
 import { loadAppConfig, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
-import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId } from '@cube-ai/tenant-context'
 import mysql, { type Pool } from 'mysql2/promise'
 
 /** Minimal query surface backing the flow_studio_* repositories (mirrors flow-core MysqlQueryService). */

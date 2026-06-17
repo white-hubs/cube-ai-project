@@ -1,5 +1,5 @@
 import { Injectable } from '@dangao/bun-server'
-import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId } from '@cube-ai/tenant-context'
 import type { FlowStudioComponentRow } from '../db/rows'
 import { FlowStudioComponentRepository } from '../db/component.repository'
 

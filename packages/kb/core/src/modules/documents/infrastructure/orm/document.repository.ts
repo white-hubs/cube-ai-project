@@ -7,7 +7,7 @@ import {
   Repository,
   type Logger,
 } from '@dangao/bun-server'
-import { currentTenantId, isGlobalAccessEnabled } from '@/infrastructure/access-scope'
+import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context'
 import { resolveKbRecordId } from '@/infrastructure/kb-record-id'
 import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
 import { DocumentEntity } from './document.entity'

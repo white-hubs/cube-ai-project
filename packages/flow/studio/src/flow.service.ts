@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@dangao/bun-server'
-import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId } from '@cube-ai/tenant-context'
 import type { CubeFlowGraph } from '@cube-ai/flow-core'
 import {
   TenantLlmModelRepository,

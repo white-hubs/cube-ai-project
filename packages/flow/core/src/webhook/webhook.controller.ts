@@ -12,7 +12,7 @@ import {
   POST,
 } from '@dangao/bun-server'
 import { APP_CONFIG_TOKEN, SnowflakeUtil, type AppConfig } from '@cube-ai/ai-center/platform/server-base'
-import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
+import { currentTenantId } from '@cube-ai/tenant-context'
 import { FLOW_REPOSITORY_TOKEN, type FlowRepository } from '../db/repository-contracts'
 import { FlowsService } from '../flows/flows.service'
 import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
