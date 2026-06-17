@@ -78,7 +78,7 @@ async function jsonBody(ctx: Context): Promise<Record<string, unknown>> {
 // 覆写挂载到 `/agent/console`（apps/ai-center/src/assembler/domain-prefix-mounts.ts）。
 @Controller('')
 export class DescriptorManagementController {
-  constructor(private readonly svc: DescriptorManagementService) {}
+  constructor(protected readonly svc: DescriptorManagementService) {}
 
   // ─── agent ────────────────────────────────────────────────────────────────
   @POST('/agents')
@@ -283,6 +283,17 @@ function proposeSseResponse(events: AsyncIterable<ProposeStreamEvent>): Response
       'X-Accel-Buffering': 'no',
     },
   });
+}
+
+/**
+ * Legacy alias for callers still on pre-ADR-0008 paths (`/agent/agents` etc.).
+ * Canonical management face remains `/agent/console/*` (ADR-0016).
+ */
+@Controller('')
+export class DescriptorManagementLegacyController extends DescriptorManagementController {
+  constructor(svc: DescriptorManagementService) {
+    super(svc);
+  }
 }
 
 function requireId(ctx: Context): string {

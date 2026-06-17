@@ -10,10 +10,13 @@
 import { Module } from '@dangao/bun-server';
 import { descriptorManagementServiceProvider } from './descriptor-management.provider';
 import { DescriptorManagementService } from './descriptor-management.service';
-import { DescriptorManagementController } from './descriptor-management.controller';
+import {
+  DescriptorManagementController,
+  DescriptorManagementLegacyController,
+} from './descriptor-management.controller';
 
 @Module({
-  controllers: [DescriptorManagementController],
+  controllers: [DescriptorManagementController, DescriptorManagementLegacyController],
   providers: [descriptorManagementServiceProvider],
   exports: [DescriptorManagementService],
 })

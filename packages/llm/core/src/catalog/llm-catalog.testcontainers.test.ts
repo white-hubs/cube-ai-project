@@ -187,6 +187,18 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     await stopTrackedTestcontainersIfAny();
   });
 
+  test('消费面 MysqlLlmCatalogPort 首访空租户也会自动 provisioning', async () => {
+    const pool = makePool(stackHolder.current!.mysqlUrl);
+    const port = new MysqlLlmCatalogPort(pool);
+    const freshTenant = TENANT + 99;
+
+    const summaries = await port.listProviders(freshTenant, new AbortController().signal);
+    expect(summaries.length).toBe(1);
+    expect(summaries[0]?.providerCode).toBe('openai-official');
+
+    await endPool(pool);
+  });
+
   test('首访 provisioning 自动同步内置供应商 + 模型副本', async () => {
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const service = buildService(pool, () => TENANT);

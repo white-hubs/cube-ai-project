@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { createLlmConsoleClient } from './client';
 
 describe('LlmConsoleClient', () => {
-  test('listProviders GET /llm/providers', async () => {
+  test('listProviders GET /llm/console/providers', async () => {
     let capturedUrl = '';
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
@@ -28,7 +28,7 @@ describe('LlmConsoleClient', () => {
     expect(providers[0]?.providerCode).toBe('openai');
   });
 
-  test('listProviders preserves admin fields from GET /llm/providers', async () => {
+  test('listProviders preserves admin fields from GET /llm/console/providers', async () => {
     const fetchImpl = async (_url: string, init?: RequestInit): Promise<Response> => {
       expect(init?.method).toBe('GET');
       return Response.json([
@@ -66,7 +66,7 @@ describe('LlmConsoleClient', () => {
     });
   });
 
-  test('listEndpointTypes GET /llm/endpoint-types', async () => {
+  test('listEndpointTypes GET /llm/console/endpoint-types', async () => {
     let capturedUrl = '';
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;

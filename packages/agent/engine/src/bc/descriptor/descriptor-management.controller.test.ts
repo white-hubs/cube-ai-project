@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { describe, test, expect, mock } from 'bun:test';
 import type { Context } from '@dangao/bun-server';
 import { contextStore } from '@dangao/bun-server';
-import { DescriptorManagementController } from './descriptor-management.controller';
+import { DescriptorManagementController, DescriptorManagementLegacyController } from './descriptor-management.controller';
 import type { DescriptorManagementService } from './descriptor-management.service';
 
 function baseCtx(
@@ -95,6 +95,15 @@ describe('DescriptorManagementController — REST wiring', () => {
     const res = await run(ctx, () => ctl.createAgent());
     expect(svc.create).toHaveBeenCalledWith(7, 'agent', { name: 'support', content: { prompt: 'hi' } }, 'alice');
     expect((res as { id: string }).id).toBe('agt_1');
+  });
+
+  test('DescriptorManagementLegacyController delegates GET /agent/agents to same list handler', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementLegacyController(svc);
+    const ctx = baseCtx({ tenant: 58197260 });
+    const res = await run(ctx, () => ctl.listAgents());
+    expect(svc.list).toHaveBeenCalledWith(58197260, 'agent');
+    expect(res).toEqual({ items: [{ id: 'agt_1' }, { id: 'agt_2' }] });
   });
 
   test('GET /agent/console/skills → { items } from service.list(tenant, "skill")', async () => {

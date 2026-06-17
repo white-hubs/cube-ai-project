@@ -1,8 +1,8 @@
 {
   "name": "@cube-ai/agent-sdk-console",
-  "version": "0.0.1-alpha.4",
+  "version": "0.0.1-alpha.5",
   "type": "module",
-  "description": "Agent management console — /agent agents·skills·rules against ai-center.",
+  "description": "Agent management console — /agent/console agents·skills·rules against ai-center.",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",

@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { isGlobalModule } from '@dangao/bun-server';
+import { tenantContextAls } from '@cube-ai/tenant-context';
+import {
+  createEnvFallbackTenantResolver,
+  parseTenantId,
+} from '../../../../packages/llm/core/src/http/request-tenant';
 import { AiCenterDomainHttpModule } from './ai-center-domain-http.module';
 import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
 
@@ -16,5 +21,14 @@ describe('ai-center http modules (offline smoke)', () => {
   test('AiCenterKbHttpModule is importable and marked @Global', () => {
     expect(typeof AiCenterKbHttpModule).toBe('function');
     expect(isGlobalModule(AiCenterKbHttpModule)).toBe(true);
+  });
+});
+
+describe('ai-center LLM tenant resolver wiring', () => {
+  test('resolveActive reads tenantContextAls tenant header (ghcloud execution-auth path)', () => {
+    const resolve = createEnvFallbackTenantResolver(() => parseTenantId('58197260'));
+    tenantContextAls.run({ tenantId: '58197260' }, () => {
+      expect(resolve()).toBe(58197260);
+    });
   });
 });

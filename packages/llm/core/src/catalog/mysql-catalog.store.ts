@@ -11,6 +11,7 @@ import {
   TenantLlmProviderRepository,
   type CatalogMysqlPool,
 } from './repositories';
+import { createMysqlCatalogProvisioning } from './create-mysql-catalog-provisioning';
 import { splitModelTypes } from './schema/llm-schema';
 
 function asEndpointType(value: string | null | undefined): LlmEndpointType | null {
@@ -47,7 +48,13 @@ export class MysqlLlmCatalogPort implements LlmCatalogPort {
   async listProviders(tenant: number, _signal: AbortSignal): Promise<LlmProviderSummary[]> {
     await this.ensure();
     const providerRepo = new TenantLlmProviderRepository(this.pool, () => tenant);
-    const rows = await providerRepo.listByTenant();
+    let rows = await providerRepo.listByTenant();
+    if (rows.length === 0) {
+      // 与管理面 LlmCatalogService.listProviders 对齐：租户首访消费面时也自动
+      // 从系统目录同步副本，避免 GET /llm/providers 在从未打开管理页时永远空列表。
+      await createMysqlCatalogProvisioning(this.pool, () => tenant).syncTenantCatalog(tenant);
+      rows = await providerRepo.listByTenant();
+    }
     return rows.map((row) => ({
       id: String(row.id),
       providerCode: row.provider_code,

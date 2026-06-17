@@ -9,7 +9,10 @@ import { LocalFileController } from '../../../../packages/agent/engine/src/bc/fi
 import { DescriptorMcpController } from '../../../../packages/agent/engine/src/bc/descriptor-mcp/descriptor-mcp.controller';
 
 // ── Agent management ─────────────────────────────────────────────────────────
-import { DescriptorManagementController } from '../../../../packages/agent/engine/src/bc/descriptor/descriptor-management.controller';
+import {
+  DescriptorManagementController,
+  DescriptorManagementLegacyController,
+} from '../../../../packages/agent/engine/src/bc/descriptor/descriptor-management.controller';
 
 // ── LLM consumption ──────────────────────────────────────────────────────────
 import { LlmProvidersController } from '../../../../packages/llm/core/src/http/llm-providers.controller';
@@ -64,8 +67,9 @@ export const DOMAIN_PREFIX_MOUNTS: DomainPrefixMount[] = [
   { controller: LocalFileController, base: '/agent/files' },
   { controller: DescriptorMcpController, base: '/agent/mcp/descriptor' },
 
-  // agent management
+  // agent management (canonical /agent/console/*; legacy /agent/{kind} for upstream callers)
   { controller: DescriptorManagementController, base: '/agent/console' },
+  { controller: DescriptorManagementLegacyController, base: '/agent' },
 
   // llm consumption
   { controller: LlmProvidersController, base: '/llm/providers' },

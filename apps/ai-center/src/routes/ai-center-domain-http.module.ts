@@ -6,7 +6,9 @@ import { LlmCatalogAdminHttpModule } from '@cube-ai/llm-core/http/admin';
 import {
   createEnvFallbackTenantResolver,
   LLM_HTTP_TENANT_RESOLVER_TOKEN,
+  parseTenantId,
 } from '@cube-ai/llm-core/http/tenant';
+import { currentTenantId } from '@cube-ai/tenant-context';
 import { FlowStudioHttpModule } from '@cube-ai/flow-studio/http';
 import { TenantContextService } from '../../../../packages/agent/engine/src/infra/tenant-guard/tenant-context.service';
 import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
@@ -24,7 +26,13 @@ import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
         } catch {
           tenantCtx = undefined;
         }
-        return createEnvFallbackTenantResolver(() => tenantCtx?.current());
+        // ghcloud execution-auth injects tenant via tenantContextAls (tenant header);
+        // agent OAuth2 subject uses TenantContextService — prefer ALS, then subject scope.
+        return createEnvFallbackTenantResolver(() => {
+          const fromAls = parseTenantId(currentTenantId());
+          if (fromAls !== undefined) return fromAls;
+          return tenantCtx?.current();
+        });
       },
     },
   ],

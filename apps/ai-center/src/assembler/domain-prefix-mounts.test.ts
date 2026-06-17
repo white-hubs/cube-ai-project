@@ -39,8 +39,9 @@ describe('applyDomainPrefixMounts', () => {
     expect(bases).toContain('/flow/run');
     expect(bases).toContain('/kb/search');
 
-    // management axis (/console)
+    // management axis (/console) + legacy alias (/agent/{kind})
     expect(bases).toContain('/agent/console');
+    expect(bases).toContain('/agent');
     expect(bases).toContain('/llm/console');
     expect(bases).toContain('/flow/console/flows');
     expect(bases).toContain('/kb/console/documents');
