@@ -5,6 +5,11 @@ import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
 import { createFlowGrpcServiceImpl } from './flow-grpc.service'
 import type { FlowGrpcBackend } from './flow-grpc-backend'
 
+interface CapturedLog {
+  fields: Record<string, unknown>
+  msg: string
+}
+
 function makeHandlerContext(tenant: string): HandlerContext {
   return {
     requestHeader: new Headers({ tenant }),
@@ -83,6 +88,163 @@ describe('createFlowGrpcServiceImpl — tenant context', () => {
     )
 
     expect(capturedTenantId).toBe('99999')
+  })
+
+  test('runFlow logs grpc ingress start without request body fields', async () => {
+    const logs: CapturedLog[] = []
+    const backend: FlowGrpcBackend = {
+      async uploadFlowFile(_flowId, _file) {
+        return {}
+      },
+      async runFlow(_flowId, _body) {
+        return { raw: { session_id: 'sess-1', outputs: [] } }
+      },
+      async runFlowStream(_flowId, _body) {
+        return new Response(null)
+      },
+    }
+
+    const impl = createFlowGrpcServiceImpl(backend, {
+      logger: {
+        info(fields: Record<string, unknown>, msg: string) {
+          logs.push({ fields, msg })
+        },
+      },
+    })
+
+    await impl.runFlow!(
+      {
+        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest' as never,
+        flowId: '854901549002915840',
+        input: 'sensitive prompt',
+        variables: {
+          secret: 'do-not-log',
+        },
+        images: [],
+      },
+      makeHandlerContext('99999'),
+    )
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toEqual({
+      msg: 'flow grpc ingress start',
+      fields: {
+        event: 'flow.grpc.ingress.start',
+        method: 'runFlow',
+        flowId: '854901549002915840',
+        tenantId: '99999',
+        peer: '127.0.0.1',
+      },
+    })
+    expect(logs[0]?.fields).not.toHaveProperty('input')
+    expect(logs[0]?.fields).not.toHaveProperty('variables')
+  })
+
+  test('uploadFlowImage logs grpc ingress start without image content', async () => {
+    const logs: CapturedLog[] = []
+    const backend: FlowGrpcBackend = {
+      async uploadFlowFile(_flowId, _file) {
+        return { id: 'img-id', name: 'secret.png', file_path: '/tmp/secret.png' }
+      },
+      async runFlow(_flowId, _body) {
+        return {}
+      },
+      async runFlowStream(_flowId, _body) {
+        return new Response(null)
+      },
+    }
+
+    const impl = createFlowGrpcServiceImpl(backend, {
+      logger: {
+        info(fields: Record<string, unknown>, msg: string) {
+          logs.push({ fields, msg })
+        },
+      },
+    })
+
+    await impl.uploadFlowImage!(
+      {
+        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageRequest' as never,
+        flowId: '854901549002915840',
+        image: {
+          $typeName: 'guhecloud.cube.base.ai_application.flow.v1.FlowImageUploadPart' as never,
+          content: new Uint8Array([115, 101, 99, 114, 101, 116]),
+          filename: 'secret.png',
+          contentType: 'image/png',
+        },
+      },
+      makeHandlerContext('99999'),
+    )
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toEqual({
+      msg: 'flow grpc ingress start',
+      fields: {
+        event: 'flow.grpc.ingress.start',
+        method: 'uploadFlowImage',
+        flowId: '854901549002915840',
+        tenantId: '99999',
+        peer: '127.0.0.1',
+      },
+    })
+    expect(logs[0]?.fields).not.toHaveProperty('image')
+    expect(logs[0]?.fields).not.toHaveProperty('content')
+  })
+
+  test('runFlowStream logs grpc ingress start without request body fields', async () => {
+    const logs: CapturedLog[] = []
+    const backend: FlowGrpcBackend = {
+      async uploadFlowFile(_flowId, _file) {
+        return {}
+      },
+      async runFlow(_flowId, _body) {
+        return {}
+      },
+      async runFlowStream(_flowId, _body) {
+        return new Response('event: end\ndata: [DONE]\n\n', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    }
+
+    const impl = createFlowGrpcServiceImpl(backend, {
+      logger: {
+        info(fields: Record<string, unknown>, msg: string) {
+          logs.push({ fields, msg })
+        },
+      },
+    })
+
+    const stream = impl.runFlowStream!(
+      {
+        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest' as never,
+        flowId: '854901549002915840',
+        input: 'sensitive prompt',
+        variables: {
+          secret: 'do-not-log',
+        },
+        images: [],
+      },
+      makeHandlerContext('99999'),
+    )
+
+    for await (const _item of stream) {
+      // consume the stream to exercise the Connect streaming handler path
+    }
+
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toEqual({
+      msg: 'flow grpc ingress start',
+      fields: {
+        event: 'flow.grpc.ingress.start',
+        method: 'runFlowStream',
+        flowId: '854901549002915840',
+        tenantId: '99999',
+        peer: '127.0.0.1',
+      },
+    })
+    expect(logs[0]?.fields).not.toHaveProperty('input')
+    expect(logs[0]?.fields).not.toHaveProperty('variables')
   })
 
   test('uploadFlowImage without tenant header fails before invoking the backend', async () => {

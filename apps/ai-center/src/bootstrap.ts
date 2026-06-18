@@ -197,6 +197,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
     hostname,
     flowService: grpcBackend,
     internalInvokeSecretKey: flowConfig.internalInvokeSecretKey,
+    logger: loggerFactory.getLogger('flow.grpc.server'),
   });
   process.stdout.write(
     JSON.stringify({ msg: 'ai-center.grpc.listening', port: grpcServer.port, hostname }) + '\n',

@@ -2,6 +2,7 @@ import * as http2 from 'node:http2'
 import { connectNodeAdapter } from '@connectrpc/connect-node'
 import { FlowServiceGrpc } from '@cube-ai/platform-adapter-ghcloud'
 import { createFlowGrpcServiceImpl } from './flow-grpc.service'
+import type { FlowGrpcIngressLogger } from './flow-grpc.service'
 import type { FlowGrpcBackend } from './flow-grpc-backend'
 
 export interface StartFlowGrpcServerOptions {
@@ -9,6 +10,7 @@ export interface StartFlowGrpcServerOptions {
   hostname?: string
   flowService: FlowGrpcBackend
   internalInvokeSecretKey?: string | null
+  logger?: FlowGrpcIngressLogger
 }
 
 export interface StartedFlowGrpcServer {
@@ -25,6 +27,7 @@ export async function startFlowGrpcServer(
     routes(router) {
       router.service(FlowServiceGrpc, createFlowGrpcServiceImpl(options.flowService, {
         internalInvokeSecretKey: options.internalInvokeSecretKey,
+        logger: options.logger,
       }))
     },
   })

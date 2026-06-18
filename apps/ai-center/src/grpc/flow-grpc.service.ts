@@ -19,6 +19,10 @@ import type { FlowGrpcBackend, FlowRunBody, FlowUploadResultLike } from './flow-
 
 const FLOW_GRPC_LOG_PREFIX = '[FlowGrpc]'
 
+export interface FlowGrpcIngressLogger {
+  info(fields: Record<string, unknown>, msg: string): void
+}
+
 /**
  * 从 gRPC/Connect 请求头中提取 tenant id（纯数字字符串），与 HTTP 侧 createSessionContextMiddleware 对齐。
  * gRPC 入口必须显式携带 tenant，避免请求落入无租户上下文。
@@ -41,6 +45,31 @@ function withTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
 
 export interface FlowGrpcServiceImplOptions {
   internalInvokeSecretKey?: string | null
+  logger?: FlowGrpcIngressLogger
+}
+
+function peerAddr(handlerContext: HandlerContext): string {
+  const peer = (handlerContext as unknown as { peer?: { addr?: unknown } }).peer
+  return typeof peer?.addr === 'string' ? peer.addr : ''
+}
+
+function logFlowGrpcStart(
+  logger: FlowGrpcIngressLogger | undefined,
+  method: string,
+  flowId: string,
+  tenantId: string,
+  handlerContext: HandlerContext,
+): void {
+  logger?.info(
+    {
+      event: 'flow.grpc.ingress.start',
+      method,
+      flowId,
+      tenantId,
+      peer: peerAddr(handlerContext),
+    },
+    'flow grpc ingress start',
+  )
 }
 
 function logFlowGrpcFailure(phase: string, detail: Record<string, unknown>, error: unknown): void {
@@ -199,7 +228,8 @@ export function createFlowGrpcServiceImpl(
       handlerContext: HandlerContext,
     ): Promise<UploadFlowImageResponse> {
       const flowId = String(request.flowId ?? '').trim()
-	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      logFlowGrpcStart(options.logger, 'uploadFlowImage', flowId, tenantId, handlerContext)
       try {
         return await runWithConnectHandlerSession(handlerContext, () =>
           withTenant(tenantId, async () => {
@@ -216,12 +246,13 @@ export function createFlowGrpcServiceImpl(
           }), options)
       } catch (error) {
         logFlowGrpcFailure('uploadFlowImage', { flowId }, error)
-	        throw toConnectError(error)
+        throw toConnectError(error)
       }
     },
     async runFlow(request: RunFlowRequest, handlerContext: HandlerContext): Promise<RunFlowResponse> {
       const flowId = String(request.flowId ?? '').trim()
-	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      logFlowGrpcStart(options.logger, 'runFlow', flowId, tenantId, handlerContext)
       try {
         return await runWithConnectHandlerSession(handlerContext, () =>
           withTenant(tenantId, async () => {
@@ -235,12 +266,13 @@ export function createFlowGrpcServiceImpl(
           }), options)
       } catch (error) {
         logFlowGrpcFailure('runFlow', { flowId }, error)
-	        throw toConnectError(error)
+        throw toConnectError(error)
       }
     },
     runFlowStream(request: RunFlowRequest, handlerContext: HandlerContext): AsyncIterable<RunFlowStreamEvent> {
       const flowId = String(request.flowId ?? '').trim()
-	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
+      logFlowGrpcStart(options.logger, 'runFlowStream', flowId, tenantId, handlerContext)
       return streamWithConnectHandlerSession(handlerContext, () => {
         async function* inner(): AsyncIterable<RunFlowStreamEvent> {
           try {
@@ -248,10 +280,10 @@ export function createFlowGrpcServiceImpl(
             yield* parseSseEvents(response.body)
           } catch (error) {
             logFlowGrpcFailure('runFlowStream', { flowId }, error)
-	            throw toConnectError(error)
+            throw toConnectError(error)
           }
         }
-	        return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, inner)
+        return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, inner)
       }, options)
     },
   }
