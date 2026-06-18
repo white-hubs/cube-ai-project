@@ -41,6 +41,7 @@ import {
   UsageModule,
 } from '../../../../packages/agent/engine/src/bc';
 import { FlowModule, FlowPlatformPortsModule } from '@cube-ai/flow-core';
+import { FlowStudioHttpModule } from '@cube-ai/flow-studio/http';
 import { AiCenterNacosRegistrationModule } from '../nacos/nacos-registration.wiring';
 import { AiCenterDomainHttpModule } from '../routes/ai-center-domain-http.module';
 import { applyDomainPrefixMounts } from './domain-prefix-mounts';
@@ -95,6 +96,7 @@ export class AiCenterAssembler {
       TachuExecutionBackendModule,
       AiCenterPlatformPortsModule,
       FlowModule,
+	      FlowStudioHttpModule,
       AiCenterDomainHttpModule,
       DescriptorModule,
       AuthModule,

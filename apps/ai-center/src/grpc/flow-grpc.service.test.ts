@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
-import type { HandlerContext } from '@connectrpc/connect'
+import { Code, ConnectError, type HandlerContext } from '@connectrpc/connect'
+import { BadRequestException, NotFoundException } from '@dangao/bun-server'
 import { currentTenantId } from '@cube-ai/ai-center/platform/server-shared'
 import { createFlowGrpcServiceImpl } from './flow-grpc.service'
 import type { FlowGrpcBackend } from './flow-grpc-backend'
@@ -84,12 +85,12 @@ describe('createFlowGrpcServiceImpl — tenant context', () => {
     expect(capturedTenantId).toBe('99999')
   })
 
-  test('uploadFlowImage without tenant header — currentTenantId() returns null', async () => {
-    let capturedTenantId: string | null = 'NOT_SET'
+  test('uploadFlowImage without tenant header fails before invoking the backend', async () => {
+    let backendCalled = false
 
     const backend: FlowGrpcBackend = {
       async uploadFlowFile(_flowId, _file) {
-        capturedTenantId = currentTenantId()
+        backendCalled = true
         return { id: 'img-id', name: 'test.png' }
       },
       async runFlow(_flowId, _body) {
@@ -101,20 +102,80 @@ describe('createFlowGrpcServiceImpl — tenant context', () => {
     }
 
     const impl = createFlowGrpcServiceImpl(backend)
-    await impl.uploadFlowImage!(
-      {
-        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageRequest' as never,
-        flowId: 'flow-1',
-        image: {
-          $typeName: 'guhecloud.cube.base.ai_application.flow.v1.FlowImageUploadPart' as never,
-          content: new Uint8Array([1]),
-          filename: 'x.png',
-          contentType: 'image/png',
+    const promise = impl.uploadFlowImage!(
+        {
+          $typeName: 'guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageRequest' as never,
+          flowId: 'flow-1',
+          image: {
+            $typeName: 'guhecloud.cube.base.ai_application.flow.v1.FlowImageUploadPart' as never,
+            content: new Uint8Array([1]),
+            filename: 'x.png',
+            contentType: 'image/png',
+          },
         },
+        makeHandlerContext(''),
+      )
+
+    await expect(promise).rejects.toBeInstanceOf(ConnectError)
+    await expect(promise).rejects.toHaveProperty('code', Code.InvalidArgument)
+    expect(backendCalled).toBe(false)
+  })
+
+  test('runFlow maps studio not-found errors to Connect NotFound', async () => {
+    const backend: FlowGrpcBackend = {
+      async uploadFlowFile(_flowId, _file) {
+        return {}
       },
-      makeHandlerContext(''),
+      async runFlow(_flowId, _body) {
+        throw new NotFoundException('流程不存在')
+      },
+      async runFlowStream(_flowId, _body) {
+        return new Response(null)
+      },
+    }
+
+    const impl = createFlowGrpcServiceImpl(backend)
+    const promise = impl.runFlow!(
+      {
+        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest' as never,
+        flowId: '854901549002915840',
+        input: 'hello',
+        variables: {},
+        images: [],
+      },
+      makeHandlerContext('12345'),
     )
 
-    expect(capturedTenantId).toBeNull()
+    await expect(promise).rejects.toBeInstanceOf(ConnectError)
+    await expect(promise).rejects.toHaveProperty('code', Code.NotFound)
+  })
+
+  test('runFlow maps studio bad-request errors to Connect InvalidArgument', async () => {
+    const backend: FlowGrpcBackend = {
+      async uploadFlowFile(_flowId, _file) {
+        return {}
+      },
+      async runFlow(_flowId, _body) {
+        throw new BadRequestException('流程尚未成功编译，无法执行')
+      },
+      async runFlowStream(_flowId, _body) {
+        return new Response(null)
+      },
+    }
+
+    const impl = createFlowGrpcServiceImpl(backend)
+    const promise = impl.runFlow!(
+      {
+        $typeName: 'guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest' as never,
+        flowId: '854901549002915840',
+        input: 'hello',
+        variables: {},
+        images: [],
+      },
+      makeHandlerContext('12345'),
+    )
+
+    await expect(promise).rejects.toBeInstanceOf(ConnectError)
+    await expect(promise).rejects.toHaveProperty('code', Code.InvalidArgument)
   })
 })

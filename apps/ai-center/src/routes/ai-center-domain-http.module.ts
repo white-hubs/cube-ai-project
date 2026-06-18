@@ -9,13 +9,12 @@ import {
   parseTenantId,
 } from '@cube-ai/llm-core/http/tenant';
 import { currentTenantId } from '@cube-ai/tenant-context';
-import { FlowStudioHttpModule } from '@cube-ai/flow-studio/http';
 import { TenantContextService } from '../../../../packages/agent/engine/src/infra/tenant-guard/tenant-context.service';
 import { AiCenterKbHttpModule } from './ai-center-kb-http.module';
 
 @Global()
 @Module({
-  imports: [LlmCatalogModule, LlmCatalogHttpModule, LlmCatalogAdminHttpModule, DescriptorManagementHttpModule, AiCenterKbHttpModule, FlowStudioHttpModule],
+  imports: [LlmCatalogModule, LlmCatalogHttpModule, LlmCatalogAdminHttpModule, DescriptorManagementHttpModule, AiCenterKbHttpModule],
   providers: [
     {
       provide: LLM_HTTP_TENANT_RESOLVER_TOKEN,

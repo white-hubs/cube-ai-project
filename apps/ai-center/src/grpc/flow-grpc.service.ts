@@ -21,19 +21,21 @@ const FLOW_GRPC_LOG_PREFIX = '[FlowGrpc]'
 
 /**
  * 从 gRPC/Connect 请求头中提取 tenant id（纯数字字符串），与 HTTP 侧 createSessionContextMiddleware 对齐。
- * 返回 null 表示无 tenant 头或格式不符，由上层决定是否报错。
+ * gRPC 入口必须显式携带 tenant，避免请求落入无租户上下文。
  */
-function resolveTenantFromGrpcHeaders(headers: Headers): string | null {
+function requireTenantFromGrpcHeaders(headers: Headers): string {
   const raw = headers.get('tenant')?.trim() ?? ''
-  return /^\d+$/.test(raw) ? raw : null
+  if (!/^\d+$/.test(raw)) {
+    throw new ConnectError('tenant header is required', Code.InvalidArgument)
+  }
+  return raw
 }
 
 /**
  * 在 tenantContextAls 上下文中执行 fn（有 tenantId 时），保持与 HTTP 中间件一致的租户隔离语义。
  * gRPC 路径不经过 HTTP 中间件，需在 handler 层手动注入。
  */
-function withTenant<T>(tenantId: string | null, fn: () => Promise<T>): Promise<T> {
-  if (!tenantId) return fn()
+function withTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
   return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, fn)
 }
 
@@ -47,6 +49,15 @@ function logFlowGrpcFailure(phase: string, detail: Record<string, unknown>, erro
       ? { message: error.message, stack: error.stack, cause: 'cause' in error ? (error as Error & { cause?: unknown }).cause : undefined }
       : { thrown: error }
   console.error(FLOW_GRPC_LOG_PREFIX, phase, 'failed', { ...detail, ...base })
+}
+
+function toConnectError(error: unknown): unknown {
+  if (error instanceof ConnectError) return error
+  const message = error instanceof Error ? error.message : String(error)
+  const status = (error as { status?: unknown } | null)?.status
+  if (status === 400) return new ConnectError(message, Code.InvalidArgument)
+  if (status === 404) return new ConnectError(message, Code.NotFound)
+  return error
 }
 
 function stringifyOrEmpty(value: unknown): string {
@@ -188,7 +199,7 @@ export function createFlowGrpcServiceImpl(
       handlerContext: HandlerContext,
     ): Promise<UploadFlowImageResponse> {
       const flowId = String(request.flowId ?? '').trim()
-      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
+	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
       try {
         return await runWithConnectHandlerSession(handlerContext, () =>
           withTenant(tenantId, async () => {
@@ -205,12 +216,12 @@ export function createFlowGrpcServiceImpl(
           }), options)
       } catch (error) {
         logFlowGrpcFailure('uploadFlowImage', { flowId }, error)
-        throw error
+	        throw toConnectError(error)
       }
     },
     async runFlow(request: RunFlowRequest, handlerContext: HandlerContext): Promise<RunFlowResponse> {
       const flowId = String(request.flowId ?? '').trim()
-      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
+	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
       try {
         return await runWithConnectHandlerSession(handlerContext, () =>
           withTenant(tenantId, async () => {
@@ -224,12 +235,12 @@ export function createFlowGrpcServiceImpl(
           }), options)
       } catch (error) {
         logFlowGrpcFailure('runFlow', { flowId }, error)
-        throw error
+	        throw toConnectError(error)
       }
     },
     runFlowStream(request: RunFlowRequest, handlerContext: HandlerContext): AsyncIterable<RunFlowStreamEvent> {
       const flowId = String(request.flowId ?? '').trim()
-      const tenantId = resolveTenantFromGrpcHeaders(handlerContext.requestHeader)
+	      const tenantId = requireTenantFromGrpcHeaders(handlerContext.requestHeader)
       return streamWithConnectHandlerSession(handlerContext, () => {
         async function* inner(): AsyncIterable<RunFlowStreamEvent> {
           try {
@@ -237,11 +248,10 @@ export function createFlowGrpcServiceImpl(
             yield* parseSseEvents(response.body)
           } catch (error) {
             logFlowGrpcFailure('runFlowStream', { flowId }, error)
-            throw error
+	            throw toConnectError(error)
           }
         }
-        if (!tenantId) return inner()
-        return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, inner)
+	        return tenantContextAls.run({ tenantId, bypassTenantIsolation: false }, inner)
       }, options)
     },
   }

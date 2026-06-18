@@ -35,9 +35,9 @@ import { RedisRateLimiter } from '../../../packages/agent/engine/src/infra/rate-
 import { createRateLimitMiddleware } from '../../../packages/agent/engine/src/infra/rate-limit/rate-limit.middleware';
 import { registerLifecycleHooks } from '../../../packages/agent/engine/src/infra/lifecycle/lifecycle-registrations';
 import { ShutdownRegistry } from '../../../packages/agent/engine/src/infra/lifecycle/shutdown-registry';
-import { FlowsService, FlowFilesService } from '@cube-ai/flow-core';
+import { FlowService } from '@cube-ai/flow-studio';
 import { startFlowGrpcServer, type StartedFlowGrpcServer } from './grpc/flow-grpc-server';
-import type { FlowGrpcBackend } from './grpc/flow-grpc-backend';
+import { createStudioFlowGrpcBackend } from './grpc/studio-flow-grpc-backend';
 import { AiCenterAssembler } from './assembler/ai-center-assembler';
 
 type DiContainer = { resolve: (token: unknown) => unknown };
@@ -186,15 +186,8 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   await app.listen(port, hostname);
 
   // ── Flow gRPC server ────────────────────────────────────────────────────
-  const flows = container.resolve(FlowsService) as FlowsService;
-  const flowFiles = container.resolve(FlowFilesService) as FlowFilesService;
-  const grpcBackend: FlowGrpcBackend = {
-    uploadFlowFile: (flowId, file) =>
-      flowFiles.uploadFlowFile(flowId, file) as Promise<Awaited<ReturnType<FlowGrpcBackend['uploadFlowFile']>>>,
-    runFlow: (flowId, body) =>
-      flows.run(flowId, body) as Promise<{ raw?: Record<string, unknown> }>,
-    runFlowStream: (flowId, body) => flows.runStream(flowId, body),
-  };
+  const studioFlowService = container.resolve(FlowService) as FlowService;
+  const grpcBackend = createStudioFlowGrpcBackend(studioFlowService);
 
   const grpcPort = Number(
     Bun.env.AI_CENTER_GRPC_PORT ?? process.env.AI_CENTER_GRPC_PORT ?? flowConfig.grpcPort ?? 3110,
