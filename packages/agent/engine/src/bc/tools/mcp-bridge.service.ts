@@ -25,6 +25,8 @@ export interface McpServerConfig {
    * 只读公开检索类 MCP 建议设为 'NEVER' 以免逐次授权等待超时。缺省回退到内置名单 / 'ON_FIRST_USE'。
    */
   consent?: 'NEVER' | 'ON_FIRST_USE';
+  /** Required MCP servers affect readiness when discovery fails; default false. */
+  required?: boolean;
   enabled:  boolean;
 }
 
@@ -811,6 +813,59 @@ export class McpBridgeService {
     );
   }
 
+  async configuredServers(): Promise<Array<[string, McpServerConfig]>> {
+    await this.init();
+    return Object.entries(this.config?.mcpServers ?? {});
+  }
+
+  async listToolsForServer(serverName: string): Promise<ToolDescriptor[]> {
+    await this.init();
+    const srv = this.cfgOrThrow(serverName);
+    if (srv.type !== 'stdio' && srv.type !== 'sse' && srv.type !== 'http') return [];
+    const sess = await this.sessionFor(serverName);
+    const tools = await sess.toolsList();
+    const out: ToolDescriptor[] = [];
+    for (const t of tools) {
+      const name = `mcp.${serverName}.${t.name}`;
+      const rawInputSchema =
+        typeof t.inputSchema === 'object' && t.inputSchema !== null
+          ? (t.inputSchema as Record<string, unknown>)
+          : { type: 'object', properties: {} };
+      const guided = augmentWebSearchMcpToolDescriptor({
+        serverName,
+        mcpToolName: t.name,
+        description: t.description ?? '',
+        inputSchema: rawInputSchema,
+      });
+      const parsed = ToolDescriptorZod.safeParse({
+        schemaVersion: 1,
+        kind:          'TOOL',
+        name,
+        displayName:   t.name,
+        description:   guided.description,
+        isPreset:      false,
+        version:       '1.0.0',
+        meta: {
+          execution:          'REMOTE',
+          consent:            defaultConsentForMcpServer(serverName, srv),
+          requiresPrincipal:  'USER',
+          timeoutMs:          120_000,
+          idempotent:         false,
+          sideEffects:        [],
+        },
+        inputSchema: guided.inputSchema,
+        outputSchema: { type: 'object', properties: {} },
+        requires:     { principal: 'USER', oauthScope: [], obo: null },
+        execute:      `mcp:${serverName}:${t.name}`,
+        handler:      { kind: 'mcp', config: {} },
+        tags:         ['mcp', serverName],
+        category:     'MCP',
+      });
+      if (parsed.success) out.push(parsed.data);
+    }
+    return out;
+  }
+
   /**
    * 列出已从 MCP servers 发现的工具（转换为 ToolDescriptor v1 最小集）。
    */
@@ -822,46 +877,7 @@ export class McpBridgeService {
     for (const [serverName, srv] of Object.entries(this.config.mcpServers)) {
       if (!srv.enabled || (srv.type !== 'stdio' && srv.type !== 'sse' && srv.type !== 'http')) continue;
       try {
-        const sess = await this.sessionFor(serverName);
-        const tools = await sess.toolsList();
-        for (const t of tools) {
-          const name = `mcp.${serverName}.${t.name}`;
-          const rawInputSchema =
-            typeof t.inputSchema === 'object' && t.inputSchema !== null
-              ? (t.inputSchema as Record<string, unknown>)
-              : { type: 'object', properties: {} };
-          const guided = augmentWebSearchMcpToolDescriptor({
-            serverName,
-            mcpToolName: t.name,
-            description: t.description ?? '',
-            inputSchema: rawInputSchema,
-          });
-          const parsed = ToolDescriptorZod.safeParse({
-            schemaVersion: 1,
-            kind:          'TOOL',
-            name,
-            displayName:   t.name,
-            description:   guided.description,
-            isPreset:      false,
-            version:       '1.0.0',
-            meta: {
-              execution:          'REMOTE',
-              consent:            defaultConsentForMcpServer(serverName, srv),
-              requiresPrincipal:  'USER',
-              timeoutMs:          120_000,
-              idempotent:         false,
-              sideEffects:        [],
-            },
-            inputSchema: guided.inputSchema,
-            outputSchema: { type: 'object', properties: {} },
-            requires:     { principal: 'USER', oauthScope: [], obo: null },
-            execute:      `mcp:${serverName}:${t.name}`,
-            handler:      { kind: 'mcp', config: {} },
-            tags:         ['mcp', serverName],
-            category:     'MCP',
-          });
-          if (parsed.success) out.push(parsed.data);
-        }
+        out.push(...await this.listToolsForServer(serverName));
       } catch {
         /* skip unreachable servers — integration tests cover live paths */
       }

@@ -35,6 +35,7 @@ import { TACHU_VECTOR_INDEX_TOKEN } from '@cube-ai/agent-engine/adapters';
 import { CubeQdrantMemoryIndex } from '@cube-ai/agent-engine/adapters/vector';
 import { NacosSecretsLoader } from '../secrets/nacos-secrets.loader';
 import { LocalFileGc } from '../../bc/files/local-file.gc';
+import { McpToolRegistrationWorker } from '../../bc/tools/mcp-tool-registration.worker';
 
 const PROBE_DEFAULT_TIMEOUT_MS = 1_500;
 
@@ -157,6 +158,31 @@ export function registerLifecycleHooks(app: Application): void {
     // Loader not registered — skip.
   }
 
+  // ─── MCP tool registration worker: non-blocking discovery + readiness ────
+  try {
+    const mcpWorker = c.resolve(McpToolRegistrationWorker) as McpToolRegistrationWorker;
+    shutdown.register({
+      name: 'mcp-tool-registration-worker',
+      priority: 140,
+      close: async () => {
+        mcpWorker.stop();
+      },
+    });
+    readiness.register({
+      name: 'mcp-tools',
+      timeoutMs: 500,
+      check: async () => {
+        const status = mcpWorker.status();
+        const detail = formatMcpToolRegistrationDetail(status.servers);
+        return detail.length > 0
+          ? { status: status.status, detail }
+          : { status: status.status };
+      },
+    });
+  } catch {
+    // ToolsModule not registered — skip.
+  }
+
   // ─── Local file GC: start periodic cleanup + stop on shutdown ──────────────
   try {
     const localFileGc = c.resolve(LocalFileGc) as LocalFileGc;
@@ -171,6 +197,26 @@ export function registerLifecycleHooks(app: Application): void {
   } catch {
     // Local file extension not registered — skip.
   }
+}
+
+function formatMcpToolRegistrationDetail(
+  servers: ReturnType<McpToolRegistrationWorker['status']>['servers'],
+): string {
+  return Object.values(servers)
+    .filter((server) => server.state !== 'registered' || server.lastError)
+    .map((server) => {
+      const nextRetryMs =
+        server.nextRetryAt !== undefined ? Math.max(0, server.nextRetryAt - Date.now()) : undefined;
+      return [
+        `server=${server.serverName}`,
+        `required=${server.required}`,
+        `state=${server.state}`,
+        `tools=${server.registeredToolCount}`,
+        server.lastError ? `error=${server.lastError}` : undefined,
+        nextRetryMs !== undefined ? `nextRetryMs=${nextRetryMs}` : undefined,
+      ].filter((part): part is string => part !== undefined).join(' ');
+    })
+    .join('; ');
 }
 
 interface ContainerLike {

@@ -206,6 +206,75 @@ describe('SessionService — business flows', () => {
     expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain('concise');
   });
 
+  test('createSession freezes only currently registered MCP tool refs', async () => {
+    const capturedInputs: unknown[] = [];
+    const sfid = new SfidService();
+    const repo = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async (_c: unknown, _tenant: number, sid: string, input: unknown) => {
+        capturedInputs.push(input);
+        return fakeRow(sid);
+      }),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    } as unknown as SessionRepository;
+    const pool: Pool = {
+      getConnection: mock(async () =>
+        ({
+          beginTransaction: mock(async () => {}),
+          commit: mock(async () => {}),
+          rollback: mock(async () => {}),
+          release: mock(() => {}),
+        }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const descriptorLoader = {
+      getGlobalPrompt: () => '',
+      getAgent: mock(async () => ({
+        kind: 'agent',
+        name: 'a1',
+        instructions: '',
+        availableTools: ['mcp.web-search.web_search'],
+      })),
+    };
+    const registered = new Set<string>();
+    const toolRegistry = {
+      resolve: (name: string) => (registered.has(name) ? { name } : undefined),
+    };
+    const svc = new SessionService(
+      sfid,
+      repo,
+      pool,
+      outbox,
+      descriptorLoader as never,
+      undefined,
+      undefined,
+      undefined,
+      toolRegistry,
+    );
+
+    await svc.createSession(1, 'u1', 'U', { agentId: 'a1' });
+    registered.add('mcp.web-search.web_search');
+    await svc.createSession(1, 'u1', 'U', { agentId: 'a1' });
+
+    const first = capturedInputs[0] as {
+      agentSnapshotJson?: { agent?: { content?: { toolRefs?: string[] } } };
+    };
+    const second = capturedInputs[1] as {
+      agentSnapshotJson?: { agent?: { content?: { toolRefs?: string[] } } };
+    };
+    expect(first.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([]);
+    expect(second.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([
+      'mcp.web-search.web_search',
+    ]);
+  });
+
   test('createSession throws when ruleRef cannot be resolved', async () => {
     const sfid = new SfidService();
     const repo: SessionRepository = {

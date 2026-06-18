@@ -34,6 +34,10 @@ type DescriptorLoaderLike = {
   loadIndexedAgentDescriptor?: (name: string) => Promise<Record<string, unknown> | null>;
 };
 
+type ToolRegistryResolveLike = {
+  resolve: (name: string, version?: string) => unknown | undefined;
+};
+
 /** Public session shape (no `tenant` in JSON — regulation §API-4). */
 export type SessionHttpView = {
   id: string;
@@ -124,6 +128,7 @@ async function buildSnapshots(params: {
   descriptorLoader?: DescriptorLoaderLike;
   skillRegistry?: SkillRegistryResolveLike;
   ruleRegistry?: RuleRegistryResolveLike;
+  toolRegistry?: ToolRegistryResolveLike;
   tenantResolver?: TenantDescriptorResolver;
 }): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown> }> {
   const frozen = Date.now();
@@ -165,12 +170,15 @@ async function buildSnapshots(params: {
     (params.context && typeof params.context['systemSuffix'] === 'string'
       ? String(params.context['systemSuffix']).trim()
       : '');
-  const toolRefs =
+  const requestedToolRefs =
     (agentDescriptor && Array.isArray(agentDescriptor['availableTools'])
       ? (agentDescriptor['availableTools'] as unknown[]).filter(
           (x): x is string => typeof x === 'string' && x.length > 0,
         )
       : []);
+  const toolRefs = params.toolRegistry
+    ? requestedToolRefs.filter((name) => params.toolRegistry?.resolve(name))
+    : requestedToolRefs;
   const ruleRefs =
     (agentDescriptor && Array.isArray(agentDescriptor['ruleRefs'])
       ? (agentDescriptor['ruleRefs'] as unknown[]).filter(
@@ -330,6 +338,7 @@ export class SessionService {
     private readonly skillRegistry?: SkillRegistryResolveLike,
     private readonly ruleRegistry?: RuleRegistryResolveLike,
     private readonly tenantResolver?: TenantDescriptorResolver,
+    private readonly toolRegistry?: ToolRegistryResolveLike,
   ) {}
 
   private async withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
@@ -367,6 +376,7 @@ export class SessionService {
       descriptorLoader: this.descriptorLoader,
       skillRegistry: this.skillRegistry,
       ruleRegistry: this.ruleRegistry,
+      toolRegistry: this.toolRegistry,
       tenantResolver: this.tenantResolver,
     });
 

@@ -4,6 +4,7 @@
       "type": "http",
       "url": "http://your-mcp-host:7788/mcp",
       "name": "web-search",
+      "required": false,
       "enabled": true
     },
     "biz-ontology": {
@@ -11,6 +12,7 @@
       "url": "http://your-mcp-host:7168/mcp/",
       "name": "biz-ontology",
       "consent": "NEVER",
+      "required": false,
       "enabled": true
     }
   }

@@ -4,7 +4,7 @@ import { EngineAssembler } from './assembler/engine-assembler';
 import { agenticEngineExceptionFilter } from './infra/errors/agentic-engine-exception.filter';
 import { DescriptorLoader } from './bc/descriptor/descriptor-loader';
 import { DescriptorRegistryService } from './bc/descriptor/descriptor-registry.service';
-import { McpBridgeService } from './bc/tools/mcp-bridge.service';
+import { McpToolRegistrationWorker } from './bc/tools/mcp-tool-registration.worker';
 import { DescriptorMcpModule } from './bc/descriptor-mcp/descriptor-mcp.module';
 import { buildManagementToolDescriptors } from './bc/tools/handlers/descriptor-ops';
 import {
@@ -67,56 +67,35 @@ function registerManagementToolDescriptors(container: DiContainer): void {
   }
 }
 
-async function registerMcpDiscoveredTools(container: DiContainer): Promise<void> {
-  let registry: DescriptorRegistryService;
-  let bridge: McpBridgeService;
+function resolveMcpRegistrationWorker(container: DiContainer): McpToolRegistrationWorker | null {
   try {
-    registry = container.resolve(DescriptorRegistryService) as DescriptorRegistryService;
-    bridge = container.resolve(McpBridgeService) as McpBridgeService;
+    return container.resolve(McpToolRegistrationWorker) as McpToolRegistrationWorker;
   } catch {
-    return;
-  }
-
-  const tools = await bridge.listTools();
-  for (const tool of tools) {
-    if (registry.resolve(tool.name)) continue;
-    try {
-      registry.register(tool);
-    } catch (e) {
-      console.warn(
-        `[bootstrap] skip MCP descriptor ${tool.name}: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
-    }
+    return null;
   }
 }
 
-function mcpDiscoveryBootTimeoutMs(): number {
-  const raw = process.env['AGENTIC_ENGINE_MCP_DISCOVERY_BOOT_TIMEOUT_MS'];
-  if (raw === undefined || raw.trim() === '') return 30_000;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 30_000;
+function triggerMcpToolRegistration(container: DiContainer, reason: string): void {
+  const worker = resolveMcpRegistrationWorker(container);
+  if (!worker) return;
+  worker.runOnce().catch((e) => {
+    console.warn(
+      `[bootstrap] MCP descriptor registration failed reason=${reason}: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
+  });
 }
 
-/** Boot-time MCP scan must not block HTTP listen when upstream MCP is unreachable. */
-async function registerMcpDiscoveredToolsAtBoot(container: DiContainer): Promise<void> {
-  const timeoutMs = mcpDiscoveryBootTimeoutMs();
-  console.info(`[bootstrap] MCP descriptor discovery begin timeoutMs=${timeoutMs}`);
+function startMcpToolRegistrationWorker(container: DiContainer): void {
+  const worker = resolveMcpRegistrationWorker(container);
+  if (!worker) return;
   try {
-    await Promise.race([
-      registerMcpDiscoveredTools(container),
-      new Promise<never>((_, reject) => {
-        setTimeout(
-          () => reject(new Error(`MCP discovery timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
-      }),
-    ]);
-    console.info('[bootstrap] MCP descriptor discovery complete');
+    worker.start();
+    console.info('[bootstrap] MCP descriptor registration worker started');
   } catch (e) {
     console.warn(
-      `[bootstrap] MCP descriptor discovery skipped: ${
+      `[bootstrap] MCP descriptor registration worker start failed: ${
         e instanceof Error ? e.message : String(e)
       }`,
     );
@@ -167,16 +146,9 @@ export async function bootstrap(
   ) as DescriptorLoader;
   await descriptorLoader.start();
   registerManagementToolDescriptors(container);
-  await registerMcpDiscoveredToolsAtBoot(container);
   descriptorLoader.reloadEvents.addEventListener('descriptor.reload', () => {
     registerManagementToolDescriptors(container);
-    registerMcpDiscoveredTools(container).catch((e) =>
-      console.warn(
-        `[bootstrap] MCP descriptor discovery failed after reload: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      ),
-    );
+    triggerMcpToolRegistration(container, 'descriptor.reload');
   });
 
   const metricsRegistry = container.resolve(MetricsRegistry) as MetricsRegistry;
@@ -255,5 +227,6 @@ export async function bootstrap(
   registerLifecycleHooks(app);
 
   await app.listen(port, hostname);
+  startMcpToolRegistrationWorker(container);
   return app;
 }

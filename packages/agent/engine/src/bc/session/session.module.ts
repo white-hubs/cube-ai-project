@@ -197,6 +197,12 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           ruleRegistry = undefined;
         }
+        let descriptorRegistry: DescriptorRegistryService | undefined;
+        try {
+          descriptorRegistry = c.resolve(DescriptorRegistryService) as DescriptorRegistryService;
+        } catch {
+          descriptorRegistry = undefined;
+        }
         // 租户级 descriptor 运行时解析器（前缀路由 + 已发布 head + 条目缓存，ADR-0016 §5）。
         const tenantResolver = new TenantDescriptorResolver(
           new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
@@ -210,6 +216,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           skillRegistry,
           ruleRegistry,
           tenantResolver,
+          descriptorRegistry,
         );
       },
     },

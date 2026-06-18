@@ -14,8 +14,7 @@ import {
 import { agenticEngineExceptionFilter } from '../../../packages/agent/engine/src/infra/errors/agentic-engine-exception.filter';
 import { connectExceptionFilter } from './platform/connect-exception.filter';
 import { DescriptorLoader } from '../../../packages/agent/engine/src/bc/descriptor/descriptor-loader';
-import { DescriptorRegistryService } from '../../../packages/agent/engine/src/bc/descriptor/descriptor-registry.service';
-import { McpBridgeService } from '../../../packages/agent/engine/src/bc/tools/mcp-bridge.service';
+import { McpToolRegistrationWorker } from '../../../packages/agent/engine/src/bc/tools/mcp-tool-registration.worker';
 import {
   traceIdMiddleware,
   createErrorResponseMiddleware,
@@ -48,25 +47,38 @@ function parsePositiveRateLimitEnv(raw: string | undefined, fallback: number): n
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-async function registerMcpDiscoveredTools(container: DiContainer): Promise<void> {
-  let registry: DescriptorRegistryService;
-  let bridge: McpBridgeService;
+function resolveMcpRegistrationWorker(container: DiContainer): McpToolRegistrationWorker | null {
   try {
-    registry = container.resolve(DescriptorRegistryService) as DescriptorRegistryService;
-    bridge = container.resolve(McpBridgeService) as McpBridgeService;
+    return container.resolve(McpToolRegistrationWorker) as McpToolRegistrationWorker;
   } catch {
-    return;
+    return null;
   }
-  const tools = await bridge.listTools();
-  for (const tool of tools) {
-    if (registry.resolve(tool.name)) continue;
-    try {
-      registry.register(tool);
-    } catch (e) {
-      console.warn(
-        `[ai-center] skip MCP descriptor ${tool.name}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
+}
+
+function triggerMcpToolRegistration(container: DiContainer, reason: string): void {
+  const worker = resolveMcpRegistrationWorker(container);
+  if (!worker) return;
+  worker.runOnce().catch((e) => {
+    console.warn(
+      `[ai-center] MCP descriptor registration failed reason=${reason}: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
+  });
+}
+
+function startMcpToolRegistrationWorker(container: DiContainer): void {
+  const worker = resolveMcpRegistrationWorker(container);
+  if (!worker) return;
+  try {
+    worker.start();
+    console.info('[ai-center] MCP descriptor registration worker started');
+  } catch (e) {
+    console.warn(
+      `[ai-center] MCP descriptor registration worker start failed: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
   }
 }
 
@@ -102,7 +114,9 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
 
   const descriptorLoader = container.resolve(DescriptorLoader) as DescriptorLoader;
   await descriptorLoader.start();
-  await registerMcpDiscoveredTools(container);
+  descriptorLoader.reloadEvents.addEventListener('descriptor.reload', () => {
+    triggerMcpToolRegistration(container, 'descriptor.reload');
+  });
 
   const metricsRegistry = container.resolve(MetricsRegistry) as MetricsRegistry;
   const loggerFactory = container.resolve(LoggerFactory) as LoggerFactory;
@@ -212,6 +226,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
     },
   });
 
+  startMcpToolRegistrationWorker(container);
   return app;
 }
 

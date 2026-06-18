@@ -7,6 +7,7 @@ import { SfidModule } from '../../infra/sfid/sfid.module';
 import { TachuRuntimeModule } from '../tachu/tachu-runtime.module';
 import { ToolService } from './tool.service';
 import { McpBridgeService } from './mcp-bridge.service';
+import { McpToolRegistrationWorker } from './mcp-tool-registration.worker';
 import { HttpHandler } from './handlers/http-handler';
 import { ShellHandler } from './handlers/shell-handler';
 import { SqlHandler } from './handlers/sql-handler';
@@ -46,6 +47,7 @@ import { DescriptorManagementService } from '../descriptor/descriptor-management
     MemoryHandler,
     OpenApiHandler,
     McpBridgeService,
+    McpToolRegistrationWorker,
     McpHandler,
     LlmHandler,
     FlowHandler,
@@ -57,6 +59,6 @@ import { DescriptorManagementService } from '../descriptor/descriptor-management
     DescriptorOpsHandler,
     ToolService,
   ],
-  exports: [ToolService, McpBridgeService, DescriptorManagementService],
+  exports: [ToolService, McpBridgeService, McpToolRegistrationWorker, DescriptorManagementService],
 })
 export class ToolsModule {}
