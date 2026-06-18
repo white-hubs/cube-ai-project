@@ -296,6 +296,13 @@ export function createOAuth2IntrospectionMiddleware(
     const normHeaders = normalizeHeaders(ctx);
 
     if (authMode === 'mock') {
+      if (process.env.NODE_ENV === 'production') {
+        throw AgenticEngineError.fromCode(
+          'INTERNAL_UNKNOWN',
+          'AGENTIC_ENGINE_AUTH_MODE=mock is not allowed in production',
+          {},
+        );
+      }
       ctxSt.state.subject = deps.mockOboService.fakeSubject({
         headers: normHeaders,
       });

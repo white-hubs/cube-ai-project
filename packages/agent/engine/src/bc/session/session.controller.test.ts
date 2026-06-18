@@ -383,6 +383,12 @@ describe('SessionController — REST wiring', () => {
 
     const body = await contextStore.run(ctx as Context, async () => ctl.getById());
     expect((body as { id: string }).id).toBe('1820345678901234567');
+    expect(sessionSvc.getSession).toHaveBeenCalledWith(
+      '1820345678901234567',
+      42,
+      'svc-user',
+      false,
+    );
   });
 
   test('GET /sessions/:id/messages delegates to SessionService.listSessionMessages', async () => {
@@ -415,6 +421,7 @@ describe('SessionController — REST wiring', () => {
       tenant: 42,
       sessionId: '1820345678901234567',
       userId: 'svc-user',
+      isAdmin: false,
       limit: 100,
     });
     expect((body as { items: unknown[] }).items).toHaveLength(1);
@@ -453,6 +460,46 @@ describe('SessionController — REST wiring', () => {
 
     expect(result.page.hasMore).toBe(false);
     expect(Array.isArray(result.items)).toBe(true);
+  });
+
+  test('GET /sessions forwards engine.session.admin scope as admin read-through', async () => {
+    const sessionSvc = {
+      listSessions: mock(async () => ({
+        items: [],
+        hasMore: false,
+      })),
+    } as unknown as SessionService;
+
+    const ctl = new SessionController(sessionSvc, {} as TurnService, {} as never, {} as never);
+    const ctx = baseCtx({
+      query: new URLSearchParams({ limit: '20' }),
+      state: {
+        subject: {
+          tenant: 42,
+          user: {
+            userId: 'admin-user',
+            tenant: 42,
+            displayName: 'Admin User',
+            scopes: ['engine.use', 'engine.session.admin'],
+            rawTokenSha256: 'x',
+            expiresAt: Date.now() + 3600_000,
+          },
+          traceId: 'trace-1',
+          terminal: 'web',
+        },
+      },
+    } as Partial<Context>);
+
+    await contextStore.run(ctx as Context, async () => ctl.listSessions());
+
+    expect(sessionSvc.listSessions).toHaveBeenCalledWith({
+      tenant: 42,
+      userId: 'admin-user',
+      isAdmin: true,
+      cursor: undefined,
+      limit: 20,
+      statuses: undefined,
+    });
   });
 
   test('PATCH error path — invalid SFID', async () => {

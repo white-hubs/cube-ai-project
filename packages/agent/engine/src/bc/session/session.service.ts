@@ -406,8 +406,13 @@ export class SessionService {
     });
   }
 
-  async getSession(sessionId: string, tenant: number): Promise<SessionHttpView | null> {
-    const row = await this.repo.findById(tenant, sessionId);
+  async getSession(
+    sessionId: string,
+    tenant: number,
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<SessionHttpView | null> {
+    const row = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: isAdmin });
     return row ? toHttpView(row) : null;
   }
 
@@ -419,17 +424,16 @@ export class SessionService {
     tenant: number;
     sessionId: string;
     userId: string;
+    isAdmin?: boolean;
     limit: number;
   }): Promise<{ items: unknown[]; page: { hasMore: boolean; nextCursor?: string } }> {
-    const existing = await this.repo.findById(params.tenant, params.sessionId);
+    const existing = await this.repo.findByIdAsOwner(
+      params.tenant,
+      params.sessionId,
+      params.userId,
+      { admin: params.isAdmin === true },
+    );
     if (!existing) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_SESSION',
-        `Session ${params.sessionId} not found`,
-        { sessionId: params.sessionId },
-      );
-    }
-    if (existing.userId !== params.userId) {
       throw AgenticEngineError.fromCode(
         'RESOURCE_NOT_FOUND_SESSION',
         `Session ${params.sessionId} not found`,
@@ -492,6 +496,7 @@ export class SessionService {
   async listSessions(params: {
     tenant: number;
     userId: string;
+    isAdmin?: boolean;
     statuses?: SessionRowStatus[];
     cursor?: string;
     limit: number;
@@ -500,6 +505,7 @@ export class SessionService {
       statuses: params.statuses,
       limit: params.limit,
       cursor: params.cursor,
+      admin: params.isAdmin === true,
     });
 
     return {
@@ -518,7 +524,7 @@ export class SessionService {
     userId: string,
     patch: { title?: string | null; status?: 'ACTIVE' | 'CLOSED' },
   ): Promise<void> {
-    const existing = await this.repo.findById(tenant, sessionId);
+    const existing = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: false });
     if (!existing) {
       throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${sessionId} not found`, {
         sessionId,
@@ -573,6 +579,13 @@ export class SessionService {
 
   /** DELETE — soft-delete + session.deleted outbox (single transaction). */
   async deleteSession(tenant: number, sessionId: string, userId: string): Promise<void> {
+    const existing = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: false });
+    if (!existing) {
+      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${sessionId} not found`, {
+        sessionId,
+      });
+    }
+
     await this.withTransaction(async (conn) => {
       await this.repo.softDeleteWithConnection(conn, tenant, sessionId, userId);
       await this.outbox.append(mysqlTx(conn), {

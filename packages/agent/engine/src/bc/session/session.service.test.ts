@@ -383,11 +383,15 @@ describe('SessionService — business flows', () => {
     ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
   });
 
-  test('getSession returns mapped view when repository finds row', async () => {
+  test('getSession reads through session owner boundary', async () => {
     const sfid = new SfidService();
     const row = fakeRow('28147497671065600001');
-    const repo: SessionRepository = {
-      findById: mock(async () => row),
+    const findByIdAsOwner = mock(async () => row);
+    const repo = {
+      findById: mock(async () => {
+        throw new Error('tenant-only findById must not serve user-facing getSession');
+      }),
+      findByIdAsOwner,
       insertWithConnection: mock(async () => row),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
@@ -396,13 +400,14 @@ describe('SessionService — business flows', () => {
       softDelete: mock(async () => {}),
       softDeleteWithConnection: mock(async () => {}),
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
-    };
+    } as unknown as SessionRepository;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const svc = new SessionService(sfid, repo, null, outbox);
 
-    const v = await svc.getSession(row.id, 1);
+    const v = await svc.getSession(row.id, 1, 'u1', false);
     expect(v?.userId).toBe('u1');
     expect(v?.agentVersionNo).toBe(1);
+    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, 'u1', { admin: false });
   });
 
   test('listSessions maps items and pagination flags', async () => {
@@ -410,6 +415,7 @@ describe('SessionService — business flows', () => {
     const r1 = fakeRow('28147497671065600001');
     const repo: SessionRepository = {
       findById: mock(async () => null),
+      findByIdAsOwner: mock(async () => null),
       insertWithConnection: mock(async () => r1),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
@@ -437,11 +443,50 @@ describe('SessionService — business flows', () => {
     expect(result.nextCursor).toBe('abc');
   });
 
+  test('listSessions passes admin read-through to repository', async () => {
+    const sfid = new SfidService();
+    const r1 = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const listByOwner = mock(async () => ({
+      items: [r1],
+      hasMore: false,
+    }));
+    const repo = {
+      findById: mock(async () => null),
+      findByIdAsOwner: mock(async () => null),
+      insertWithConnection: mock(async () => r1),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner,
+    } as unknown as SessionRepository;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const svc = new SessionService(sfid, repo, null, outbox);
+
+    const result = await svc.listSessions({
+      tenant: 1,
+      userId: 'admin-user',
+      limit: 20,
+      isAdmin: true,
+    } as never);
+
+    expect(result.items[0]?.userId).toBe('other-user');
+    expect(listByOwner).toHaveBeenCalledWith(1, 'admin-user', {
+      statuses: undefined,
+      limit: 20,
+      cursor: undefined,
+      admin: true,
+    });
+  });
+
   test('listSessionMessages preserves multimodal attachments in response items', async () => {
     const sfid = new SfidService();
     const row = fakeRow('28147497671065600001');
     const repo: SessionRepository = {
       findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => row),
       insertWithConnection: mock(async () => row),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
@@ -498,6 +543,40 @@ describe('SessionService — business flows', () => {
     ]);
   });
 
+  test('listSessionMessages allows admin to read another owner session', async () => {
+    const sfid = new SfidService();
+    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const findByIdAsOwner = mock(async () => row);
+    const repo = {
+      findById: mock(async () => row),
+      findByIdAsOwner,
+      insertWithConnection: mock(async () => row),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    } as unknown as SessionRepository;
+    const pool: Pool = {
+      query: mock(async () => [[]]),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const svc = new SessionService(sfid, repo, pool, outbox);
+
+    const result = await svc.listSessionMessages({
+      tenant: 1,
+      sessionId: row.id,
+      userId: 'admin-user',
+      isAdmin: true,
+      limit: 20,
+    } as never);
+
+    expect(result.items).toEqual([]);
+    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, 'admin-user', { admin: true });
+  });
+
   test('patchSession CLOSED emits session.closed outbox', async () => {
     const sfid = new SfidService();
     const row = fakeRow('28147497671065600001');
@@ -505,6 +584,7 @@ describe('SessionService — business flows', () => {
 
     const repo: SessionRepository = {
       findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => row),
       insertWithConnection: mock(async () => row),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
@@ -539,6 +619,30 @@ describe('SessionService — business flows', () => {
     expect(appended.some((e) => e.eventType === 'session.closed')).toBe(true);
   });
 
+  test('patchSession rejects a session owned by another user as not found', async () => {
+    const sfid = new SfidService();
+    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const updatePartial = mock(async () => {});
+    const repo = {
+      findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => null),
+      insertWithConnection: mock(async () => row),
+      updateStatus: mock(async () => {}),
+      updatePartial,
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    } as unknown as SessionRepository;
+    const svc = new SessionService(sfid, repo, null, { append: mock(async () => {}) });
+
+    await expect(
+      svc.patchSession(1, row.id, 'u1', { title: 'new title' }),
+    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_SESSION' });
+    expect(updatePartial).not.toHaveBeenCalled();
+  });
+
   test('deleteSession emits session.deleted outbox', async () => {
     const sfid = new SfidService();
     const row = fakeRow('28147497671065600001');
@@ -546,6 +650,7 @@ describe('SessionService — business flows', () => {
 
     const repo: SessionRepository = {
       findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => row),
       insertWithConnection: mock(async () => row),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
@@ -580,11 +685,48 @@ describe('SessionService — business flows', () => {
     expect(appended.some((e) => e.eventType === 'session.deleted')).toBe(true);
   });
 
+  test('deleteSession rejects a session owned by another user before deleting', async () => {
+    const sfid = new SfidService();
+    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const softDeleteWithConnection = mock(async () => {});
+    const repo = {
+      findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => null),
+      insertWithConnection: mock(async () => row),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection,
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    } as unknown as SessionRepository;
+    const pool: Pool = {
+      getConnection: mock(async () =>
+        ({
+          beginTransaction: mock(async () => {}),
+          commit: mock(async () => {}),
+          rollback: mock(async () => {}),
+          release: mock(() => {}),
+        }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const svc = new SessionService(sfid, repo, pool, outbox);
+
+    await expect(svc.deleteSession(1, row.id, 'u1')).rejects.toMatchObject({
+      code: 'RESOURCE_NOT_FOUND_SESSION',
+    });
+    expect(softDeleteWithConnection).not.toHaveBeenCalled();
+    expect(outbox.append).not.toHaveBeenCalled();
+  });
+
   test('patchSession ACTIVE from CLOSED rejects when current status is ACTIVE', async () => {
     const sfid = new SfidService();
     const row = fakeRow('28147497671065600001');
     const repo: SessionRepository = {
       findById: mock(async () => row),
+      findByIdAsOwner: mock(async () => row),
       insertWithConnection: mock(async () => row),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),

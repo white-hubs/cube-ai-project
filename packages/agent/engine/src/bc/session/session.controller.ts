@@ -27,6 +27,7 @@ import {
 import { AgenticEngineError } from '../../infra/errors/agentic-error';
 import { SessionService } from './session.service';
 import { TurnService } from './turn.service';
+import { isSessionAdmin } from './session-owner';
 
 const ListSessionsQuerySchema = z.object({
   status: z.enum(['ACTIVE', 'CLOSED', 'ARCHIVED', 'ALL']).optional(),
@@ -176,6 +177,7 @@ export class SessionController {
       .listSessions({
         tenant: subject.tenant,
         userId: subject.user.userId,
+        isAdmin: isSessionAdmin(subject),
         cursor: query.cursor,
         limit: query.limit,
         statuses,
@@ -289,6 +291,7 @@ export class SessionController {
       tenant: subject.tenant,
       sessionId,
       userId: subject.user.userId,
+      isAdmin: isSessionAdmin(subject),
       limit: query.limit,
     });
   }
@@ -421,7 +424,12 @@ export class SessionController {
     }
 
     const subject = readSubject(ctx);
-    const session = await this.sessionService.getSession(sessionId, subject.tenant);
+    const session = await this.sessionService.getSession(
+      sessionId,
+      subject.tenant,
+      subject.user.userId,
+      isSessionAdmin(subject),
+    );
     if (!session) {
       throw AgenticEngineError.fromCode(
         'RESOURCE_NOT_FOUND_SESSION',

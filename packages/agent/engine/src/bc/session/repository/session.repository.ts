@@ -20,6 +20,13 @@ import { execDynamic, queryRowsDynamic, type SqlValue } from '../../../infra/mys
 export interface SessionRepository {
   findById(tenant: Tenant, id: Sfid): Promise<SessionRow | null>;
 
+  findByIdAsOwner(
+    tenant: Tenant,
+    id: Sfid,
+    userId: string,
+    opts: { admin: boolean },
+  ): Promise<SessionRow | null>;
+
   /**
    * Insert within an existing transaction (caller owns BEGIN/COMMIT).
    */
@@ -65,6 +72,7 @@ export interface SessionRepository {
       statuses?: SessionRowStatus[];
       limit: number;
       cursor?: string;
+      admin?: boolean;
     },
   ): Promise<{ items: SessionRow[]; nextCursor?: string; hasMore: boolean }>;
 }
@@ -147,6 +155,26 @@ export class SessionRepositoryImpl implements SessionRepository {
        WHERE id = ? AND tenant = ? AND deleted = 0
        LIMIT 1`,
       [id, tenant],
+    );
+    const r = rows[0];
+    return r ? mapSessionRow(r) : null;
+  }
+
+  async findByIdAsOwner(
+    tenant: Tenant,
+    id: Sfid,
+    userId: string,
+    opts: { admin: boolean },
+  ): Promise<SessionRow | null> {
+    if (opts.admin) {
+      return this.findById(tenant, id);
+    }
+    const p = requirePool(this.pool);
+    const [rows] = await p.execute<RowDataPacket[]>(
+      `SELECT * FROM sessions
+       WHERE id = ? AND tenant = ? AND user_id = ? AND deleted = 0
+       LIMIT 1`,
+      [id, tenant, userId],
     );
     const r = rows[0];
     return r ? mapSessionRow(r) : null;
@@ -366,7 +394,7 @@ export class SessionRepositoryImpl implements SessionRepository {
   async listByOwner(
     tenant: Tenant,
     userId: string,
-    opts: { statuses?: SessionRowStatus[]; limit: number; cursor?: string },
+    opts: { statuses?: SessionRowStatus[]; limit: number; cursor?: string; admin?: boolean },
   ): Promise<{ items: SessionRow[]; nextCursor?: string; hasMore: boolean }> {
     const p = requirePool(this.pool);
     const limit = Math.min(Math.max(opts.limit, 1), 100);
@@ -389,10 +417,10 @@ export class SessionRepositoryImpl implements SessionRepository {
     }
 
     const statusPlaceholders = statuses.map(() => '?').join(', ');
-    const params: SqlValue[] = [tenant, userId, ...statuses];
+    const params: SqlValue[] = opts.admin ? [tenant, ...statuses] : [tenant, userId, ...statuses];
     let sql = `
       SELECT * FROM sessions
-      WHERE tenant = ? AND user_id = ? AND deleted = 0
+      WHERE tenant = ?${opts.admin ? '' : ' AND user_id = ?'} AND deleted = 0
         AND status IN (${statusPlaceholders})`;
 
     if (cursorMs !== undefined && cursorId !== undefined) {

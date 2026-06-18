@@ -93,6 +93,23 @@ describe('oauth2IntrospectionMiddleware', () => {
     expect(subject.user.tenant).toBe(1);
   });
 
+  it('mock mode: production fails fast instead of injecting mock-user', async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const mw = createOAuth2IntrospectionMiddleware(testDeps());
+    const ctx = makeCtx({});
+
+    try {
+      await expect(runMiddleware(mw, ctx, 'mock')).rejects.toMatchObject({
+        code: 'INTERNAL_UNKNOWN',
+      });
+      expect(ctx.state.subject).toBeUndefined();
+    } finally {
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+    }
+  });
+
   it('mock mode: health endpoint bypasses auth', async () => {
     const mw = createOAuth2IntrospectionMiddleware(testDeps());
     const ctx = makeCtx({ path: '/health/live' });
