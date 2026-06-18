@@ -1,6 +1,6 @@
 # ADR-0012 Addendum: project 概念整体退役 — tenant 为单一隔离主键、能力包无自有鉴权
 
-- **Status**: Accepted
+- **Status**: Accepted（D1 经 [ADR-0029](./ADR-0029-session-owner-user-isolation-sublayer.md) 收紧：tenant 仍是主隔离键，session 锚定资源另有 user 隔离子层）
 - **Date**: 2026-06-09
 - **Parent**: [ADR-0012 — 运行时单一真源 + 三域平级下游 + host 身份权威](./ADR-0012-runtime-single-source-and-three-domain-topology.md)
 - **Deciders**: 架构组（经 `/grill-with-docs` 收敛；project 去留由用户裁决）

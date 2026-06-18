@@ -213,8 +213,12 @@ _Avoid_: 让某域当其它域的身份权威, 把 engine→flow/kb 当身份层
 _Avoid_: 让 flow/kb 自管登录/PAT/用户表, 给能力包加自有 auth/api-key/工具白名单, 把 engine authz 当能力包鉴权
 
 **租户隔离主键 (tenant)**:
-系统的**唯一隔离主键 = tenant**（来自鉴权中心 JWT，经 `platform-adapter-ghcloud` 解析）。**不存在 `project` 维度**（ADR-0012 addendum：project 概念已整体退役）：tenant 是贯穿三域的单一隔离语义，物理列 / Qdrant payload 键 / 上下文读符号统一为 `tenant_id` / `currentTenantId()`。
-_Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 projectId 当独立于 tenant 的隔离层
+系统的**主隔离键 = tenant**（来自鉴权中心 JWT，经 `platform-adapter-ghcloud` 解析），是**贯穿三域(agent/flow/kb)的单一跨域隔离语义**；物理列 / Qdrant payload 键 / 上下文读符号统一为 `tenant_id` / `currentTenantId()`。**不存在 `project` 维度**（ADR-0012 addendum：project 概念已整体退役）。tenant 之内、**仅 session 锚定资源**另有一层 **会话归属 (session owner)** 用户级隔离（ADR-0029）——它是 tenant 之下的隔离子层，不外溢为跨域隔离键、亦非 project 复活。
+_Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 projectId 当独立于 tenant 的隔离层, 把 user 隔离当成贯穿 kb/flow/llm 的跨域隔离键, 用「唯一隔离主键」字样否认 session 锚定的用户层
+
+**会话归属 (session owner)**:
+单一 `tenant` 内，session 及其**派生资源**（messages、经该 session 的 jobs/files/memory）归属于创建它的 **user**（身份取自 `subject.user.userId`，即 OAuth2 `user_name`/`sub`）。同租户内**跨 user 访问 session 锚定资源视为越权**（默认 404，**管理员 principal 例外**：可读本租户全部会话）。是 **租户隔离主键 (tenant)** 之下、**仅作用于 session 锚定资源**的第二隔离层（ADR-0029）；**不**贯穿 kb/flow/llm 三域，**不**复活 project，独立按 id 访问的非 session 锚定资源（如裸 `/jobs/:id`）本轮仍为 tenant 级。
+_Avoid_: 把会话归属当跨域隔离键, 当 project 复活, 让能力包(kb/flow/llm)引入 user 隔离, 在 dev mock 把 userId 静默塌缩成共享常量当真用户边界
 
 ## Relationships
 
@@ -245,6 +249,7 @@ _Avoid_: 引入 project 中间容器, 一个 tenant 下多个 project, 把 proje
 - **运行时单一真源**（ADR-0012）：`agent-engine` 是唯一活跃运行时；不引入第二运行时
 - **三域平级下游**：`agent-engine` / `flow-core` / `kb-core` 各自从 **host 身份权威 / 三域平级下游** 注入的上下文消费身份、互不为权威；`agent-engine → flow-core/kb-core` 是能力调用边；**flow-core / kb-core 自带独立 SSE 可直达**
 - 身份是**注入式 seam**：身份→host 注入源、凭据→`llm-core` catalog；换身份源不动能力包本体（ADR-0004/0012）
+- **会话归属 (session owner)** 是 **租户隔离主键 (tenant)** 之下的隔离子层：tenant 仍是跨三域主隔离键，user 仅对 **session 锚定资源** 生效（ADR-0029 扩展 ADR-0012-addendum）；user 身份与 tenant 同源于 **host 身份权威**（`subject.user.userId`），能力包(kb/flow/llm)不感知 user 隔离
 
 ## Example dialogue
 

@@ -39,6 +39,7 @@
 | ADR-0018 | [Descriptor Document 提交格式 —— `:fromDocument` 独立端点、text/plain upsert、draft 落库、DescriptorDocumentParser seam、三种 kind schema 对称扩展](./ADR-0018-descriptor-document-submission-format.md) | Accepted |
 | ADR-0027 | [AI-native descriptor 创作 —— `propose` 纯建议能力 + 管理 ops 工具集一核两面（进程内 Tool Handler + MCP server 门面），ref LLM-in-context 接地](./ADR-0027-ai-native-descriptor-authoring.md) | Accepted |
 | ADR-0028 | [flow 对外 gRPC 服务面（平台服务间）保留并在 host 重建 + Nacos 注册广播 grpc_server_port](./ADR-0028-flow-platform-grpc-service-face.md) | Accepted |
+| ADR-0029 | [会话归属（session owner）—— tenant 之下的用户级隔离子层（session 锚定资源），admin scope 读旁路，仓储 404 收口](./ADR-0029-session-owner-user-isolation-sublayer.md) | Accepted |
 
 > 编号 0019–0026 在代码注释中被引用（runtime / tachu 系列决策），未在本索引建档；本仓文档化 ADR 由 0027 续接。
 
