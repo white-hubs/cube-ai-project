@@ -9,6 +9,8 @@ import type {
   UpsertDescriptorResult,
 } from './tenant-descriptor.repository';
 import type { LlmChatResponse, LlmProviderPort, TenantDescriptorView } from '@cube-ai/contracts';
+import type { OutboxWriter } from '@cube-ai/bun-server-ext-outbox';
+import type { ShelfService } from './shelf.service';
 
 /**
  * 两阶段假 LLM（ADR-0027 §5）：
@@ -50,9 +52,11 @@ function fakeView(over: Partial<TenantDescriptorView> = {}): TenantDescriptorVie
     id: 'rul_1',
     kind: 'rule',
     name: 'n',
+    ownerUserId: 'alice',
     status: 'draft',
     headVersionNo: 1,
     publishedVersionNo: null,
+    hasUnpublishedChanges: true,
     content: {},
     createTime: 0,
     updateTime: 0,
@@ -82,8 +86,18 @@ function fakeRepo(over: Partial<TenantDescriptorRepository> = {}): TenantDescrip
     publish: mock(async () => fakeView({ status: 'published', publishedVersionNo: 1 })),
     softDelete: mock(async () => undefined),
     resolvePublished: mock(async () => null),
+    listVersions: mock(async () => [{ versionNo: 1, createBy: 'alice', createTime: 1 }]),
+    getVersionContent: mock(async () => ({ content: 'v1' })),
+    rollback: mock(async () => fakeView({ status: 'published', publishedVersionNo: 2 })),
+    resolveDraft: mock(async () => fakeView()),
     ...over,
   } as unknown as TenantDescriptorRepository;
+}
+
+function fakeOutbox(): OutboxWriter {
+  return {
+    append: mock(async () => undefined),
+  } as unknown as OutboxWriter;
 }
 
 describe('DescriptorManagementService — validation + lifecycle orchestration', () => {
@@ -114,6 +128,20 @@ describe('DescriptorManagementService — validation + lifecycle orchestration',
     // zod default arrays present on persisted content
     expect(call[3]).toMatchObject({ prompt: 'hello', ruleRefs: [], skillRefs: [] });
     expect(call[4]).toBe('alice');
+  });
+
+  test('create inserts authored agents and skills into owner shelf when shelf service is available', async () => {
+    const repo = fakeRepo();
+    const shelf = {
+      upsertAuthored: mock(async () => undefined),
+    } as unknown as ShelfService;
+    const svc = new DescriptorManagementService(repo, undefined, undefined, shelf);
+
+    await svc.create(7, 'agent', { name: 'support', content: { prompt: 'hello' } }, 'alice');
+    expect(shelf.upsertAuthored).toHaveBeenCalledWith(7, 'alice', 'agt_1', 'agent');
+
+    await svc.create(7, 'rule', { name: 'safety', content: { content: 'never' } }, 'alice');
+    expect(shelf.upsertAuthored).toHaveBeenCalledTimes(1);
   });
 
   test('update on missing id → RESOURCE_NOT_FOUND_DESCRIPTOR', async () => {
@@ -155,6 +183,25 @@ describe('DescriptorManagementService — validation + lifecycle orchestration',
     expect(res.headVersionNo).toBe(3);
   });
 
+  test('fromDocument rejects non-owner update of an existing descriptor name', async () => {
+    const repo = fakeRepo({
+      findByName: mock(async () => fakeView({
+        id: 'rul_1',
+        kind: 'rule',
+        name: 'safety',
+        ownerUserId: 'alice',
+      })),
+    });
+    const svc = new DescriptorManagementService(repo);
+
+    await expect(
+      svc.fromDocument(3, 'rule', '---\nname: safety\n---\nNo secrets.', 'bob'),
+    ).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
   test('fromDocument with no frontmatter → INVALID_ARGUMENT_DESCRIPTOR_DOCUMENT (not a 500)', async () => {
     const repo = fakeRepo();
     const svc = new DescriptorManagementService(repo);
@@ -164,13 +211,90 @@ describe('DescriptorManagementService — validation + lifecycle orchestration',
     expect(repo.upsert).not.toHaveBeenCalled();
   });
 
-  test('publish/remove delegate to repository with actor', async () => {
-    const repo = fakeRepo();
+  test('update rejects non-owner before writing', async () => {
+    const repo = fakeRepo({
+      findById: mock(async () => fakeView({ id: 'agt_1', kind: 'agent', ownerUserId: 'alice' })),
+    });
     const svc = new DescriptorManagementService(repo);
+
+    await expect(
+      svc.update(1, 'agent', 'agt_1', { prompt: 'v2' }, 'bob'),
+    ).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  test('publish rejects non-owner before publishing', async () => {
+    const repo = fakeRepo({
+      findById: mock(async () => fakeView({ id: 'agt_1', kind: 'agent', ownerUserId: 'alice' })),
+    });
+    const svc = new DescriptorManagementService(repo);
+
+    await expect(svc.publish(1, 'agt_1', 'bob')).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    expect(repo.publish).not.toHaveBeenCalled();
+  });
+
+  test('publish delegates for owner', async () => {
+    const repo = fakeRepo();
+    const outbox = fakeOutbox();
+    const svc = new DescriptorManagementService(repo, undefined, undefined, undefined, outbox);
     await svc.publish(1, 'agt_1', 'alice');
-    await svc.remove(1, 'agt_1', 'alice');
     expect(repo.publish).toHaveBeenCalledWith(1, 'agt_1', 'alice');
+    expect(outbox.append).toHaveBeenCalledTimes(1);
+    expect((outbox.append as ReturnType<typeof mock>).mock.calls[0][1]).toMatchObject({
+      tenant: 1,
+      channel: 'descriptor_reload',
+      eventType: 'descriptor.reload',
+      payloadJson: { tenant: 1, descriptorId: 'agt_1' },
+      target: 'agt_1',
+    });
+  });
+
+  test('remove allows owner and descriptor admin but rejects other users', async () => {
+    const repo = fakeRepo();
+    const outbox = fakeOutbox();
+    const svc = new DescriptorManagementService(repo, undefined, undefined, undefined, outbox);
+
+    await svc.remove(1, 'agt_1', 'alice');
     expect(repo.softDelete).toHaveBeenCalledWith(1, 'agt_1', 'alice');
+
+    await svc.remove(1, 'agt_1', 'admin', { isAdmin: true });
+    expect(repo.softDelete).toHaveBeenCalledWith(1, 'agt_1', 'admin');
+
+    await expect(svc.remove(1, 'agt_1', 'bob')).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    expect(outbox.append).toHaveBeenCalledTimes(2);
+  });
+
+  test('versions and rollback are owner-only management operations', async () => {
+    const repo = fakeRepo();
+    const outbox = fakeOutbox();
+    const svc = new DescriptorManagementService(repo, undefined, undefined, undefined, outbox);
+
+    expect(await svc.listVersions(1, 'rul_1', 'alice')).toEqual([
+      { versionNo: 1, createBy: 'alice', createTime: 1 },
+    ]);
+    expect(await svc.getVersionContent(1, 'rul_1', 1, 'alice')).toEqual({ content: 'v1' });
+    await svc.rollback(1, 'rul_1', 1, 'alice');
+    expect(repo.rollback).toHaveBeenCalledWith(1, 'rul_1', 1, 'alice');
+    expect((outbox.append as ReturnType<typeof mock>).mock.calls[0][1]).toMatchObject({
+      channel: 'descriptor_reload',
+      payloadJson: { tenant: 1, descriptorId: 'rul_1' },
+    });
+
+    await expect(svc.listVersions(1, 'rul_1', 'bob')).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    await expect(svc.getVersionContent(1, 'rul_1', 1, 'bob')).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
+    await expect(svc.rollback(1, 'rul_1', 1, 'bob')).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED_DESCRIPTOR_OWNER',
+    });
   });
 });
 

@@ -9,15 +9,46 @@
  */
 import { Module } from '@dangao/bun-server';
 import { descriptorManagementServiceProvider } from './descriptor-management.provider';
+import {
+  libraryServiceProvider,
+  listingServiceProvider,
+  pluginCatalogServiceProvider,
+  shelfServiceProvider,
+} from './listing.provider';
 import { DescriptorManagementService } from './descriptor-management.service';
 import {
   DescriptorManagementController,
   DescriptorManagementLegacyController,
 } from './descriptor-management.controller';
+import { LibraryController, ListingController } from './listing.controller';
+import { MyShelfController } from './shelf.controller';
+import { PluginCatalogController } from './plugin-catalog.controller';
+import { LibraryService, ListingService } from './listing.service';
+import { PluginCatalogService } from './plugin-catalog.service';
+import { ShelfService } from './shelf.service';
 
 @Module({
-  controllers: [DescriptorManagementController, DescriptorManagementLegacyController],
-  providers: [descriptorManagementServiceProvider],
-  exports: [DescriptorManagementService],
+  controllers: [
+    DescriptorManagementController,
+    DescriptorManagementLegacyController,
+    ListingController,
+    LibraryController,
+    MyShelfController,
+    PluginCatalogController,
+  ],
+  providers: [
+    listingServiceProvider,
+    shelfServiceProvider,
+    descriptorManagementServiceProvider,
+    libraryServiceProvider,
+    pluginCatalogServiceProvider,
+  ],
+  exports: [
+    DescriptorManagementService,
+    ListingService,
+    LibraryService,
+    ShelfService,
+    PluginCatalogService,
+  ],
 })
 export class DescriptorManagementHttpModule {}

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  DescriptorVersionSchema,
   FromDocumentResultSchema,
   parseTenantDescriptorId,
   TENANT_DESCRIPTOR_ID_PREFIXES,
   TenantAgentContentSchema,
+  TenantDescriptorViewSchema,
   TenantRuleContentSchema,
   TenantSkillContentSchema,
 } from './tenant-descriptor';
@@ -155,5 +157,82 @@ describe('FromDocumentResultSchema', () => {
         id: 'skl_1', name: 'n', action: 'deleted', headVersionNo: 1, status: 'draft',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('TenantDescriptorViewSchema', () => {
+  it('requires owner and unpublished-change projection fields', () => {
+    const parsed = TenantDescriptorViewSchema.parse({
+      id: 'agt_123',
+      kind: 'agent',
+      name: 'support-agent',
+      ownerUserId: 'user-1',
+      status: 'draft',
+      headVersionNo: 2,
+      publishedVersionNo: 1,
+      hasUnpublishedChanges: true,
+      content: { prompt: 'Help users.' },
+      createTime: 1710000000000,
+      updateTime: 1710000001000,
+    });
+
+    expect(parsed.ownerUserId).toBe('user-1');
+    expect(parsed.hasUnpublishedChanges).toBe(true);
+    expect(
+      TenantDescriptorViewSchema.safeParse({
+        id: 'skl_1',
+        kind: 'skill',
+        name: 'review',
+        ownerUserId: null,
+        status: 'published',
+        headVersionNo: 1,
+        publishedVersionNo: 1,
+        hasUnpublishedChanges: false,
+        content: { description: 'd', instructions: 'i' },
+        createTime: 1710000000000,
+        updateTime: 1710000001000,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects views missing the unpublished-change flag', () => {
+    expect(
+      TenantDescriptorViewSchema.safeParse({
+        id: 'agt_123',
+        kind: 'agent',
+        name: 'support-agent',
+        ownerUserId: 'user-1',
+        status: 'draft',
+        headVersionNo: 2,
+        publishedVersionNo: 1,
+        content: { prompt: 'Help users.' },
+        createTime: 1710000000000,
+        updateTime: 1710000001000,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('DescriptorVersionSchema', () => {
+  it('accepts published version list items without content', () => {
+    const parsed = DescriptorVersionSchema.parse({
+      versionNo: 1,
+      createBy: 'author-1',
+      createTime: 1710000000000,
+    });
+
+    expect(parsed.versionNo).toBe(1);
+    expect('content' in parsed).toBe(false);
+  });
+
+  it('accepts version detail items with optional content', () => {
+    const parsed = DescriptorVersionSchema.parse({
+      versionNo: 2,
+      createBy: 'author-1',
+      createTime: 1710000001000,
+      content: { prompt: 'Published prompt.' },
+    });
+
+    expect(parsed.content).toEqual({ prompt: 'Published prompt.' });
   });
 });

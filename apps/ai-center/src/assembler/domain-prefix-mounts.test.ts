@@ -1,5 +1,11 @@
 import 'reflect-metadata';
 import { describe, expect, test } from 'bun:test';
+import {
+  LibraryController,
+  ListingController,
+} from '../../../../packages/agent/engine/src/bc/descriptor/listing.controller';
+import { PluginCatalogController } from '../../../../packages/agent/engine/src/bc/descriptor/plugin-catalog.controller';
+import { MyShelfController } from '../../../../packages/agent/engine/src/bc/descriptor/shelf.controller';
 import { DOMAIN_PREFIX_MOUNTS, applyDomainPrefixMounts } from './domain-prefix-mounts';
 
 /**
@@ -48,5 +54,18 @@ describe('applyDomainPrefixMounts', () => {
 
     // /v1 OpenAI gateway is exempt — it must never be remapped here
     expect(bases.some((b) => b.startsWith('/v1'))).toBe(false);
+  });
+
+  test('mounts marketplace controllers under the descriptor console base', () => {
+    const consoleControllers = new Set(
+      DOMAIN_PREFIX_MOUNTS
+        .filter((m) => m.base === '/agent/console')
+        .map((m) => m.controller),
+    );
+
+    expect(consoleControllers.has(ListingController)).toBe(true);
+    expect(consoleControllers.has(LibraryController)).toBe(true);
+    expect(consoleControllers.has(MyShelfController)).toBe(true);
+    expect(consoleControllers.has(PluginCatalogController)).toBe(true);
   });
 });

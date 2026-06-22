@@ -12,6 +12,7 @@ function baseCtx(
     params?: Record<string, string>;
     tenant?: number;
     userId?: string;
+    scopes?: string[];
     noSubject?: boolean;
   } = {},
 ): Context & { setStatus: ReturnType<typeof mock> } {
@@ -28,7 +29,12 @@ function baseCtx(
       : {
           subject: {
             tenant: extra.tenant ?? 42,
-            user: { userId: extra.userId ?? 'u-1', tenant: extra.tenant ?? 42, displayName: 'U' },
+            user: {
+              userId: extra.userId ?? 'u-1',
+              tenant: extra.tenant ?? 42,
+              displayName: 'U',
+              scopes: extra.scopes ?? [],
+            },
             traceId: 't',
             terminal: 'web',
           },
@@ -43,6 +49,9 @@ function mockService(over: Partial<DescriptorManagementService> = {}): Descripto
     list: mock(async () => [{ id: 'agt_1' }, { id: 'agt_2' }]),
     get: mock(async () => ({ id: 'agt_1' })),
     publish: mock(async () => ({ id: 'agt_1', status: 'published' })),
+    listVersions: mock(async () => [{ versionNo: 1, createBy: 'alice', createTime: 1 }]),
+    getVersionContent: mock(async () => ({ prompt: 'v1' })),
+    rollback: mock(async () => ({ id: 'agt_1', status: 'published', publishedVersionNo: 2 })),
     remove: mock(async () => undefined),
     fromDocument: mock(async () => ({
       id: 'skl_9',
@@ -145,9 +154,23 @@ describe('DescriptorManagementController — REST wiring', () => {
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ params: { id: 'skl_1' } });
     const res = await run(ctx, () => ctl.deleteSkill());
-    expect(svc.remove).toHaveBeenCalledWith(42, 'skl_1', 'u-1');
+    expect(svc.remove).toHaveBeenCalledWith(42, 'skl_1', 'u-1', { isAdmin: false });
     expect(ctx.setStatus).toHaveBeenCalledWith(204);
     expect(res).toBeUndefined();
+  });
+
+  test('DELETE forwards descriptor admin scope as governance bypass', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const ctx = baseCtx({
+      params: { id: 'agt_1' },
+      userId: 'admin',
+      scopes: ['engine.descriptor.admin'],
+    });
+
+    await run(ctx, () => ctl.deleteAgent());
+
+    expect(svc.remove).toHaveBeenCalledWith(42, 'agt_1', 'admin', { isAdmin: true });
   });
 
   test('POST /agent/console/agents/:id/publish → service.publish', async () => {
@@ -157,6 +180,38 @@ describe('DescriptorManagementController — REST wiring', () => {
     const res = await run(ctx, () => ctl.publishAgent());
     expect(svc.publish).toHaveBeenCalledWith(42, 'agt_1', 'u-1');
     expect((res as { status: string }).status).toBe('published');
+  });
+
+  test('GET /agent/console/agents/:id/versions → service.listVersions', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const ctx = baseCtx({ params: { id: 'agt_1' }, userId: 'alice' });
+
+    const res = await run(ctx, () => ctl.listAgentVersions());
+
+    expect(svc.listVersions).toHaveBeenCalledWith(42, 'agt_1', 'alice');
+    expect(res).toEqual({ items: [{ versionNo: 1, createBy: 'alice', createTime: 1 }] });
+  });
+
+  test('GET /agent/console/agents/:id/versions/:no → service.getVersionContent', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const ctx = baseCtx({ params: { id: 'agt_1', no: '2' }, userId: 'alice' });
+
+    const res = await run(ctx, () => ctl.getAgentVersion());
+
+    expect(svc.getVersionContent).toHaveBeenCalledWith(42, 'agt_1', 2, 'alice');
+    expect(res).toEqual({ content: { prompt: 'v1' } });
+  });
+
+  test('POST /agent/console/agents/:id/rollback → service.rollback', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const ctx = baseCtx({ params: { id: 'agt_1' }, body: { versionNo: 1 }, userId: 'alice' });
+
+    await run(ctx, () => ctl.rollbackAgent());
+
+    expect(svc.rollback).toHaveBeenCalledWith(42, 'agt_1', 1, 'alice');
   });
 
   test('POST /agent/console/skills:fromDocument reads text/plain body → service.fromDocument', async () => {

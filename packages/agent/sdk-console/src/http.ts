@@ -39,6 +39,9 @@ async function requestJsonImpl<T>(
   if (!res.ok) {
     throw new Error(`agent-sdk-console ${method} ${path}: HTTP ${res.status}`);
   }
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return (await res.json()) as T;
 }
 

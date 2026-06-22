@@ -23,6 +23,9 @@ import { SkillRegistryService } from '../descriptor/skill-registry.service';
 import { RuleRegistryService } from '../descriptor/rule-registry.service';
 import { TenantDescriptorRepositoryImpl } from '../descriptor/tenant-descriptor.repository';
 import { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
+import { DescriptorListingRepositoryImpl } from '../descriptor/descriptor-listing.repository';
+import { RunnableAgentResolver } from '../descriptor/runnable-agent-resolver';
+import { UserShelfRepositoryImpl } from '../descriptor/user-shelf.repository';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import { SessionService } from './session.service';
 import { TurnService } from './turn.service';
@@ -207,6 +210,11 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         const tenantResolver = new TenantDescriptorResolver(
           new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
         );
+        const runnableAgentResolver = new RunnableAgentResolver(
+          new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
+          new DescriptorListingRepositoryImpl(pool),
+          new UserShelfRepositoryImpl(pool, sharedSfidService),
+        );
         return new SessionService(
           sharedSfidService,
           repo,
@@ -217,6 +225,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           ruleRegistry,
           tenantResolver,
           descriptorRegistry,
+          runnableAgentResolver,
         );
       },
     },

@@ -16,8 +16,8 @@ import {
   stopTrackedTestcontainersIfAny,
   type MysqlOnlyStack,
 } from '@cube-ai/test-infra';
-import { generateNumericId } from './generate-id';
 import {
+  AUTHORITATIVE_SYSTEM_CATALOG_SEED,
   upsertSystemCatalogMysql,
   type CatalogMysqlPool,
   type SystemCatalogSeed,
@@ -39,6 +39,13 @@ import { MysqlLlmCatalogPort } from './mysql-catalog.store';
 
 const TENANT = 4242;
 const HOOK_MS = 1_800_000;
+const SYSTEM_PROVIDER_COUNT = AUTHORITATIVE_SYSTEM_CATALOG_SEED.providers?.length ?? 0;
+
+function requireProvider<T extends { providerCode: string }>(providers: T[], providerCode: string): T {
+  const provider = providers.find((item) => item.providerCode === providerCode);
+  expect(provider).toBeDefined();
+  return provider!;
+}
 
 /** 刚启动的 MySQL 容器初始化期会断开首批连接；与 test-infra 同策略重试。 */
 function isTransientMysqlErr(e: unknown): boolean {
@@ -99,44 +106,6 @@ if (run) {
   );
 }
 
-/** 代表性系统目录种子：OpenAI 供应商 + gpt-4o 模型（足以覆盖 provisioning + 运行期读回）。 */
-function buildSystemSeed(): SystemCatalogSeed {
-  const providerId = generateNumericId();
-  const modelId = generateNumericId();
-  return {
-    types: [
-      { code: 'openai', display_name: 'OpenAI', description: 'OpenAI 标准协议', sort_order: '10', enabled: true },
-    ],
-    providers: [
-      {
-        id: providerId,
-        provider_code: 'openai-official',
-        type_code: 'openai',
-        name: 'OpenAI',
-        icon_url: null,
-        default_remark: '官方 OpenAI',
-      },
-    ],
-    models: [
-      {
-        id: modelId,
-        system_provider_id: providerId,
-        model_code: 'gpt-4o',
-        display_name: 'GPT-4o',
-        group_name: 'General',
-        sort_order: '10',
-        icon_url: null,
-        api_base_url: null,
-        endpoint_type: 'openai',
-        model_types: 'reasoning,tool',
-        is_free: false,
-        supports_test: true,
-      },
-    ],
-    matchRules: [],
-  };
-}
-
 function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatalogService {
   const typeAdapter = new LlmTypeAdapterService();
   const systemTypeRepo = new SystemLlmProviderTypeRepository(pool);
@@ -171,7 +140,7 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     const s = await startMysqlOnly();
     try {
       // 建表（与运行期 ensureCatalogTables 同一 DDL）+ 系统目录种子（含启动期断连重试）。
-      await seedWithRetry(s.mysqlUrl, buildSystemSeed());
+      await seedWithRetry(s.mysqlUrl, AUTHORITATIVE_SYSTEM_CATALOG_SEED);
       stackHolder.current = s;
     } catch (e) {
       await s.stop();
@@ -193,8 +162,8 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     const freshTenant = TENANT + 99;
 
     const summaries = await port.listProviders(freshTenant, new AbortController().signal);
-    expect(summaries.length).toBe(1);
-    expect(summaries[0]?.providerCode).toBe('openai-official');
+    expect(summaries.length).toBe(SYSTEM_PROVIDER_COUNT);
+    expect(summaries.some((provider) => provider.providerCode === 'openai-official')).toBe(true);
 
     await endPool(pool);
   });
@@ -204,8 +173,8 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     const service = buildService(pool, () => TENANT);
 
     const providers = await service.listProviders();
-    expect(providers.length).toBe(1);
-    const builtin = providers[0]!;
+    expect(providers.length).toBe(SYSTEM_PROVIDER_COUNT);
+    const builtin = requireProvider(providers, 'openai-official');
     expect(builtin.providerCode).toBe('openai-official');
     expect(builtin.typeCode).toBe('openai');
     expect(builtin.isCustom).toBe(false);
@@ -222,7 +191,7 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
 
     // 幂等：再次首访不重复 provisioning。
     const providersAgain = await service.listProviders();
-    expect(providersAgain.length).toBe(1);
+    expect(providersAgain.length).toBe(SYSTEM_PROVIDER_COUNT);
 
     await endPool(pool);
   });
@@ -231,8 +200,8 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const service = buildService(pool, () => TENANT);
 
-    const [builtin] = await service.listProviders();
-    const updated = await service.updateProviderSettings(builtin!.id, {
+    const builtin = requireProvider(await service.listProviders(), 'openai-official');
+    const updated = await service.updateProviderSettings(builtin.id, {
       apiKey: 'sk-live-abcdef123456',
       apiBaseUrl: 'https://api.openai.com/v1',
       enabled: true,
@@ -298,14 +267,14 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
 
     // 列表此时应有内置 + 自定义两个供应商。
     const before = await service.listProviders();
-    expect(before.length).toBe(2);
+    expect(before.length).toBe(SYSTEM_PROVIDER_COUNT + 1);
 
     await service.deleteModel(created.id, model.id);
     await service.deleteProvider(created.id);
 
     const after = await service.listProviders();
-    expect(after.length).toBe(1);
-    expect(after[0]!.providerCode).toBe('openai-official');
+    expect(after.length).toBe(SYSTEM_PROVIDER_COUNT);
+    expect(after.some((provider) => provider.providerCode === 'openai-official')).toBe(true);
 
     // 逻辑删除后运行期不再解析。
     const gone = await port.resolveModelRuntime(TENANT, 'local-x', new AbortController().signal);

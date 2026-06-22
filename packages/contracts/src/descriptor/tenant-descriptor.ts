@@ -140,12 +140,23 @@ export const TenantDescriptorViewSchema = z.object({
   id: z.string(),
   kind: z.enum(['agent', 'skill', 'rule']),
   name: z.string(),
+  ownerUserId: z.string().nullable(),
   status: TenantDescriptorStatusSchema,
   headVersionNo: z.number().int(),
   publishedVersionNo: z.number().int().nullable(),
+  hasUnpublishedChanges: z.boolean(),
   /** head 版本内容（按 kind 再 parse） */
   content: z.unknown(),
   createTime: z.number(),
   updateTime: z.number(),
 });
 export type TenantDescriptorView = z.infer<typeof TenantDescriptorViewSchema>;
+
+/** 已发布版本历史条目；列表默认不带 content，详情/预览时可带。 */
+export const DescriptorVersionSchema = z.object({
+  versionNo: z.number().int(),
+  createBy: z.string(),
+  createTime: z.number(),
+  content: z.unknown().optional(),
+});
+export type DescriptorVersion = z.infer<typeof DescriptorVersionSchema>;

@@ -26,6 +26,7 @@ import {
   DescriptorManagementService,
   type ProposeStreamEvent,
 } from './descriptor-management.service';
+import { isDescriptorAdmin } from './descriptor-owner';
 
 function requireCtx(): Context {
   const ctx = contextStore.getStore();
@@ -53,6 +54,10 @@ function tenantOf(ctx: Context): number {
 
 function actorOf(ctx: Context): string {
   return readSubject(ctx).user.userId;
+}
+
+function descriptorAdminOf(ctx: Context): boolean {
+  return isDescriptorAdmin(readSubject(ctx));
 }
 
 async function rawTextBody(ctx: Context): Promise<string> {
@@ -105,6 +110,18 @@ export class DescriptorManagementController {
   publishAgent() {
     return this.publish();
   }
+  @GET('/agents/:id/versions')
+  listAgentVersions() {
+    return this.listVersions();
+  }
+  @GET('/agents/:id/versions/:no')
+  getAgentVersion() {
+    return this.getVersion();
+  }
+  @POST('/agents/:id/rollback')
+  rollbackAgent() {
+    return this.rollback();
+  }
   @POST('/agents:fromDocument')
   agentFromDocument() {
     return this.fromDocument('agent');
@@ -139,6 +156,18 @@ export class DescriptorManagementController {
   publishSkill() {
     return this.publish();
   }
+  @GET('/skills/:id/versions')
+  listSkillVersions() {
+    return this.listVersions();
+  }
+  @GET('/skills/:id/versions/:no')
+  getSkillVersion() {
+    return this.getVersion();
+  }
+  @POST('/skills/:id/rollback')
+  rollbackSkill() {
+    return this.rollback();
+  }
   @POST('/skills:fromDocument')
   skillFromDocument() {
     return this.fromDocument('skill');
@@ -172,6 +201,18 @@ export class DescriptorManagementController {
   @POST('/rules/:id/publish')
   publishRule() {
     return this.publish();
+  }
+  @GET('/rules/:id/versions')
+  listRuleVersions() {
+    return this.listVersions();
+  }
+  @GET('/rules/:id/versions/:no')
+  getRuleVersion() {
+    return this.getVersion();
+  }
+  @POST('/rules/:id/rollback')
+  rollbackRule() {
+    return this.rollback();
   }
   @POST('/rules:fromDocument')
   ruleFromDocument() {
@@ -209,7 +250,9 @@ export class DescriptorManagementController {
 
   private async remove() {
     const ctx = requireCtx();
-    await this.svc.remove(tenantOf(ctx), requireId(ctx), actorOf(ctx));
+    await this.svc.remove(tenantOf(ctx), requireId(ctx), actorOf(ctx), {
+      isAdmin: descriptorAdminOf(ctx),
+    });
     ctx.setStatus(204);
     return undefined;
   }
@@ -217,6 +260,38 @@ export class DescriptorManagementController {
   private async publish() {
     const ctx = requireCtx();
     return this.svc.publish(tenantOf(ctx), requireId(ctx), actorOf(ctx));
+  }
+
+  private async listVersions() {
+    const ctx = requireCtx();
+    const items = await this.svc.listVersions(tenantOf(ctx), requireId(ctx), actorOf(ctx));
+    return { items };
+  }
+
+  private async getVersion() {
+    const ctx = requireCtx();
+    const versionNo = requireVersionNo(ctx);
+    const content = await this.svc.getVersionContent(
+      tenantOf(ctx),
+      requireId(ctx),
+      versionNo,
+      actorOf(ctx),
+    );
+    return { content };
+  }
+
+  private async rollback() {
+    const ctx = requireCtx();
+    const body = await jsonBody(ctx);
+    const versionNo = Number(body.versionNo);
+    if (!Number.isInteger(versionNo) || versionNo <= 0) {
+      throw AgenticEngineError.fromCode(
+        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+        'rollback versionNo must be a positive integer',
+        { versionNo: body.versionNo },
+      );
+    }
+    return this.svc.rollback(tenantOf(ctx), requireId(ctx), versionNo, actorOf(ctx));
   }
 
   private async fromDocument(kind: TenantDescriptorKind) {
@@ -302,4 +377,17 @@ function requireId(ctx: Context): string {
     throw AgenticEngineError.fromCode('INVALID_ARGUMENT_DESCRIPTOR_ID', 'Descriptor id is required', {});
   }
   return id;
+}
+
+function requireVersionNo(ctx: Context): number {
+  const raw = ctx.getParam('no')?.trim();
+  const versionNo = Number(raw);
+  if (!Number.isInteger(versionNo) || versionNo <= 0) {
+    throw AgenticEngineError.fromCode(
+      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+      'Descriptor version number must be a positive integer',
+      { versionNo: raw },
+    );
+  }
+  return versionNo;
 }

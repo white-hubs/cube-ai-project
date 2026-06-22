@@ -12,6 +12,7 @@ import { Injectable } from '@dangao/bun-server';
 import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import {
   TENANT_DESCRIPTOR_ID_PREFIXES,
+  type DescriptorVersion,
   type TenantDescriptorKind,
   type TenantDescriptorStatus,
   type TenantDescriptorView,
@@ -47,6 +48,15 @@ export interface TenantDescriptorRepository {
   softDelete(tenant: number, id: string, actor?: string): Promise<void>;
   /** 运行时解析：仅返回已发布行，content 为 published 版本内容。未发布 / 不存在 → null。 */
   resolvePublished(tenant: number, id: string): Promise<TenantDescriptorView | null>;
+  listVersions(tenant: number, id: string): Promise<DescriptorVersion[]>;
+  getVersionContent(tenant: number, id: string, versionNo: number): Promise<unknown | null>;
+  rollback(
+    tenant: number,
+    id: string,
+    versionNo: number,
+    actor?: string,
+  ): Promise<TenantDescriptorView>;
+  resolveDraft(tenant: number, id: string): Promise<TenantDescriptorView | null>;
 }
 
 interface DescriptorHeadRow extends RowDataPacket {
@@ -54,6 +64,8 @@ interface DescriptorHeadRow extends RowDataPacket {
   tenant: number;
   kind: string;
   name: string;
+  owner_user_id?: string | null;
+  draft_content_json?: unknown;
   head_version_no: number;
   published_version_no: number | null;
   status: string;
@@ -62,7 +74,10 @@ interface DescriptorHeadRow extends RowDataPacket {
 }
 
 interface VersionRow extends RowDataPacket {
+  version_no: number;
   content_json: unknown;
+  create_by: string;
+  create_time: Date | string | number;
 }
 
 function toEpochMs(v: Date | string | number): number {
@@ -127,28 +142,82 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
     return rows[0] ?? null;
   }
 
+  private async lockedHeadRow(
+    conn: PoolConnection,
+    tenant: number,
+    id: string,
+  ): Promise<DescriptorHeadRow | null> {
+    const [rows] = await conn.execute<DescriptorHeadRow[]>(
+      `SELECT * FROM tenant_descriptors
+       WHERE id = ? AND tenant = ? AND deleted = 0
+       FOR UPDATE`,
+      [id, tenant],
+    );
+    return rows[0] ?? null;
+  }
+
   private async versionContent(
     conn: Pool | PoolConnection,
+    tenant: number,
     descriptorId: string,
     versionNo: number,
   ): Promise<unknown> {
     const [rows] = await conn.execute<VersionRow[]>(
       `SELECT content_json FROM tenant_descriptor_versions
-       WHERE descriptor_id = ? AND version_no = ? LIMIT 1`,
-      [descriptorId, versionNo],
+       WHERE tenant = ? AND descriptor_id = ? AND version_no = ? LIMIT 1`,
+      [tenant, descriptorId, versionNo],
     );
     return rows[0] ? parseJsonColumn(rows[0].content_json) : null;
   }
 
-  private toView(row: DescriptorHeadRow, content: unknown): TenantDescriptorView {
+  private draftContent(row: DescriptorHeadRow): unknown {
+    return parseJsonColumn(row.draft_content_json);
+  }
+
+  private async hasUnpublishedChanges(
+    conn: Pool | PoolConnection,
+    row: DescriptorHeadRow,
+    draftContent: unknown,
+  ): Promise<boolean> {
+    if (row.published_version_no == null) return true;
+    const published = await this.versionContent(
+      conn,
+      row.tenant,
+      row.id,
+      Number(row.published_version_no),
+    );
+    return JSON.stringify(draftContent ?? null) !== JSON.stringify(published ?? null);
+  }
+
+  private async nextPublishedVersion(
+    conn: Pool | PoolConnection,
+    tenant: number,
+    descriptorId: string,
+  ): Promise<number> {
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      `SELECT COALESCE(MAX(version_no), 0) + 1 AS next_version
+       FROM tenant_descriptor_versions
+       WHERE tenant = ? AND descriptor_id = ?`,
+      [tenant, descriptorId],
+    );
+    return Number(rows[0]?.next_version ?? 1);
+  }
+
+  private toView(
+    row: DescriptorHeadRow,
+    content: unknown,
+    hasUnpublishedChanges: boolean,
+  ): TenantDescriptorView {
     return {
       id: row.id,
       kind: row.kind as TenantDescriptorView['kind'],
       name: row.name,
+      ownerUserId: row.owner_user_id ?? null,
       status: row.status as TenantDescriptorStatus,
       headVersionNo: Number(row.head_version_no),
       publishedVersionNo:
         row.published_version_no == null ? null : Number(row.published_version_no),
+      hasUnpublishedChanges,
       content,
       createTime: toEpochMs(row.create_time),
       updateTime: toEpochMs(row.update_time),
@@ -195,10 +264,11 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
         action = 'created';
         await conn.execute(
           `INSERT INTO tenant_descriptors (
-            id, tenant, kind, name, head_version_no, published_version_no, status,
+            id, tenant, kind, name, owner_user_id, head_version_no, published_version_no, status,
+            draft_content_json,
             deleted, create_by, create_time, update_by, update_time
-          ) VALUES (?, ?, ?, ?, 1, NULL, 'draft', 0, ?, ?, ?, ?)`,
-          [id, tenant, kind, trimmedName, actor, now, actor, now],
+          ) VALUES (?, ?, ?, ?, ?, 1, NULL, 'draft', CAST(? AS JSON), 0, ?, ?, ?, ?)`,
+          [id, tenant, kind, trimmedName, actor, contentStr, actor, now, actor, now],
         );
       } else {
         id = existing.id;
@@ -206,18 +276,12 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
         action = 'updated';
         await conn.execute(
           `UPDATE tenant_descriptors
-           SET head_version_no = ?, status = 'draft', update_by = ?, update_time = ?
+           SET head_version_no = ?, status = 'draft', draft_content_json = CAST(? AS JSON),
+               update_by = ?, update_time = ?
            WHERE id = ? AND tenant = ? AND deleted = 0`,
-          [headVersionNo, actor, now, id, tenant],
+          [headVersionNo, contentStr, actor, now, id, tenant],
         );
       }
-
-      await conn.execute(
-        `INSERT INTO tenant_descriptor_versions (
-          descriptor_id, tenant, version_no, content_json, create_by, create_time
-        ) VALUES (?, ?, ?, CAST(? AS JSON), ?, ?)`,
-        [id, tenant, headVersionNo, contentStr, actor, now],
-      );
 
       await conn.commit();
       return { id, name: trimmedName, action, headVersionNo, status: 'draft' };
@@ -232,8 +296,8 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
   async findById(tenant: number, id: string): Promise<TenantDescriptorView | null> {
     const row = await this.headRow(this.pool, tenant, id);
     if (!row) return null;
-    const content = await this.versionContent(this.pool, id, Number(row.head_version_no));
-    return this.toView(row, content);
+    const content = this.draftContent(row);
+    return this.toView(row, content, await this.hasUnpublishedChanges(this.pool, row, content));
   }
 
   async findByName(
@@ -248,8 +312,8 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
     );
     const row = rows[0];
     if (!row) return null;
-    const content = await this.versionContent(this.pool, row.id, Number(row.head_version_no));
-    return this.toView(row, content);
+    const content = this.draftContent(row);
+    return this.toView(row, content, await this.hasUnpublishedChanges(this.pool, row, content));
   }
 
   async list(tenant: number, kind: TenantDescriptorKind): Promise<TenantDescriptorView[]> {
@@ -261,23 +325,43 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
     );
     const out: TenantDescriptorView[] = [];
     for (const row of rows) {
-      const content = await this.versionContent(this.pool, row.id, Number(row.head_version_no));
-      out.push(this.toView(row, content));
+      const content = this.draftContent(row);
+      out.push(this.toView(row, content, await this.hasUnpublishedChanges(this.pool, row, content)));
     }
     return out;
   }
 
   async publish(tenant: number, id: string, actor = 'system'): Promise<TenantDescriptorView> {
-    const row = await this.headRow(this.pool, tenant, id);
-    if (!row) this.notFound(id);
-    const now = new Date();
-    await this.pool.execute(
-      `UPDATE tenant_descriptors
-       SET published_version_no = head_version_no, status = 'published',
-           update_by = ?, update_time = ?
-       WHERE id = ? AND tenant = ? AND deleted = 0`,
-      [actor, now, id, tenant],
-    );
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const row = await this.lockedHeadRow(conn, tenant, id);
+      if (!row) this.notFound(id);
+      const now = new Date();
+      const content = this.draftContent(row);
+      const contentStr = JSON.stringify(content ?? {});
+      const versionNo = await this.nextPublishedVersion(conn, tenant, id);
+
+      await conn.execute(
+        `INSERT INTO tenant_descriptor_versions (
+          descriptor_id, tenant, version_no, content_json, create_by, create_time
+        ) VALUES (?, ?, ?, CAST(? AS JSON), ?, ?)`,
+        [id, tenant, versionNo, contentStr, actor, now],
+      );
+      await conn.execute(
+        `UPDATE tenant_descriptors
+         SET published_version_no = ?, status = 'published',
+             update_by = ?, update_time = ?
+         WHERE id = ? AND tenant = ? AND deleted = 0`,
+        [versionNo, actor, now, id, tenant],
+      );
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback().catch(() => {});
+      throw e;
+    } finally {
+      conn.release();
+    }
     const updated = await this.findById(tenant, id);
     if (!updated) this.notFound(id);
     return updated;
@@ -299,11 +383,78 @@ export class TenantDescriptorRepositoryImpl implements TenantDescriptorRepositor
   async resolvePublished(tenant: number, id: string): Promise<TenantDescriptorView | null> {
     const row = await this.headRow(this.pool, tenant, id);
     if (!row || row.published_version_no == null) return null;
-    const content = await this.versionContent(this.pool, id, Number(row.published_version_no));
+    const content = await this.versionContent(this.pool, tenant, id, Number(row.published_version_no));
     return {
-      ...this.toView(row, content),
+      ...this.toView(row, content, await this.hasUnpublishedChanges(this.pool, row, this.draftContent(row))),
       // 运行时视图：status 恒为 published，headVersionNo 仍为 head（审计）
       status: 'published',
     };
+  }
+
+  async listVersions(tenant: number, id: string): Promise<DescriptorVersion[]> {
+    const [rows] = await this.pool.execute<VersionRow[]>(
+      `SELECT version_no, content_json, create_by, create_time
+       FROM tenant_descriptor_versions
+       WHERE tenant = ? AND descriptor_id = ?
+       ORDER BY version_no ASC`,
+      [tenant, id],
+    );
+    return rows.map((row) => ({
+      versionNo: Number(row.version_no),
+      createBy: row.create_by,
+      createTime: toEpochMs(row.create_time),
+    }));
+  }
+
+  getVersionContent(tenant: number, id: string, versionNo: number): Promise<unknown | null> {
+    return this.versionContent(this.pool, tenant, id, versionNo);
+  }
+
+  async rollback(
+    tenant: number,
+    id: string,
+    versionNo: number,
+    actor = 'system',
+  ): Promise<TenantDescriptorView> {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const row = await this.lockedHeadRow(conn, tenant, id);
+      if (!row) this.notFound(id);
+      const content = await this.versionContent(conn, tenant, id, versionNo);
+      if (content == null) this.notFound(id);
+      const now = new Date();
+      const nextVersionNo = await this.nextPublishedVersion(conn, tenant, id);
+      const nextHeadVersionNo = Number(row.head_version_no) + 1;
+      const contentStr = JSON.stringify(content ?? {});
+
+      await conn.execute(
+        `INSERT INTO tenant_descriptor_versions (
+          descriptor_id, tenant, version_no, content_json, create_by, create_time
+        ) VALUES (?, ?, ?, CAST(? AS JSON), ?, ?)`,
+        [id, tenant, nextVersionNo, contentStr, actor, now],
+      );
+      await conn.execute(
+        `UPDATE tenant_descriptors
+         SET head_version_no = ?, published_version_no = ?, status = 'published',
+             draft_content_json = CAST(? AS JSON), update_by = ?, update_time = ?
+         WHERE id = ? AND tenant = ? AND deleted = 0`,
+        [nextHeadVersionNo, nextVersionNo, contentStr, actor, now, id, tenant],
+      );
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback().catch(() => {});
+      throw e;
+    } finally {
+      conn.release();
+    }
+
+    const updated = await this.findById(tenant, id);
+    if (!updated) this.notFound(id);
+    return updated;
+  }
+
+  resolveDraft(tenant: number, id: string): Promise<TenantDescriptorView | null> {
+    return this.findById(tenant, id);
   }
 }

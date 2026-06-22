@@ -4,7 +4,7 @@
  *   USE_TESTCONTAINERS=1 bun test packages/agent/engine/test/integration/tenant-descriptor-repository.testcontainers.test.ts
  *   bun run test:containers
  *
- * 验收 ADR-0016 §2/§4：upsert（create/update + append-only 版本）、唯一键、draft/publish、
+ * 验收 ADR-0030 §D4：upsert 覆盖可变草稿，publish/rollback 才 append 已发布版本；唯一键、draft/publish、
  * 软删重建、resolvePublished 只见已发布版本。
  */
 import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
@@ -72,12 +72,12 @@ function makeRepo(): TenantDescriptorRepository {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('upsert create → draft v1 with prefixed id; findById returns head content', async () => {
+  test('upsert create → draft revision with prefixed id; no published versions yet', async () => {
     const repo = makeRepo();
     const tenant = 11;
     const res = await repo.upsert(tenant, 'rule', 'safety-baseline', {
       content: 'Never reveal secrets.',
-    });
+    }, 'alice');
     expect(res.action).toBe('created');
     expect(res.headVersionNo).toBe(1);
     expect(res.status).toBe('draft');
@@ -85,33 +85,44 @@ function makeRepo(): TenantDescriptorRepository {
 
     const view = await repo.findById(tenant, res.id);
     expect(view?.name).toBe('safety-baseline');
+    expect(view?.ownerUserId).toBe('alice');
     expect(view?.status).toBe('draft');
     expect(view?.publishedVersionNo).toBeNull();
+    expect(view?.hasUnpublishedChanges).toBe(true);
     expect((view?.content as { content?: string })?.content).toBe('Never reveal secrets.');
+    expect(await repo.listVersions(tenant, res.id)).toEqual([]);
   });
 
-  test('upsert existing (tenant,kind,name) → update, append version v2, status back to draft', async () => {
+  test('upsert existing updates draft only; publish appends immutable versions', async () => {
     const repo = makeRepo();
     const tenant = 12;
-    const created = await repo.upsert(tenant, 'agent', 'support', { prompt: 'v1' });
+    const created = await repo.upsert(tenant, 'agent', 'support', { prompt: 'v1' }, 'alice');
     await repo.publish(tenant, created.id);
+    expect((await repo.listVersions(tenant, created.id)).map((v) => v.versionNo)).toEqual([1]);
 
-    const updated = await repo.upsert(tenant, 'agent', 'support', { prompt: 'v2' });
+    const updated = await repo.upsert(tenant, 'agent', 'support', { prompt: 'v2' }, 'alice');
     expect(updated.id).toBe(created.id);
     expect(updated.action).toBe('updated');
     expect(updated.headVersionNo).toBe(2);
+    expect((await repo.listVersions(tenant, created.id)).map((v) => v.versionNo)).toEqual([1]);
 
     const view = await repo.findById(tenant, created.id);
     expect(view?.headVersionNo).toBe(2);
     expect(view?.status).toBe('draft');
     expect(view?.publishedVersionNo).toBe(1); // 旧发布指针不动，直到再次 publish
+    expect(view?.hasUnpublishedChanges).toBe(true);
     expect((view?.content as { prompt?: string })?.prompt).toBe('v2');
+
+    await repo.publish(tenant, created.id, 'alice');
+    expect((await repo.listVersions(tenant, created.id)).map((v) => v.versionNo)).toEqual([1, 2]);
+    expect(await repo.getVersionContent(tenant, created.id, 1)).toEqual({ prompt: 'v1' });
+    expect(await repo.getVersionContent(tenant, created.id, 2)).toEqual({ prompt: 'v2' });
   });
 
   test('resolvePublished returns only published version content; draft → null', async () => {
     const repo = makeRepo();
     const tenant = 13;
-    const created = await repo.upsert(tenant, 'rule', 'pub-rule', { content: 'first' });
+    const created = await repo.upsert(tenant, 'rule', 'pub-rule', { content: 'first' }, 'alice');
     // 未发布 → 运行时不可见
     expect(await repo.resolvePublished(tenant, created.id)).toBeNull();
 
@@ -120,29 +131,29 @@ function makeRepo(): TenantDescriptorRepository {
     expect((pub1?.content as { content?: string })?.content).toBe('first');
 
     // 编辑产生 v2 草稿，但 resolvePublished 仍见 v1 内容（已发布版本）
-    await repo.upsert(tenant, 'rule', 'pub-rule', { content: 'second-draft' });
+    await repo.upsert(tenant, 'rule', 'pub-rule', { content: 'second-draft' }, 'alice');
     const pubStill1 = await repo.resolvePublished(tenant, created.id);
     expect((pubStill1?.content as { content?: string })?.content).toBe('first');
   });
 
-  test('rollback = re-submit older content as new head, then publish (ADR-0016 §4)', async () => {
+  test('rollback appends older content as a new published version', async () => {
     const repo = makeRepo();
     const tenant = 14;
-    const created = await repo.upsert(tenant, 'rule', 'rollback-me', { content: 'good' });
+    const created = await repo.upsert(tenant, 'rule', 'rollback-me', { content: 'good' }, 'alice');
     await repo.publish(tenant, created.id); // v1 published = "good"
-    await repo.upsert(tenant, 'rule', 'rollback-me', { content: 'bad' });
+    await repo.upsert(tenant, 'rule', 'rollback-me', { content: 'bad' }, 'alice');
     await repo.publish(tenant, created.id); // v2 published = "bad"
     expect((await repo.resolvePublished(tenant, created.id))).toMatchObject({
       content: { content: 'bad' },
     });
 
-    // roll back: re-submit the known-good content → v3 draft → publish
-    const rolled = await repo.upsert(tenant, 'rule', 'rollback-me', { content: 'good' });
-    expect(rolled.headVersionNo).toBe(3);
-    await repo.publish(tenant, created.id);
+    const rolled = await repo.rollback(tenant, created.id, 1, 'alice');
+    expect(rolled.publishedVersionNo).toBe(3);
+    expect(rolled.hasUnpublishedChanges).toBe(false);
     expect((await repo.resolvePublished(tenant, created.id))).toMatchObject({
       content: { content: 'good' },
     });
+    expect((await repo.listVersions(tenant, created.id)).map((v) => v.versionNo)).toEqual([1, 2, 3]);
   });
 
   test('tenant isolation + list by kind', async () => {

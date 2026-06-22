@@ -15,6 +15,10 @@ import { type Container } from '@dangao/bun-server';
 import type { Pool } from 'mysql2/promise';
 import type { LlmProviderPort } from '@cube-ai/contracts';
 import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from '@cube-ai/contracts/platform';
+import {
+  OUTBOX_WRITER_TOKEN,
+  type OutboxWriter,
+} from '@cube-ai/bun-server-ext-outbox';
 import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import {
@@ -26,6 +30,7 @@ import { TenantDescriptorRepositoryImpl } from './tenant-descriptor.repository';
 import { DescriptorRegistryService } from './descriptor-registry.service';
 import { RuleRegistryService } from './rule-registry.service';
 import { SkillRegistryService } from './skill-registry.service';
+import { ShelfService } from './shelf.service';
 
 function tryResolve<T>(c: Container, token: unknown): T | undefined {
   try {
@@ -74,7 +79,9 @@ export function buildDescriptorManagementService(c: Container): DescriptorManage
   }
   const repo = new TenantDescriptorRepositoryImpl(pool, sharedSfidService);
   const llm = tryResolve<LlmProviderPort>(c, AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN);
-  return new DescriptorManagementService(repo, llm, buildCandidateSource(c));
+  const shelf = tryResolve<ShelfService>(c, ShelfService);
+  const outbox = tryResolve<OutboxWriter>(c, OUTBOX_WRITER_TOKEN);
+  return new DescriptorManagementService(repo, llm, buildCandidateSource(c), shelf, outbox);
 }
 
 /** Provider 对象：三处装配共享，使「核」可被 DI 解析为 {@link DescriptorManagementService}。 */

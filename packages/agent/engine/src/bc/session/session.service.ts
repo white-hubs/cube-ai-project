@@ -23,6 +23,7 @@ import {
 } from './snapshot-rule-hydration';
 import { parseTenantDescriptorId } from '@cube-ai/contracts';
 import type { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
+import type { RunnableAgentResolver } from '../descriptor/runnable-agent-resolver';
 import type { RuleDescriptor } from '../descriptor/rule-registry.service';
 import type { SkillDescriptor } from '@tachu/core';
 
@@ -130,12 +131,18 @@ async function buildSnapshots(params: {
   ruleRegistry?: RuleRegistryResolveLike;
   toolRegistry?: ToolRegistryResolveLike;
   tenantResolver?: TenantDescriptorResolver;
-}): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown> }> {
+  runnableAgentResolver?: RunnableAgentResolver;
+}): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown>; agentVersionNo: number }> {
   const frozen = Date.now();
   const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? '';
   // 前缀 id（agt_）→ 租户持久层（仅已发布）；裸 name → 系统级文件/registry（ADR-0016 §5）。
   const agentIsTenantRef = parseTenantDescriptorId(params.agentId)?.kind === 'agent';
+  const runnableResolution =
+    agentIsTenantRef && params.runnableAgentResolver
+      ? await params.runnableAgentResolver.resolve(params.tenant, params.userId, params.agentId)
+      : null;
   const agentDescriptor =
+    runnableResolution?.record ??
     (agentIsTenantRef && params.tenantResolver
       ? await params.tenantResolver.getAgentRecord(params.tenant, params.agentId)
       : null) ??
@@ -151,6 +158,7 @@ async function buildSnapshots(params: {
       { agentId: params.agentId },
     );
   }
+  const agentVersionNo = runnableResolution?.versionNo ?? 1;
   // 系统级文件用 `instructions`，租户级 agent content 用 `prompt`：两者择一。
   const agentInstructions =
     (agentDescriptor && typeof agentDescriptor['instructions'] === 'string'
@@ -232,7 +240,7 @@ async function buildSnapshots(params: {
     schema: 'agent-snapshot-v1',
     agent: {
       id: params.agentId,
-      versionNo: 1,
+      versionNo: agentVersionNo,
       content: {
         prompt,
         modelConfig: { provider: 'unset', model: requestedModel || 'unset', temperature: 0.7 },
@@ -275,7 +283,7 @@ async function buildSnapshots(params: {
     );
   }
 
-  return { agent: agentSnapshotJson, user: userPrincipalSnapshotJson };
+  return { agent: agentSnapshotJson, user: userPrincipalSnapshotJson, agentVersionNo };
 }
 
 function requirePool(pool: Pool | null): Pool {
@@ -339,6 +347,7 @@ export class SessionService {
     private readonly ruleRegistry?: RuleRegistryResolveLike,
     private readonly tenantResolver?: TenantDescriptorResolver,
     private readonly toolRegistry?: ToolRegistryResolveLike,
+    private readonly runnableAgentResolver?: RunnableAgentResolver,
   ) {}
 
   private async withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
@@ -378,6 +387,7 @@ export class SessionService {
       ruleRegistry: this.ruleRegistry,
       toolRegistry: this.toolRegistry,
       tenantResolver: this.tenantResolver,
+      runnableAgentResolver: this.runnableAgentResolver,
     });
 
     return this.withTransaction(async (conn) => {
@@ -386,7 +396,7 @@ export class SessionService {
         tenant,
         userId,
         agentId: body.agentId,
-        agentVersionNo: 1,
+        agentVersionNo: snaps.agentVersionNo,
         agentSnapshotJson: snaps.agent,
         userPrincipalSnapshotJson: snaps.user,
         title: body.title ?? null,

@@ -10,6 +10,7 @@ import {
   TenantAgentContentSchema,
   TenantRuleContentSchema,
   TenantSkillContentSchema,
+  type DescriptorVersion,
   type TenantDescriptorKind,
   type TenantDescriptorView,
   type FromDocumentResult,
@@ -19,6 +20,10 @@ import {
   type ProposeResult,
   type ProposeSuggestion,
 } from '@cube-ai/contracts';
+import type {
+  OutboxWriter,
+  TransactionContext,
+} from '@cube-ai/bun-server-ext-outbox';
 import type { ZodType } from 'zod';
 import { AgenticEngineError } from '../../infra/errors/agentic-error';
 import {
@@ -26,6 +31,11 @@ import {
   parseRuleDocument,
   parseSkillDocument,
 } from './descriptor-document-parser';
+import {
+  assertDescriptorOwner,
+  assertDescriptorOwnerOrAdmin,
+} from './descriptor-owner';
+import type { ShelfService } from './shelf.service';
 import type { TenantDescriptorRepository, UpsertDescriptorResult } from './tenant-descriptor.repository';
 
 const CONTENT_SCHEMA: Record<TenantDescriptorKind, ZodType> = {
@@ -33,6 +43,8 @@ const CONTENT_SCHEMA: Record<TenantDescriptorKind, ZodType> = {
   skill: TenantSkillContentSchema,
   rule: TenantRuleContentSchema,
 };
+
+const NULL_TX = null as unknown as TransactionContext;
 
 /** propose ref 候选的 kind 全集（含运行时 tool / sub-agent，ADR-0027 §6）。 */
 export type ProposeRefKind = ProposeSuggestion['kind'];
@@ -259,6 +271,10 @@ export class DescriptorManagementService {
     private readonly llm?: LlmProviderPort,
     /** ADR-0027 §6：系统级候选 ref 来源。缺省（离线/未装配）= 无系统候选。 */
     private readonly candidateSource?: ProposeCandidateSource,
+    /** ADR-0030 D1：作者创建 agent/skill 后自动进入「我的」货架。 */
+    private readonly shelf?: Pick<ShelfService, 'upsertAuthored'>,
+    /** ADR-0030：发布/回滚/删除后广播 descriptor cache 精确失效。 */
+    private readonly outbox?: OutboxWriter,
   ) {}
 
   private validateContent(kind: TenantDescriptorKind, content: unknown): unknown {
@@ -271,6 +287,26 @@ export class DescriptorManagementService {
       );
     }
     return res.data;
+  }
+
+  private async getOwnedDescriptor(tenant: number, id: string): Promise<TenantDescriptorView> {
+    const existing = await this.repo.findById(tenant, id);
+    if (!existing) {
+      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_DESCRIPTOR', `Descriptor not found: ${id}`, { id });
+    }
+    return existing;
+  }
+
+  private async appendDescriptorReload(tenant: number, descriptorId: string): Promise<void> {
+    if (!this.outbox) return;
+    await this.outbox.append(NULL_TX, {
+      tenant,
+      channel: 'descriptor_reload',
+      eventType: 'descriptor.reload',
+      payloadJson: { tenant, descriptorId },
+      target: descriptorId,
+      scheduleTime: Date.now(),
+    });
   }
 
   async create(
@@ -289,6 +325,9 @@ export class DescriptorManagementService {
     }
     const content = this.validateContent(kind, body.content);
     const { id } = await this.repo.upsert(tenant, kind, name, content, actor);
+    if ((kind === 'agent' || kind === 'skill') && actor) {
+      await this.shelf?.upsertAuthored(tenant, actor, id, kind);
+    }
     const view = await this.repo.findById(tenant, id);
     if (!view) {
       throw AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'Descriptor not visible after create', { id });
@@ -303,10 +342,8 @@ export class DescriptorManagementService {
     content: unknown,
     actor?: string,
   ): Promise<TenantDescriptorView> {
-    const existing = await this.repo.findById(tenant, id);
-    if (!existing) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_DESCRIPTOR', `Descriptor not found: ${id}`, { id });
-    }
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwner(existing.ownerUserId, actor);
     const validated = this.validateContent(kind, content);
     await this.repo.upsert(tenant, kind, existing.name, validated, actor);
     const view = await this.repo.findById(tenant, id);
@@ -328,12 +365,66 @@ export class DescriptorManagementService {
     return view;
   }
 
-  publish(tenant: number, id: string, actor?: string): Promise<TenantDescriptorView> {
-    return this.repo.publish(tenant, id, actor);
+  async publish(tenant: number, id: string, actor?: string): Promise<TenantDescriptorView> {
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwner(existing.ownerUserId, actor);
+    const published = await this.repo.publish(tenant, id, actor);
+    await this.appendDescriptorReload(tenant, id);
+    return published;
   }
 
-  remove(tenant: number, id: string, actor?: string): Promise<void> {
-    return this.repo.softDelete(tenant, id, actor);
+  async remove(
+    tenant: number,
+    id: string,
+    actor?: string,
+    opts: { isAdmin?: boolean } = {},
+  ): Promise<void> {
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwnerOrAdmin(existing.ownerUserId, actor, opts.isAdmin === true);
+    await this.repo.softDelete(tenant, id, actor);
+    await this.appendDescriptorReload(tenant, id);
+  }
+
+  async listVersions(
+    tenant: number,
+    id: string,
+    actor?: string,
+  ): Promise<DescriptorVersion[]> {
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwner(existing.ownerUserId, actor);
+    return this.repo.listVersions(tenant, id);
+  }
+
+  async getVersionContent(
+    tenant: number,
+    id: string,
+    versionNo: number,
+    actor?: string,
+  ): Promise<unknown> {
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwner(existing.ownerUserId, actor);
+    const content = await this.repo.getVersionContent(tenant, id, versionNo);
+    if (content == null) {
+      throw AgenticEngineError.fromCode(
+        'RESOURCE_NOT_FOUND_DESCRIPTOR',
+        `Descriptor version not found: ${id}@${versionNo}`,
+        { id, versionNo },
+      );
+    }
+    return content;
+  }
+
+  async rollback(
+    tenant: number,
+    id: string,
+    versionNo: number,
+    actor?: string,
+  ): Promise<TenantDescriptorView> {
+    const existing = await this.getOwnedDescriptor(tenant, id);
+    assertDescriptorOwner(existing.ownerUserId, actor);
+    const rolledBack = await this.repo.rollback(tenant, id, versionNo, actor);
+    await this.appendDescriptorReload(tenant, id);
+    return rolledBack;
   }
 
   /** ADR-0018：text/plain 文档 → parse → upsert（结果恒为 draft）。 */
@@ -352,6 +443,10 @@ export class DescriptorManagementService {
         `Invalid ${kind} descriptor document: ${e instanceof Error ? e.message : String(e)}`,
         { kind },
       );
+    }
+    const existing = await this.repo.findByName(tenant, kind, parsed.name);
+    if (existing) {
+      assertDescriptorOwner(existing.ownerUserId, actor);
     }
     const res: UpsertDescriptorResult = await this.repo.upsert(
       tenant,

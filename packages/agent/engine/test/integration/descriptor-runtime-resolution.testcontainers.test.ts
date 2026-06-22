@@ -20,8 +20,11 @@ import { SfidService } from '../../src/infra/sfid/sfid.service';
 import { SessionRepositoryImpl } from '../../src/bc/session/repository/session.repository';
 import { SessionService } from '../../src/bc/session/session.service';
 import {
+  DescriptorListingRepositoryImpl,
+  RunnableAgentResolver,
   TenantDescriptorRepositoryImpl,
   TenantDescriptorResolver,
+  UserShelfRepositoryImpl,
 } from '../../src/bc/descriptor';
 
 const run = await resolveShouldRunTestcontainers();
@@ -52,7 +55,10 @@ function makeSessionStack() {
   });
   const sfid = new SfidService();
   const descRepo = new TenantDescriptorRepositoryImpl(pool, sfid);
+  const listingRepo = new DescriptorListingRepositoryImpl(pool);
+  const shelfRepo = new UserShelfRepositoryImpl(pool, sfid);
   const resolver = new TenantDescriptorResolver(descRepo);
+  const runnableResolver = new RunnableAgentResolver(descRepo, listingRepo, shelfRepo);
   const sessionSvc = new SessionService(
     sfid,
     new SessionRepositoryImpl(pool),
@@ -62,8 +68,10 @@ function makeSessionStack() {
     undefined,
     undefined,
     resolver,
+    undefined,
+    runnableResolver,
   );
-  return { pool, descRepo, resolver, sessionSvc };
+  return { pool, descRepo, listingRepo, shelfRepo, resolver, sessionSvc };
 }
 
 (run ? describe : describe.skip)('Tenant descriptor runtime resolution [testcontainers]', () => {
@@ -98,8 +106,8 @@ function makeSessionStack() {
     const agent = await descRepo.upsert(tenant, 'agent', 'support', {
       prompt: 'You are a support agent.',
       ruleRefs: [rule.id],
-    });
-    await descRepo.publish(tenant, agent.id);
+    }, 'user-1');
+    await descRepo.publish(tenant, agent.id, 'user-1');
 
     const created = await sessionSvc.createSession(tenant, 'user-1', 'User One', {
       agentId: agent.id,
@@ -144,5 +152,39 @@ function makeSessionStack() {
     await expect(
       sessionSvc.createSession(tenant, 'user-1', 'User One', { agentId: agent.id } as never),
     ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
+  });
+
+  test('owner can run draft agent and snapshot records draft version sentinel', async () => {
+    const { descRepo, sessionSvc, pool } = makeSessionStack();
+    const tenant = 104;
+    const agent = await descRepo.upsert(tenant, 'agent', 'draft-owned', { prompt: 'Draft P' }, 'alice');
+
+    const created = await sessionSvc.createSession(tenant, 'alice', 'Alice', {
+      agentId: agent.id,
+    } as never);
+
+    const row = await new SessionRepositoryImpl(pool).findById(tenant, created.id);
+    expect(row?.agentVersionNo).toBe(0);
+    expect((row?.agentSnapshotJson as { agent: { versionNo: number; content: { prompt: string } } }).agent.versionNo).toBe(0);
+    expect((row?.agentSnapshotJson as { agent: { content: { prompt: string } } }).agent.content.prompt).toContain('Draft P');
+  });
+
+  test('non-owner runs installed floating ref at listed shared version', async () => {
+    const { descRepo, listingRepo, shelfRepo, sessionSvc, pool } = makeSessionStack();
+    const tenant = 105;
+    const agent = await descRepo.upsert(tenant, 'agent', 'listed', { prompt: 'V1' }, 'alice');
+    await descRepo.publish(tenant, agent.id, 'alice');
+    await descRepo.upsert(tenant, 'agent', 'listed', { prompt: 'V2' }, 'alice');
+    await descRepo.publish(tenant, agent.id, 'alice');
+    await listingRepo.list(tenant, agent.id, 2, 'alice');
+    await shelfRepo.insertRef(tenant, 'bob', 'agent', agent.id, null);
+
+    const created = await sessionSvc.createSession(tenant, 'bob', 'Bob', {
+      agentId: agent.id,
+    } as never);
+
+    const row = await new SessionRepositoryImpl(pool).findById(tenant, created.id);
+    expect(row?.agentVersionNo).toBe(2);
+    expect((row?.agentSnapshotJson as { agent: { content: { prompt: string } } }).agent.content.prompt).toContain('V2');
   });
 });

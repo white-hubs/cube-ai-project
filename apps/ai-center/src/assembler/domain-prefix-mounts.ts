@@ -13,6 +13,12 @@ import {
   DescriptorManagementController,
   DescriptorManagementLegacyController,
 } from '../../../../packages/agent/engine/src/bc/descriptor/descriptor-management.controller';
+import {
+  LibraryController,
+  ListingController,
+} from '../../../../packages/agent/engine/src/bc/descriptor/listing.controller';
+import { MyShelfController } from '../../../../packages/agent/engine/src/bc/descriptor/shelf.controller';
+import { PluginCatalogController } from '../../../../packages/agent/engine/src/bc/descriptor/plugin-catalog.controller';
 
 // ── LLM consumption ──────────────────────────────────────────────────────────
 import { LlmProvidersController } from '../../../../packages/llm/core/src/http/llm-providers.controller';
@@ -69,6 +75,10 @@ export const DOMAIN_PREFIX_MOUNTS: DomainPrefixMount[] = [
 
   // agent management (canonical /agent/console/*; legacy /agent/{kind} for upstream callers)
   { controller: DescriptorManagementController, base: '/agent/console' },
+  { controller: ListingController, base: '/agent/console' },
+  { controller: LibraryController, base: '/agent/console' },
+  { controller: MyShelfController, base: '/agent/console' },
+  { controller: PluginCatalogController, base: '/agent/console' },
   { controller: DescriptorManagementLegacyController, base: '/agent' },
 
   // llm consumption

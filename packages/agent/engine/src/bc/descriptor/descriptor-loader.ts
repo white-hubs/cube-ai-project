@@ -432,6 +432,10 @@ export class DescriptorLoader {
     return this.agentIndex.get(name);
   }
 
+  listIndexedAgentNames(): string[] {
+    return [...this.agentIndex.keys()].sort();
+  }
+
   /**
    * 启动护栏：列出名为 19 位 SFID 的 dev 占位 agent。
    *  - DEPLOY_ENV=DEV 时打 INFO，便于联调者一眼看到当前可用的 agentId；

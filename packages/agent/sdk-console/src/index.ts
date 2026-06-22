@@ -11,8 +11,10 @@ import {
 export type {
   AgentContentInput,
   FromDocumentResult,
+  LibraryBrowseOptions,
   ProposeOptions,
   RuleContentInput,
+  ShelfListOptions,
   SkillContentInput,
 } from './client';
 export type { ProposeRequest, ProposeResult, ProposeSuggestion } from '@cube-ai/contracts';

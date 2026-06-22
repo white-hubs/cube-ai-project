@@ -1,7 +1,7 @@
 import { describe, test, expect, mock } from 'bun:test';
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import type { SessionRepository } from './repository/session.repository';
-import type { AppendOutboxInput } from '@cube-ai/contracts';
+import type { AppendOutboxInput, CreateSessionInput } from '@cube-ai/contracts';
 import type { OutboxWriter } from '@cube-ai/bun-server-ext-outbox';
 import { SessionService } from './session.service';
 import { SfidService } from '../../infra/sfid/sfid.service';
@@ -204,6 +204,66 @@ describe('SessionService — business flows', () => {
     expect(input.agentSnapshotJson?.skills?.length).toBe(1);
     expect(input.agentSnapshotJson?.skills?.[0]?.name).toBe('default-reasoning');
     expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain('concise');
+  });
+
+  test('createSession freezes runnable tenant agent version into DB input and snapshot', async () => {
+    let capturedInput: CreateSessionInput | undefined;
+    const sfid = new SfidService();
+    const repo: SessionRepository = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async (_c, _tenant, sid, input) => {
+        capturedInput = input;
+        return { ...fakeRow(sid), agentVersionNo: input.agentVersionNo };
+      }),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    };
+    const pool: Pool = {
+      getConnection: mock(async () =>
+        ({
+          beginTransaction: mock(async () => {}),
+          commit: mock(async () => {}),
+          rollback: mock(async () => {}),
+          release: mock(() => {}),
+        }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const runnable = {
+      resolve: mock(async () => ({
+        versionNo: 2,
+        record: {
+          prompt: 'published v2',
+          availableTools: [],
+          ruleRefs: [],
+          skillRefs: [],
+        },
+      })),
+    };
+    const svc = new SessionService(
+      sfid,
+      repo,
+      pool,
+      outbox,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      runnable as never,
+    );
+
+    const view = await svc.createSession(7, 'bob', 'Bob', { agentId: 'agt_1' });
+
+    expect(runnable.resolve).toHaveBeenCalledWith(7, 'bob', 'agt_1');
+    expect(capturedInput?.agentVersionNo).toBe(2);
+    expect((capturedInput?.agentSnapshotJson as { agent: { versionNo: number } }).agent.versionNo).toBe(2);
+    expect(view.agentVersionNo).toBe(2);
   });
 
   test('createSession freezes only currently registered MCP tool refs', async () => {
