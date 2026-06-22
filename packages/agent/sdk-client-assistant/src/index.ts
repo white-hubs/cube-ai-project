@@ -27,4 +27,4 @@ export {
   StoreDisposedError,
 } from '@cube-ai/agent-sdk-client';
 
-export const SDK_ASSISTANT_VERSION = '0.0.1-alpha.8';
+export const SDK_ASSISTANT_VERSION = '0.0.1-alpha.9';
