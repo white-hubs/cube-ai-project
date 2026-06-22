@@ -3,6 +3,8 @@ import { DescriptorRegistryService } from '../descriptor/descriptor-registry.ser
 import { McpBridgeService } from './mcp-bridge.service';
 
 const RETRY_DELAYS_MS = [10_000, 30_000, 60_000, 300_000] as const;
+/** 已成功注册 server 的周期性 tools/list 刷新间隔（默认 5min，与最大退避一致）。 */
+const REFRESH_INTERVAL_MS = RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]!;
 
 export type McpToolRegistrationState = 'pending' | 'registered' | 'degraded';
 
@@ -73,7 +75,7 @@ export class McpToolRegistrationWorker {
     const now = Date.now();
     const due = [...this.servers.values()]
       .filter((server) => server.enabled)
-      .filter((server) => server.nextRetryAt === undefined || server.nextRetryAt <= now)
+      .filter((server) => isServerDue(server, now))
       .map((server) => server.serverName);
 
     await Promise.all(due.map((serverName) => this.tryRegisterServer(serverName)));
@@ -104,6 +106,7 @@ export class McpToolRegistrationWorker {
   private async tryRegisterServer(serverName: string): Promise<void> {
     const status = this.servers.get(serverName);
     if (!status?.enabled) return;
+    const previousState = status.state;
     status.lastAttemptAt = Date.now();
     try {
       const tools = await this.bridge.listToolsForServer(serverName);
@@ -124,10 +127,12 @@ export class McpToolRegistrationWorker {
       status.failureCount = 0;
       status.lastError = undefined;
       status.lastSuccessAt = Date.now();
-      status.nextRetryAt = undefined;
-      console.info(
-        `[mcp-registration] server registered server=${serverName} tools=${tools.length} newlyRegistered=${registered}`,
-      );
+      status.nextRetryAt = Date.now() + REFRESH_INTERVAL_MS;
+      if (previousState !== 'registered' || registered > 0) {
+        console.info(
+          `[mcp-registration] server registered server=${serverName} tools=${tools.length} newlyRegistered=${registered}`,
+        );
+      }
     } catch (e) {
       status.state = 'degraded';
       status.failureCount += 1;
@@ -149,9 +154,9 @@ export class McpToolRegistrationWorker {
     const now = Date.now();
     const nextRetryAt = [...this.servers.values()]
       .filter((server) => server.enabled)
-      .map((server) => server.nextRetryAt ?? now + RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1])
+      .map((server) => server.nextRetryAt ?? (server.state === 'pending' ? now : now + REFRESH_INTERVAL_MS))
       .reduce<number | undefined>((min, next) => (min === undefined ? next : Math.min(min, next)), undefined);
-    const delay = Math.max(1, (nextRetryAt ?? now + RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]) - now);
+    const delay = Math.max(1, (nextRetryAt ?? now + REFRESH_INTERVAL_MS) - now);
     this.timer = setTimeout(() => {
       this.timer = undefined;
       this.runDueServersSafely();
@@ -170,6 +175,15 @@ export class McpToolRegistrationWorker {
 
 export function retryDelayMs(failureCount: number): number {
   return RETRY_DELAYS_MS[Math.min(Math.max(failureCount, 1), RETRY_DELAYS_MS.length) - 1]!;
+}
+
+/** pending 首次发现立即跑；degraded/registered 仅在其 nextRetryAt 到期时跑。 */
+export function isServerDue(
+  server: Pick<McpToolRegistrationServerStatus, 'state' | 'nextRetryAt'>,
+  now: number,
+): boolean {
+  if (server.nextRetryAt !== undefined) return server.nextRetryAt <= now;
+  return server.state === 'pending';
 }
 
 function errorMessage(error: unknown): string {

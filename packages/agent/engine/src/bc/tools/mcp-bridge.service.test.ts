@@ -198,6 +198,69 @@ function installFakeMcpHttpFetch(): {
   };
 }
 
+/**
+ * 模拟"接受连接但永不返回响应体"的 HTTP MCP server：POST initialize 返回 200
+ * text/event-stream，但响应流永不关闭/不下发任何 JSON-RPC 消息，导致 resp.text()
+ * 永久阻塞——这正是生产中 `MCP RPC timeout: initialize` 崩溃的触发条件。
+ */
+function installHangingInitializeHttpFetch(): {
+  url: string;
+  stop: () => void;
+} {
+  const originalFetch = globalThis.fetch;
+  const controllers = new Set<ReadableStreamDefaultController<Uint8Array>>();
+
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const req = input instanceof Request ? input : new Request(String(input), init);
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const url = new URL(req.url);
+    if (url.origin === 'http://hang-mcp.test' && url.pathname === '/mcp' && req.method === 'POST') {
+      const stream = new ReadableStream<Uint8Array>({
+        start(c) {
+          controllers.add(c);
+          // 模拟真实 fetch：signal abort 时响应体出错（resp.text() reject）。
+          if (signal) {
+            const onAbort = () => {
+              controllers.delete(c);
+              try {
+                c.error(new Error('aborted'));
+              } catch {
+                /* already closed */
+              }
+            };
+            if (signal.aborted) onAbort();
+            else signal.addEventListener('abort', onAbort, { once: true });
+          }
+          // 故意不 enqueue 任何数据、也不 close → resp.text() 永久挂起。
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    }
+    return new Response('not found', { status: 404 });
+  }) as typeof fetch;
+
+  return {
+    url: 'http://hang-mcp.test/mcp',
+    stop: () => {
+      for (const c of controllers) {
+        try {
+          c.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      controllers.clear();
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
 /** 模拟有状态 Streamable HTTP MCP（官方 python SDK）：initialize 下发 mcp-session-id，后续请求缺失则 400。 */
 function installFakeMcpHttpStatefulFetch(): {
   url: string;
@@ -485,6 +548,57 @@ describe('McpBridgeService', () => {
     } finally {
       await bridge.dispose();
       fake.stop();
+    }
+  });
+
+  // 回归：HTTP MCP server 接受连接但 initialize 响应永不返回时，RPC 超时 reject
+  // 不得逃逸成 unhandledRejection（生产中会直接杀掉 Bun 进程并循环重启）。
+  test('HTTP MCP initialize 挂起 → 超时被调用方接住，不触发 unhandledRejection', async () => {
+    const prevRpc = process.env['AGENTIC_ENGINE_MCP_RPC_TIMEOUT_MS'];
+    const prevConnect = process.env['AGENTIC_ENGINE_MCP_CONNECT_TIMEOUT_MS'];
+    process.env['AGENTIC_ENGINE_MCP_RPC_TIMEOUT_MS'] = '60';
+    process.env['AGENTIC_ENGINE_MCP_CONNECT_TIMEOUT_MS'] = '60';
+
+    const fake = installHangingInitializeHttpFetch();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+
+    const bridge = new McpBridgeService();
+    try {
+      await bridge.init({
+        mcpServers: {
+          'web-search': { type: 'http', url: fake.url, enabled: true },
+        },
+      });
+
+      // 当前 bug 下该调用会一直挂起；修复后应在重试耗尽后 reject。用 race 避免测试卡死。
+      const settled = await Promise.race([
+        bridge.listToolsForServer('web-search').then(
+          () => 'RESOLVED' as const,
+          (e) => ({ rejected: e }),
+        ),
+        new Promise<'PENDING'>((r) => setTimeout(() => r('PENDING'), 1_500)),
+      ]);
+      // 给微任务队列一拍，让任何 unhandledRejection 浮现。
+      await new Promise((r) => setTimeout(r, 50));
+
+      const mcpTimeouts = unhandled.filter(
+        (e) => e instanceof Error && e.message.includes('MCP RPC timeout'),
+      );
+      expect(mcpTimeouts).toHaveLength(0);
+      expect(settled).not.toBe('PENDING');
+      expect(settled).toMatchObject({
+        rejected: { code: 'UPSTREAM_MCP_CONNECTION_FAILED' },
+      });
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      await bridge.dispose();
+      fake.stop();
+      if (prevRpc === undefined) delete process.env['AGENTIC_ENGINE_MCP_RPC_TIMEOUT_MS'];
+      else process.env['AGENTIC_ENGINE_MCP_RPC_TIMEOUT_MS'] = prevRpc;
+      if (prevConnect === undefined) delete process.env['AGENTIC_ENGINE_MCP_CONNECT_TIMEOUT_MS'];
+      else process.env['AGENTIC_ENGINE_MCP_CONNECT_TIMEOUT_MS'] = prevConnect;
     }
   });
 });

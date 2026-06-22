@@ -57,6 +57,18 @@ function mcpConnectTimeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : 10_000;
 }
 
+/**
+ * MCP JSON-RPC response deadline (ms) — bounds how long we wait for a single
+ * tools/call response. Handshake RPCs (initialize/tools/list) use the shorter
+ * {@link mcpConnectTimeoutMs} instead so an unreachable server degrades fast.
+ */
+function mcpRpcTimeoutMs(): number {
+  const raw = process.env['AGENTIC_ENGINE_MCP_RPC_TIMEOUT_MS'];
+  if (raw === undefined || raw.trim() === '') return 120_000;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 120_000;
+}
+
 interface JsonRpcReq {
   jsonrpc: '2.0';
   id?:     number | string;
@@ -94,6 +106,80 @@ async function writeStdin(proc: ReturnType<typeof Bun.spawn>, chunk: Uint8Array)
   const sink = proc.stdin;
   if (!sink || typeof sink === 'number') throw new Error('MCP stdin unavailable');
   await Promise.resolve(sink.write(chunk));
+}
+
+type PendingMap = Map<
+  number | string,
+  { resolve: (v: unknown) => void; reject: (e: Error) => void }
+>;
+
+/**
+ * 注册一次 JSON-RPC 调用并返回"响应 Promise"——它在以下任一情况 settle：
+ * 匹配响应到达、截止时间到、或底层发送失败。
+ *
+ * 关键不变量：发送（`send`）在后台执行且不被等待，返回的 `p` 是暴露给调用方的
+ * 唯一可 await 对象。这样即使 send 永久挂起（如上游 MCP 接受连接却不返回响应体），
+ * 截止定时器触发的 reject 也总有 handler——绝不会逃逸成 unhandledRejection 杀死
+ * Bun 进程（回归见 mcp-bridge.service.test.ts:"HTTP MCP initialize 挂起"）。
+ */
+function dispatchJsonRpc(
+  pending: PendingMap,
+  id: number | string,
+  method: string,
+  timeoutMs: number,
+  send: () => Promise<void>,
+): Promise<unknown> {
+  const p = new Promise<unknown>((resolve, reject) => {
+    const t = setTimeout(() => {
+      if (pending.has(id)) {
+        pending.delete(id);
+        reject(new Error(`MCP RPC timeout: ${method}`));
+      }
+    }, timeoutMs);
+    pending.set(id, {
+      resolve: (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      reject: (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    });
+  });
+
+  void send().catch((e) => {
+    const entry = pending.get(id);
+    if (entry) {
+      pending.delete(id);
+      entry.reject(e instanceof Error ? e : new Error(String(e)));
+    }
+  });
+
+  return p;
+}
+
+/**
+ * 把会话级 abort 信号与"单次请求超时"合并成一个 fetch signal，并返回清理函数。
+ * 避免任一请求的 fetch/body 读取在上游半死时无限挂起。
+ */
+function requestSignal(
+  parent: AbortSignal,
+  timeoutMs: number,
+): { signal: AbortSignal; clear: () => void } {
+  const ctl = new AbortController();
+  const reasonOf = (s: AbortSignal): unknown => (s as { reason?: unknown }).reason;
+  const onParentAbort = () => ctl.abort(reasonOf(parent));
+  if (parent.aborted) ctl.abort(reasonOf(parent));
+  else parent.addEventListener('abort', onParentAbort, { once: true });
+  const timer = setTimeout(() => ctl.abort('mcp-request-timeout'), timeoutMs);
+  return {
+    signal: ctl.signal,
+    clear: () => {
+      clearTimeout(timer);
+      parent.removeEventListener('abort', onParentAbort);
+    },
+  };
 }
 
 /**
@@ -143,11 +229,15 @@ class McpStdioSession implements McpSession {
     this.readerStopped = false;
     void this.readStdout();
 
-    await this.rpc('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities:    {},
-      clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
-    });
+    await this.rpc(
+      'initialize',
+      {
+        protocolVersion: '2024-11-05',
+        capabilities:    {},
+        clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
+      },
+      mcpConnectTimeoutMs(),
+    );
     await this.notify('notifications/initialized', {});
   }
 
@@ -193,38 +283,19 @@ class McpStdioSession implements McpSession {
     await writeStdin(this.proc, new TextEncoder().encode(line));
   }
 
-  async rpc(method: string, params?: unknown): Promise<unknown> {
-    if (!this.proc) throw new Error('MCP stdin unavailable');
+  rpc(method: string, params?: unknown, timeoutMs: number = mcpRpcTimeoutMs()): Promise<unknown> {
+    const proc = this.proc;
+    if (!proc) return Promise.reject(new Error('MCP stdin unavailable'));
     const id = this.nextId++;
     const payload: JsonRpcReq = { jsonrpc: '2.0', id, method, params };
     const line = `${JSON.stringify(payload)}\n`;
-
-    const p = new Promise<unknown>((resolve, reject) => {
-      const t = setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`MCP RPC timeout: ${method}`));
-        }
-      }, 120_000);
-      this.pending.set(id, {
-        resolve: (v) => {
-          clearTimeout(t);
-          resolve(v);
-        },
-        reject: (e) => {
-          clearTimeout(t);
-          reject(e);
-        },
-      });
-    });
-
-    await writeStdin(this.proc, new TextEncoder().encode(line));
-
-    return p;
+    return dispatchJsonRpc(this.pending, id, method, timeoutMs, () =>
+      writeStdin(proc, new TextEncoder().encode(line)),
+    );
   }
 
   async toolsList(): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
-    const result = (await this.rpc('tools/list', {})) as {
+    const result = (await this.rpc('tools/list', {}, mcpConnectTimeoutMs())) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: unknown }>;
     };
     return result.tools ?? [];
@@ -320,12 +391,16 @@ class McpSseSession implements McpSession {
     this.readerStopped = false;
     void this.readSse();
 
-    await this.waitForEndpoint(10_000);
-    await this.rpc('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities:    {},
-      clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
-    });
+    await this.waitForEndpoint(mcpConnectTimeoutMs());
+    await this.rpc(
+      'initialize',
+      {
+        protocolVersion: '2024-11-05',
+        capabilities:    {},
+        clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
+      },
+      mcpConnectTimeoutMs(),
+    );
     await this.notify('notifications/initialized', {});
   }
 
@@ -438,71 +513,55 @@ class McpSseSession implements McpSession {
   }
 
   private async notify(method: string, params?: unknown): Promise<void> {
-    await this.postJsonRpc({ jsonrpc: '2.0', method, params });
+    await this.postJsonRpc({ jsonrpc: '2.0', method, params }, mcpConnectTimeoutMs());
   }
 
-  async rpc(method: string, params?: unknown): Promise<unknown> {
+  rpc(method: string, params?: unknown, timeoutMs: number = mcpRpcTimeoutMs()): Promise<unknown> {
     const id = this.nextId++;
     const payload: JsonRpcReq = { jsonrpc: '2.0', id, method, params };
-    const p = new Promise<unknown>((resolve, reject) => {
-      const t = setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`MCP RPC timeout: ${method}`));
-        }
-      }, 120_000);
-      this.pending.set(id, {
-        resolve: (v) => {
-          clearTimeout(t);
-          resolve(v);
-        },
-        reject: (e) => {
-          clearTimeout(t);
-          reject(e);
-        },
-      });
-    });
-
-    try {
-      await this.postJsonRpc(payload);
-    } catch (e) {
-      this.pending.delete(id);
-      throw e;
-    }
-
-    return p;
+    return dispatchJsonRpc(this.pending, id, method, timeoutMs, () =>
+      this.postJsonRpc(payload, timeoutMs),
+    );
   }
 
-  private async postJsonRpc(payload: JsonRpcReq): Promise<void> {
+  private async postJsonRpc(
+    payload: JsonRpcReq,
+    timeoutMs: number = mcpConnectTimeoutMs(),
+  ): Promise<void> {
     if (!this.endpointUrl) {
       throw new Error(`MCP SSE endpoint unavailable: ${this.serverName}`);
     }
-    const resp = await fetch(this.endpointUrl, {
-      method: 'POST',
-      headers: {
-        ...(this.cfg.headers ?? {}),
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify(payload),
-      signal: this.abort.signal,
-    });
-    if (!resp.ok) {
-      throw new Error(`MCP SSE POST failed: HTTP ${resp.status}`);
-    }
-    const text = await resp.text().catch(() => '');
-    const trimmed = text.trim();
-    if (trimmed.startsWith('{')) {
-      try {
-        this.handleJsonRpcMessage(JSON.parse(trimmed) as JsonRpcResp);
-      } catch {
-        /* ignore malformed direct response */
+    const { signal, clear } = requestSignal(this.abort.signal, timeoutMs);
+    try {
+      const resp = await fetch(this.endpointUrl, {
+        method: 'POST',
+        headers: {
+          ...(this.cfg.headers ?? {}),
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      if (!resp.ok) {
+        throw new Error(`MCP SSE POST failed: HTTP ${resp.status}`);
       }
+      const text = await resp.text().catch(() => '');
+      const trimmed = text.trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          this.handleJsonRpcMessage(JSON.parse(trimmed) as JsonRpcResp);
+        } catch {
+          /* ignore malformed direct response */
+        }
+      }
+    } finally {
+      clear();
     }
   }
 
   async toolsList(): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
-    const result = (await this.rpc('tools/list', {})) as {
+    const result = (await this.rpc('tools/list', {}, mcpConnectTimeoutMs())) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: unknown }>;
     };
     return result.tools ?? [];
@@ -618,11 +677,15 @@ class McpHttpSession implements McpSession {
     this.sessionId = null;
     this.started = true;
 
-    await this.rpc('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities:    {},
-      clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
-    });
+    await this.rpc(
+      'initialize',
+      {
+        protocolVersion: '2024-11-05',
+        capabilities:    {},
+        clientInfo:       { name: 'cube-agentic-engine', version: '0.0.0' },
+      },
+      mcpConnectTimeoutMs(),
+    );
     await this.notify('notifications/initialized', {});
   }
 
@@ -639,69 +702,53 @@ class McpHttpSession implements McpSession {
   }
 
   private async notify(method: string, params?: unknown): Promise<void> {
-    await this.postJsonRpc({ jsonrpc: '2.0', method, params });
+    await this.postJsonRpc({ jsonrpc: '2.0', method, params }, mcpConnectTimeoutMs());
   }
 
-  async rpc(method: string, params?: unknown): Promise<unknown> {
+  rpc(method: string, params?: unknown, timeoutMs: number = mcpRpcTimeoutMs()): Promise<unknown> {
     const id = this.nextId++;
     const payload: JsonRpcReq = { jsonrpc: '2.0', id, method, params };
-    const p = new Promise<unknown>((resolve, reject) => {
-      const t = setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`MCP RPC timeout: ${method}`));
-        }
-      }, 120_000);
-      this.pending.set(id, {
-        resolve: (v) => {
-          clearTimeout(t);
-          resolve(v);
-        },
-        reject: (e) => {
-          clearTimeout(t);
-          reject(e);
-        },
-      });
-    });
-
-    try {
-      await this.postJsonRpc(payload);
-    } catch (e) {
-      this.pending.delete(id);
-      throw e;
-    }
-
-    return p;
+    return dispatchJsonRpc(this.pending, id, method, timeoutMs, () =>
+      this.postJsonRpc(payload, timeoutMs),
+    );
   }
 
-  private async postJsonRpc(payload: JsonRpcReq): Promise<void> {
+  private async postJsonRpc(
+    payload: JsonRpcReq,
+    timeoutMs: number = mcpRpcTimeoutMs(),
+  ): Promise<void> {
     if (!this.endpointUrl) {
       throw new Error(`MCP HTTP endpoint unavailable: ${this.serverName}`);
     }
-    const resp = await fetch(this.endpointUrl, {
-      method: 'POST',
-      headers: {
-        ...(this.cfg.headers ?? {}),
-        'content-type': 'application/json',
-        accept:         'application/json, text/event-stream',
-        ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}),
-      },
-      body: JSON.stringify(payload),
-      signal: this.abort.signal,
-    });
-    const sid = resp.headers.get('mcp-session-id');
-    if (sid) this.sessionId = sid;
-    if (!resp.ok) {
-      throw new Error(`MCP HTTP POST failed: HTTP ${resp.status}`);
-    }
-    const text = await resp.text().catch(() => '');
-    for (const msg of parseSseJsonRpcMessages(text)) {
-      this.handleJsonRpcMessage(msg);
+    const { signal, clear } = requestSignal(this.abort.signal, timeoutMs);
+    try {
+      const resp = await fetch(this.endpointUrl, {
+        method: 'POST',
+        headers: {
+          ...(this.cfg.headers ?? {}),
+          'content-type': 'application/json',
+          accept:         'application/json, text/event-stream',
+          ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
+      const sid = resp.headers.get('mcp-session-id');
+      if (sid) this.sessionId = sid;
+      if (!resp.ok) {
+        throw new Error(`MCP HTTP POST failed: HTTP ${resp.status}`);
+      }
+      const text = await resp.text().catch(() => '');
+      for (const msg of parseSseJsonRpcMessages(text)) {
+        this.handleJsonRpcMessage(msg);
+      }
+    } finally {
+      clear();
     }
   }
 
   async toolsList(): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
-    const result = (await this.rpc('tools/list', {})) as {
+    const result = (await this.rpc('tools/list', {}, mcpConnectTimeoutMs())) as {
       tools?: Array<{ name: string; description?: string; inputSchema?: unknown }>;
     };
     return result.tools ?? [];
