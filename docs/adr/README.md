@@ -40,6 +40,7 @@
 | ADR-0027 | [AI-native descriptor 创作 —— `propose` 纯建议能力 + 管理 ops 工具集一核两面（进程内 Tool Handler + MCP server 门面），ref LLM-in-context 接地](./ADR-0027-ai-native-descriptor-authoring.md) | Accepted |
 | ADR-0028 | [flow 对外 gRPC 服务面（平台服务间）保留并在 host 重建 + Nacos 注册广播 grpc_server_port](./ADR-0028-flow-platform-grpc-service-face.md) | Accepted |
 | ADR-0029 | [会话归属（session owner）—— tenant 之下的用户级隔离子层（session 锚定资源），admin scope 读旁路，仓储 404 收口](./ADR-0029-session-owner-user-isolation-sublayer.md) | Accepted |
+| ADR-0030 | [我的智能体 / 库（商城）+ 技能 / 插件 —— 用户级货架投影、作者归属、发布≠上架、ref 浮动安装、内容可见性分层（修订 ADR-0016 / 扩展 ADR-0029）](./ADR-0030-my-agents-library-and-marketplace-shelf-projection.md) | Accepted |
 
 > 编号 0019–0026 在代码注释中被引用（runtime / tachu 系列决策），未在本索引建档；本仓文档化 ADR 由 0027 续接。
 

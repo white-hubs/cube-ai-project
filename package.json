@@ -17,7 +17,7 @@
     "@qdrant/js-client-rest": "^1.18.0",
     "@happy-dom/global-registrator": "^20.10.2",
     "fake-indexeddb": "^6.2.5",
-    "@dangao/nacos-client": "^0.1.1",
+    "@dangao/nacos-client": "^0.1.2",
     "jose": "^6.2.3",
     "lru-cache": "^11.5.1",
     "openapi-fetch": "^0.17.0",
@@ -41,7 +41,7 @@
   },
   "catalogs": {
     "bun-server": {
-      "@dangao/bun-server": "^3.3.0"
+      "@dangao/bun-server": "^3.3.1"
     },
     "otel": {
       "@opentelemetry/auto-instrumentations-node": "^0.76.0",
@@ -84,9 +84,6 @@
     "catalog:migrate": "bun tools/migration/catalog-migrate.ts",
     "publish:sdk": "bash scripts/publish.sh",
     "publish:sdk:dry-run": "bash scripts/publish.sh --dry-run --skip-git-check"
-  },
-  "patchedDependencies": {
-    "@dangao/nacos-client@0.1.1": "patches/@dangao%2Fnacos-client@0.1.1.patch"
   },
   "overrides": {
     "ioredis": "5.11.1"

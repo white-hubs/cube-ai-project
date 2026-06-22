@@ -4,6 +4,7 @@
 - **Date**: 2026-06-11
 - **Deciders**: 架构组（经 `/grill-with-docs` 收敛）
 - **Tags**: agent, console, descriptor, tenant, persistence, sdk
+- **Amended by**: [ADR-0030](./ADR-0030-my-agents-library-and-marketplace-shelf-projection.md)（§3 加 owner 作者维度、§4 改为「草稿可变 / 发布才出版本」、§8 引入作者级写控；并区分 发布≠上架、移除≠软删）
 
 ## Context
 

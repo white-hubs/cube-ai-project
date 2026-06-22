@@ -141,8 +141,12 @@ agent 域的管理面 —— 对 **租户级 descriptor** 的 CRUD / 版本 / �
 _Avoid_: 把管理面塞进 `/v1/*` 消费面, 手工部署 descriptor 文件当管理能力
 
 **发布 (publish)**:
-租户级 descriptor 的草稿版本成为运行时可解析版本的动作；只有已发布版本可被新会话引用，编辑草稿不影响运行时。
-_Avoid_: 编辑即生效, 把版本历史当发布
+把租户级 descriptor 的草稿 head **冻结为一个不可变的已发布版本**的动作（ADR-0016 版本机制）；现为**作者私有的稳定可解析版本**，与 **上架到库 (list)** 是**两个独立动作**（发布≠共享）。**作者可直接选用/运行自己的草稿 head，无需发布**；**仅对非作者、或经安装引用的消费**才要求已发布版本。编辑草稿不影响已发布版本与运行时。
+_Avoid_: 编辑即生效, 把版本历史当发布, 把发布等同于上架到库（共享）, 以为作者跑自己的草稿也要先发布
+
+**草稿与版本 / 回滚 / 恢复草稿 (draft & versions)**:
+租户级 descriptor 的编辑模型——**草稿 (draft)** 是**单条可变工作副本**（保存即覆盖、不进版本历史）；**版本 (version)** 仅在 **发布 (publish)** 时由草稿冻结而成，**不可变、append-only**。**展示版本** = 已发布版本列表；**回滚 (rollback)** = 选一个历史已发布版本、其内容成为**新的发布版本**（沿用发布≠上架：已上架者需重新上架才改共享指针）；**恢复草稿 (restore draft)** = **编辑器级 undo**——丢弃当前未保存编辑、重载最近一次已保存草稿，与版本历史无关。
+_Avoid_: 每次保存都生成不可变版本（草稿是可变工作副本，refine ADR-0016 §4）, 把草稿态塞进版本历史, 把「恢复草稿」当成「拉历史版本回草稿」（那不是 undo）
 
 **Descriptor Document（声明式资产文档）**:
 向 **agent 管理面** 提交**租户级 descriptor** 的另一种格式：YAML frontmatter（结构化元数据：name、description、displayName、tags、version 及 kind 特定字段）+ markdown body（skill 的 instructions、rule 的规则正文、agent 的 system prompt）；与系统级 `descriptors/` 目录中的 SKILL.md 格式对齐，经 **DescriptorDocumentParser** 在写入时解析为结构化内容，最终存储效果与结构化创建路径相同。frontmatter 中不在目标 schema 的字段（如 `resources`、`requires`、`deprecated`）静默丢弃。
@@ -167,6 +171,52 @@ _Avoid_: 把它当独立运行时/特殊对话端点, 当成可复用原语（�
 **管理能力 MCP 门面**:
 engine 作为 **MCP 服务端（出站角色）** 把 **管理 ops 工具集** 暴露出去，供 engine 之外、任何 MCP-capable 的 agent host（外部 IDE agent、其它系统）直接管理本中台 descriptor（ADR-0027）。与 **MCP 桥接**（入站：engine 连外部 MCP server 当客户端）**方向相反**。engine 是被调方非编排者：写操作服务端硬保证（create/update 只产 draft；publish/软删需显式确认），人面 consent 交 MCP client host；transport 携平台 token 经 `platform-adapter-ghcloud` 解析租户。
 _Avoid_: 与 MCP 桥接（入站）混为一谈, 让 MCP 写操作绕开 draft-safe 直接动运行时, 在门面里另搞鉴权（仍单源 platform-adapter）
+
+### 我的智能体与库（商城）
+
+**我的智能体 (My Agents)**:
+单一 user 在其 tenant 内「可运行/可选用的智能体集合」的用户级视图（货架）；由两类来源构成——**我创作的**（本人作为 **智能体作者归属 (agent owner)** 的 descriptor，**创建即自动入货架**，含未发布草稿）与**从智能体库安装的引用**。承载 per-user 状态：**启用/禁用**（禁用后该 agent 不进本 user 的可选/可启动集，不影响他人、不影响已在跑会话——快照冻结）、**移除**（仅丢弃货架条目，**不删 descriptor**）。是叠加在 **租户级 descriptor** 之上的**用户级投影层**（与 **会话归属 (session owner)** 同属 tenant 之下的子层），**不是新的存储或隔离键**。
+_Avoid_: 把它当用户私有的 descriptor 存储, 让它复活 project 维度, 把货架状态写进 descriptor 本体, 把货架「移除」当成软删 descriptor
+
+**智能体库（商城）(Agent Library)**:
+tenant 内的**已发布智能体共享空间**：作者把自己创作的 agent 的**已发布版本上架到库**，供**同租户**其他 user 发现并安装到各自的 **我的智能体**；同时是作者**管理「我上架的」**的入口。当前仅限本租户共享（跨租户/全局发布留口子），与 **系统级 descriptor**（全租户只读预置）并列构成可安装来源。
+_Avoid_: 把它当跨租户/公网商城（当前仅租户内）, 把「库」与用户私有的「我的智能体」混为一谈, 让未发布草稿出现在库里
+
+**智能体作者归属 (agent owner)**:
+**租户级 descriptor** 之上、标记其**创作者 user** 的作者维度；作者（+ 租户 admin）独占该 descriptor 的编辑/发布/回滚，未发布草稿仅作者可见。是 **租户隔离主键 (tenant)** 之下的**作者/写控属性**，与 **会话归属 (session owner)** 同构，**不是新的跨域/隔离键**（tenant 仍是隔离边界，不复活 project）。
+_Avoid_: 把 owner 当独立于 tenant 的隔离键, 用它否定 tenant 单一隔离主键, 把 create_by 审计字段与 owner 写控混为一谈
+
+**descriptor 治理 admin (governance admin)**:
+平台签发的租户级 admin scope（engine 只认 scope、**不自建角色模型**，复刻 ADR-0029 D4 既有先例）；**读** = 本租户全部 descriptor + 库（治理可见，对齐 ADR-0029 D3 读旁路），**写**仅限**下架 + 软删**（治理/违规/离职清理），**不可**编辑他人草稿内容、**不介入**他人个人 **我的智能体** 货架。与 ADR-0029 的 `engine.session.admin`（会话读旁路）并列、各管各域。
+_Avoid_: 让 admin 编辑/发布他人草稿内容, 让 admin 介入他人个人货架, 在 engine 内自建角色模型（仅认平台 scope）
+
+**上架到库 / 下架 (list / unlist)**:
+把某个 agent 的**已发布版本**暴露到 **智能体库（商城）** 供同租户 user 发现+安装的动作（**上架**），及其逆（**下架**）；是与 **发布 (publish)** 独立的**共享动作**——发布只冻结作者私有版本，上架才让别人可见可装，且**必须基于 published 版本**（不能上架草稿）。上架**设置/更新该 agent 的「当前共享版本」指针**（作者可改指向较新、或回退到较旧的已发布版本）。**下架只让库内不可再发现/安装，并把浮动引用冻结到最后一次已上架版本，不删除、不破坏已安装方**。
+_Avoid_: 把上架与发布混为一谈, 上架未发布的草稿, 把下架当成删除/破坏他人已安装的引用
+
+**安装 (install)**:
+把 **智能体库（商城）** 中某 agent 加入自己的 **我的智能体** 的动作；默认产生**浮动引用 (float ref)**，可选**钉版引用 (pinned ref)**。安装方对引用只能**启用/禁用/移除**与切换钉版/浮动，**不可编辑/发布/回滚**（那是 **智能体作者归属** 的权）。**copy（把上游内容物化为安装方自己作为作者的新 descriptor、可独立编辑）留口子**，安装记录以 `source = ref | copy` 区分，默认 `ref`；**copy 仅适用于内容透明的租户已上架资产，系统级资产仅 ref**（见 **能力可见性分层**）。copy 为**完全解耦 fork**（快照物化、与上游彻底脱钩，仅留 `copied_from = id@version` provenance 审计），**本轮只留口子不实现**。
+_Avoid_: 让安装方编辑/发布/回滚引用来的 agent, 把 copy 当默认（默认 ref）, 以为 ref 安装会把内容复制进安装方
+
+**浮动 vs 钉版 (float vs pin)**:
+**浮动 ref** = 解析到上游**当前已上架版本**（随作者上架更新而前进；作者**下架/删除后冻结到最后一次已上架版本**，故「下架不影响已安装方」；再上架则恢复跟随）。**钉版 ref** = 解析到安装时选定的某一已发布版本、永不自动前进，安装方可显式「更新到最新已上架版本」。默认浮动。
+_Avoid_: 让浮动 ref 在上游下架后断裂（应冻结到最后已上架版本）, 让浮动跟随「最新已发布」而非「最新已上架」, 把钉版当默认
+
+**能力可见性分层 (content visibility by source tier)**:
+按来源分两档——**系统级 descriptor（agent / skill / tool）对 user 不透明**：仅暴露**能力描述**（name / description / 用途），**不可查看内部内容**（system prompt / instructions / 工具配置 / 凭据），**安装仅 ref、不可 copy**（黑盒能力、IP 边界；engine 内部解析不受影响，仅 API 读取面遮蔽）。**租户已上架资产对同租户安装方透明**：可见内容、**支持 ref + copy**（可读才能复制）。
+_Avoid_: 让系统级资产内容/凭据对 user 可见, 允许 copy 系统级资产, 把租户已上架资产也当黑盒（同租户透明）
+
+**我创作的 / 管理视图 (My Authored / authoring view)**:
+按 **智能体作者归属 (agent owner)** 过滤出「本 user 创作的全部 descriptor」的管理视图，**独立于 我的智能体 货架**；**编辑 / 发布 / 上架 / 回滚 / 软删 descriptor** 均在此。与货架的「移除」相对——货架移除只丢弃 per-user 条目，**此处软删才是 ADR-0016 的真销毁**（连带下架）。
+_Avoid_: 把「我的智能体」货架的移除当成软删 descriptor, 在货架里做编辑/发布/上架（应在管理视图）
+
+**我的技能 / 技能库（商城）(My Skills / Skill Library)**:
+对 skill **完全镜像** **我的智能体** / **智能体库（商城）** 的货架 + 共享空间模型（同一套 **智能体作者归属**、草稿·发布·版本·回滚、上架/下架、**安装** ref（copy 留口子）、启用/禁用/移除）。**唯一差异 = 消费方式**：skill 不独立运行，而是**被 agent 的 `skillRefs` 引用**；「我的技能」= 本 user 创作 + 安装的、可在**编排自己 agent 时引用**的技能集。租户内 transitive 引用天然可解（被引技能只要本租户已发布即 tenant 级可见，ADR-0016 §6）。
+_Avoid_: 给 skill 另起一套与 agent 不一致的货架/商城语义, 把「我的技能」当成可独立运行的会话主体
+
+**插件库（工具库）/ 安装工具 (Plugin Library / tool install)**:
+**系统/运维（Nacos）登记的工具目录**，对 user **只提供安装**——**无创作/发布/上架/版本/owner**（守住 ADR-0016「tool 不入租户 CRUD」、ADR-0006「Tool 编排归 engine」，凭据/consent/safety 仍在运维侧）；工具属系统级，**user 仅见能力描述、不见内部/凭据、仅 ref**（见 **能力可见性分层**）。**安装 = 每用户把某工具启用进自己的「可用工具集」**，供编排自己 agent 的 `availableTools` 引用；启用/禁用/移除为 per-user，**不影响他人、不改工具定义**。运行期工具授权仍是 ADR-0006 的 **per-user consent/grant**，不被「安装」替代。
+_Avoid_: 把工具纳入租户/用户创作或版本/上架（仅安装）, 让 per-user 安装替代运行期 consent/grant, 在插件库里编辑工具凭据
 
 ### 前端消费
 
@@ -250,6 +300,10 @@ _Avoid_: 把会话归属当跨域隔离键, 当 project 复活, 让能力包(kb/
 - **三域平级下游**：`agent-engine` / `flow-core` / `kb-core` 各自从 **host 身份权威 / 三域平级下游** 注入的上下文消费身份、互不为权威；`agent-engine → flow-core/kb-core` 是能力调用边；**flow-core / kb-core 自带独立 SSE 可直达**
 - 身份是**注入式 seam**：身份→host 注入源、凭据→`llm-core` catalog；换身份源不动能力包本体（ADR-0004/0012）
 - **会话归属 (session owner)** 是 **租户隔离主键 (tenant)** 之下的隔离子层：tenant 仍是跨三域主隔离键，user 仅对 **session 锚定资源** 生效（ADR-0029 扩展 ADR-0012-addendum）；user 身份与 tenant 同源于 **host 身份权威**（`subject.user.userId`），能力包(kb/flow/llm)不感知 user 隔离
+- **我的智能体** 是 **租户级 descriptor** 之上的**用户级货架投影**（与 **会话归属 (session owner)** 同属 tenant 之下子层）；**智能体作者归属 (agent owner)** 给 descriptor 加 tenant 内作者写控——二者都**不复活 project、不改 tenant 单一隔离主键**
+- **发布 (publish)** 与 **上架到库 (list)** 两分：发布只冻结**作者私有**版本、上架才**同租户共享**；**安装 (install)** 默认产生**浮动 ref**（跟随「当前已上架版本」、上游下架冻结到最后已上架版本），**钉版**可选，**copy 留口子**（`source = ref | copy`）
+- **我的技能 / 技能库** 完全镜像 **我的智能体 / 智能体库**，唯一差异是消费方式（被 agent `skillRefs` 引用）；**插件库（工具库）只提供安装**（无创作/上架/owner），工具运行期授权仍走 ADR-0006 **consent/grant**
+- 「我的智能体」货架的**移除**（丢 per-user 条目）与「我创作的」管理视图的**软删 descriptor**（ADR-0016 真销毁、连带下架）是**两个动作**；作者**可直接选用/运行自己的未发布草稿**（发布仅为给非作者/经安装引用开闸）
 
 ## Example dialogue
 

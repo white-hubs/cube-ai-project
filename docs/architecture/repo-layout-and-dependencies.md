@@ -29,7 +29,7 @@ cube-ai-project/
 ├── scripts/                            # 构建/发布/容器测试脚本（见各文件头注释）
 ├── tools/
 │   └── migration/                      # ghcloud catalog 数据迁移脚本（cutover 完成后删除）
-├── patches/                            # bun patch 产物（@dangao/nacos-client）
+├── patches/                            # bun patch 产物（按需）
 │
 ├── apps/
 │   ├── ai-center/                      # ★ 单进程组合根（ADR-0009）

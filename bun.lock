@@ -422,9 +422,6 @@
       },
     },
   },
-  "patchedDependencies": {
-    "@dangao/nacos-client@0.1.1": "patches/@dangao%2Fnacos-client@0.1.1.patch",
-  },
   "overrides": {
     "ioredis": "5.11.1",
   },
@@ -433,7 +430,7 @@
     "@bufbuild/protobuf": "^2.12.0",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-node": "^2.1.1",
-    "@dangao/nacos-client": "^0.1.1",
+    "@dangao/nacos-client": "^0.1.2",
     "@happy-dom/global-registrator": "^20.10.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api": "^1.9.1",
@@ -466,7 +463,7 @@
   },
   "catalogs": {
     "bun-server": {
-      "@dangao/bun-server": "^3.3.0",
+      "@dangao/bun-server": "^3.3.1",
     },
     "otel": {
       "@opentelemetry/auto-instrumentations-node": "^0.76.0",
@@ -660,11 +657,11 @@
 
     "@cube-ai/vector-qdrant": ["@cube-ai/vector-qdrant@workspace:infra/vector-qdrant"],
 
-    "@dangao/bun-server": ["@dangao/bun-server@3.3.0", "http://nexus.guhecloud.com:8888/repository/npm-group/@dangao/bun-server/-/bun-server-3.3.0.tgz", { "dependencies": { "@dangao/logsmith": "0.2.0", "@dangao/nacos-client": "0.1.1", "json5": "^2.2.3", "jsonc-parser": "^3.3.1", "marked": "^18.0.0", "mime-types": "^3.0.2", "mysql2": "^3.21.0", "postgres": "^3.4.9", "reflect-metadata": "^0.2.2" }, "peerDependencies": { "@vscode/sqlite3": "5.1.12-vscode", "ws": "^8.0.0" }, "optionalPeers": ["@vscode/sqlite3", "ws"] }, "sha512-hWGfU+BhptAEFgcD5jDbS5Gn7JUEj4/eSPcG7HsWP/wvjJOXNd+oymqcVoB0vmMrfawmAJTSdb8kSTQqYDoT7w=="],
+    "@dangao/bun-server": ["@dangao/bun-server@3.3.1", "http://nexus.guhecloud.com:8888/repository/npm-group/@dangao/bun-server/-/bun-server-3.3.1.tgz", { "dependencies": { "@dangao/logsmith": "0.2.0", "@dangao/nacos-client": "0.1.2", "json5": "^2.2.3", "jsonc-parser": "^3.3.1", "marked": "^18.0.0", "mime-types": "^3.0.2", "mysql2": "^3.21.0", "postgres": "^3.4.9", "reflect-metadata": "^0.2.2" }, "peerDependencies": { "@vscode/sqlite3": "5.1.12-vscode", "ws": "^8.0.0" }, "optionalPeers": ["@vscode/sqlite3", "ws"] }, "sha512-1JAtPcToRgXGX66YZoxrj7yXgjSJxw4Dcn6+SsIWLlvwPdJxbjAKU/GTFuXUZk/QufjGbYysiYG/A3ilLWkDug=="],
 
     "@dangao/logsmith": ["@dangao/logsmith@0.2.0", "http://nexus.guhecloud.com:8888/repository/npm-group/@dangao/logsmith/-/logsmith-0.2.0.tgz", {}, "sha512-yIw68Cq8GwZBQPCU1PDyYVv648T20WFjNSAWSHNY4NVfi/wtRK9rcIYlCqrZyl6CxVKWIUcog44ecpPNWpqwtw=="],
 
-    "@dangao/nacos-client": ["@dangao/nacos-client@0.1.1", "http://nexus.guhecloud.com:8888/repository/npm-group/@dangao/nacos-client/-/nacos-client-0.1.1.tgz", {}, "sha512-6qjQ8m9++1cASkBtWCEGPXfxFBpnxYkpxQ7J1eAzXktNLin08C9xwqGe8AizEEBf912gfjci9WsKdQ2KlZfm7Q=="],
+    "@dangao/nacos-client": ["@dangao/nacos-client@0.1.2", "http://nexus.guhecloud.com:8888/repository/npm-group/@dangao/nacos-client/-/nacos-client-0.1.2.tgz", {}, "sha512-5LKW6ku93pmW7HUY5dgWhTjL5pXpTUTMDmKS+BiFib3U4HCkKvSa7QSLFPj3/8hMJgGDIC+tSflLdxUilIDMyQ=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.27.7", "", { "os": "aix", "cpu": "ppc64" }, "sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg=="],
 
@@ -1923,8 +1920,6 @@
     "@babel/helper-create-class-features-plugin/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
     "@babel/traverse/@babel/generator": ["@babel/generator@7.29.7", "", { "dependencies": { "@babel/parser": "^7.29.7", "@babel/types": "^7.29.7", "@jridgewell/gen-mapping": "^0.3.12", "@jridgewell/trace-mapping": "^0.3.28", "jsesc": "^3.0.2" } }, "sha512-DkXD5OJQaAQIdZ1bt3UZdEnHAn9Imd3IVBdX03UFe+ony9Ojw5pzr9YVKGDY1jt+Gcn/FnGkNf8r+Vj5NOJWtQ=="],
-
-    "@dangao/bun-server/mysql2": ["mysql2@3.22.4", "", { "dependencies": { "aws-ssl-profiles": "^1.1.2", "denque": "^2.1.0", "generate-function": "^2.3.1", "iconv-lite": "^0.7.2", "long": "^5.3.2", "lru.min": "^1.1.4", "named-placeholders": "^1.1.6", "sql-escaper": "^1.3.3" }, "peerDependencies": { "@types/node": ">= 8" } }, "sha512-CtXYlmL7ZamiYKbmqkamQHWJROUHSfm+f3kByzGfknw7kW51mcB2ouMUqYq1XfYxbXmnWo6RhPydx6OCqdgcmQ=="],
 
     "@grpc/grpc-js/@grpc/proto-loader": ["@grpc/proto-loader@0.8.1", "", { "dependencies": { "lodash.camelcase": "^4.3.0", "long": "^5.0.0", "protobufjs": "^7.5.5", "yargs": "^17.7.2" }, "bin": { "proto-loader-gen-types": "build/bin/proto-loader-gen-types.js" } }, "sha512-wtF6h+DY6M3YaDBPAmvuuA6jV8Sif9MjtOI5euKFWRgCDl5PeDpPsHR9u2l6St5ceY8AZgoNDww5+HvEsXFsGg=="],
 

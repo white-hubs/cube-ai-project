@@ -5,6 +5,7 @@
 - **Parent / Amends**: [ADR-0012 Addendum — tenant 单一隔离主键](./ADR-0012-addendum-tenant-single-isolation-no-project.md)（收紧其 D1「唯一隔离主键」措辞）
 - **Deciders**: 架构组（经 `/grill-with-docs` 收敛；隔离语义 / 范围 / admin 旁路由用户裁决）
 - **Tags**: identity, tenant, user, session, authz, isolation
+- **Extended by**: [ADR-0030](./ADR-0030-my-agents-library-and-marketplace-shelf-projection.md)（把「user 是 tenant 之下子层」模式从 session 锚定资源扩展到 descriptor 货架 / 作者归属 / 治理 admin）
 
 ## Context
 
