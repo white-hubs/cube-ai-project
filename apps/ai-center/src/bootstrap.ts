@@ -1,7 +1,11 @@
 import type { Application } from '@dangao/bun-server';
 import { runAllDomainMigrations } from './migrations';
 import { ExceptionFilterRegistry } from '@dangao/bun-server';
-import { createExecutionAuthMiddleware, loadAppConfig } from '@cube-ai/ai-center/platform/server-base';
+import {
+  createExecutionAuthMiddleware,
+  createSubjectUserBridgeMiddleware,
+  loadAppConfig,
+} from '@cube-ai/ai-center/platform/server-base';
 import {
   createDeveloperRateLimitMiddleware,
   createTenantContextMiddleware as createFlowTenantContextMiddleware,
@@ -187,6 +191,10 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
       builtinSystemApiKey: flowConfig.builtinSystemApiKey,
     }),
   );
+  // Bridge the ghcloud-authenticated principal into ctx.state.subject so engine BCs
+  // (Session/Turn/Grant) attribute resources to the real platform user instead of the
+  // mock placeholder written by oauth2IntrospectionMiddleware. Must run after execution auth.
+  app.use(createSubjectUserBridgeMiddleware());
   const { createKbTenantContextMiddleware } = await import('@cube-ai/kb-core');
   app.use(createKbTenantContextMiddleware());
   app.use(createDeveloperRateLimitMiddleware({ maxPerMin: flowConfig.devApiRateLimitPerMin }));

@@ -9,6 +9,7 @@ export {
 export { UnifiedErrorFilter, type UnifiedErrorBody } from './error/unified-error.filter'
 export { createDeveloperRateLimitMiddleware } from './security/developer-rate-limit.middleware'
 export { createExecutionAuthMiddleware } from './security/execution-auth.middleware'
+export { createSubjectUserBridgeMiddleware } from './security/subject-bridge.middleware'
 export { createTenantContextMiddleware } from './security/tenant-context.middleware'
 export {
   currentTenantId,

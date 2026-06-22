@@ -89,6 +89,25 @@ describe('MockOboService', () => {
       expect(sub.tenant).toBe(58197260);
     });
 
+    it('userId comes from JWT id when sub is absent (ghcloud token shape)', () => {
+      const token = buildJwt({ id: 42, tenants: ['58197260'] });
+      const sub = svc.fakeSubject({
+        headers: {
+          authorization: `Bearer ${token}`,
+          tenant: '58197260',
+        },
+      });
+      expect(sub.user.userId).toBe('42');
+    });
+
+    it('JWT id takes precedence over sub (aligns with ghcloud payloadToSecurityContext)', () => {
+      const token = buildJwt({ id: 42, sub: 'client_2' });
+      const sub = svc.fakeSubject({
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(sub.user.userId).toBe('42');
+    });
+
     it('numeric sub in JWT is stringified', () => {
       const token = buildJwt({ sub: 123456 as unknown as string });
       const sub = svc.fakeSubject({

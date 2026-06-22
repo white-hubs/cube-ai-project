@@ -45,12 +45,14 @@ export function getSharedMockOboService(): MockOboService {
 }
 
 /**
- * 从 `Authorization: Bearer <jwt>` 解析 payload.sub（**不验签**）。
- * 失败（无 header / 非 Bearer / 非三段式 / payload 不是 JSON / 无 sub）时返回 null。
+ * 从 `Authorization: Bearer <jwt>` 解析用户 id（**不验签**）。
+ * 取值规则 `id ?? sub`，与 platform-adapters/ghcloud 的 `payloadToSecurityContext`
+ * 对齐（ghcloud 平台 JWT 把用户 id 放在数字字段 `id`，`sub` 仅兜底）。
+ * 失败（无 header / 非 Bearer / 非三段式 / payload 不是 JSON / 无 id 也无 sub）时返回 null。
  *
- * 仅用于 mock 模式取 userId — 与生产 oauth2 introspection 的 sub 同义。
+ * 仅用于 mock 模式取 userId；真实请求仍由 ghcloud 身份链路验签后落到 session owner。
  */
-function readJwtSubFromAuthorization(rawAuth: string | undefined): string | null {
+function readJwtUserIdFromAuthorization(rawAuth: string | undefined): string | null {
   if (!rawAuth) return null;
   const auth = rawAuth.trim();
   if (!auth.toLowerCase().startsWith('bearer ')) return null;
@@ -67,9 +69,11 @@ function readJwtSubFromAuthorization(rawAuth: string | undefined): string | null
     );
     const decoded = Buffer.from(padded, 'base64').toString('utf8');
     const payload = JSON.parse(decoded) as Record<string, unknown>;
-    const sub = payload['sub'];
-    if (typeof sub === 'string' && sub.length > 0) return sub;
-    if (typeof sub === 'number' && Number.isFinite(sub)) return String(sub);
+    for (const key of ['id', 'sub'] as const) {
+      const claim = payload[key];
+      if (typeof claim === 'string' && claim.length > 0) return claim;
+      if (typeof claim === 'number' && Number.isFinite(claim)) return String(claim);
+    }
     return null;
   } catch {
     return null;
@@ -89,7 +93,7 @@ export class MockOboService {
      * 取值规则向 oauth2 模式收敛（差异仅在 mock 不验签）：
      *  - tenant：前端 CubeGateway 注入的标准 `tenant` header 优先；
      *            `x-mock-tenant` 仅作离线测试 / curl 兜底；最终回退到 `1`。
-     *  - userId：解析 `Authorization: Bearer <jwt>` payload 的 `sub` 字段（不验签）；
+     *  - userId：解析 `Authorization: Bearer <jwt>` payload 的 `id ?? sub`（不验签，与 ghcloud 对齐）；
      *            `x-mock-user` 兜底；最终回退到 `'mock-user'`。
      *
      * 这与生产 oauth2 introspection 的输出形态一致，使前端无需为 dev 联调发任何
@@ -101,9 +105,9 @@ export class MockOboService {
       lower('x-mock-tenant-id') ??
       '1';
     const tenant = parseInt(tenantRaw, 10) || 1;
-    const tokenSub = readJwtSubFromAuthorization(lower('authorization'));
+    const tokenUserId = readJwtUserIdFromAuthorization(lower('authorization'));
     const userId =
-      tokenSub ??
+      tokenUserId ??
       lower('x-mock-user') ??
       lower('x-mock-user-id') ??
       'mock-user';
