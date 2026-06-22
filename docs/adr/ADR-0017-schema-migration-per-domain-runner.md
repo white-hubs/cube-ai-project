@@ -78,6 +78,8 @@ runner 串行执行，全部通过后才启动 HTTP server。
 | `mysql/init/04-kb.sql` | `packages/kb/core/migrations/V001__init.sql`（替换现有 `001_kb_core_schema.sql`） |
 | `mysql/init/05-flow-studio.sql` | `packages/flow/studio/migrations/V001__init.sql` |
 
+> **Seed 内容补充（2026-06-22）**：llm-catalog 域的 S 类不止 `S001__system_seed.sql`（10 个通用兜底模型 + providers/types）。系统全量 vendor 目录已落为同域 S 类启动 seed——`S002__seed_aliyun_bailian_models.sql`（37）、`S003__seed_volcengine_ark_models.sql`（41）、`S004__seed_geekai_models.sql`（666）——合计 **754** 个系统模型，随启动幂等灌入（数据源为 cube-services 旧 `seed_*.sql`，逐字节迁入）。因此 cutover 不再迁移系统目录四表（`ai_system_llm_*`），详见 [cutover-runbook §3](../operations/cutover-runbook.md)。
+
 ## Consequences
 
 **正面**

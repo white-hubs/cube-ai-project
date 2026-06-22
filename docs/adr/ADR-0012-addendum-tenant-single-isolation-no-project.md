@@ -53,6 +53,7 @@ ADR-0012 D1（运行时单一真源、assistant 不迁）、D2（身份权威在
 - 切换采用 **fresh-start**：不迁移任何历史 flow / kb / 向量 / **catalog** 数据；`project_id→tenant_id` 仅体现在新建 schema，无存量数据迁移。
 - `catalog-migrate` 工具降级为可选 dry-run 对账，不在上线路径。
 - 因 catalog 亦 fresh-start，需提供**权威系统级 catalog seed**（provider types / providers / models / match-rules）替代 dev 占位种子，使租户首访 lazy provisioning 能复制出真实模型模板（vendor key 仍由各租户自录）。
+  - **已落地（2026-06-22）**：系统目录改由 S 类启动 seed 权威灌入（`packages/llm/core/migrations/S001..S004`，共 754 个系统模型，ADR-0017）。澄清「catalog fresh-start」语义仅限**租户**侧（首访 lazy provisioning + 各租户自录 vendor key）；**系统目录**非空起，由启动 seed 权威管理并随启动幂等对齐。
 
 ## Consequences
 

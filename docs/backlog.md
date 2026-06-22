@@ -6,12 +6,13 @@
 ## 上线前（待运维窗口 / 真实环境）
 
 - [ ] 真实 host JWT / 租户端到端联调（testcontainers e2e 在线跑通）
-- [ ] 刷真实 catalog seed / 迁移数据（`bun run catalog:migrate` dry-run → 预发写入 → 抽样 runtime 对账 → 生产写入）
+- [x] **系统 LLM 目录 seed 化**：754 个系统模型（极客智坊 666 / 火山方舟 41 / 阿里云百炼 37 / 通用 10）落为 S 类启动 seed（`packages/llm/core/migrations/S001..S004`，ADR-0017），随程序启动幂等灌入，无需手工迁移。
+- [ ] 刷真实**租户** catalog 数据（`ai_application_tenant_llm_provider/model` + vendor 凭据：`bun run catalog:migrate` dry-run → 预发写入 → 抽样 runtime 对账 → 生产写入）。系统目录四表已 seed，无需迁移。
 - [ ] flow / kb MySQL + Qdrant 全量数据迁移与孤儿向量清理（原 M6.T6）
 - [ ] flow `app_kv` / Langflow doc key 清洗（原 M6.T5）
 - [ ] 生产流量 cutover + 旧组件退役（ai-server / ai-application 旧进程实例，按 runbook §5 退役清单）。注意：gRPC `FlowServiceGrpc` **能力面不退役**，在 ai-center host 重建（ADR-0028）——退役的只是旧 ai-server 实例。
 - [ ] 端到端冒烟 + 安全 backlog 结清（原 M6.T9）
-- [ ] cutover 完成后删除 `tools/migration/`（catalog 迁移脚本即弃）
+- [ ] cutover 完成后删除 `tools/migration/`（**租户** catalog 迁移脚本即弃；系统目录已 seed 化，不再依赖该脚本）
 
 ## 功能（可后补，待触发）
 
@@ -29,5 +30,5 @@
 
 - gemini 原生 / jina_rerank 运行时 provider
 - cube2 dictionary / ouaa 桥
-- 历史数据迁移（fresh-start 策略，含 catalog）
+- 历史业务数据迁移（fresh-start 策略）。注：**系统 LLM 目录**已改由启动 seed 灌入（ADR-0017，`S001..S004`），非 fresh-start 留空；**租户** catalog 仍按 cutover-runbook §3 迁移
 - assistant 产品迁移（ADR-0012：弃迁，价值另以 preset 重建）

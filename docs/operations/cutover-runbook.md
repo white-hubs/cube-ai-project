@@ -9,7 +9,7 @@
 | 仓库基线绿 | `bun run typecheck` + `bun test` |
 | ai-center 单进程 | `/health` 200；agent/flow/kb/llm 路由可达 |
 | 鉴权中心 JWT 公钥 | `JWT_KEY_URL` 可达（例：`http://<oauth-host>/oauth2/jwt.key`） |
-| catalog 迁移导出 | ghcloud `cube_base_ai_application` 六表 JSON/SQL 导出就绪 |
+| catalog 迁移导出 | ghcloud `cube_base_ai_application` **租户两表**（`ai_application_tenant_llm_provider/model`，含凭据）JSON/SQL 导出就绪；系统目录四表已随启动 seed（见 §3），无需导出 |
 
 ## 2. 身份切换（host 注入）
 
@@ -44,16 +44,16 @@ export USE_GHCLOUD_IDENTITY=0
 
 ## 3. Catalog 数据迁移
 
+> **系统目录已 seed 化（2026-06-22 起）**：`ai_system_llm_provider_type / ai_system_llm_provider / ai_system_llm_model / ai_system_llm_model_match_rule` 四张系统表的全量目录（共 **754** 个系统模型：极客智坊 666 + 火山方舟 41 + 阿里云百炼 37 + 通用 10）已作为 S 类 seed 随程序启动幂等灌入（`packages/llm/core/migrations/S001..S004`，ADR-0017）。**这四表不再需要从旧库迁移**——迁了也会被下次启动的 seed 覆盖。本节迁移现仅针对**租户两表 + 凭据**。
+
 ### 3.1 导出 ghcloud 源表
 
 从 `cube_base_ai_application` 导出（JSON 推荐）：
 
-- `ai_system_llm_provider_type`
-- `ai_system_llm_provider`
-- `ai_system_llm_model`
-- `ai_system_llm_model_match_rule`
 - `ai_application_tenant_llm_provider`（含 `api_key` vendor 凭据）
 - `ai_application_tenant_llm_model`
+
+> 系统目录四表（`ai_system_llm_*`）**无需导出/迁移**：由启动 seed 权威管理。即便导出，`catalog:migrate` 对其为幂等 upsert，但属冗余且可能与 seed 版本不一致，不建议。
 
 **勿迁移** `ai_application_tenant_project.ai_center_api_key`（cube-ai 项目 key，收编后删除）。
 
@@ -79,6 +79,8 @@ bun test tools/migration
 bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:pass@host:3306/cube_ai_center
 # （--mysql-url 缺省读 AGENTIC_ENGINE_MYSQL_URL）
 ```
+
+> 注：`catalog:migrate` 当前仍会 upsert 系统四表，但其权威源已是启动 seed（§3 顶部）；运维窗口实质只需确认**租户两表**落库与凭据可用，系统目录由启动自动对齐。
 
 幂等策略（完整版）：按 `id`/`tenant+provider_code`/`tenant+model_code` upsert；重跑前备份目标库。
 
