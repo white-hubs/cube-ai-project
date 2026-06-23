@@ -22,7 +22,7 @@ COPY bun.lock package.json bunfig.toml tsconfig.base.json tsconfig.json ./
 COPY patches ./patches
 # workspaces 含 apps/*；缺任一 package.json 会导致 frozen lockfile 校验失败
 COPY apps/ai-center/package.json ./apps/ai-center/
-COPY apps/ai-console/package.json ./apps/ai-console/
+COPY apps/ai-sdk-playground/package.json ./apps/ai-sdk-playground/
 COPY packages ./packages
 COPY infra ./infra
 

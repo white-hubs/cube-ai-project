@@ -19,7 +19,7 @@ ADR-0016 / ADR-0018 落地了 agent 管理面（`/agent/console/*`）对 agent /
 
 ### 1. AI 创作辅助 = 中台能力，非某 console 私货
 
-AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-console` 与上游自建 console（ghcloud / tachu 等）**共享同一能力**。不把它做成 `ai-console` 前端私有的页面逻辑——那样上游各自重做、能力不可复用，且违背「中台暴露可被上层直接调用的基础能力」。
+AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-sdk-playground`（验证沙箱）与上游自建 console（ghcloud / tachu 等）**共享同一 SDK 能力**。不把它做成某前端 app 私有的页面逻辑——那样上游各自重做、能力不可复用，且违背「中台暴露可被上层直接调用的基础能力」。
 
 ### 2. 两个方向（双 UX），其余收编
 
@@ -108,7 +108,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-con
 
 ## Options Considered
 
-- **纯前端编排（`ai-console` 私货）**：实现最快，但上游各自重做、能力不可复用，违背中台「暴露可调用基础能力」。否（取中台能力 + SDK）。
+- **纯前端编排（验证沙箱私货）**：实现最快，但上游各自重做、能力不可复用，违背中台「暴露可调用基础能力」。否（取中台能力 + SDK）。
 - **`propose` 直接落库（AI 帮写进库走 `propose`）**：少一次确认，但破坏 draft/publish 心智、引入写副作用与写授权；「AI 帮写」已由管理 Agent 经 consent 覆盖。否（`propose` 恒纯建议，写由管理 Agent 把关）。
 - **只做对话 Agent，不单列 `propose`**：UX 单一，但丢了「可控表单 + 结构化信封」，diff UI 难基于自由文本。否（保留 `propose` 原语，两处复用）。
 - **整个管理 Agent 包成 sub-agent（经 `subAgentRefs`）作复用原语**：粒度过粗（别的 agent 无法只取其中几个 op）、diff/编排都难。否（取 ops-as-tools 为原语，§7）。

@@ -37,7 +37,7 @@ cube-ai-project/
 │   │   ├── src/routes/                 #   领域路由 /agent/* /flow/* /kb/* /llm/*（装配期施加域×面前缀）+ LLM 网关 /v1/*（豁免，ADR-0003）；见 ADR-0008 addendum 两轴方案
 │   │   ├── src/platform/               #   server-base/server-shared/server-mock 横切基础设施
 │   │   └── src/main.ts                 #   进程入口 + 后台 loop（worker.* / SSE drain）
-│   └── ai-console/                     # @cube-ai/ai-console —— 单 origin Vue 控制台（/agent /flow /kb /llm）
+│   └── ai-sdk-playground/              # @cube-ai/ai-sdk-playground —— SDK 验证沙箱
 │
 ├── packages/
 │   ├── contracts/                      # ★ 唯一共享内核（零依赖，仅 zod）→ @cube-ai/contracts
@@ -107,7 +107,7 @@ cube-ai-project/
 | `infra/vector-qdrant` | `@cube-ai/vector-qdrant` | 向量存储 infra·Qdrant 驱动（kb/engine 直连） |
 | `infra/test-infra` | `@cube-ai/test-infra` | |
 | `apps/ai-center` | `@cube-ai/ai-center` | 组合根 app |
-| `apps/ai-console` | `@cube-ai/ai-console` | 单 origin 控制台前端 |
+| `apps/ai-sdk-playground` | `@cube-ai/ai-sdk-playground` | 内部 SDK 验证沙箱 |
 
 ## 3. 运行时端口图（必须无环，ADR-0002）
 

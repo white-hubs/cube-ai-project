@@ -29,7 +29,7 @@ contracts(wire schema 扩展)
 - **跨租户 / 全局库不实现**：listing 只在本租户可见；`scope` 字段先不落表（用 listing 行存在性 = tenant 域，见 OQ）。
 - **配额硬限不实现**：只留校验 seam（默认放行），不接平台配置。
 - **draft 预览运行**沿用「作者直接跑草稿」即可，不单独做 preview sandbox。
-- **UI 不在本计划内**（ai-console 单列里程碑 M8，可选/后置）。
+- **UI 不在本计划内**（ai-sdk-playground 单列里程碑 M8，可选/后置）。
 
 ---
 
@@ -476,7 +476,7 @@ removeTool(toolName): Promise<void>
 | **M5** | shelf（安装/启用禁用/移除）+ create 自动上架 | 新 `user-shelf.repository.ts` / `shelf.service.ts` / `MyShelfController` + create 钩子 | 浮动/钉版安装、enable/disable、移除不动 descriptor、authored 自动入架 —— 单测绿 |
 | **M6** | 运行时解析投影 | 新 `runnable-agent-resolver.ts` / 改 `session.service.ts`(agentVersionNo) / `buildSnapshots` 入参 / `SessionController.create` | 作者跑草稿、非作者必须装且启用、浮动跟随/下架冻结/钉版固定 —— testcontainers 会话创建端到端绿；`agent_version_no` 落实际版本 |
 | **M7** | 插件库 + 可用工具 + outbox 失效接线 | 新 `user-available-tool.repository.ts` / `plugin-catalog.service.ts` / `ToolShelfController` + publish/list/unlist/softDelete 写 `descriptor_reload` | 工具目录只给能力说明、安装/启停/移除、resolver 收到 reload 精确失效 —— 单测 + testcontainers |
-| **M8** | SDK 扩面（+ 可选 ai-console UI） | `sdk-console/src/client.ts`(+test) / `domain-prefix-mounts.ts` 注册新控制器 / `sdk-console` `index.ts` | SDK 方法单测（mock fetch）绿；mounts 注册全；`bun run build` 绿。UI 可后置 |
+| **M8** | SDK 扩面（+ 可选 ai-sdk-playground UI） | `sdk-console/src/client.ts`(+test) / `domain-prefix-mounts.ts` 注册新控制器 / `sdk-console` `index.ts` | SDK 方法单测（mock fetch）绿；mounts 注册全；`bun run build` 绿。UI 可后置 |
 
 > M2/M4/M6/M7 的 DB 行为务必落 `*.testcontainers.test.ts`；离线 `bun test` 自动 skip，提交前本地 `bun run test:containers` 至少跑一次相关用例。
 

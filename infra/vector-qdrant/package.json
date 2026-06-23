@@ -18,7 +18,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@qdrant/js-client-rest": "catalog:"
+    "@qdrant/js-client-rest": "catalog:vector"
   },
   "devDependencies": {
     "typescript": "catalog:"

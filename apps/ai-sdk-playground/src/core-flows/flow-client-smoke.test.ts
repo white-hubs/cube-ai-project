@@ -1,11 +1,11 @@
 /**
- * Flow client smoke — ai-console wires `@cube-ai/flow-sdk-client` to `/flow/run/:id`.
+ * Flow client smoke — ai-sdk-playground wires `@cube-ai/flow-sdk-client` to `/flow/run/:id`.
  */
 import { describe, expect, test } from 'bun:test';
 import { createFlowClient } from '@cube-ai/flow-sdk-client';
 import { sdkConfig } from '../config';
 
-describe('ai-console flow client smoke', () => {
+describe('ai-sdk-playground flow client smoke', () => {
   test('createFlowClient.run() POST /flow/run/:flowId', async () => {
     let capturedUrl = '';
     const cfg = sdkConfig();

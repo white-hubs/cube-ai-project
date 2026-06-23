@@ -158,7 +158,7 @@ _Avoid_: 解析逻辑分散在 loader 私有函数与 HTTP 控制器之间
 
 **Descriptor 创作辅助 (propose)**:
 中台以自身 LLM、依据租户意图与**平台内部 registry**（系统级 + 本租户已发布 skill/rule/tool）产出一份候选 descriptor content 的能力（ADR-0027）；既可从意图生成、也可以现有 content 为输入做优化。**纯建议、不落库**——返回结构化信封（含已接地的 ref 推荐），落库仍走 **agent 管理面** 的 CRUD。推荐的 ref 经「候选清单内选 + 产出后硬校验」杜绝幻觉。
-_Avoid_: 让 propose 直接写库, 把它当 ai-console 私有页面逻辑, 推荐 registry 里不存在的 ref
+_Avoid_: 让 propose 直接写库, 把它当 SDK Playground 私有页面逻辑, 推荐 registry 里不存在的 ref
 
 **管理 ops 工具集**:
 把 **agent 管理面** 的 ops（**Descriptor 创作辅助 (propose)** + list/get/create/update/publish/softDelete）包装成的一组 **Tool Handler**（ADR-0027）；是「让 agent 管理 descriptor」的**可复用原语**——粒度是 ops 而非整个 agent，别的 agent 可只取其中几个。**一核两面**暴露（与 LLM 同构）：进程内面给任何进程内 agent、对外面经 **管理能力 MCP 门面** 给外部 agent。
@@ -232,6 +232,10 @@ _Avoid_: 单包收全部能力, 前端 import 后端包, 走 gateway façade, �
 SDK 的必填语义维度：**client = 消费面**（chat/run/query，跑能力拿结果）；**console = 管理面**（CRUD/远程同步/连通测试，管能力）。单一面的域也强制带 face（如 `agent-sdk-client`）。命名见 ADR-0011。
 _Avoid_: 用笼统 core 混两面, 用 admin 代替 console
 
+**SDK Playground（验证沙箱）**:
+本仓 `apps/ai-sdk-playground` 承载的**内部开发工具**——以**轻量 SDK 能力列表**（非复杂 Console UI）逐项触发 **领域 SDK 家族** 各 public method，对照 JSON/SSE 输出验证；**不是**中台对外能力、**不是**租户管理 UI。能力列表由 **构建期 codegen**（扫描 HTTP client 类 SDK）+ **手工 augment**（composable / 特殊流式）混合维护；**启动 playground dev 时自动再生 manifest**。全局可配 **连接 profile**（认证 headers、browser prefix、代理目标）；dev 经 Vite **运行时热切换 proxy target**（UI 改目标、无需重启 dev server）+ 同源 prefix 模拟真实部署。**覆盖目标 = 各 SDK 包全部 public method**。当前定位 = 工程师本地验 SDK；演进上**可能**升格为上游可 fork 的参考实现。与 **SDK 面 console**（管理面 API 包名）、**Flow Playground**（flow 域会话/试跑子能力）三者同名不同义。
+_Avoid_: 把验证沙箱命名与 `*-sdk-console` 混读, 把验证沙箱当租户产品面, 与 Flow Playground 会话概念混为一谈, 只做 happy-path 子集却称「全 SDK 验证」
+
 ### 运行时拓扑与平台接入
 
 **AI 数据面直连**:
@@ -289,6 +293,7 @@ _Avoid_: 把会话归属当跨域隔离键, 当 project 复活, 让能力包(kb/
 - **MCP 桥接** 的 **Tool 凭据** 独立于 LLM **凭据边界**；二者是两类凭据
 - **运行时自装配**：agent-engine 与（未来的）flow-core 各自装配 **Tool Handler**，不共享 **Tool 编排**
 - 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-{client*,console}` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
+- **SDK Playground（验证沙箱）** 只消费 **领域 SDK 家族** + **统一前门**，用于内部验 SDK；不新增 API、不承载业务逻辑；未来若升格参考实现，仍经同一 SDK 面暴露能力
 - **租户级 descriptor** 权威在中台持久层、按 **租户隔离主键 (tenant)** 隔离；**系统级 descriptor** 权威在部署物；二者以标识命名空间区分，运行时合并解析、互不遮蔽
 - **agent 管理面** 只管 **租户级 descriptor**（含 **发布** 生命周期）；系统级资产对管理面只读；已建会话靠快照冻结不受 descriptor 变更影响
 - AI-native 创作两种 UX（ADR-0027）：**Descriptor 创作辅助 (propose)**（表单可控、纯建议不落库）与 **管理 ops 工具集**（对话省心、agent 真执行）；**propose** 既是独立端点又是工具集成员（一原语两处复用）；propose 的「下游 diff+确认」≈ 工具写操作的 consent 把关，同一安全语义

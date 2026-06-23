@@ -56,7 +56,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "fake-indexeddb": "catalog:",
+    "fake-indexeddb": "catalog:test",
     "typescript": "catalog:"
   }
 }

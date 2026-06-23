@@ -1,11 +1,11 @@
 /**
- * KB client smoke — ai-console wires `@cube-ai/kb-sdk-client` to `POST /kb/search`.
+ * KB client smoke — ai-sdk-playground wires `@cube-ai/kb-sdk-client` to `POST /kb/search`.
  */
 import { describe, expect, test } from 'bun:test';
 import { createKbClient } from '@cube-ai/kb-sdk-client';
 import { sdkConfig } from '../config';
 
-describe('ai-console kb client smoke', () => {
+describe('ai-sdk-playground kb client smoke', () => {
   test('createKbClient.search() POST /kb/search', async () => {
     let capturedUrl = '';
     const cfg = sdkConfig();

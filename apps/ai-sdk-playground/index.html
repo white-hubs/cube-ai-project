@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI SDK Playground</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #0f1115;
+        color: #e8eaed;
+      }
+      code {
+        word-break: break-all;
+      }
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+      .shell header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #2a2f3a;
+      }
+      .shell h1 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+      .shell__subtitle {
+        margin: 0.35rem 0 0;
+        color: #9aa0a6;
+        font-size: 0.85rem;
+      }
+      .shell main {
+        padding: 1rem 1.5rem 1.5rem;
+      }
+      .panel {
+        border: 1px solid #2a2f3a;
+        border-radius: 8px;
+        background: #171a21;
+        padding: 1rem 1.25rem;
+      }
+      .playground__health {
+        margin: 0.75rem 0 1rem;
+        font-size: 0.9rem;
+      }
+      .playground__body {
+        display: grid;
+        grid-template-columns: minmax(16rem, 22rem) 1fr;
+        gap: 1rem;
+        align-items: start;
+      }
+      .cap-tree {
+        max-height: calc(100vh - 14rem);
+        overflow: auto;
+        border: 1px solid #2a2f3a;
+        border-radius: 8px;
+        background: #171a21;
+        padding: 0.75rem;
+      }
+      .cap-tree__filter {
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+        padding: 0.4rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid #2a2f3a;
+        background: #0f1115;
+        color: inherit;
+      }
+      .cap-tree__group h3 {
+        margin: 0.75rem 0 0.35rem;
+        font-size: 0.75rem;
+        color: #9aa0a6;
+        font-weight: 600;
+      }
+      .cap-tree ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .cap-tree li button {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        color: #c9cdd3;
+        padding: 0.35rem 0.45rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.78rem;
+      }
+      .cap-tree li button.is-active,
+      .cap-tree li button:hover {
+        background: #252a34;
+        color: #fff;
+      }
+      .cap-tree__kind {
+        display: inline-block;
+        min-width: 3.5rem;
+        margin-right: 0.35rem;
+        color: #8ab4f8;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+      }
+      .profile__grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+      .profile__wide {
+        grid-column: 1 / -1;
+      }
+      .profile label {
+        display: grid;
+        gap: 0.25rem;
+        font-size: 0.8rem;
+        color: #9aa0a6;
+      }
+      .profile input,
+      .invoker textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.45rem 0.55rem;
+        border-radius: 6px;
+        border: 1px solid #2a2f3a;
+        background: #0f1115;
+        color: inherit;
+        font: inherit;
+      }
+      .profile__actions,
+      .invoker__actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-top: 0.75rem;
+      }
+      .profile__status {
+        font-size: 0.8rem;
+        color: #9aa0a6;
+      }
+      button {
+        border: 1px solid #3c4454;
+        background: #252a34;
+        color: #fff;
+        border-radius: 6px;
+        padding: 0.45rem 0.8rem;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .invoker__header h2 {
+        margin: 0;
+        font-size: 1rem;
+      }
+      .invoker__meta {
+        display: block;
+        margin-top: 0.25rem;
+        color: #9aa0a6;
+        font-size: 0.78rem;
+      }
+      .invoker__desc {
+        color: #9aa0a6;
+        font-size: 0.85rem;
+      }
+      .invoker__params {
+        margin-top: 0.75rem;
+      }
+      .invoker__params h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.85rem;
+        color: #c4c7c5;
+      }
+      .invoker__params table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+      .invoker__params th,
+      .invoker__params td {
+        border: 1px solid #2a2f3a;
+        padding: 0.35rem 0.5rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      .invoker__params th {
+        background: #1a1d24;
+        color: #9aa0a6;
+      }
+      .invoker__hint {
+        margin: 0.5rem 0 0;
+        color: #9aa0a6;
+        font-size: 0.78rem;
+        line-height: 1.4;
+      }
+      .invoker__args,
+      .invoker__file {
+        display: grid;
+        gap: 0.35rem;
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: #9aa0a6;
+      }
+      .invoker__result {
+        margin-top: 1rem;
+        border-top: 1px solid #2a2f3a;
+        padding-top: 0.75rem;
+      }
+      .invoker__result.is-ok h3 {
+        color: #81c995;
+      }
+      .invoker__result.is-error h3 {
+        color: #f28b82;
+      }
+      .invoker pre {
+        overflow: auto;
+        font-size: 0.82rem;
+        background: #0f1115;
+        border-radius: 6px;
+        padding: 0.75rem;
+      }
+      @media (max-width: 960px) {
+        .playground__body {
+          grid-template-columns: 1fr;
+        }
+      }
+      .proxy-log__header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      .proxy-log__header h2 {
+        margin: 0;
+        font-size: 1rem;
+        flex: 1;
+      }
+      .proxy-log__hint {
+        margin: 0 0 0.75rem;
+        color: #9aa0a6;
+        font-size: 0.82rem;
+      }
+      .proxy-log__error {
+        color: #f28b82;
+        font-size: 0.85rem;
+      }
+      .proxy-log__empty {
+        color: #9aa0a6;
+        font-size: 0.85rem;
+      }
+      .proxy-log__table-wrap {
+        overflow: auto;
+        max-height: 14rem;
+      }
+      .proxy-log__table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+      .proxy-log__table th,
+      .proxy-log__table td {
+        border-bottom: 1px solid #2a2f3a;
+        padding: 0.35rem 0.45rem;
+        vertical-align: top;
+        text-align: left;
+      }
+      .proxy-log__table th {
+        color: #9aa0a6;
+        font-weight: 600;
+      }
+      .proxy-log__table code {
+        word-break: break-all;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

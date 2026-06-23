@@ -40,11 +40,11 @@
     "@cube-ai/agent-sdk-client-assistant": "workspace:*"
   },
   "peerDependencies": {
-    "vue": "catalog:"
+    "vue": "catalog:vue"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "catalog:",
+    "@happy-dom/global-registrator": "catalog:test",
     "typescript": "catalog:",
-    "vue": "catalog:"
+    "vue": "catalog:vue"
   }
 }

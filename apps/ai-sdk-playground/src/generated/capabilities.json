@@ -1,0 +1,3297 @@
+{
+  "generatedAt": "2026-06-23T08:16:49.692Z",
+  "entries": [
+    {
+      "id": "agent-sdk-client-assistant.createAgenticEnginePort",
+      "package": "@cube-ai/agent-sdk-client-assistant",
+      "domain": "agent",
+      "face": "assistant",
+      "factory": "createAgenticEnginePort",
+      "method": "createAgenticEnginePort",
+      "kind": "composable",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client-assistant.createAssistantStore",
+      "package": "@cube-ai/agent-sdk-client-assistant",
+      "domain": "agent",
+      "face": "assistant",
+      "factory": "createAssistantStore",
+      "method": "createAssistantStore",
+      "kind": "composable",
+      "params": [
+        {
+          "name": "defaultAgentId",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "description": "Framework-agnostic assistant store lifecycle"
+    },
+    {
+      "id": "agent-sdk-client-mock.startMockEngine",
+      "package": "@cube-ai/agent-sdk-client-mock",
+      "domain": "agent",
+      "face": "mock",
+      "factory": "startMockEngine",
+      "method": "startMockEngine",
+      "kind": "mock",
+      "params": [
+        {
+          "name": "scenarioName",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "description": "Start in-process mock engine and return url/port handle"
+    },
+    {
+      "id": "agent-sdk-client-mock.triggerEvent",
+      "package": "@cube-ai/agent-sdk-client-mock",
+      "domain": "agent",
+      "face": "mock",
+      "factory": "startMockEngine",
+      "method": "triggerEvent",
+      "kind": "mock",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "event",
+          "type": "json",
+          "required": true
+        }
+      ],
+      "description": "Inject SSE event into active mock session (requires running mock handle)"
+    },
+    {
+      "id": "agent-sdk-client-vue.provideAssistant",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "provideAssistant",
+      "method": "provideAssistant",
+      "kind": "composable",
+      "params": [
+        {
+          "name": "defaultAgentId",
+          "type": "string",
+          "required": false
+        }
+      ],
+      "description": "Mount provideAssistant and exercise session + send + SSE turn completion"
+    },
+    {
+      "id": "agent-sdk-client-vue.useAgenticClient",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useAgenticClient",
+      "method": "useAgenticClient",
+      "kind": "composable",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client-vue.useAssistantMessages",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useAssistantMessages",
+      "method": "useAssistantMessages",
+      "kind": "composable",
+      "params": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": true
+        }
+      ],
+      "description": "Send a message and observe turn status via composable"
+    },
+    {
+      "id": "agent-sdk-client-vue.useAssistantSessions",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useAssistantSessions",
+      "method": "useAssistantSessions",
+      "kind": "composable",
+      "params": [],
+      "description": "Reload / create / open / remove / rename sessions via composable"
+    },
+    {
+      "id": "agent-sdk-client-vue.useGrants",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useGrants",
+      "method": "useGrants",
+      "kind": "composable",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client-vue.useHealthLive",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useHealthLive",
+      "method": "useHealthLive",
+      "kind": "composable",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client-vue.useSession",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useSession",
+      "method": "useSession",
+      "kind": "composable",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client-vue.useTools",
+      "package": "@cube-ai/agent-sdk-client-vue",
+      "domain": "agent",
+      "face": "vue",
+      "factory": "useTools",
+      "method": "useTools",
+      "kind": "composable",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client.descriptors.if",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "descriptors",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.descriptors.list",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "descriptors",
+      "method": "list",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body ({ kind?: 'TOOL'; enabledOnly?: boolean })"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.files.upload",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "files",
+      "method": "upload",
+      "kind": "json",
+      "params": [
+        {
+          "name": "input",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (UploadFileInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.for",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "method": "for",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.grants.approve",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "grants",
+      "method": "approve",
+      "kind": "json",
+      "params": [
+        {
+          "name": "grantRequestId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "scopeChoice",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (GrantResponseRequest['scopeChoice'])"
+        },
+        {
+          "name": "extras",
+          "type": "json",
+          "required": false,
+          "position": 2,
+          "placement": "body",
+          "description": "Request body (Pick<GrantResponseRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.grants.deny",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "grants",
+      "method": "deny",
+      "kind": "json",
+      "params": [
+        {
+          "name": "grantRequestId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.grants.respond",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "grants",
+      "method": "respond",
+      "kind": "json",
+      "params": [
+        {
+          "name": "req",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (GrantResponseRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.healthLive",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "method": "healthLive",
+      "kind": "json",
+      "params": []
+    },
+    {
+      "id": "agent-sdk-client.if",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.jobs.cancel",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "jobs",
+      "method": "cancel",
+      "kind": "json",
+      "params": [
+        {
+          "name": "jobId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body ({ reason?: string })"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.jobs.get",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "jobs",
+      "method": "get",
+      "kind": "json",
+      "params": [
+        {
+          "name": "jobId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.return",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "method": "return",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.cancelTurn",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "cancelTurn",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.create",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "create",
+      "kind": "json",
+      "params": [
+        {
+          "name": "req",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (CreateSessionRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.delete",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "delete",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.for",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "for",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.get",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "get",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.if",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.list",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "list",
+      "kind": "json",
+      "params": [
+        {
+          "name": "filter",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "query",
+          "description": "Query / filter object (ListSessionsFilter)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.listMessages",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "listMessages",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "query",
+          "description": "Query / filter object ({ limit?: number })"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.patch",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "patch",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "patch",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (PatchSessionRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.startTurn",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "startTurn",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (StartTurnBody)"
+        },
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 2,
+          "placement": "body",
+          "description": "Request body (StartTurnOpts)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.switch",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "switch",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.sessions.while",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "sessions",
+      "method": "while",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.toolAcks.submit",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "toolAcks",
+      "method": "submit",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sessionId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "toolCallId",
+          "type": "string",
+          "required": true,
+          "position": 2,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "result",
+          "type": "json",
+          "required": true,
+          "position": 3,
+          "placement": "body",
+          "description": "Request body ({ ok: true; output: unknown } | { ok: false; error: { code: string; message: string; retryable?: boolean } })"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.tools.invoke",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "tools",
+      "method": "invoke",
+      "kind": "json",
+      "params": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "args",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-client.tools.list",
+      "package": "@cube-ai/agent-sdk-client",
+      "domain": "agent",
+      "face": "client",
+      "factory": "createAgenticClient",
+      "apiPath": "tools",
+      "method": "list",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body ({ enabledOnly?: boolean })"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.browseLibraryAgents",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "browseLibraryAgents",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (LibraryBrowseOptions)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.browseLibrarySkills",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "browseLibrarySkills",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (LibraryBrowseOptions)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.createAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "createAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (AgentContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.createFromDocument",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "createFromDocument",
+      "kind": "text-plain",
+      "params": [
+        {
+          "name": "kind",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (TenantDescriptorKind)"
+        },
+        {
+          "name": "raw",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.createRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "createRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (RuleContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.createSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "createSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (SkillContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.deleteAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "deleteAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.deleteRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "deleteRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.deleteSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "deleteSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getAgentListing",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getAgentListing",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getAgentVersion",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getAgentVersion",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getLibraryAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getLibraryAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "ref",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getLibrarySkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getLibrarySkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "ref",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getRuleVersion",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getRuleVersion",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getSkillListing",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getSkillListing",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.getSkillVersion",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "getSkillVersion",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.if",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.installAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "installAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "req",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (InstallRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.installSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "installSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "req",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (InstallRequest)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.installTool",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "installTool",
+      "kind": "json",
+      "params": [
+        {
+          "name": "toolName",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listAgents",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listAgents",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listAgentVersions",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listAgentVersions",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listRules",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listRules",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listRuleVersions",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listRuleVersions",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listSkills",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listSkills",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.listSkillVersions",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "listSkillVersions",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.myAgents",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "myAgents",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (ShelfListOptions)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.mySkills",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "mySkills",
+      "kind": "json",
+      "params": [
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (ShelfListOptions)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.myTools",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "myTools",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.patchShelfAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "patchShelfAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sheId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "patch",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (ShelfPatch)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.patchShelfSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "patchShelfSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sheId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "patch",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (ShelfPatch)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.patchTool",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "patchTool",
+      "kind": "json",
+      "params": [
+        {
+          "name": "toolName",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (boolean)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.pluginCatalog",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "pluginCatalog",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.propose",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "propose",
+      "kind": "sse",
+      "params": [
+        {
+          "name": "kind",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (TenantDescriptorKind)"
+        },
+        {
+          "name": "req",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (ProposeRequest)"
+        },
+        {
+          "name": "opts",
+          "type": "json",
+          "required": false,
+          "position": 2,
+          "placement": "body",
+          "description": "Request body (ProposeOptions)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.publishAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "publishAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.publishRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "publishRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.publishSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "publishSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.removeShelfAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "removeShelfAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sheId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.removeShelfSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "removeShelfSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "sheId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.removeTool",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "removeTool",
+      "kind": "json",
+      "params": [
+        {
+          "name": "toolName",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.rollbackAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "rollbackAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.rollbackRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "rollbackRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.rollbackSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "rollbackSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "versionNo",
+          "type": "number",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (number)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.unlistAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "unlistAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.unlistSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "unlistSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.updateAgent",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "updateAgent",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (AgentContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.updateRule",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "updateRule",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (RuleContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.updateSkill",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "updateSkill",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (SkillContentInput)"
+        }
+      ]
+    },
+    {
+      "id": "agent-sdk-console.withQuery",
+      "package": "@cube-ai/agent-sdk-console",
+      "domain": "agent",
+      "face": "console",
+      "factory": "createAgentConsoleClient",
+      "method": "withQuery",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.createFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "createFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (FlowSaveBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.debugFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "debugFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowDebugBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.deleteFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "deleteFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.exportFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "exportFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.getFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "getFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.if",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.importFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "importFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowImportBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.listFlowComponents",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "listFlowComponents",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.listFlows",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "listFlows",
+      "kind": "json",
+      "params": []
+    },
+    {
+      "id": "flow-sdk-client.listFlowsPage",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "listFlowsPage",
+      "kind": "json",
+      "params": [
+        {
+          "name": "query",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (ListFlowsPageQuery)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.run",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "run",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (RunFlowBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.runFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "runFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowRunBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.runFlowStream",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "runFlowStream",
+      "kind": "sse",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowRunBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.saveFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "saveFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowSaveBody)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.uploadFlowFile",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "uploadFlowFile",
+      "kind": "form-data",
+      "params": [
+        {
+          "name": "formData",
+          "type": "form-data",
+          "required": true,
+          "position": 0,
+          "placement": "body"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-client.validateFlow",
+      "package": "@cube-ai/flow-sdk-client",
+      "domain": "flow",
+      "face": "client",
+      "factory": "createFlowClient",
+      "method": "validateFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.getFlow",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "getFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.getFlowMonitorBuilds",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "getFlowMonitorBuilds",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "query",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowMonitorQuery)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.getFlowMonitorTraces",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "getFlowMonitorTraces",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "query",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (FlowMonitorQuery)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.getStudioFlow",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "getStudioFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.if",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "if",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.listFlowReferences",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "listFlowReferences",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.listFlows",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "listFlows",
+      "kind": "json",
+      "params": []
+    },
+    {
+      "id": "flow-sdk-console.listFlowsByResource",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "listFlowsByResource",
+      "kind": "json",
+      "params": [
+        {
+          "name": "resourceType",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "resourceId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.listStudioFlows",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "listStudioFlows",
+      "kind": "json",
+      "params": [
+        {
+          "name": "query",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body ({ pageNumber: number; pageSize: number; keyword?: string })"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.publishFlow",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "publishFlow",
+      "kind": "json",
+      "params": [
+        {
+          "name": "flowId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "json",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body ({ releaseNote?: string | null })"
+        }
+      ]
+    },
+    {
+      "id": "flow-sdk-console.studioPath",
+      "package": "@cube-ai/flow-sdk-console",
+      "domain": "flow",
+      "face": "console",
+      "factory": "createFlowConsoleClient",
+      "method": "studioPath",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-client.search",
+      "package": "@cube-ai/kb-sdk-client",
+      "domain": "kb",
+      "face": "client",
+      "factory": "createKbClient",
+      "method": "search",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (SearchBody)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-client.searchByDirectory",
+      "package": "@cube-ai/kb-sdk-client",
+      "domain": "kb",
+      "face": "client",
+      "factory": "createKbClient",
+      "method": "searchByDirectory",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (SearchByDirectoryBody)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-client.searchByDocuments",
+      "package": "@cube-ai/kb-sdk-client",
+      "domain": "kb",
+      "face": "client",
+      "factory": "createKbClient",
+      "method": "searchByDocuments",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "json",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (SearchByDocumentsBody)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.createDirectory",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "createDirectory",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.deleteDirectory",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "deleteDirectory",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.deleteDocument",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "deleteDocument",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.getDocument",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "getDocument",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.getDocumentChunks",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "getDocumentChunks",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.listDirectories",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "listDirectories",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.listDocuments",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "listDocuments",
+      "kind": "json",
+      "params": [
+        {
+          "name": "params",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body ({ directoryId?: string })"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.previewDocument",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "previewDocument",
+      "kind": "form-data",
+      "params": [
+        {
+          "name": "formData",
+          "type": "form-data",
+          "required": true,
+          "position": 0,
+          "placement": "body"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.previewDocumentById",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "previewDocumentById",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.reindexDocument",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "reindexDocument",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.updateDirectory",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "updateDirectory",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.updateDocumentChunk",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "updateDocumentChunk",
+      "kind": "json",
+      "params": [
+        {
+          "name": "documentId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "chunkId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 2,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "kb-sdk-console.uploadDocument",
+      "package": "@cube-ai/kb-sdk-console",
+      "domain": "kb",
+      "face": "console",
+      "factory": "createKbConsoleClient",
+      "method": "uploadDocument",
+      "kind": "form-data",
+      "params": [
+        {
+          "name": "formData",
+          "type": "form-data",
+          "required": true,
+          "position": 0,
+          "placement": "body"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.createModel",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "createModel",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.createProvider",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "createProvider",
+      "kind": "json",
+      "params": [
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.deleteModel",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "deleteModel",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "modelId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.deleteProvider",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "deleteProvider",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.fetchRemote",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "fetchRemote",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.fetchRemotePreview",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "fetchRemotePreview",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.getModelRuntimeConfig",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "getModelRuntimeConfig",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "modelCode",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.getProvider",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "getProvider",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.getProviderType",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "getProviderType",
+      "kind": "json",
+      "params": [
+        {
+          "name": "code",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.importRemote",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "importRemote",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.listEndpointTypes",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "listEndpointTypes",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.listModels",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "listModels",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.listProviders",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "listProviders",
+      "kind": "json",
+      "params": []
+    },
+    {
+      "id": "llm-sdk-console.listProviderTypes",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "listProviderTypes",
+      "kind": "json",
+      "params": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "position": 0,
+          "placement": "body",
+          "description": "Method arguments as JSON object or __positional array"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.testModel",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "testModel",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "modelId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.testProviderConnection",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "testProviderConnection",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.updateModel",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "updateModel",
+      "kind": "json",
+      "params": [
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "modelId",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 2,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.updateProvider",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "updateProvider",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    },
+    {
+      "id": "llm-sdk-console.updateProviderSettings",
+      "package": "@cube-ai/llm-sdk-console",
+      "domain": "llm",
+      "face": "console",
+      "factory": "createLlmConsoleClient",
+      "method": "updateProviderSettings",
+      "kind": "json",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "position": 0,
+          "placement": "path",
+          "description": "Path parameter (string)"
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": true,
+          "position": 1,
+          "placement": "body",
+          "description": "Request body (Record<string)"
+        }
+      ]
+    }
+  ]
+}

@@ -43,8 +43,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # local MCP server config (copy from config/mcp-servers.example.json)
 config/mcp-servers.json
 
-# ai-console local overrides (copy from apps/ai-console/.env.example)
-apps/ai-console/.env.local
+# ai-sdk-playground local overrides (copy from apps/ai-sdk-playground/.env.example)
+apps/ai-sdk-playground/.env.local
 
 # codegraph local index (rebuild with `codegraph index`)
 .codegraph

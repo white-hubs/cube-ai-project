@@ -14,11 +14,11 @@
   },
   "dependencies": {
     "@cube-ai/mysql-migration": "workspace:*",
-    "@testcontainers/mysql": "catalog:",
-    "@testcontainers/qdrant": "catalog:",
-    "@testcontainers/redis": "catalog:",
+    "@testcontainers/mysql": "catalog:test",
+    "@testcontainers/qdrant": "catalog:test",
+    "@testcontainers/redis": "catalog:test",
     "mysql2": "catalog:",
-    "testcontainers": "catalog:"
+    "testcontainers": "catalog:test"
   },
   "devDependencies": {
     "typescript": "catalog:"

@@ -19,17 +19,17 @@
   },
   "dependencies": {
     "@cube-ai/tenant-context": "workspace:*",
-    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/client-s3": "catalog:storage",
     "@cube-ai/contracts": "workspace:*",
     "@cube-ai/embedding": "workspace:*",
     "@cube-ai/vector-qdrant": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
-    "@qdrant/js-client-rest": "catalog:",
-    "jszip": "catalog:",
-    "mammoth": "catalog:",
+    "@qdrant/js-client-rest": "catalog:vector",
+    "jszip": "catalog:storage",
+    "mammoth": "catalog:storage",
     "mysql2": "catalog:",
     "reflect-metadata": "catalog:",
-    "xlsx": "catalog:"
+    "xlsx": "catalog:storage"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

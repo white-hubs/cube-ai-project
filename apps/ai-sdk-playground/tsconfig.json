@@ -5,7 +5,15 @@
     "jsx": "preserve",
     "jsxImportSource": "vue",
     "noEmit": true,
+    "resolveJsonModule": true,
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "index.html", "env.d.ts", "vite.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "scripts/**/*.ts",
+    "index.html",
+    "env.d.ts",
+    "vite.config.ts"
+  ]
 }

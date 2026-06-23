@@ -9,7 +9,7 @@ bun install                  # 安装（workspace + catalog 版本统一）
 bun run typecheck            # 全 workspace 类型检查
 bun test                     # 离线全量测试（约 10s；testcontainers 用例自动 skip）
 bun test <path>              # 跑单个包/文件
-bun run build                # SDK dist + ai-console 浏览器包
+bun run build                # SDK dist + ai-sdk-playground 浏览器包
 bun run test:containers      # testcontainers 全量矩阵（需 Docker）
 bun run dev:up:deps          # compose 起 MySQL/Redis/Qdrant
 ```
@@ -30,7 +30,7 @@ bun run dev:up:deps          # compose 起 MySQL/Redis/Qdrant
 
 ```
 apps/ai-center            单进程组合根；src/bootstrap.ts 是 DI 装配入口，src/routes/ 领域路由
-apps/ai-console           Vue 控制台（/agent /flow /kb /llm）
+apps/ai-sdk-playground    SDK 验证沙箱（能力列表 + invoker）
 packages/contracts        唯一共享内核：port + wire schema；跨域耦合只能走这里
 packages/agent/engine     运行时核心（src/bc/：session·tools·jobs·safety·authz）
 packages/agent/sdk-*      agent 前端 SDK 家族（client/vue/assistant/mock）

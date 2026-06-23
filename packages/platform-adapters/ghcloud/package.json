@@ -34,9 +34,9 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "catalog:",
-    "@connectrpc/connect": "catalog:",
-    "@connectrpc/connect-node": "catalog:",
+    "@bufbuild/protobuf": "catalog:rpc",
+    "@connectrpc/connect": "catalog:rpc",
+    "@connectrpc/connect-node": "catalog:rpc",
     "@cube-ai/contracts": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
     "@dangao/nacos-client": "catalog:",

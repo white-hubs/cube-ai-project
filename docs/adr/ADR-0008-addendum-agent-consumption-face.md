@@ -7,7 +7,7 @@
 
 ## Context
 
-本 addendum 旧版（2026-06-06）将 agent 消费面 canonical 定为 engine `/v1/*`，并声明 `/agent` 仅为 `ai-console` 的 UI 路由、禁止作 API pathPrefix。该决议在两个方面已与代码事实和命名空间一致性要求产生偏离：
+本 addendum 旧版（2026-06-06）将 agent 消费面 canonical 定为 engine `/v1/*`，并声明 `/agent` 仅为前端验证沙箱的 UI 路由、禁止作 API pathPrefix。该决议在两个方面已与代码事实和命名空间一致性要求产生偏离：
 
 1. **路径实现漂移**：ai-center 代码实际以裸路径注册控制器（`/sessions`、`/jobs` 等），并由装配期 helper 统一施加域前缀；旧决议所称「保持 `/v1/*`」既非实现路径，也与 LLM OpenAI 兼容网关（ADR-0003）共享同一 `/v1` 根造成歧义。
 2. **跨域命名空间一致性**：flow、kb、llm 管理面已分别挂载 `/flow/console/*`、`/kb/console/*`、`/llm/console/*`；agent 单独保持 `/v1/*` 破坏了四域一致的命名空间格局。
@@ -48,7 +48,7 @@ ai-center 装配期（`src/routes/`）使用 helper 函数重写各 BC 控制器
 
 - **console SDK 默认 pathPrefix**：各 `<domain>-sdk-console` 的默认基路径加 `/console` 段，与管理面路径对齐。
 - **agent 消费 SDK baseUrl**：`@cube-ai/agent-sdk-client*` 的 `baseUrl` 从原 `/api`（或裸 origin）改为 `/api/agent`（即 `{origin}/agent`），消费面路径 `/agent/sessions` 等。
-- `ai-console` 的 Vue router `/agent` 路由继续负责挂载 Assistant UI（`provideAssistant`），SDK 基路径同步切换为 `/agent`（不再是 `/v1`）。
+- `ai-sdk-playground` 可在 composable 面板验证 `provideAssistant`；agent 消费 SDK `baseUrl` 为 `/api/agent`（即 `{origin}/agent`），消费面路径 `/agent/sessions` 等。
 
 ### 5. 本 addendum 取代旧版的范围
 
@@ -69,5 +69,5 @@ ai-center 装配期（`src/routes/`）使用 helper 函数重写各 BC 控制器
 
 - `domain-routes.test.ts`：覆盖四域消费面与管理面路由冒烟（`/agent/sessions`、`/agent/console/agents`、`/flow/run`、`/flow/console/flows`、`/kb/search`、`/kb/console/documents`、`/llm/providers`、`/llm/console/*`）。
 - `agent-sdk-client*` 请求基路径为 `/agent/...`（grep + 单测）。
-- `ai-console` 的 `provideAssistant` 调用中 `baseUrl` 不再含 `/v1`。
+- `ai-sdk-playground` composable runner 中 `provideAssistant` 的 `baseUrl` 不再含 `/v1`。
 - LLM 网关端点 `/v1/chat/completions` 仍可达（ADR-0003 豁免不变）。

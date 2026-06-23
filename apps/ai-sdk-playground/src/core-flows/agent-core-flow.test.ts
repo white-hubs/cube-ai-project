@@ -50,7 +50,7 @@ function makeTurnCompletedPort(): AssistantEnginePort {
   };
 }
 
-describe('ai-console agent core flow', () => {
+describe('ai-sdk-playground agent core flow', () => {
   test('provideAssistant → createSession → send → turn-completed-v1', async () => {
     const port = makeTurnCompletedPort();
 

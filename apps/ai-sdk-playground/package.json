@@ -1,0 +1,37 @@
+{
+  "name": "@cube-ai/ai-sdk-playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal SDK verification playground — capability list + invoker shell",
+  "scripts": {
+    "codegen:capabilities": "bun scripts/codegen-capabilities.ts",
+    "predev": "bun run codegen:capabilities",
+    "dev": "vite",
+    "prebuild": "bun run codegen:capabilities",
+    "typecheck": "bun run codegen:capabilities && tsc -p tsconfig.json --noEmit",
+    "test": "bun run codegen:capabilities && bun test",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@cube-ai/agent-sdk-client": "workspace:*",
+    "@cube-ai/agent-sdk-client-assistant": "workspace:*",
+    "@cube-ai/agent-sdk-client-mock": "workspace:*",
+    "@cube-ai/agent-sdk-client-vue": "workspace:*",
+    "@cube-ai/agent-sdk-console": "workspace:*",
+    "@cube-ai/flow-sdk-client": "workspace:*",
+    "@cube-ai/flow-sdk-console": "workspace:*",
+    "@cube-ai/kb-sdk-client": "workspace:*",
+    "@cube-ai/kb-sdk-console": "workspace:*",
+    "@cube-ai/llm-sdk-console": "workspace:*",
+    "vue": "catalog:vue",
+    "vue-router": "catalog:vue"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "catalog:test",
+    "@types/bun": "catalog:",
+    "@vitejs/plugin-vue-jsx": "catalog:vite",
+    "typescript": "catalog:",
+    "vite": "catalog:vite"
+  }
+}

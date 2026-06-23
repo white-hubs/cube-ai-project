@@ -6,7 +6,7 @@
 
 ```bash
 bun install
-bun run build        # SDK dist + ai-console 浏览器包
+bun run build        # SDK dist + ai-sdk-playground 浏览器包
 bun run typecheck    # 全 workspace 类型检查
 bun test             # 离线全量测试（约 10s）
 ```
@@ -24,7 +24,7 @@ cd apps/ai-center && bun run dev
 
 ```
 apps/ai-center          # ★ 单进程组合根（DI 装配全部能力包）
-apps/ai-console         # 单 origin Vue 控制台
+apps/ai-sdk-playground  # 内部 SDK 验证沙箱（bun run dev:playground）
 packages/contracts      # 唯一共享内核（port + wire schema，零依赖）
 packages/agent          # engine（运行时）+ sdk-client 家族
 packages/llm            # llm-core（provider + catalog 凭据权威）+ sdk-console

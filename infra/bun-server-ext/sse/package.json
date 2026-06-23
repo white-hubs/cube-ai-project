@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@dangao/bun-server": "catalog:bun-server",
-    "ioredis": "catalog:"
+    "ioredis": "catalog:queue"
   },
   "peerDependencies": {
     "@dangao/bun-server": "catalog:bun-server"
