@@ -30,12 +30,13 @@ bun run dev:up:prebuilt
 curl -fsS http://localhost:3000/health/live
 ```
 
-单独编译二进制：
+单独编译二进制（默认按 Docker/宿主机架构自动选择 `linux-x64` 或 `linux-arm64`）：
 
 ```bash
 bun run build:host-binary
-# linux/x64 目标机：
+# 显式指定（例如 Apple Silicon 上强制 amd64 容器）：
 bun run build:host-binary:x64
+TARGET_ARCH=linux-arm64 bun run build:host-binary
 ```
 
 ## Testcontainers E2E

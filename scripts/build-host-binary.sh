@@ -5,10 +5,10 @@
 #   在 HOST 上 `bun build --compile` 一次性 bundle 全图（含 workspace + @tachu/*），
 #   再让容器 stage `runtime-binary-prebuilt` 直接 COPY 编译产物，跳过容器内 bun install。
 #
-# 产物：dist/ai-center（默认 linux/arm64，匹配 macOS M-series Docker Desktop）
+# 产物：dist/ai-center（默认按 Docker/宿主机架构自动选择 linux-x64 或 linux-arm64）
 #
 # 用法：
-#   scripts/build-host-binary.sh                   # 默认 linux-arm64
+#   scripts/build-host-binary.sh                   # 自动检测目标架构
 #   scripts/build-host-binary.sh --target=linux-x64
 #   TARGET_ARCH=linux-x64 scripts/build-host-binary.sh
 #   scripts/build-host-binary.sh --debug           # 不 minify，便于排障
@@ -18,7 +18,11 @@
 
 set -euo pipefail
 
-TARGET_ARCH="${TARGET_ARCH:-linux-arm64}"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/resolve-linux-target-arch.sh
+source "$REPO_ROOT/scripts/lib/resolve-linux-target-arch.sh"
+
+TARGET_ARCH="${TARGET_ARCH:-}"
 MINIFY=1
 SOURCEMAP="inline"
 
@@ -42,7 +46,10 @@ for arg in "$@"; do
   esac
 done
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -z "$TARGET_ARCH" ]]; then
+  TARGET_ARCH="$(resolve_linux_target_arch)"
+fi
+
 cd "$REPO_ROOT"
 
 OUT_DIR="$REPO_ROOT/dist"
