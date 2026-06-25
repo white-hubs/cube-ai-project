@@ -8,5 +8,8 @@
     "style": "warn",
     "nursery": "off"
   },
+  "rules": {
+    "typescript/no-extraneous-class": ["error", { "allowWithDecorator": true }]
+  },
   "ignorePatterns": ["**/dist/**", "**/lib/**", "**/node_modules/**", "**/.tmp/**", "**/coverage/**"]
 }
