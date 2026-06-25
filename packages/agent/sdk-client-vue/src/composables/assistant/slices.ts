@@ -31,6 +31,8 @@ export interface UseAssistantSessionsReturn {
     agentId?: string;
     title?: string;
     modelCode?: string;
+    purpose?: 'chat' | 'debug';
+    agentVersionNo?: number;
     context?: Record<string, unknown>;
   }) => Promise<string>;
   remove: (sessionId: string) => Promise<void>;

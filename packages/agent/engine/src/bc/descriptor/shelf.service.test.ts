@@ -122,6 +122,47 @@ describe('ShelfService', () => {
     expect(shelfRepo.insertRef).not.toHaveBeenCalled();
   });
 
+  test('system library ref without tenant version is runnable when enabled', async () => {
+    const svc = new ShelfService(
+      fakeShelfRepo({
+        listByUser: mock(async () => [
+          fakeEntry({
+            targetId: 'safety-baseline',
+            source: 'ref',
+            enabled: true,
+            effectiveVersionNo: null,
+            displayName: undefined,
+          }),
+        ]),
+      }),
+      fakeListingRepo(),
+      fakeDescriptorRepo(),
+    );
+
+    const entries = await svc.list(7, 'bob', 'agent');
+    expect(entries[0]?.runnableStatus).toBe('runnable');
+  });
+
+  test('tenant ref without effective version stays unresolvable', async () => {
+    const svc = new ShelfService(
+      fakeShelfRepo({
+        listByUser: mock(async () => [
+          fakeEntry({
+            targetId: 'agt_99',
+            source: 'ref',
+            enabled: true,
+            effectiveVersionNo: null,
+          }),
+        ]),
+      }),
+      fakeListingRepo(),
+      fakeDescriptorRepo(),
+    );
+
+    const entries = await svc.list(7, 'bob', 'agent');
+    expect(entries[0]?.runnableStatus).toBe('unresolvable');
+  });
+
   test('lists projected entries and computes disabled status', async () => {
     const svc = new ShelfService(
       fakeShelfRepo({ listByUser: mock(async () => [fakeEntry({ enabled: false })]) }),

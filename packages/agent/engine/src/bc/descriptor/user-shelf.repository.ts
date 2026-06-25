@@ -1,5 +1,5 @@
 import type { Pool, RowDataPacket } from 'mysql2/promise';
-import type { ShelfEntryView } from '@cube-ai/contracts';
+import { parseTenantDescriptorId, type ShelfEntryView } from '@cube-ai/contracts';
 import { AgenticEngineError } from '../../infra/errors/agentic-error';
 import { SfidService } from '../../infra/sfid/sfid.service';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
@@ -35,7 +35,9 @@ function rowToView(row: ShelfRow): ShelfEntryView {
       ? 'disabled'
       : row.source === 'authored' || effectiveVersionNo != null
         ? 'runnable'
-        : 'unresolvable',
+        : parseTenantDescriptorId(row.target_id) == null
+          ? 'runnable'
+          : 'unresolvable',
   };
 }
 

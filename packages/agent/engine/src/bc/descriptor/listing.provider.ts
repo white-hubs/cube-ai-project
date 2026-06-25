@@ -1,10 +1,7 @@
 import { type Container } from '@dangao/bun-server';
 import type { Pool } from 'mysql2/promise';
-import {
-  OUTBOX_WRITER_TOKEN,
-  type OutboxWriter,
-} from '@cube-ai/bun-server-ext-outbox';
 import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
+import { buildOutboxWriter } from '../../infra/outbox/outbox-factory';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import { DescriptorLoader } from './descriptor-loader';
 import { DescriptorListingRepositoryImpl } from './descriptor-listing.repository';
@@ -75,7 +72,7 @@ function buildListingRepository(c: Container): DescriptorListingRepositoryImpl {
 
 export function buildListingService(c: Container): ListingService {
   const pool = resolvePool(c);
-  const outbox = tryResolve<OutboxWriter>(c, OUTBOX_WRITER_TOKEN);
+  const outbox = buildOutboxWriter(pool);
   return new ListingService(
     new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
     buildListingRepository(c),

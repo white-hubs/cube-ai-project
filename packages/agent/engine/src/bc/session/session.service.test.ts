@@ -15,6 +15,7 @@ function fakeRow(id: string) {
     userId: 'u1',
     agentId: '28147497671065600001',
     agentVersionNo: 1,
+    purpose: 'chat' as const,
     agentSnapshotJson: {},
     userPrincipalSnapshotJson: {},
     title: null as string | null,
@@ -260,7 +261,7 @@ describe('SessionService — business flows', () => {
 
     const view = await svc.createSession(7, 'bob', 'Bob', { agentId: 'agt_1' });
 
-    expect(runnable.resolve).toHaveBeenCalledWith(7, 'bob', 'agt_1');
+    expect(runnable.resolve).toHaveBeenCalledWith(7, 'bob', 'agt_1', {});
     expect(capturedInput?.agentVersionNo).toBe(2);
     expect((capturedInput?.agentSnapshotJson as { agent: { versionNo: number } }).agent.versionNo).toBe(2);
     expect(view.agentVersionNo).toBe(2);
@@ -604,6 +605,7 @@ describe('SessionService — business flows', () => {
     expect(result.items[0]?.userId).toBe('other-user');
     expect(listByOwner).toHaveBeenCalledWith(1, 'admin-user', {
       statuses: undefined,
+      purpose: 'chat',
       limit: 20,
       cursor: undefined,
       admin: true,

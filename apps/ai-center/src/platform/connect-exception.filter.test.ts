@@ -1,12 +1,12 @@
+import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'bun:test';
 import { connectExceptionFilter } from './connect-exception.filter';
 
 // @connectrpc/connect 未在 ai-center 直接声明依赖（isolated install），
 // 从 ghcloud adapter 包的依赖图解析，保证与 isConnectError 使用同一份模块实例。
-const ghcloudPkgDir = new URL(
-  '../../../../packages/platform-adapters/ghcloud',
-  import.meta.url,
-).pathname;
+const ghcloudPkgDir = fileURLToPath(
+  new URL('../../../../packages/platform-adapters/ghcloud', import.meta.url),
+);
 const connectModulePath = Bun.resolveSync('@connectrpc/connect', ghcloudPkgDir);
 const { Code, ConnectError } = (await import(connectModulePath)) as {
   Code: Record<string, number>;

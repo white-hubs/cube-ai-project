@@ -299,14 +299,18 @@ export class DescriptorManagementService {
 
   private async appendDescriptorReload(tenant: number, descriptorId: string): Promise<void> {
     if (!this.outbox) return;
-    await this.outbox.append(NULL_TX, {
-      tenant,
-      channel: 'descriptor_reload',
-      eventType: 'descriptor.reload',
-      payloadJson: { tenant, descriptorId },
-      target: descriptorId,
-      scheduleTime: Date.now(),
-    });
+    try {
+      await this.outbox.append(NULL_TX, {
+        tenant,
+        channel: 'descriptor_reload',
+        eventType: 'descriptor.reload',
+        payloadJson: { tenant, descriptorId },
+        target: descriptorId,
+        scheduleTime: Date.now(),
+      });
+    } catch {
+      // POST-commit best-effort：发布/更新已落库，outbox 失败不应把 HTTP 打成 500。
+    }
   }
 
   async create(

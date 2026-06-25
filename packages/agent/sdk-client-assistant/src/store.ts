@@ -333,6 +333,8 @@ export class AssistantStore {
     agentId?: string;
     title?: string;
     modelCode?: string;
+    purpose?: 'chat' | 'debug';
+    agentVersionNo?: number;
     context?: Record<string, unknown>;
   }): Promise<string> {
     this.assertAlive('createSession');
@@ -347,6 +349,8 @@ export class AssistantStore {
       agentId,
       ...(req.title !== undefined ? { title: req.title } : {}),
       ...(modelCode !== undefined ? { modelCode } : {}),
+      ...(req.purpose !== undefined ? { purpose: req.purpose } : {}),
+      ...(req.agentVersionNo !== undefined ? { agentVersionNo: req.agentVersionNo } : {}),
       ...(req.context !== undefined ? { context: req.context } : {}),
     });
     const session: AssistantSessionSummary = {

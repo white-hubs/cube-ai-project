@@ -62,6 +62,8 @@ export interface ListSessionsFilter {
   cursor?:  string;
   limit?:   number;
   status?:  'ACTIVE' | 'CLOSED' | 'ARCHIVED' | 'ALL';
+  /** 缺省 `chat`（不含 debug 调试会话） */
+  purpose?: 'chat' | 'debug' | 'ALL';
 }
 
 export interface PatchSessionRequest {
@@ -150,6 +152,7 @@ export class SessionApi {
         cursor: filter.cursor,
         limit:  filter.limit,
         status: filter.status,
+        purpose: filter.purpose ?? 'chat',
       },
     });
     return ListSessionsResponseSchema.parse(raw);

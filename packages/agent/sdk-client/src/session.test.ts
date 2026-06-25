@@ -52,6 +52,34 @@ describe('SessionApi — CRUD', () => {
     expect(parsed).not.toHaveProperty('tenant');
   });
 
+  test('create 接受租户 agt_ agentId 与 debug purpose', async () => {
+    let body = '';
+    const fetchImpl = async (_u: string, init?: RequestInit): Promise<Response> => {
+      body = init?.body as string;
+      return Response.json(
+        { id: '3000000000000000001', status: 'ACTIVE', createTime: Date.now() },
+        { status: 201 },
+      );
+    };
+
+    const client = createAgenticClient({
+      baseUrl: 'http://mock',
+      token: 'x',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await client.sessions.create({
+      agentId: 'agt_3000000000000000002',
+      title: '调试会话',
+      purpose: 'debug',
+      agentVersionNo: 0,
+    });
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    expect(parsed.agentId).toBe('agt_3000000000000000002');
+    expect(parsed.purpose).toBe('debug');
+    expect(parsed.agentVersionNo).toBe(0);
+  });
+
   test('get 解析 Session', async () => {
     const agentSfid = '4000000000000000002';
     const fetchImpl = async (): Promise<Response> =>

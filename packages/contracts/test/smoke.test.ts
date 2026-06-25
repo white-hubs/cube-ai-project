@@ -9,7 +9,7 @@ import {
 
 describe('@cube-ai/contracts smoke', () => {
   test('version string is set', () => {
-    expect(AGENTIC_CONTRACTS_VERSION).toBe('0.0.1-alpha.9');
+    expect(AGENTIC_CONTRACTS_VERSION).toBe('0.0.1-alpha.10');
   });
 
   test('SFID schema accepts 19-digit decimal string', () => {

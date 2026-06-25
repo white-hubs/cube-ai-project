@@ -59,6 +59,8 @@ export function createAgenticEnginePort(
         agentId: req.agentId,
         ...(req.title !== undefined ? { title: req.title } : {}),
         ...(req.modelCode !== undefined ? { modelCode: req.modelCode } : {}),
+        ...(req.purpose !== undefined ? { purpose: req.purpose } : {}),
+        ...(req.agentVersionNo !== undefined ? { agentVersionNo: req.agentVersionNo } : {}),
         ...(req.context !== undefined ? { context: req.context } : {}),
       });
       return {
@@ -72,6 +74,7 @@ export function createAgenticEnginePort(
       const r = await sessions.list({
         ...(opts?.limit != null ? { limit: opts.limit } : {}),
         ...(opts?.cursor != null ? { cursor: opts.cursor } : {}),
+        purpose: opts?.purpose ?? 'chat',
       });
       const items: AssistantSessionSummary[] = r.items.map((s) => ({
         id: s.id,

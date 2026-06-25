@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { SfidSchema } from '../common/ids';
 import { EpochMsSchema } from '../common/time';
 import { AuditFieldsSchema } from '../common/audit';
+import { AgentRefSchema, SessionPurposeSchema } from '../session/session';
 
 /**
  * Zod schema for the `sessions` table row.
@@ -37,8 +38,10 @@ export type SessionRowStatus = z.infer<typeof SessionRowStatusSchema>;
 export const SessionRowSchema = AuditFieldsSchema.extend({
   id:                         SfidSchema,
   userId:                     z.string().max(64),
-  agentId:                    SfidSchema,
-  agentVersionNo:             z.number().int().positive(),
+  agentId:                    AgentRefSchema,
+  /** 0 = 草稿 head 哨兵；正整数 = 已发布版本号 */
+  agentVersionNo:             z.number().int().nonnegative(),
+  purpose:                    SessionPurposeSchema.default('chat'),
   /**
    * JSON-inline agent snapshot (Q2:b; ADR-0012).
    * Internal camelCase keys — see mysql-tables.md §6.4.

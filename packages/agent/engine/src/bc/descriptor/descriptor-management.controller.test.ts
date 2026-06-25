@@ -237,7 +237,7 @@ describe('DescriptorManagementController — REST wiring', () => {
   test('POST /agent/console/agents:propose streams prose deltas then a terminal proposal event', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
-    const ctx = baseCtx({ tenant: 7, userId: 'alice', body: { intent: 'a concise agent' } });
+    const ctx = baseCtx({ tenant: 7, userId: 'alice', body: { intent: 'a concise agent' }, params: { action: ':propose' } });
     const res = (await run(ctx, () => ctl.agentPropose())) as Response;
 
     expect(svc.proposeStream).toHaveBeenCalledWith(7, 'agent', { intent: 'a concise agent' });
@@ -258,6 +258,25 @@ describe('DescriptorManagementController — REST wiring', () => {
     ]);
     // proposal must be the last event
     expect(events[events.length - 1].event).toBe('proposal');
+  });
+
+  test('colon action dispatcher routes :propose and :fromDocument separately', async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    const raw = '---\nname: review\n---\nDo the thing.';
+
+    await run(
+      baseCtx({ text: raw, params: { action: ':fromDocument' } }),
+      () => ctl.agentColonAction(),
+    );
+    expect(svc.fromDocument).toHaveBeenCalledWith(42, 'agent', raw, 'u-1');
+    expect(svc.proposeStream).not.toHaveBeenCalled();
+
+    await run(
+      baseCtx({ tenant: 7, userId: 'alice', body: { intent: 'x' }, params: { action: ':propose' } }),
+      () => ctl.agentColonAction(),
+    );
+    expect(svc.proposeStream).toHaveBeenCalledWith(7, 'agent', { intent: 'x' });
   });
 
   test('missing subject → UNAUTHENTICATED', async () => {

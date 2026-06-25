@@ -2,6 +2,23 @@ import { describe, test, expect } from 'bun:test';
 import { CreateSessionRequestSchema, RuntimeRefsSchema, StartTurnRequestSchema } from './session';
 
 describe('CreateSessionRequestSchema', () => {
+  test('accepts tenant agt_ agentId with debug purpose and agentVersionNo', () => {
+    const parsed = CreateSessionRequestSchema.safeParse({
+      agentId: 'agt_1820345678901234567',
+      purpose: 'debug',
+      agentVersionNo: 0,
+      modelCode: 'gpt-4.1',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  test('rejects invalid agentId', () => {
+    const parsed = CreateSessionRequestSchema.safeParse({
+      agentId: 'skl_not_an_agent',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   test('accepts agentId with optional modelCode and context.systemSuffix', () => {
     const parsed = CreateSessionRequestSchema.safeParse({
       agentId: '1820345678901234567',

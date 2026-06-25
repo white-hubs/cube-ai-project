@@ -60,6 +60,16 @@ function descriptorAdminOf(ctx: Context): boolean {
   return isDescriptorAdmin(readSubject(ctx));
 }
 
+/** bun-server 将 `:suffix` 解析为动态参数，`:fromDocument` 与 `:propose` 会落到同一条路由；按后缀分发。 */
+function normalizeColonAction(raw: string | undefined): string {
+  const value = raw?.trim() ?? '';
+  return value.startsWith(':') ? value.slice(1) : value;
+}
+
+function colonActionOf(ctx: Context): string {
+  return normalizeColonAction(ctx.getParam('action'));
+}
+
 async function rawTextBody(ctx: Context): Promise<string> {
   const text = await ctx.request.text();
   if (!text || !text.trim()) {
@@ -122,13 +132,9 @@ export class DescriptorManagementController {
   rollbackAgent() {
     return this.rollback();
   }
-  @POST('/agents:fromDocument')
-  agentFromDocument() {
-    return this.fromDocument('agent');
-  }
-  @POST('/agents:propose')
-  agentPropose() {
-    return this.propose('agent');
+  @POST('/agents:action')
+  agentColonAction() {
+    return this.dispatchColonAction('agent');
   }
 
   // ─── skill ────────────────────────────────────────────────────────────────
@@ -168,13 +174,9 @@ export class DescriptorManagementController {
   rollbackSkill() {
     return this.rollback();
   }
-  @POST('/skills:fromDocument')
-  skillFromDocument() {
-    return this.fromDocument('skill');
-  }
-  @POST('/skills:propose')
-  skillPropose() {
-    return this.propose('skill');
+  @POST('/skills:action')
+  skillColonAction() {
+    return this.dispatchColonAction('skill');
   }
 
   // ─── rule ─────────────────────────────────────────────────────────────────
@@ -214,13 +216,9 @@ export class DescriptorManagementController {
   rollbackRule() {
     return this.rollback();
   }
-  @POST('/rules:fromDocument')
-  ruleFromDocument() {
-    return this.fromDocument('rule');
-  }
-  @POST('/rules:propose')
-  rulePropose() {
-    return this.propose('rule');
+  @POST('/rules:action')
+  ruleColonAction() {
+    return this.dispatchColonAction('rule');
   }
 
   // ─── shared handlers ────────────────────────────────────────────────────────
@@ -292,6 +290,46 @@ export class DescriptorManagementController {
       );
     }
     return this.svc.rollback(tenantOf(ctx), requireId(ctx), versionNo, actorOf(ctx));
+  }
+
+  private async dispatchColonAction(kind: TenantDescriptorKind) {
+    const action = colonActionOf(requireCtx());
+    if (action === 'fromDocument') {
+      return this.fromDocument(kind);
+    }
+    if (action === 'propose') {
+      return this.propose(kind);
+    }
+    throw AgenticEngineError.fromCode(
+      'RESOURCE_NOT_FOUND_DESCRIPTOR',
+      `Unknown descriptor action: ${action || '(empty)'}`,
+      { kind, action },
+    );
+  }
+
+  /** 供单测直接调用（不经 HTTP 路由）。 */
+  agentFromDocument() {
+    return this.fromDocument('agent');
+  }
+
+  agentPropose() {
+    return this.propose('agent');
+  }
+
+  skillFromDocument() {
+    return this.fromDocument('skill');
+  }
+
+  skillPropose() {
+    return this.propose('skill');
+  }
+
+  ruleFromDocument() {
+    return this.fromDocument('rule');
+  }
+
+  rulePropose() {
+    return this.propose('rule');
   }
 
   private async fromDocument(kind: TenantDescriptorKind) {

@@ -142,7 +142,10 @@ export class MockOboService {
 
     if (pem) {
       const privNode = createPrivateKey({ key: pem, format: 'pem' });
-      const pubNode = createPublicKey(privNode);
+      const pubNode = createPublicKey({
+        key: privNode.export({ format: 'pem', type: 'pkcs8' }),
+        format: 'pem',
+      });
       const privDer = new Uint8Array(privNode.export({ type: 'pkcs8', format: 'der' }) as Uint8Array);
       const pubDer = new Uint8Array(pubNode.export({ type: 'spki', format: 'der' }) as Uint8Array);
 

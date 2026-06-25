@@ -37,12 +37,15 @@ export interface AssistantEnginePort {
     agentId: string;
     title?: string;
     modelCode?: string;
+    purpose?: 'chat' | 'debug';
+    agentVersionNo?: number;
     context?: Record<string, unknown>;
   }): Promise<{ id: string; title: string | null; createTime: number }>;
 
   listSessions(opts?: {
     limit?: number;
     cursor?: string;
+    purpose?: 'chat' | 'debug' | 'ALL';
   }): Promise<{ items: AssistantSessionSummary[]; hasMore: boolean }>;
 
   getSession(sessionId: string): Promise<{

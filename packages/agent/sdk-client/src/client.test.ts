@@ -247,6 +247,6 @@ describe('AgenticClient HTTP 封装', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     await client.sessions.list();
-    expect(capturedUrl).toBe('/api/agentic-engine/sessions');
+    expect(capturedUrl).toBe('/api/agentic-engine/sessions?purpose=chat');
   });
 });

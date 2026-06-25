@@ -45,6 +45,7 @@ export type SessionHttpView = {
   userId: string;
   agentId: string;
   agentVersionNo: number;
+  purpose: 'chat' | 'debug';
   title: string | null;
   status: SessionRowStatus;
   lastTurnId: string | null;
@@ -60,6 +61,7 @@ function toHttpView(row: SessionRow): SessionHttpView {
     userId: row.userId,
     agentId: row.agentId,
     agentVersionNo: row.agentVersionNo,
+    purpose: row.purpose ?? 'chat',
     title: row.title,
     status: row.status,
     lastTurnId: row.lastTurnId,
@@ -124,6 +126,7 @@ async function buildSnapshots(params: {
   userId: string;
   displayName?: string;
   agentId: string;
+  agentVersionNo?: number;
   modelCode?: string;
   context?: Record<string, unknown>;
   descriptorLoader?: DescriptorLoaderLike;
@@ -139,7 +142,9 @@ async function buildSnapshots(params: {
   const agentIsTenantRef = parseTenantDescriptorId(params.agentId)?.kind === 'agent';
   const runnableResolution =
     agentIsTenantRef && params.runnableAgentResolver
-      ? await params.runnableAgentResolver.resolve(params.tenant, params.userId, params.agentId)
+      ? await params.runnableAgentResolver.resolve(params.tenant, params.userId, params.agentId, {
+          ...(params.agentVersionNo !== undefined ? { versionNo: params.agentVersionNo } : {}),
+        })
       : null;
   const agentDescriptor =
     runnableResolution?.record ??
@@ -380,6 +385,7 @@ export class SessionService {
       userId,
       displayName,
       agentId: body.agentId,
+      ...(body.agentVersionNo !== undefined ? { agentVersionNo: body.agentVersionNo } : {}),
       modelCode: body.modelCode,
       context: body.context,
       descriptorLoader: this.descriptorLoader,
@@ -397,6 +403,7 @@ export class SessionService {
         userId,
         agentId: body.agentId,
         agentVersionNo: snaps.agentVersionNo,
+        purpose: body.purpose ?? 'chat',
         agentSnapshotJson: snaps.agent,
         userPrincipalSnapshotJson: snaps.user,
         title: body.title ?? null,
@@ -518,11 +525,13 @@ export class SessionService {
     userId: string;
     isAdmin?: boolean;
     statuses?: SessionRowStatus[];
+    purpose?: 'chat' | 'debug' | 'ALL';
     cursor?: string;
     limit: number;
   }): Promise<{ items: SessionHttpView[]; nextCursor?: string; hasMore: boolean }> {
     const { items, nextCursor, hasMore } = await this.repo.listByOwner(params.tenant, params.userId, {
       statuses: params.statuses,
+      purpose: params.purpose ?? 'chat',
       limit: params.limit,
       cursor: params.cursor,
       admin: params.isAdmin === true,

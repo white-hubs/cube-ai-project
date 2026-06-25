@@ -1,6 +1,42 @@
 import { z } from 'zod';
 import { SfidSchema, SessionIdSchema } from '../common/ids';
 import { EpochMsSchema } from '../common/time';
+import { parseTenantDescriptorId } from '../descriptor/tenant-descriptor';
+
+/**
+ * 会话绑定的 agent 引用：19 位系统 SFID、租户 `agt_` 前缀 id、或系统裸 name。
+ * ref: ADR-0016 §5；engine `buildSnapshots` 按前缀分流。
+ */
+export const AgentRefSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .superRefine((ref, ctx) => {
+    if (SfidSchema.safeParse(ref).success) return;
+    const tenantRef = parseTenantDescriptorId(ref);
+    if (tenantRef) {
+      if (tenantRef.kind === 'agent') return;
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'agentId tenant ref must use agt_ prefix',
+      });
+      return;
+    }
+    if (/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(ref)) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'agentId must be a 19-digit SFID, tenant agt_ ref, or system agent name',
+    });
+  });
+export type AgentRef = z.infer<typeof AgentRefSchema>;
+
+/** 会话用途：`chat` 正常对话历史；`debug` 智能体创建/编辑页调试预览（与 chat 隔离）。 */
+export const SessionPurposeSchema = z.enum(['chat', 'debug']);
+export type SessionPurpose = z.infer<typeof SessionPurposeSchema>;
+
+/** GET /sessions 按用途过滤；缺省仅返回 chat，不含 debug。 */
+export const SessionPurposeFilterSchema = z.enum(['chat', 'debug', 'ALL']);
+export type SessionPurposeFilter = z.infer<typeof SessionPurposeFilterSchema>;
 
 /**
  * Session status: 3-state machine (regulation §5.2 UPPERCASE).
@@ -17,11 +53,12 @@ export type SessionStatus = z.infer<typeof SessionStatusSchema>;
 export const SessionSchema = z.object({
   id: SessionIdSchema,
   status: SessionStatusSchema,
-  /** SFID of the Agent Descriptor */
-  agentId: SfidSchema,
+  /** Agent descriptor ref（系统 SFID / 裸 name / 租户 agt_） */
+  agentId: AgentRefSchema,
   /** External user id (VARCHAR 64) */
   userId: z.string().max(64),
   title: z.string().max(200).nullable(),
+  purpose: SessionPurposeSchema.default('chat'),
   createTime: EpochMsSchema,
   updateTime: EpochMsSchema,
 });
@@ -33,13 +70,23 @@ export type Session = z.infer<typeof SessionSchema>;
  * ref: docs/detailed-design/01-api/session.md §S1
  */
 export const CreateSessionRequestSchema = z.object({
-  agentId: SfidSchema,
+  agentId: AgentRefSchema,
   title: z.string().max(200).optional(),
   /** Optional default model for this session snapshot */
   modelCode: z.string().max(128).optional(),
   /** Optional provider disambiguation */
   providerCode: z.string().max(128).optional(),
   providerId: z.string().max(128).optional(),
+  /**
+   * `debug` = 智能体调试预览会话，不入正常对话历史列表。
+   * 缺省 `chat`。
+   */
+  purpose: SessionPurposeSchema.optional(),
+  /**
+   * 租户 agent 指定版本（作者调试已发布版本等）；缺省由 RunnableAgentResolver 解析 head/货架版本。
+   * `0` = 草稿 head 哨兵。
+   */
+  agentVersionNo: z.number().int().nonnegative().optional(),
   /** Initial cross-turn context (≤16KB; regulation OQ-SE-2) */
   context: z
     .object({

@@ -175,6 +175,10 @@ export class ShelfService {
 
   private withRunnableStatus(entry: ShelfEntryView): ShelfEntryView {
     if (!entry.enabled) return { ...entry, runnableStatus: 'disabled' };
+    // Bare system refs (no agt_/skl_ prefix) resolve at runtime via DescriptorLoader, not tenant versions.
+    if (!parseTenantDescriptorId(entry.targetId)) {
+      return { ...entry, runnableStatus: 'runnable' };
+    }
     if (entry.effectiveVersionNo == null && entry.source !== 'authored') {
       return { ...entry, runnableStatus: 'unresolvable' };
     }

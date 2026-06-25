@@ -19,6 +19,7 @@ import {
   OUTBOX_WRITER_TOKEN,
   type OutboxWriter,
 } from '@cube-ai/bun-server-ext-outbox';
+import { buildOutboxWriter } from '../../infra/outbox/outbox-factory';
 import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
 import { sharedSfidService } from '../../infra/sfid/shared-sfid';
 import {
@@ -80,7 +81,7 @@ export function buildDescriptorManagementService(c: Container): DescriptorManage
   const repo = new TenantDescriptorRepositoryImpl(pool, sharedSfidService);
   const llm = tryResolve<LlmProviderPort>(c, AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN);
   const shelf = tryResolve<ShelfService>(c, ShelfService);
-  const outbox = tryResolve<OutboxWriter>(c, OUTBOX_WRITER_TOKEN);
+  const outbox = buildOutboxWriter(pool) ?? tryResolve<OutboxWriter>(c, OUTBOX_WRITER_TOKEN);
   return new DescriptorManagementService(repo, llm, buildCandidateSource(c), shelf, outbox);
 }
 

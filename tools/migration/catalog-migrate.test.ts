@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { fileURLToPath } from 'node:url';
 import { InMemoryCatalogStore } from '../../packages/llm/core/src/catalog/in-memory-catalog.store';
 import {
   loadGhcloudCatalogSourceFromFile,
@@ -9,7 +10,7 @@ import {
 } from './catalog-migrate';
 import type { CatalogMysqlPool } from '../../packages/llm/core/src/catalog/repositories';
 
-const fixturePath = new URL('./fixtures/sample-ghcloud-catalog.json', import.meta.url).pathname;
+const fixturePath = fileURLToPath(new URL('./fixtures/sample-ghcloud-catalog.json', import.meta.url));
 
 /** 记录所有 SQL 的假 Pool，用于离线校验写入路径而不连真实 MySQL。 */
 class RecordingPool implements CatalogMysqlPool {

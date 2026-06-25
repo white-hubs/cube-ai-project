@@ -5,6 +5,7 @@ import type {
   Tenant,
   SessionRow,
   SessionRowStatus,
+  SessionPurpose,
   CreateSessionInput,
 } from '@cube-ai/contracts';
 import { AgenticEngineError } from '../../../infra/errors/agentic-error';
@@ -70,6 +71,7 @@ export interface SessionRepository {
     userId: string,
     opts: {
       statuses?: SessionRowStatus[];
+      purpose?: SessionPurpose | 'ALL';
       limit: number;
       cursor?: string;
       admin?: boolean;
@@ -112,6 +114,7 @@ function mapSessionRow(r: RowDataPacket): SessionRow {
     userId: String(r.user_id),
     agentId: String(r.agent_id),
     agentVersionNo: Number(r.agent_version_no),
+    purpose: (r.purpose != null ? String(r.purpose) : 'chat') as SessionPurpose,
     agentSnapshotJson: parseJsonColumn(r.agent_snapshot_json),
     userPrincipalSnapshotJson: parseJsonColumn(r.user_principal_snapshot_json),
     title: r.title != null ? String(r.title) : null,
@@ -191,14 +194,14 @@ export class SessionRepositoryImpl implements SessionRepository {
     const ts = new Date(nowMs);
     await conn.execute(
       `INSERT INTO sessions (
-        id, tenant, user_id, agent_id, agent_version_no,
+        id, tenant, user_id, agent_id, agent_version_no, purpose,
         agent_snapshot_json, user_principal_snapshot_json, title, status,
         last_turn_id, last_active_time, context_json,
         deleted,
         create_by, creator_id, creator_type, create_time,
         update_by, updater_id, updater_type, update_time
       ) VALUES (
-        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
         CAST(? AS JSON), CAST(? AS JSON), ?, 'ACTIVE',
         NULL, ?, CAST(? AS JSON),
         0,
@@ -211,6 +214,7 @@ export class SessionRepositoryImpl implements SessionRepository {
         input.userId,
         input.agentId,
         input.agentVersionNo,
+        input.purpose ?? 'chat',
         JSON.stringify(input.agentSnapshotJson),
         JSON.stringify(input.userPrincipalSnapshotJson),
         input.title ?? null,
@@ -394,7 +398,13 @@ export class SessionRepositoryImpl implements SessionRepository {
   async listByOwner(
     tenant: Tenant,
     userId: string,
-    opts: { statuses?: SessionRowStatus[]; limit: number; cursor?: string; admin?: boolean },
+    opts: {
+      statuses?: SessionRowStatus[];
+      purpose?: SessionPurpose | 'ALL';
+      limit: number;
+      cursor?: string;
+      admin?: boolean;
+    },
   ): Promise<{ items: SessionRow[]; nextCursor?: string; hasMore: boolean }> {
     const p = requirePool(this.pool);
     const limit = Math.min(Math.max(opts.limit, 1), 100);
@@ -422,6 +432,11 @@ export class SessionRepositoryImpl implements SessionRepository {
       SELECT * FROM sessions
       WHERE tenant = ?${opts.admin ? '' : ' AND user_id = ?'} AND deleted = 0
         AND status IN (${statusPlaceholders})`;
+
+    if (opts.purpose !== undefined && opts.purpose !== 'ALL') {
+      sql += ` AND purpose = ?`;
+      params.push(opts.purpose);
+    }
 
     if (cursorMs !== undefined && cursorId !== undefined) {
       sql += ` AND (last_active_time < ? OR (last_active_time = ? AND id < ?))`;

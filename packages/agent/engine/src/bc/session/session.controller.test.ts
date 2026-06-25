@@ -499,6 +499,7 @@ describe('SessionController — REST wiring', () => {
       cursor: undefined,
       limit: 20,
       statuses: undefined,
+      purpose: 'chat',
     });
   });
 

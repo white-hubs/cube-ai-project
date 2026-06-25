@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/llm-sdk-console",
-  "version": "0.0.1-alpha.9",
+  "version": "0.0.1-alpha.10",
   "type": "module",
   "description": "LLM catalog management console — /llm/console/providers against ai-center.",
   "sideEffects": false,

@@ -26,6 +26,7 @@ const VALID_SESSION = {
   userId:                     'u_abc123',
   agentId:                    '9876543210987654321',
   agentVersionNo:              3,
+  purpose:                    'chat' as const,
   agentSnapshotJson:          { schema: 'agent-snapshot-v1', agent: {}, frozenTime: Date.now() },
   userPrincipalSnapshotJson:  { schema: 'user-principal-v1', tenant: 1001, userId: 'u_abc123' },
   title:                      'Test session',
@@ -65,15 +66,19 @@ describe('SessionRowSchema', () => {
     expect(SessionRowSchema.safeParse({ ...VALID_SESSION, status: 'RUNNING' }).success).toBe(false);
   });
 
-  test('agentVersionNo must be a positive integer', () => {
-    expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentVersionNo: 0 }).success).toBe(false);
+  test('agentVersionNo allows 0 draft sentinel', () => {
+    expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentVersionNo: 0 }).success).toBe(true);
     expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentVersionNo: -1 }).success).toBe(false);
     expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentVersionNo: 1 }).success).toBe(true);
   });
 
-  test('id and agentId must be SFID decimal strings', () => {
+  test('agentId accepts tenant agt_ ref', () => {
+    expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentId: 'agt_1234567890123456789' }).success).toBe(true);
+  });
+
+  test('id must be SFID decimal strings', () => {
     expect(SessionRowSchema.safeParse({ ...VALID_SESSION, id: 'ses_abc' }).success).toBe(false);
-    expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentId: 'des_xyz' }).success).toBe(false);
+    expect(SessionRowSchema.safeParse({ ...VALID_SESSION, agentId: 'skl_xyz' }).success).toBe(false);
   });
 
   test('lastTurnId is nullable', () => {

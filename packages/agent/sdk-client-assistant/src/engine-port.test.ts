@@ -232,14 +232,14 @@ describe('createAgenticEnginePort — session CRUD 映射', () => {
       { id: 's1', title: '', updatedAt: 100 },
       { id: 's2', title: 'named', updatedAt: 200 },
     ]);
-    expect(calls.list[0]).toEqual({ limit: 20, cursor: 'c-1' });
+    expect(calls.list[0]).toEqual({ limit: 20, cursor: 'c-1', purpose: 'chat' });
   });
 
-  test('listSessions 无参 → 不带 limit/cursor 键', async () => {
+  test('listSessions 无参 → 默认 purpose=chat', async () => {
     const { client, calls } = makeFakeClient();
     const port = createAgenticEnginePort(client);
     await port.listSessions();
-    expect(calls.list[0]).toEqual({});
+    expect(calls.list[0]).toEqual({ purpose: 'chat' });
   });
 
   test('getSession：title 缺省 → null + updateTime 透传', async () => {

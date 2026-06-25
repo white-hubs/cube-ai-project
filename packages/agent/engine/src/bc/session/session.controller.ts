@@ -14,6 +14,7 @@ import {
   ImageAttachmentSchema,
   MessageContentV1Schema,
   RuntimeRefsSchema,
+  SessionPurposeFilterSchema,
   UpdateSessionRequestSchema,
   SfidSchema,
 } from '@cube-ai/contracts';
@@ -31,6 +32,7 @@ import { isSessionAdmin } from './session-owner';
 
 const ListSessionsQuerySchema = z.object({
   status: z.enum(['ACTIVE', 'CLOSED', 'ARCHIVED', 'ALL']).optional(),
+  purpose: SessionPurposeFilterSchema.optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -181,6 +183,7 @@ export class SessionController {
         cursor: query.cursor,
         limit: query.limit,
         statuses,
+        purpose: query.purpose ?? 'chat',
       })
       .then(mapList);
   }

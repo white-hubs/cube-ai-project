@@ -36,6 +36,7 @@ function makeSession(id: string): Session {
     agentId: '1001',
     userId: 'user-1',
     title: `title-${id}`,
+    purpose: 'chat',
     createTime: 1000,
     updateTime: 2000,
   };
