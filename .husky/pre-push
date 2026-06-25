@@ -1,0 +1,2 @@
+bun .ci/pre-push-check.ts
+exit $?

@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "arrowParens": "always",
+  "embeddedLanguageFormatting": "auto",
+  "endOfLine": "lf",
+  "ignorePatterns": ["node_modules", "dist", "coverage", "public"],
+  "printWidth": 140,
+  "useTabs": false,
+  "tabWidth": 2,
+  "sortImports": {
+    "partitionByComment": true,
+    "sortSideEffects": false,
+    "internalPattern": ["@/", "~/", "#"],
+    "customGroups": [
+      {
+        "groupName": "vue-lib",
+        "elementNamePattern": ["vue", "vue-**", "@vue/**"]
+      },
+      {
+        "groupName": "react-lib",
+        "elementNamePattern": ["react", "react-dom", "react-**"]
+      },
+      {
+        "groupName": "cube-ai",
+        "elementNamePattern": ["@cube-ai/**"]
+      },
+      {
+        "groupName": "dangao",
+        "elementNamePattern": ["@dangao/**"]
+      }
+    ],
+    "groups": [
+      ["vue-lib", "react-lib", "dangao", "value-builtin", "type-builtin", "value-external", "type-external"],
+      "cube-ai",
+      ["type-internal", "value-internal", "type-parent", "type-sibling", "type-index", "value-parent", "value-sibling", "value-index"],
+      "side_effect_style",
+      "style",
+      "unknown"
+    ]
+  }
+}

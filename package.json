@@ -1,8 +1,53 @@
 {
   "name": "cube-ai-project",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/*/*",
+    "infra/*",
+    "infra/*/*"
+  ],
   "type": "module",
-  "workspaces": ["apps/*", "packages/*", "packages/*/*", "infra/*", "infra/*/*"],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "build:host-binary": "bash scripts/build-host-binary.sh",
+    "build:host-binary:x64": "bash scripts/build-host-binary.sh --target=linux-x64",
+    "build:image": "bash scripts/build-image.sh",
+    "build:image:push": "bash scripts/build-image.sh --push",
+    "prepare": "husky",
+    "fmt": "oxfmt --write .",
+    "auto-fmt": "oxfmt --write .",
+    "lint": "oxlint",
+    "pre-push": "bun .ci/pre-push-check.ts",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "test:integration": "USE_TESTCONTAINERS=1 bun test --timeout 3600000 packages/agent/engine/test/integration/mysql-redis-qdrant.testcontainers.test.ts",
+    "test:containers": "USE_TESTCONTAINERS=1 USE_NACOS_TESTCONTAINERS=1 bun scripts/test-containers.ts",
+    "test:containers:cleanup": "bun scripts/cleanup-testcontainers.ts",
+    "test:containers:ollama": "USE_TESTCONTAINERS=1 RUN_OLLAMA_E2E=1 bun test --timeout 3600000 packages/agent/sdk-client/test/integration/end-to-end-ollama.testcontainers.test.ts",
+    "test:nacos-containers": "USE_NACOS_TESTCONTAINERS=1 bun test --timeout 1800000 packages/agent/engine/test/integration/descriptor-nacos.testcontainers.test.ts",
+    "dev:up:prebuilt": "bash scripts/ensure-compose-env.sh internal-deps && bash scripts/build-host-binary.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center-prebuilt up -d --build --force-recreate",
+    "dev:up": "bash scripts/ensure-compose-env.sh internal-deps && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center up -d --build",
+    "dev:up:deps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps up -d",
+    "dev:down": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center --profile ai-center-prebuilt down",
+    "dev:ps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env ps -a",
+    "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f",
+    "catalog:migrate": "bun tools/migration/catalog-migrate.ts",
+    "dev:playground": "bun run --filter @cube-ai/ai-sdk-playground dev",
+    "publish:sdk": "bash scripts/publish.sh",
+    "publish:sdk:dry-run": "bash scripts/publish.sh --dry-run --skip-git-check"
+  },
+  "devDependencies": {
+    "bun-types": "catalog:",
+    "husky": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  },
+  "overrides": {
+    "ioredis": "5.11.1"
+  },
   "catalog": {
     "typescript": "6.0.3",
     "zod": "4.4.3",
@@ -19,7 +64,10 @@
     "pino-pretty": "13.1.3",
     "prom-client": "15.1.3",
     "@modelcontextprotocol/sdk": "1.29.0",
-    "@opentelemetry/api": "1.9.1"
+    "@opentelemetry/api": "1.9.1",
+    "husky": "9.1.7",
+    "oxfmt": "0.55.0",
+    "oxlint": "1.70.0"
   },
   "catalogs": {
     "bun-server": {
@@ -77,36 +125,5 @@
       "mammoth": "1.12.0",
       "xlsx": "0.18.5"
     }
-  },
-  "scripts": {
-    "build": "bun run --filter '*' build",
-    "build:host-binary": "bash scripts/build-host-binary.sh",
-    "build:host-binary:x64": "bash scripts/build-host-binary.sh --target=linux-x64",
-    "build:image": "bash scripts/build-image.sh",
-    "build:image:push": "bash scripts/build-image.sh --push",
-    "typecheck": "bun run --filter '*' typecheck",
-    "test": "bun test",
-    "test:integration": "USE_TESTCONTAINERS=1 bun test --timeout 3600000 packages/agent/engine/test/integration/mysql-redis-qdrant.testcontainers.test.ts",
-    "test:containers": "USE_TESTCONTAINERS=1 USE_NACOS_TESTCONTAINERS=1 bun scripts/test-containers.ts",
-    "test:containers:cleanup": "bun scripts/cleanup-testcontainers.ts",
-    "test:containers:ollama": "USE_TESTCONTAINERS=1 RUN_OLLAMA_E2E=1 bun test --timeout 3600000 packages/agent/sdk-client/test/integration/end-to-end-ollama.testcontainers.test.ts",
-    "test:nacos-containers": "USE_NACOS_TESTCONTAINERS=1 bun test --timeout 1800000 packages/agent/engine/test/integration/descriptor-nacos.testcontainers.test.ts",
-    "dev:up:prebuilt": "bash scripts/ensure-compose-env.sh internal-deps && bash scripts/build-host-binary.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center-prebuilt up -d --build --force-recreate",
-    "dev:up": "bash scripts/ensure-compose-env.sh internal-deps && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center up -d --build",
-    "dev:up:deps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps up -d",
-    "dev:down": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env --profile deps --profile ai-center --profile ai-center-prebuilt down",
-    "dev:ps": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env ps -a",
-    "dev:logs": "bash scripts/ensure-compose-env.sh && docker compose -f deploy/docker-compose/docker-compose.yaml --env-file deploy/docker-compose/.env logs -f",
-    "catalog:migrate": "bun tools/migration/catalog-migrate.ts",
-    "dev:playground": "bun run --filter @cube-ai/ai-sdk-playground dev",
-    "publish:sdk": "bash scripts/publish.sh",
-    "publish:sdk:dry-run": "bash scripts/publish.sh --dry-run --skip-git-check"
-  },
-  "overrides": {
-    "ioredis": "5.11.1"
-  },
-  "devDependencies": {
-    "bun-types": "catalog:",
-    "typescript": "catalog:"
   }
 }
