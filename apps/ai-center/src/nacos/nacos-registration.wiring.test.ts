@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { resolveRegistrationOptions } from './nacos-registration.wiring'
+import { isAiCenterNacosRegisterEnabled, resolveRegistrationOptions } from './nacos-registration.wiring'
 
 const ENV_KEYS = [
+  'AI_CENTER_NACOS_REGISTER',
   'AI_CENTER_REGISTER_IP',
   'AI_CENTER_REGISTER_HOSTNAME',
   'AI_CENTER_REGISTER_PORT',
@@ -58,5 +59,26 @@ describe('resolveRegistrationOptions', () => {
     process.env.AI_CENTER_REGISTER_PORT = '30000'
     const opts = resolveRegistrationOptions()
     expect(opts.port).toBe(30000)
+  })
+
+  it('registerEnabled defaults to false when AI_CENTER_NACOS_REGISTER is unset', () => {
+    expect(isAiCenterNacosRegisterEnabled()).toBe(false)
+    expect(resolveRegistrationOptions().registerEnabled).toBe(false)
+  })
+
+  it('registerEnabled is true only for 1/true/yes', () => {
+    for (const value of ['1', 'true', 'YES']) {
+      process.env.AI_CENTER_NACOS_REGISTER = value
+      expect(isAiCenterNacosRegisterEnabled()).toBe(true)
+      expect(resolveRegistrationOptions().registerEnabled).toBe(true)
+    }
+  })
+
+  it('registerEnabled is false for 0/false/no and empty', () => {
+    for (const value of ['0', 'false', 'no', '']) {
+      process.env.AI_CENTER_NACOS_REGISTER = value
+      expect(isAiCenterNacosRegisterEnabled()).toBe(false)
+      expect(resolveRegistrationOptions().registerEnabled).toBe(false)
+    }
   })
 })

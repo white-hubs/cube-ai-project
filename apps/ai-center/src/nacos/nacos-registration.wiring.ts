@@ -156,6 +156,14 @@ function detectLanIpv4(): string | undefined {
  * 优先显式 AI_CENTER_REGISTER_IP（容器/NAT 必填，填宿主可达 IP）→ 非 0.0.0.0 的 register-hostname →
  * 自动探测 LAN IPv4（裸机/host 网络）→ 最后兜底 127.0.0.1。
  */
+/** Opt-in：仅 `1` / `true` / `yes` 启用；缺省与其它值均不注册。 */
+export function isAiCenterNacosRegisterEnabled(): boolean {
+  const raw = (getCliArg('nacos-register') ?? process.env.AI_CENTER_NACOS_REGISTER ?? '0')
+    .trim()
+    .toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'yes'
+}
+
 function resolveRegisterIp(fileConfig: WiringFileConfig): string {
   const explicit = (getCliArg('register-ip') ?? process.env.AI_CENTER_REGISTER_IP)?.trim()
   if (explicit) {
@@ -190,7 +198,13 @@ export function resolveRegistrationOptions(): NacosRegistrationOptions {
     ),
   )
   const ip = resolveRegisterIp(fileConfig)
-  return { serviceName, ip, port, grpcPort }
+  return {
+    serviceName,
+    ip,
+    port,
+    grpcPort,
+    registerEnabled: isAiCenterNacosRegisterEnabled(),
+  }
 }
 
 export function buildServiceRegistryModule(): typeof ServiceRegistryModule {

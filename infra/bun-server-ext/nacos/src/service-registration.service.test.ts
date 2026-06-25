@@ -61,4 +61,18 @@ describe('NacosServiceRegistrationService', () => {
     expect(svc.isConnected()).toBe(false)
     await svc.onModuleDestroy()
   })
+
+  test('skips register when registerEnabled=false', async () => {
+    const { registry, calls } = fakeRegistry()
+    const svc = new NacosServiceRegistrationService(registry, {
+      ...opts,
+      registerEnabled: false,
+    })
+    await svc.onModuleInit()
+    expect(calls.register.length).toBe(0)
+    expect(svc.isConnected()).toBe(false)
+    await svc.onModuleDestroy()
+    expect(calls.deregister).toBe(0)
+    expect(calls.close).toBe(0)
+  })
 })

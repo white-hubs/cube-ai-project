@@ -17,6 +17,8 @@ export interface NacosRegistrationOptions {
   ip: string
   port: number
   grpcPort: number
+  /** false → skip register/heartbeat/deregister (AI_CENTER_NACOS_REGISTER=0). */
+  registerEnabled?: boolean
   version?: string
   heartbeatIntervalMs?: number
   refreshTtlMs?: number
@@ -53,6 +55,13 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
   }
 
   async onModuleInit(): Promise<void> {
+    if (this.options.registerEnabled === false) {
+      console.info(
+        '[NacosRegistration] registration disabled (set AI_CENTER_NACOS_REGISTER=1 to enable)',
+      )
+      return
+    }
+
     this.instance = this.buildInstance()
     console.info(
       `[NacosRegistration] registering service=${this.instance.serviceName} ip=${this.instance.ip} port=${this.instance.port} grpc=${this.options.grpcPort}`,
@@ -74,6 +83,9 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
   async onModuleDestroy(): Promise<void> {
     this.stopHeartbeat()
     this.stopRefresh()
+    if (this.options.registerEnabled === false) {
+      return
+    }
     if (this.instance && this.connected) {
       try {
         await this.serviceRegistry.deregister(this.instance)
