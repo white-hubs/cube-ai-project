@@ -25,6 +25,33 @@ describe('createJwtAuthMiddleware', () => {
     ).rejects.toThrow('JWT verification key loader is required')
   })
 
+  test('bypasses JWT verification when bypass predicate matches', async () => {
+    const holder = new SecurityContextHolder({ getContext: () => ({}) } as never)
+    const middleware = createJwtAuthMiddleware({
+      holder,
+      bypass: (ctx) => (ctx.request.headers.get('x-api-key')?.trim() ?? '') !== '',
+    })
+    let nextCalled = false
+
+    await middleware(
+      {
+        path: '/kb/search/by-documents',
+        request: {
+          headers: new Headers({
+            'x-api-key': 'candidate-key',
+          }),
+        },
+      } as never,
+      mock(async () => {
+        nextCalled = true
+        return new Response()
+      }),
+    )
+
+    expect(nextCalled).toBe(true)
+    expect(holder.getContext()).toBeUndefined()
+  })
+
   test('rejects expired tokens after signature verification', async () => {
     const holder = new SecurityContextHolder({ getContext: () => ({}) } as never)
     const middleware = createJwtAuthMiddleware({

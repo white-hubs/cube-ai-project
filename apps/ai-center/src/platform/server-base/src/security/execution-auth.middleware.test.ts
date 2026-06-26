@@ -134,7 +134,7 @@ describe('execution auth middleware', () => {
     let seenTenant = false
 
     await middleware(
-      createCtx('/search/by-documents', {
+      createCtx('/kb/search/by-documents', {
         'x-api-key': 'sk_cube_builtin_system_test',
         'x-project-id': '58197260',
       }) as never,

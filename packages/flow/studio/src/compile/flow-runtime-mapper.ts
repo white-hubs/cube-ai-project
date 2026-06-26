@@ -11,6 +11,7 @@ import { resolveWireSize } from './llm-wire-adapter/transforms/size-transform'
 import type { ChannelProfile } from './llm-wire-adapter/wire-context.types'
 
 const CUSTOM_COMPONENT_DSL_KEY = 'cube_dsl'
+const KNOWLEDGE_RETRIEVAL_SEARCH_PATH = '/kb/search/by-documents'
 export const MULTIMODAL_MESSAGE_MERGE_COMPONENT_KEY = 'multimodal-message-merge'
 const MULTIMODAL_IMAGE_MAX_FILE_BYTES = 20 * 1024 * 1024
 
@@ -873,7 +874,7 @@ function buildKnowledgeRetrievalNode(
     height,
     config: {
       ...omitKnowledgeRetrievalEditorOnlyKeys(config),
-      api_url: `${apiUrlBase.replace(/\/+$/, '')}/search/by-documents`,
+      api_url: `${apiUrlBase.replace(/\/+$/, '')}${KNOWLEDGE_RETRIEVAL_SEARCH_PATH}`,
       api_key: apiKey,
       project_id: projectId,
       knowledge_sources_runtime_json: JSON.stringify(runtimeRows),
@@ -889,7 +890,7 @@ function buildKnowledgeRetrievalDsl(): Record<string, unknown> {
       name: 'AiApplicationKnowledgeRetrieval',
       display_name: 'AI Application Knowledge Retrieval',
       description:
-        '调用 AI Center POST /search/by-documents：单次请求传入 query 与 documents[]（每项 documentId、topK、similarityThreshold），服务端合并多文档召回结果；合并 items 文本为单一字符串输出。',
+        '调用 AI Center POST /kb/search/by-documents：单次请求传入 query 与 documents[]（每项 documentId、topK、similarityThreshold），服务端合并多文档召回结果；合并 items 文本为单一字符串输出。',
       icon: 'search',
       wrap_build_in_try: true,
     },
@@ -950,7 +951,13 @@ function buildKnowledgeRetrievalDsl(): Record<string, unknown> {
         },
         {
           type: 'if',
-          condition: { kind: 'non_empty', field: 'query' },
+          condition: {
+            kind: 'and',
+            conditions: [
+              { kind: 'non_empty', field: 'query' },
+              { kind: 'non_empty', field: 'sources' },
+            ],
+          },
           // oxlint-disable-next-line unicorn/no-thenable -- DSL v2 约定：if 分支字段名为 then
           then: [
             {
@@ -958,7 +965,7 @@ function buildKnowledgeRetrievalDsl(): Record<string, unknown> {
               action: 'assign',
               params: {
                 /**
-                 * 与 ai-center POST /search/by-documents 一致；similarityThreshold 对应画布 min_score（score 语义见 cube-ai kb SearchController）
+                 * 与 ai-center POST /kb/search/by-documents 一致；similarityThreshold 对应画布 min_score（score 语义见 cube-ai kb SearchController）
                  */
                 expr: '{"query": (self.query if isinstance(self.query, str) else str(self.query or "")), "documents": [{"documentId": str((d or {}).get("document_id") or ""), "topK": int((d or {}).get("top_k") or 5), "similarityThreshold": float((d or {}).get("min_score") or 0.0)} for d in (sources if isinstance(sources, list) else []) if isinstance(d, dict) and str((d or {}).get("document_id") or "").strip()]}',
               },

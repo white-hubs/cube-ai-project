@@ -26,6 +26,32 @@ describe('createTenantValidationMiddleware', () => {
     ).rejects.toThrow('missing or invalid tenant header')
   })
 
+  test('bypasses tenant validation when bypass predicate matches', async () => {
+    const securityHolder = new SecurityContextHolder({ getContext: () => ({}) } as never)
+    const sessionHolder = new SessionContextHolder({ getContext: () => ({}) } as never)
+    const middleware = createTenantValidationMiddleware(securityHolder, sessionHolder, {
+      bypass: (ctx) => (ctx.request.headers.get('x-api-key')?.trim() ?? '') !== '',
+    })
+    let nextCalled = false
+
+    await middleware(
+      {
+        path: '/kb/search/by-documents',
+        request: {
+          headers: new Headers({
+            'x-api-key': 'candidate-key',
+          }),
+        },
+      } as never,
+      mock(async () => {
+        nextCalled = true
+        return new Response()
+      }),
+    )
+
+    expect(nextCalled).toBe(true)
+  })
+
   test('rejects when tenant is not in JWT tenants[]', async () => {
     const rawContext: Record<string, unknown> = {}
     const securityHolder = new SecurityContextHolder({ getContext: () => rawContext } as never)

@@ -49,6 +49,7 @@ export interface JwtAuthMiddlewareOptions {
   keyLoader?: { getVerificationKey: () => Promise<VerificationKey | null> }
   verifyJwt?: (token: string, key: VerificationKey) => Promise<Record<string, unknown>>
   whitelistPrefixes?: string[]
+  bypass?: (ctx: Context) => boolean
 }
 
 export function createJwtAuthMiddleware(options: JwtAuthMiddlewareOptions | SecurityContextHolder): Middleware {
@@ -63,6 +64,9 @@ export function createJwtAuthMiddleware(options: JwtAuthMiddlewareOptions | Secu
   return async (ctx: Context, next: NextFunction) => {
     try {
       if (whitelistPrefixes.some((prefix) => ctx.path.startsWith(prefix))) {
+        return next()
+      }
+      if ('bypass' in options && options.bypass?.(ctx)) {
         return next()
       }
 

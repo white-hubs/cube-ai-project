@@ -40,7 +40,7 @@ export interface AppConfig {
   langflowBearerToken?: string
   /**
    * 本服务自身的对外基址（Langflow 运行时回调本 ai-center 时使用，如 flow-studio 编译出的
-   * knowledge-retrieval 节点 `api_url = {selfBaseUrl}/search/by-documents`）。环境变量 CUBE_SELF_BASE_URL。
+   * knowledge-retrieval 节点 `api_url = {selfBaseUrl}/kb/search/by-documents`）。环境变量 CUBE_SELF_BASE_URL。
    */
   selfBaseUrl?: string
   qdrantBaseUrl: string

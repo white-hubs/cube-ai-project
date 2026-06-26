@@ -166,7 +166,10 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
         'JWT_KEY_URL is required when ghcloud identity is enabled (set USE_GHCLOUD_IDENTITY=0 to disable)',
       );
     }
-    for (const mw of createGhcloudIdentityMiddleware({ jwtKeyUrl })) {
+    for (const mw of createGhcloudIdentityMiddleware({
+      jwtKeyUrl,
+      allowDeveloperApiKeyPassThrough: true,
+    })) {
       app.use(mw);
     }
   }
