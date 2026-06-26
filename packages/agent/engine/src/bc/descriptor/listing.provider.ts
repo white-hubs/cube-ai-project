@@ -1,22 +1,19 @@
-import { type Container } from '@dangao/bun-server';
-import type { Pool } from 'mysql2/promise';
-import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
-import { buildOutboxWriter } from '../../infra/outbox/outbox-factory';
-import { sharedSfidService } from '../../infra/sfid/shared-sfid';
-import { DescriptorLoader } from './descriptor-loader';
-import { DescriptorListingRepositoryImpl } from './descriptor-listing.repository';
-import { DescriptorRegistryService } from './descriptor-registry.service';
-import { PluginCatalogService } from './plugin-catalog.service';
-import { SkillRegistryService } from './skill-registry.service';
-import { TenantDescriptorRepositoryImpl } from './tenant-descriptor.repository';
-import { UserAvailableToolRepositoryImpl } from './user-available-tool.repository';
-import { UserShelfRepositoryImpl } from './user-shelf.repository';
-import {
-  LibraryService,
-  ListingService,
-  type LibrarySystemSource,
-} from './listing.service';
-import { ShelfService } from './shelf.service';
+import { type Container } from "@dangao/bun-server";
+import type { Pool } from "mysql2/promise";
+
+import { MYSQL_POOL_TOKEN } from "../../infra/mysql/mysql.tokens";
+import { buildOutboxWriter } from "../../infra/outbox/outbox-factory";
+import { sharedSfidService } from "../../infra/sfid/shared-sfid";
+import { DescriptorListingRepositoryImpl } from "./descriptor-listing.repository";
+import { DescriptorLoader } from "./descriptor-loader";
+import { DescriptorRegistryService } from "./descriptor-registry.service";
+import { LibraryService, ListingService, type LibrarySystemSource } from "./listing.service";
+import { PluginCatalogService } from "./plugin-catalog.service";
+import { ShelfService } from "./shelf.service";
+import { SkillRegistryService } from "./skill-registry.service";
+import { TenantDescriptorRepositoryImpl } from "./tenant-descriptor.repository";
+import { UserAvailableToolRepositoryImpl } from "./user-available-tool.repository";
+import { UserShelfRepositoryImpl } from "./user-shelf.repository";
 
 function tryResolve<T>(c: Container, token: unknown): T | undefined {
   try {
@@ -47,11 +44,9 @@ function buildSystemSource(c: Container): LibrarySystemSource {
         if (!rec) continue;
         out.push({
           name,
-          ...(typeof rec.displayName === 'string' ? { displayName: rec.displayName } : {}),
-          ...(typeof rec.description === 'string' ? { description: rec.description } : {}),
-          ...(Array.isArray(rec.tags)
-            ? { tags: rec.tags.filter((t): t is string => typeof t === 'string') }
-            : {}),
+          ...(typeof rec.displayName === "string" ? { displayName: rec.displayName } : {}),
+          ...(typeof rec.description === "string" ? { description: rec.description } : {}),
+          ...(Array.isArray(rec.tags) ? { tags: rec.tags.filter((t): t is string => typeof t === "string") } : {}),
         });
       }
       return out;
@@ -73,11 +68,7 @@ function buildListingRepository(c: Container): DescriptorListingRepositoryImpl {
 export function buildListingService(c: Container): ListingService {
   const pool = resolvePool(c);
   const outbox = buildOutboxWriter(pool);
-  return new ListingService(
-    new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
-    buildListingRepository(c),
-    outbox,
-  );
+  return new ListingService(new TenantDescriptorRepositoryImpl(pool, sharedSfidService), buildListingRepository(c), outbox);
 }
 
 export function buildLibraryService(c: Container): LibraryService {
@@ -95,10 +86,9 @@ export function buildShelfService(c: Container): ShelfService {
 
 export function buildPluginCatalogService(c: Container): PluginCatalogService {
   const tools = tryResolve<DescriptorRegistryService>(c, DescriptorRegistryService);
-  return new PluginCatalogService(
-    new UserAvailableToolRepositoryImpl(resolvePool(c), sharedSfidService),
-    { listAll: () => tools?.listAll() ?? [] },
-  );
+  return new PluginCatalogService(new UserAvailableToolRepositoryImpl(resolvePool(c), sharedSfidService), {
+    listAll: () => tools?.listAll() ?? [],
+  });
 }
 
 export const listingServiceProvider = {

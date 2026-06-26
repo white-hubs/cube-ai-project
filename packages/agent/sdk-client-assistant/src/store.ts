@@ -18,25 +18,13 @@ import {
   buildImageRefBlock,
   buildMultimodalTurnBody,
   buildTextMessage,
-} from '@cube-ai/agent-sdk-client';
-import type { ImageAttachment, RuntimeRefs } from '@cube-ai/contracts';
-import type { StartTurnBody } from '@cube-ai/agent-sdk-client';
-import type { AssistantEnginePort, NormalizedSseEvent } from './port';
-import type { ReasoningStore } from './reasoning-store';
-import { createMemoryReasoningStore } from './reasoning-store';
-import {
-  createEmptyReasoningTree,
-  forceCloseActiveReasoning,
-  reduceReasoningEvent,
-} from './utils/reasoning';
-import {
-  extractAssistantMessageId,
-  extractMessageDeltaChunk,
-  extractTurnId,
-} from './utils/message-delta';
-import { extractTurnFailureSummary } from './utils/turn-failure';
-import { flattenAssistantContentPayload, parseMessageAttachments } from './utils/content';
-import { isPlaceholderSessionTitle } from './utils/sessions';
+} from "@cube-ai/agent-sdk-client";
+import type { StartTurnBody } from "@cube-ai/agent-sdk-client";
+import type { ImageAttachment, RuntimeRefs } from "@cube-ai/contracts";
+
+import type { AssistantEnginePort, NormalizedSseEvent } from "./port";
+import type { ReasoningStore } from "./reasoning-store";
+import { createMemoryReasoningStore } from "./reasoning-store";
 import type {
   AssistantMessage,
   AssistantSessionSummary,
@@ -51,7 +39,12 @@ import type {
   TurnTokenUsage,
   TurnFailureSummary,
   TurnStatus,
-} from './types';
+} from "./types";
+import { flattenAssistantContentPayload, parseMessageAttachments } from "./utils/content";
+import { extractAssistantMessageId, extractMessageDeltaChunk, extractTurnId } from "./utils/message-delta";
+import { createEmptyReasoningTree, forceCloseActiveReasoning, reduceReasoningEvent } from "./utils/reasoning";
+import { isPlaceholderSessionTitle } from "./utils/sessions";
+import { extractTurnFailureSummary } from "./utils/turn-failure";
 
 export interface AssistantStoreOptions {
   engine: AssistantEnginePort;
@@ -75,7 +68,7 @@ export interface AssistantStoreOptions {
    *   - 'sessions-and-first' → listSessions + openSession(first)
    *   - false                → 不动
    */
-  autoLoad?: 'sessions' | 'sessions-and-first' | false;
+  autoLoad?: "sessions" | "sessions-and-first" | false;
   debugEventBuffer?: { max: number } | false;
 }
 
@@ -122,7 +115,7 @@ function buildStartTurnBody(text: string, attachments: ImageAttachment[]): Start
   }
   const blocks = [];
   if (trimmed.length > 0) {
-    blocks.push({ type: 'text' as const, text: trimmed });
+    blocks.push({ type: "text" as const, text: trimmed });
   }
   for (const att of attachments) {
     blocks.push(buildImageRefBlock(att.attachmentId));
@@ -130,18 +123,13 @@ function buildStartTurnBody(text: string, attachments: ImageAttachment[]): Start
   return buildMultimodalTurnBody(blocks, attachments);
 }
 
-const DEFAULT_DERIVE_TITLE = (text: string): string =>
-  text.trim().slice(0, 20);
+const DEFAULT_DERIVE_TITLE = (text: string): string => text.trim().slice(0, 20);
 
 function readTokenUsageTriplet(raw: unknown): TokenUsageTriplet | null {
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
   const { input, output, total } = obj;
-  if (
-    typeof input !== 'number' ||
-    typeof output !== 'number' ||
-    typeof total !== 'number'
-  ) {
+  if (typeof input !== "number" || typeof output !== "number" || typeof total !== "number") {
     return null;
   }
   return {
@@ -152,27 +140,25 @@ function readTokenUsageTriplet(raw: unknown): TokenUsageTriplet | null {
 }
 
 function readTokenUsageDeltaAsTriplet(raw: unknown): TokenUsageTriplet | null {
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
   const { input, output } = obj;
-  if (typeof input !== 'number' || typeof output !== 'number') return null;
+  if (typeof input !== "number" || typeof output !== "number") return null;
   const safeInput = Math.max(0, Math.trunc(input));
   const safeOutput = Math.max(0, Math.trunc(output));
   return { input: safeInput, output: safeOutput, total: safeInput + safeOutput };
 }
 
 function readTokenUsageAttribution(raw: unknown): TokenUsageAttribution | undefined {
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const obj = raw as Record<string, unknown>;
-  if (typeof obj.id !== 'string' || typeof obj.kind !== 'string') return undefined;
+  if (typeof obj.id !== "string" || typeof obj.kind !== "string") return undefined;
   return {
     id: obj.id,
     kind: obj.kind,
-    ...(typeof obj.parentId === 'string' ? { parentId: obj.parentId } : {}),
-    ...(typeof obj.label === 'string' ? { label: obj.label } : {}),
-    ...(obj.meta != null && typeof obj.meta === 'object' && !Array.isArray(obj.meta)
-      ? { meta: obj.meta as Record<string, unknown> }
-      : {}),
+    ...(typeof obj.parentId === "string" ? { parentId: obj.parentId } : {}),
+    ...(typeof obj.label === "string" ? { label: obj.label } : {}),
+    ...(obj.meta != null && typeof obj.meta === "object" && !Array.isArray(obj.meta) ? { meta: obj.meta as Record<string, unknown> } : {}),
   };
 }
 
@@ -232,15 +218,13 @@ export class AssistantStore {
   constructor(opts: AssistantStoreOptions) {
     this.engine = opts.engine;
     this.reasoningStore = opts.reasoningStore ?? createMemoryReasoningStore();
-    this.placeholderIdPrefix = opts.placeholderIdPrefix ?? 'assistant-';
+    this.placeholderIdPrefix = opts.placeholderIdPrefix ?? "assistant-";
     this.deriveTitleFromText = opts.deriveTitleFromText ?? DEFAULT_DERIVE_TITLE;
     this.isPlaceholderTitle = opts.isPlaceholderTitle ?? isPlaceholderSessionTitle;
     this.fallbackResolveAssistantId = opts.fallbackResolveAssistantId ?? true;
     this.defaultAgentId = opts.defaultAgentId;
     this.defaultModelCode = opts.defaultModelCode;
-    this.debugMax = opts.debugEventBuffer === false
-      ? 0
-      : (opts.debugEventBuffer?.max ?? 0);
+    this.debugMax = opts.debugEventBuffer === false ? 0 : (opts.debugEventBuffer?.max ?? 0);
 
     const autoLoad = opts.autoLoad ?? false;
     if (autoLoad !== false) {
@@ -269,7 +253,7 @@ export class AssistantStore {
   // ---------------------------------------------------------------------------
 
   reset(): void {
-    this.assertAlive('reset');
+    this.assertAlive("reset");
     for (const handle of this.streams.values()) {
       handle.abort.abort();
     }
@@ -294,7 +278,7 @@ export class AssistantStore {
   // ---------------------------------------------------------------------------
 
   async loadSessions(): Promise<void> {
-    this.assertAlive('loadSessions');
+    this.assertAlive("loadSessions");
     this.setState({ loadingSessions: true });
     try {
       const { items } = await this.engine.listSessions();
@@ -311,17 +295,17 @@ export class AssistantStore {
    * 拿到的是 store 的最新内部状态）。
    */
   setModels(models: LlmOption[]): void {
-    this.assertAlive('setModels');
+    this.assertAlive("setModels");
     this.setState({ models });
   }
 
   setLoadingModels(loading: boolean): void {
-    this.assertAlive('setLoadingModels');
+    this.assertAlive("setLoadingModels");
     this.setState({ loadingModels: loading });
   }
 
   async openSession(sessionId: string): Promise<void> {
-    this.assertAlive('openSession');
+    this.assertAlive("openSession");
     this.setState({ currentSessionId: sessionId });
     this.syncSendingFromCurrent();
     // 不在此开 SSE — 一 turn 一 stream（在 send() 拿到 turnId 之后才开）；
@@ -333,16 +317,14 @@ export class AssistantStore {
     agentId?: string;
     title?: string;
     modelCode?: string;
-    purpose?: 'chat' | 'debug';
+    purpose?: "chat" | "debug";
     agentVersionNo?: number;
     context?: Record<string, unknown>;
   }): Promise<string> {
-    this.assertAlive('createSession');
+    this.assertAlive("createSession");
     const agentId = req.agentId ?? this.defaultAgentId;
     if (!agentId) {
-      throw new Error(
-        'createSession: agentId is required (no defaultAgentId in ProvideAssistantOptions)',
-      );
+      throw new Error("createSession: agentId is required (no defaultAgentId in ProvideAssistantOptions)");
     }
     const modelCode = req.modelCode ?? this.defaultModelCode;
     const created = await this.engine.createSession({
@@ -355,7 +337,7 @@ export class AssistantStore {
     });
     const session: AssistantSessionSummary = {
       id: created.id,
-      title: created.title ?? req.title ?? '',
+      title: created.title ?? req.title ?? "",
       updatedAt: created.createTime,
     };
     this.setState({
@@ -367,7 +349,7 @@ export class AssistantStore {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    this.assertAlive('deleteSession');
+    this.assertAlive("deleteSession");
     await this.engine.deleteSession(sessionId);
     // 关闭该 session 下所有活跃的 per-turn streams
     for (const [key, handle] of this.streams) {
@@ -401,16 +383,11 @@ export class AssistantStore {
     this.setState(next);
   }
 
-  async patchSession(
-    sessionId: string,
-    patch: { title?: string; status?: 'ACTIVE' | 'CLOSED' },
-  ): Promise<void> {
-    this.assertAlive('patchSession');
+  async patchSession(sessionId: string, patch: { title?: string; status?: "ACTIVE" | "CLOSED" }): Promise<void> {
+    this.assertAlive("patchSession");
     await this.engine.patchSession(sessionId, patch);
     if (patch.title != null) {
-      const sessions = this.state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, title: patch.title as string } : s,
-      );
+      const sessions = this.state.sessions.map((s) => (s.id === sessionId ? { ...s, title: patch.title as string } : s));
       this.setState({ sessions });
     }
   }
@@ -432,11 +409,11 @@ export class AssistantStore {
    *   失败时回滚两条占位 + 复位 sending + 抛错给业务侧。
    */
   async send(text: string, opts: SendOptions = {}): Promise<{ turnId: string }> {
-    this.assertAlive('send');
+    this.assertAlive("send");
     const trimmed = text.trim();
     const attachments = opts.attachments ?? [];
     if (trimmed.length === 0 && attachments.length === 0) {
-      throw new Error('send requires non-empty text or at least one image attachment');
+      throw new Error("send requires non-empty text or at least one image attachment");
     }
 
     let sessionId = this.state.currentSessionId;
@@ -454,9 +431,9 @@ export class AssistantStore {
 
     // 2. 首条用户消息时推导并持久化标题（按会话消息状态，不依赖 title 文案）
     const priorMessages = this.state.messagesBySessionId[sessionId] ?? [];
-    const isFirstUserMessage = !priorMessages.some((m) => m.role === 'user');
+    const isFirstUserMessage = !priorMessages.some((m) => m.role === "user");
     if (isFirstUserMessage) {
-      const newTitle = this.deriveTitleFromText(trimmed || '[图片]');
+      const newTitle = this.deriveTitleFromText(trimmed || "[图片]");
       void this.patchSession(sessionId, { title: newTitle }).catch(() => {
         /* 标题失败不阻塞主链路 */
       });
@@ -465,7 +442,7 @@ export class AssistantStore {
     // 3. push placeholders
     const userMsg: AssistantMessage = {
       id: `${this.placeholderIdPrefix}user-${crypto.randomUUID()}`,
-      role: 'user',
+      role: "user",
       content: trimmed,
       ...(attachments.length > 0 ? { attachments: [...attachments] } : {}),
       createdAt: Date.now(),
@@ -473,8 +450,8 @@ export class AssistantStore {
     const assistantPlaceholderId = `${this.placeholderIdPrefix}${crypto.randomUUID()}`;
     const assistantMsg: AssistantMessage = {
       id: assistantPlaceholderId,
-      role: 'assistant',
-      content: '',
+      role: "assistant",
+      content: "",
       createdAt: Date.now() + 1,
       reasoning: createEmptyReasoningTree(),
     };
@@ -510,7 +487,7 @@ export class AssistantStore {
       },
       lastTurnStatusBySessionId: {
         ...this.state.lastTurnStatusBySessionId,
-        [sessionId]: 'running',
+        [sessionId]: "running",
       },
     });
 
@@ -526,7 +503,7 @@ export class AssistantStore {
    *   - 立刻把 sending 置 false（UX 响应）；engine 端 turn-cancelled-v1 事件由 SSE 兜底
    */
   async cancel(): Promise<void> {
-    this.assertAlive('cancel');
+    this.assertAlive("cancel");
     const sessionId = this.state.currentSessionId;
     if (!sessionId) return;
     const turnId = this.state.activeTurnIdBySessionId[sessionId];
@@ -548,15 +525,13 @@ export class AssistantStore {
 
   async respondGrant(input: {
     grantRequestId: string;
-    decision: 'APPROVE' | 'DENY';
-    scopeChoice?: 'ONCE' | 'SESSION' | 'PERSISTENT';
+    decision: "APPROVE" | "DENY";
+    scopeChoice?: "ONCE" | "SESSION" | "PERSISTENT";
     rememberTtlSeconds?: number;
     note?: string;
   }): Promise<void> {
-    this.assertAlive('respondGrant');
-    const pendingGrants = this.state.pendingGrants.filter(
-      (g) => g.grantRequestId !== input.grantRequestId,
-    );
+    this.assertAlive("respondGrant");
+    const pendingGrants = this.state.pendingGrants.filter((g) => g.grantRequestId !== input.grantRequestId);
     this.setState({
       pendingGrants,
       awaitingGrant: pendingGrants.length > 0 && this.state.sending,
@@ -590,26 +565,18 @@ export class AssistantStore {
     this.streams.delete(key);
   }
 
-  private async runTurnStream(
-    sessionId: string,
-    turnId: string,
-    signal: AbortSignal,
-  ): Promise<void> {
+  private async runTurnStream(sessionId: string, turnId: string, signal: AbortSignal): Promise<void> {
     try {
       // engine 侧用 `?turnId=` 把本 turn 的回放 + live fan-out 都隔离掉；
       // 客户端再加一层 `event.data.turnId !== turnId` 防御（应对老 engine / proxy 改写）。
       for await (const ev of this.engine.streamEvents(sessionId, { turnId, signal })) {
         if (signal.aborted) break;
         const evTurnId = (ev.data as { turnId?: unknown }).turnId;
-        if (typeof evTurnId === 'string' && evTurnId !== '' && evTurnId !== turnId) {
+        if (typeof evTurnId === "string" && evTurnId !== "" && evTurnId !== turnId) {
           continue;
         }
         this.handleEvent(sessionId, ev);
-        if (
-          ev.event === 'turn-completed-v1' ||
-          ev.event === 'turn-failed-v1' ||
-          ev.event === 'turn-cancelled-v1'
-        ) {
+        if (ev.event === "turn-completed-v1" || ev.event === "turn-failed-v1" || ev.event === "turn-cancelled-v1") {
           // 本 turn 终态 — 自然收尾退出（不必等服务端 done）
           break;
         }
@@ -637,7 +604,7 @@ export class AssistantStore {
     const data = ev.data;
 
     switch (ev.event) {
-      case 'message-delta-v1': {
+      case "message-delta-v1": {
         const chunk = extractMessageDeltaChunk(data);
         const serverMessageId = extractAssistantMessageId(data);
         const turnId = extractTurnId(data) ?? undefined;
@@ -648,38 +615,37 @@ export class AssistantStore {
         }
         return;
       }
-      case 'message-completed-v1': {
+      case "message-completed-v1": {
         const serverMessageId = extractAssistantMessageId(data);
         const turnId = extractTurnId(data) ?? undefined;
         if (serverMessageId) {
           this.replacePlaceholderIdWithServer(sessionId, serverMessageId, turnId);
         }
         const finalContent = flattenAssistantContentPayload(
-          (data as { content?: unknown; messageContent?: unknown }).content ??
-            (data as { messageContent?: unknown }).messageContent,
+          (data as { content?: unknown; messageContent?: unknown }).content ?? (data as { messageContent?: unknown }).messageContent,
         );
-        if (finalContent !== '') {
+        if (finalContent !== "") {
           this.setLastAssistantContent(sessionId, finalContent);
         }
         return;
       }
-      case 'reasoning-step-v1':
-      case 'reasoning-delta-v1': {
+      case "reasoning-step-v1":
+      case "reasoning-delta-v1": {
         this.foldReasoning(sessionId, ev);
         return;
       }
-      case 'tool-call-started-v1':
-      case 'tool-call-completed-v1': {
+      case "tool-call-started-v1":
+      case "tool-call-completed-v1": {
         this.foldReasoning(sessionId, ev);
         this.appendToolEvent(sessionId, ev);
         return;
       }
-      case 'usage-delta-v1':
-      case 'usage-delta-v2': {
+      case "usage-delta-v1":
+      case "usage-delta-v2": {
         this.applyUsageDelta(sessionId, ev);
         return;
       }
-      case 'turn-started-v1': {
+      case "turn-started-v1": {
         const turnId = extractTurnId(data) ?? undefined;
         if (turnId) {
           this.setState({
@@ -689,7 +655,7 @@ export class AssistantStore {
             },
             lastTurnStatusBySessionId: {
               ...this.state.lastTurnStatusBySessionId,
-              [sessionId]: 'running',
+              [sessionId]: "running",
             },
             tokenUsageBySessionId: {
               ...this.state.tokenUsageBySessionId,
@@ -704,22 +670,22 @@ export class AssistantStore {
         }
         return;
       }
-      case 'turn-completed-v1': {
+      case "turn-completed-v1": {
         this.applyTurnCompletedUsage(sessionId, ev);
-        this.finalizeTurn(sessionId, 'completed', null);
+        this.finalizeTurn(sessionId, "completed", null);
         return;
       }
-      case 'turn-failed-v1': {
+      case "turn-failed-v1": {
         const summary = extractTurnFailureSummary(data);
         this.setLastAssistantContent(sessionId, summary.message);
-        this.finalizeTurn(sessionId, 'failed', summary);
+        this.finalizeTurn(sessionId, "failed", summary);
         return;
       }
-      case 'turn-cancelled-v1': {
-        this.finalizeTurn(sessionId, 'cancelled', null);
+      case "turn-cancelled-v1": {
+        this.finalizeTurn(sessionId, "cancelled", null);
         return;
       }
-      case 'grant-request-v1': {
+      case "grant-request-v1": {
         const grant = this.normalizeGrantRequest(data);
         if (!grant) return;
         const next = [...this.state.pendingGrants, grant];
@@ -729,8 +695,8 @@ export class AssistantStore {
         });
         return;
       }
-      case 'tool-use-started-v1':
-      case 'tool-use-completed-v1': {
+      case "tool-use-started-v1":
+      case "tool-use-completed-v1": {
         this.appendToolEvent(sessionId, ev);
         return;
       }
@@ -744,10 +710,7 @@ export class AssistantStore {
     const lastIdx = findLastAssistantIdx(messages);
     if (lastIdx < 0) return;
     const target = messages[lastIdx]!;
-    const next = reduceReasoningEvent(
-      target.reasoning,
-      { event: ev.event, data: ev.data },
-    );
+    const next = reduceReasoningEvent(target.reasoning, { event: ev.event, data: ev.data });
     if (next === target.reasoning) return;
     const updated: AssistantMessage = { ...target, reasoning: next };
     const newMessages = messages.slice();
@@ -760,12 +723,7 @@ export class AssistantStore {
     });
   }
 
-  private appendAssistantContent(
-    sessionId: string,
-    chunk: string,
-    serverMessageId: string | null,
-    turnId: string | undefined,
-  ): void {
+  private appendAssistantContent(sessionId: string, chunk: string, serverMessageId: string | null, turnId: string | undefined): void {
     const messages = this.state.messagesBySessionId[sessionId] ?? [];
     const lastIdx = findLastAssistantIdx(messages);
     if (lastIdx < 0) return;
@@ -790,11 +748,7 @@ export class AssistantStore {
     });
   }
 
-  private replacePlaceholderIdWithServer(
-    sessionId: string,
-    serverMessageId: string,
-    turnId: string | undefined,
-  ): void {
+  private replacePlaceholderIdWithServer(sessionId: string, serverMessageId: string, turnId: string | undefined): void {
     const messages = this.state.messagesBySessionId[sessionId] ?? [];
     const lastIdx = findLastAssistantIdx(messages);
     if (lastIdx < 0) return;
@@ -830,11 +784,7 @@ export class AssistantStore {
     });
   }
 
-  private finalizeTurn(
-    sessionId: string,
-    status: TurnStatus,
-    failure: TurnFailureSummary | null,
-  ): void {
+  private finalizeTurn(sessionId: string, status: TurnStatus, failure: TurnFailureSummary | null): void {
     // 1. 把当前 turn 的 tokenUsage 快照归档到 last assistant message，并随 reasoning 一起 commit。
     //    `terminalKind` 与 `status` 三态一一对应（completed/cancelled/failed）。
     //    任意一份非空就触发 IDB 写（reasoning 或 tokenUsage 至少一份非空）。
@@ -880,19 +830,11 @@ export class AssistantStore {
     }
   }
 
-  private async commitReasoning(
-    sessionId: string,
-    message: AssistantMessage,
-  ): Promise<void> {
+  private async commitReasoning(sessionId: string, message: AssistantMessage): Promise<void> {
     if (!message.reasoning && !message.tokenUsage) return;
     if (message.id.startsWith(this.placeholderIdPrefix)) return;
     try {
-      await this.reasoningStore.put(
-        sessionId,
-        message.id,
-        message.reasoning ?? { steps: [] },
-        message.tokenUsage,
-      );
+      await this.reasoningStore.put(sessionId, message.id, message.reasoning ?? { steps: [] }, message.tokenUsage);
     } catch {
       /* IDB error 不影响 UI */
     }
@@ -903,26 +845,17 @@ export class AssistantStore {
    * 仅当 turn 与 message 的 turnId 匹配（且 cumulative 非零或 items 非空）才写入。
    * 返回归档后的 message 引用（用于 commit）；未归档时返回 null。
    */
-  private archiveTokenUsageOnMessage(
-    sessionId: string,
-    messageIdx: number,
-    status: TurnStatus,
-  ): AssistantMessage | null {
+  private archiveTokenUsageOnMessage(sessionId: string, messageIdx: number, status: TurnStatus): AssistantMessage | null {
     const live = this.state.tokenUsageBySessionId[sessionId];
     if (!live) return null;
     const messages = this.state.messagesBySessionId[sessionId] ?? [];
     const target = messages[messageIdx];
     if (!target) return null;
     if (target.turnId !== undefined && target.turnId !== live.turnId) return null;
-    const cumZero =
-      live.cumulative.input === 0 &&
-      live.cumulative.output === 0 &&
-      live.cumulative.total === 0;
+    const cumZero = live.cumulative.input === 0 && live.cumulative.output === 0 && live.cumulative.total === 0;
     if (cumZero && live.items.length === 0) return null;
-    const terminalKind: 'completed' | 'cancelled' | 'failed' =
-      status === 'completed' || status === 'cancelled' || status === 'failed'
-        ? status
-        : 'completed';
+    const terminalKind: "completed" | "cancelled" | "failed" =
+      status === "completed" || status === "cancelled" || status === "failed" ? status : "completed";
     const archived: PersistedTokenUsage = {
       cumulative: live.cumulative,
       items: live.items.slice(),
@@ -939,15 +872,17 @@ export class AssistantStore {
     return newMessages[messageIdx]!;
   }
 
-  private async fallbackResolveLastAssistantId(
-    sessionId: string,
-    placeholderId: string,
-  ): Promise<void> {
+  private async fallbackResolveLastAssistantId(sessionId: string, placeholderId: string): Promise<void> {
     try {
       const r = await this.engine.listMessages(sessionId, { limit: 5 });
-      const latestAssistant = [...r.items]
-        .reverse()
-        .find((m) => m.role === 'assistant');
+      let latestAssistant: (typeof r.items)[number] | undefined;
+      for (let i = r.items.length - 1; i >= 0; i -= 1) {
+        const message = r.items[i];
+        if (message.role === "assistant") {
+          latestAssistant = message;
+          break;
+        }
+      }
       if (!latestAssistant) return;
       const messages = this.state.messagesBySessionId[sessionId] ?? [];
       const idx = messages.findIndex((m) => m.id === placeholderId);
@@ -974,17 +909,14 @@ export class AssistantStore {
     }
   }
 
-  private forceCloseSessionOnDisconnect(
-    sessionId: string,
-    e: StreamDisconnectedError,
-  ): void {
+  private forceCloseSessionOnDisconnect(sessionId: string, e: StreamDisconnectedError): void {
     const messages = this.state.messagesBySessionId[sessionId] ?? [];
     const lastIdx = findLastAssistantIdx(messages);
     if (lastIdx >= 0) {
       const target = messages[lastIdx]!;
       if (target.reasoning) {
         const next: ReasoningTree = forceCloseActiveReasoning(target.reasoning, {
-          code: 'STREAM_DISCONNECTED',
+          code: "STREAM_DISCONNECTED",
           message: e.message,
         });
         const newMessages = messages.slice();
@@ -1003,23 +935,23 @@ export class AssistantStore {
   private appendToolEvent(sessionId: string, ev: NormalizedSseEvent): void {
     const data = ev.data;
     const id =
-      typeof data.toolCallId === 'string'
+      typeof data.toolCallId === "string"
         ? data.toolCallId
-        : typeof data.toolUseId === 'string'
-        ? data.toolUseId
-        : typeof data.id === 'string'
-          ? data.id
-          : '';
+        : typeof data.toolUseId === "string"
+          ? data.toolUseId
+          : typeof data.id === "string"
+            ? data.id
+            : "";
     if (!id) return;
-    const toolName = typeof data.toolName === 'string' ? data.toolName : 'unknown';
-    const time = typeof data.time === 'number' ? data.time : Date.now();
-    const turnId = typeof data.turnId === 'string' ? data.turnId : undefined;
+    const toolName = typeof data.toolName === "string" ? data.toolName : "unknown";
+    const time = typeof data.time === "number" ? data.time : Date.now();
+    const turnId = typeof data.turnId === "string" ? data.turnId : undefined;
     const list = this.state.toolEventsBySessionId[sessionId] ?? [];
-    if (ev.event === 'tool-call-started-v1' || ev.event === 'tool-use-started-v1') {
+    if (ev.event === "tool-call-started-v1" || ev.event === "tool-use-started-v1") {
       const next: ToolEvent = {
         id,
         toolName,
-        phase: 'started',
+        phase: "started",
         startedAt: time,
         ...(turnId ? { turnId } : {}),
       };
@@ -1031,16 +963,14 @@ export class AssistantStore {
       });
       return;
     }
-    if (ev.event === 'tool-call-completed-v1' || ev.event === 'tool-use-completed-v1') {
-      const resultPreview =
-        (data as { resultPreview?: unknown }).resultPreview ??
-        (data as { output?: unknown }).output;
+    if (ev.event === "tool-call-completed-v1" || ev.event === "tool-use-completed-v1") {
+      const resultPreview = (data as { resultPreview?: unknown }).resultPreview ?? (data as { output?: unknown }).output;
       const idx = list.findIndex((t) => t.id === id);
       if (idx < 0) {
         const next: ToolEvent = {
           id,
           toolName,
-          phase: 'completed',
+          phase: "completed",
           startedAt: time,
           completedAt: time,
           resultPreview,
@@ -1057,7 +987,7 @@ export class AssistantStore {
       const newList = list.slice();
       newList[idx] = {
         ...newList[idx]!,
-        phase: 'completed',
+        phase: "completed",
         completedAt: time,
         resultPreview,
         ...(turnId && !newList[idx]!.turnId ? { turnId } : {}),
@@ -1073,27 +1003,15 @@ export class AssistantStore {
 
   private applyUsageDelta(sessionId: string, ev: NormalizedSseEvent): void {
     const data = ev.data;
-    const turnId =
-      extractTurnId(data) ??
-      this.state.activeTurnIdBySessionId[sessionId] ??
-      undefined;
+    const turnId = extractTurnId(data) ?? this.state.activeTurnIdBySessionId[sessionId] ?? undefined;
     if (!turnId) return;
     const cumulative = readTokenUsageTriplet(data.cumulative);
     if (!cumulative) return;
-    const usage =
-      readTokenUsageTriplet(data.usage) ??
-      readTokenUsageDeltaAsTriplet(data.delta);
+    const usage = readTokenUsageTriplet(data.usage) ?? readTokenUsageDeltaAsTriplet(data.delta);
     const attribution = readTokenUsageAttribution(data.attribution);
-    const accuracy =
-      data.accuracy === 'estimated' || data.accuracy === 'final'
-        ? data.accuracy
-        : undefined;
+    const accuracy = data.accuracy === "estimated" || data.accuracy === "final" ? data.accuracy : undefined;
     const terminal =
-      data.terminal === 'cancelled' ||
-      data.terminal === 'failed' ||
-      data.terminal === 'disconnected'
-        ? data.terminal
-        : undefined;
+      data.terminal === "cancelled" || data.terminal === "failed" || data.terminal === "disconnected" ? data.terminal : undefined;
     const snapshot: TokenUsageSnapshot = {
       turnId,
       usage: usage ?? cumulative,
@@ -1116,11 +1034,8 @@ export class AssistantStore {
       // Unattributed usage-delta = turn-level aggregate (e.g. engine done-fallback).
       // It is NOT a per-LLM-call item; only refresh `cumulative`.
       // Keeps items[] free of phantom rows that would render as "LLM 估算中" in UIs.
-      if (typeof console !== 'undefined' && typeof console.debug === 'function') {
-        console.debug(
-          '[assistant-sdk] usage-delta without attribution: treated as turn aggregate (cumulative only)',
-          { turnId },
-        );
+      if (typeof console !== "undefined" && typeof console.debug === "function") {
+        console.debug("[assistant-sdk] usage-delta without attribution: treated as turn aggregate (cumulative only)", { turnId });
       }
     }
     this.setState({
@@ -1154,21 +1069,18 @@ export class AssistantStore {
     });
   }
 
-  private normalizeGrantRequest(
-    data: Record<string, unknown>,
-  ): PendingGrant | null {
-    const grantRequestId =
-      typeof data.grantRequestId === 'string' ? data.grantRequestId : '';
+  private normalizeGrantRequest(data: Record<string, unknown>): PendingGrant | null {
+    const grantRequestId = typeof data.grantRequestId === "string" ? data.grantRequestId : "";
     if (!grantRequestId) return null;
     const out: PendingGrant = { grantRequestId, raw: data };
-    if (typeof data.turnId === 'string') out.turnId = data.turnId;
-    if (typeof data.toolName === 'string') out.toolName = data.toolName;
-    if (typeof data.reason === 'string') out.reason = data.reason;
+    if (typeof data.turnId === "string") out.turnId = data.turnId;
+    if (typeof data.toolName === "string") out.toolName = data.toolName;
+    if (typeof data.reason === "string") out.reason = data.reason;
     if (data.argsPreview !== undefined) out.argsPreview = data.argsPreview;
-    if (data.scopeHint === 'ONCE' || data.scopeHint === 'SESSION' || data.scopeHint === 'PERSISTENT') {
+    if (data.scopeHint === "ONCE" || data.scopeHint === "SESSION" || data.scopeHint === "PERSISTENT") {
       out.scopeHint = data.scopeHint;
     }
-    if (typeof data.expiresTime === 'number') out.expiresTime = data.expiresTime;
+    if (typeof data.expiresTime === "number") out.expiresTime = data.expiresTime;
     return out;
   }
 
@@ -1176,11 +1088,11 @@ export class AssistantStore {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private async bootstrap(mode: 'sessions' | 'sessions-and-first'): Promise<void> {
+  private async bootstrap(mode: "sessions" | "sessions-and-first"): Promise<void> {
     try {
       await this.loadSessions();
       if (this.disposed) return;
-      if (mode === 'sessions-and-first') {
+      if (mode === "sessions-and-first") {
         const first = this.state.sessions[0];
         if (first) await this.openSession(first.id);
       }
@@ -1205,10 +1117,10 @@ export class AssistantStore {
         return out;
       });
       // 回填 reasoning + tokenUsage（schema v2 起 IDB 行同时承载两份元数据）
-      const ids = items.filter((m) => m.role === 'assistant').map((m) => m.id);
+      const ids = items.filter((m) => m.role === "assistant").map((m) => m.id);
       const rows = await this.reasoningStore.bulkGet(sessionId, ids);
       for (const m of items) {
-        if (m.role !== 'assistant') continue;
+        if (m.role !== "assistant") continue;
         const row = rows.get(m.id);
         if (row == null) continue;
         m.reasoning = row.tree;
@@ -1258,9 +1170,7 @@ export class AssistantStore {
 
   private syncSendingFromCurrent(): void {
     const sessionId = this.state.currentSessionId;
-    const sending = sessionId
-      ? this.state.sendingBySessionId[sessionId] === true
-      : false;
+    const sending = sessionId ? this.state.sendingBySessionId[sessionId] === true : false;
     this.setState({
       sending,
       awaitingGrant: this.state.pendingGrants.length > 0 && sending,
@@ -1296,7 +1206,7 @@ export class AssistantStore {
 
 function findLastAssistantIdx(messages: AssistantMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]!.role === 'assistant') return i;
+    if (messages[i]!.role === "assistant") return i;
   }
   return -1;
 }

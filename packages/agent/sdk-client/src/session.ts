@@ -15,27 +15,23 @@ import {
   TextMessageBlockSchema,
   HEADER_IDEMPOTENCY_KEY,
   SseEventSchema,
-} from '@cube-ai/contracts';
+} from "@cube-ai/contracts";
 
-export type { CreateSessionRequest, CreateSessionResponse } from '@cube-ai/contracts';
-import { z } from 'zod';
-import {
-  AgenticClientError,
-  StartTurnFailedError,
-  SessionBusyError,
-  StreamDisconnectedError,
-} from './errors';
-import type { AgenticClient } from './client';
-import type { AgenticClientConfig } from './client';
+export type { CreateSessionRequest, CreateSessionResponse } from "@cube-ai/contracts";
+import { z } from "zod";
+
+import type { AgenticClient } from "./client";
+import type { AgenticClientConfig } from "./client";
+import { AgenticClientError, StartTurnFailedError, SessionBusyError, StreamDisconnectedError } from "./errors";
 
 const PageSchema = z.object({
   nextCursor: z.string().nullable().optional(),
-  hasMore:    z.boolean(),
+  hasMore: z.boolean(),
 });
 
 const ListSessionsResponseSchema = z.object({
   items: z.array(SessionSchema),
-  page:  PageSchema,
+  page: PageSchema,
 });
 export type ListSessionsResult = z.infer<typeof ListSessionsResponseSchema>;
 
@@ -45,7 +41,7 @@ const ListMessagesItemSchema = z
     turnId: z.string().nullable().optional(),
     sessionId: z.string().optional(),
     seq: z.number().int().nonnegative().optional(),
-    role: z.enum(['user', 'assistant', 'system', 'tool']),
+    role: z.enum(["user", "assistant", "system", "tool"]),
     content: z.unknown(),
     createTime: z.number().int(),
   })
@@ -59,44 +55,39 @@ export type ListMessagesResult = z.infer<typeof ListMessagesResponseSchema>;
 export type ListMessagesItem = z.infer<typeof ListMessagesItemSchema>;
 
 export interface ListSessionsFilter {
-  cursor?:  string;
-  limit?:   number;
-  status?:  'ACTIVE' | 'CLOSED' | 'ARCHIVED' | 'ALL';
+  cursor?: string;
+  limit?: number;
+  status?: "ACTIVE" | "CLOSED" | "ARCHIVED" | "ALL";
   /** 缺省 `chat`（不含 debug 调试会话） */
-  purpose?: 'chat' | 'debug' | 'ALL';
+  purpose?: "chat" | "debug" | "ALL";
 }
 
 export interface PatchSessionRequest {
   title?: string;
-  status?: 'ACTIVE' | 'CLOSED';
+  status?: "ACTIVE" | "CLOSED";
 }
 
 /** Convenience: 把字符串包成单 text-block 的 `message-content-v1`（ADR-0008 §D4 H1a builder）。 */
 export function buildTextMessage(text: string): MessageContentV1 {
   return MessageContentV1Schema.parse({
-    schema: 'message-content-v1',
-    blocks: [TextMessageBlockSchema.parse({ type: 'text', text })],
+    schema: "message-content-v1",
+    blocks: [TextMessageBlockSchema.parse({ type: "text", text })],
   });
 }
 
 /** Convenience: 多 block content builder（业务侧自定义结构）。 */
-export function buildMultiBlockMessage(
-  blocks: MessageBlock[],
-): MessageContentV1 {
-  return MessageContentV1Schema.parse({ schema: 'message-content-v1', blocks });
+export function buildMultiBlockMessage(blocks: MessageBlock[]): MessageContentV1 {
+  return MessageContentV1Schema.parse({ schema: "message-content-v1", blocks });
 }
 
 export function buildImageRefBlock(attachmentId: string): ImageRefMessageBlock {
-  return { type: 'image_ref', attachmentId };
+  return { type: "image_ref", attachmentId };
 }
 export type MessageImageAttachment = ImageAttachment;
 
 export type StartTurnBody = z.input<typeof StartTurnRequestSchema>;
 
-export function buildMultimodalTurnBody(
-  blocks: MessageBlock[],
-  attachments: MessageImageAttachment[],
-): StartTurnBody {
+export function buildMultimodalTurnBody(blocks: MessageBlock[], attachments: MessageImageAttachment[]): StartTurnBody {
   return StartTurnRequestSchema.parse({
     content: buildMultiBlockMessage(blocks),
     attachments,
@@ -129,8 +120,8 @@ export class SessionApi {
   async create(req: CreateSessionRequest): Promise<CreateSessionResponse> {
     const body = CreateSessionRequestSchema.parse(req);
     const raw = await this.client.requestJson<unknown>({
-      method: 'POST',
-      path:   '/sessions',
+      method: "POST",
+      path: "/sessions",
       body,
     });
     return CreateSessionResponseSchema.parse(raw);
@@ -138,21 +129,21 @@ export class SessionApi {
 
   async get(sessionId: string): Promise<Session> {
     const raw = await this.client.requestJson<unknown>({
-      method: 'GET',
-      path:   `/sessions/${sessionId}`,
+      method: "GET",
+      path: `/sessions/${sessionId}`,
     });
     return SessionSchema.parse(raw);
   }
 
   async list(filter: ListSessionsFilter = {}): Promise<ListSessionsResult> {
     const raw = await this.client.requestJson<unknown>({
-      method: 'GET',
-      path:   '/sessions',
-      query:  {
+      method: "GET",
+      path: "/sessions",
+      query: {
         cursor: filter.cursor,
-        limit:  filter.limit,
+        limit: filter.limit,
         status: filter.status,
-        purpose: filter.purpose ?? 'chat',
+        purpose: filter.purpose ?? "chat",
       },
     });
     return ListSessionsResponseSchema.parse(raw);
@@ -160,27 +151,24 @@ export class SessionApi {
 
   async patch(sessionId: string, patch: PatchSessionRequest): Promise<void> {
     await this.client.requestJson<unknown>({
-      method: 'PATCH',
-      path:   `/sessions/${sessionId}`,
-      body:   patch,
+      method: "PATCH",
+      path: `/sessions/${sessionId}`,
+      body: patch,
     });
   }
 
   async delete(sessionId: string): Promise<void> {
     await this.client.requestJson<unknown>({
-      method: 'DELETE',
-      path:   `/sessions/${sessionId}`,
+      method: "DELETE",
+      path: `/sessions/${sessionId}`,
     });
   }
 
-  async listMessages(
-    sessionId: string,
-    opts: { limit?: number } = {},
-  ): Promise<ListMessagesResult> {
+  async listMessages(sessionId: string, opts: { limit?: number } = {}): Promise<ListMessagesResult> {
     const raw = await this.client.requestJson<unknown>({
-      method: 'GET',
-      path:   `/sessions/${sessionId}/messages`,
-      query:  { limit: opts.limit },
+      method: "GET",
+      path: `/sessions/${sessionId}/messages`,
+      query: { limit: opts.limit },
     });
     return ListMessagesResponseSchema.parse(raw);
   }
@@ -192,45 +180,26 @@ export class SessionApi {
    *   - 其它 4xx/5xx/网络错 → `StartTurnFailedError`
    * 自动注入 `idempotency-key` （`crypto.randomUUID()`）；可被 `opts.idempotencyKey` override。
    */
-  async startTurn(
-    sessionId: string,
-    body: StartTurnBody,
-    opts: StartTurnOpts = {},
-  ): Promise<{ turnId: string }> {
+  async startTurn(sessionId: string, body: StartTurnBody, opts: StartTurnOpts = {}): Promise<{ turnId: string }> {
     const idem = opts.idempotencyKey ?? crypto.randomUUID();
     try {
       const validatedBody = StartTurnRequestSchema.parse(body);
       const raw = await this.client.requestJson<unknown>({
-        method:         'POST',
-        path:           `/sessions/${sessionId}/messages`,
+        method: "POST",
+        path: `/sessions/${sessionId}/messages`,
         body: validatedBody,
         idempotencyKey: idem,
         ...(opts.signal ? { signal: opts.signal } : {}),
       });
       const parsed = z.object({ turnId: z.string() }).safeParse(raw);
       if (!parsed.success) {
-        throw new StartTurnFailedError(
-          'INTERNAL_UNKNOWN',
-          null,
-          'startTurn response did not contain a turnId',
-          raw,
-          null,
-          Date.now(),
-        );
+        throw new StartTurnFailedError("INTERNAL_UNKNOWN", null, "startTurn response did not contain a turnId", raw, null, Date.now());
       }
       return { turnId: parsed.data.turnId };
     } catch (e) {
       if (e instanceof SessionBusyError) throw e;
       if (e instanceof AgenticClientError) {
-        throw new StartTurnFailedError(
-          e.code,
-          e.httpStatus,
-          e.message,
-          e.details,
-          e.traceId,
-          e.timestamp,
-          e as unknown as Error,
-        );
+        throw new StartTurnFailedError(e.code, e.httpStatus, e.message, e.details, e.traceId, e.timestamp, e as unknown as Error);
       }
       throw new StartTurnFailedError(
         null,
@@ -251,8 +220,8 @@ export class SessionApi {
    */
   async cancelTurn(sessionId: string, turnId: string): Promise<void> {
     await this.client.requestJson<unknown>({
-      method: 'POST',
-      path:   `/sessions/${sessionId}/turns/${turnId}/cancel`,
+      method: "POST",
+      path: `/sessions/${sessionId}/turns/${turnId}/cancel`,
     });
   }
 
@@ -275,28 +244,22 @@ export class SessionApi {
     opts: { turnId?: string; lastEventId?: string; signal?: AbortSignal } = {},
   ): AsyncIterable<SseEvent> {
     const baseUrl = `${this.config.baseUrl}/sessions/${sessionId}/events`;
-    const url =
-      opts.turnId !== undefined && opts.turnId !== ''
-        ? `${baseUrl}?turnId=${encodeURIComponent(opts.turnId)}`
-        : baseUrl;
+    const url = opts.turnId !== undefined && opts.turnId !== "" ? `${baseUrl}?turnId=${encodeURIComponent(opts.turnId)}` : baseUrl;
     const extra: Record<string, string> = {
-      accept: 'text/event-stream',
+      accept: "text/event-stream",
     };
-    if (opts.lastEventId) extra['last-event-id'] = opts.lastEventId;
+    if (opts.lastEventId) extra["last-event-id"] = opts.lastEventId;
 
     const headers = await this.client.buildRequestHeaders(extra);
 
     let resp: Response;
     try {
-      const init: RequestInit = { method: 'GET', headers };
+      const init: RequestInit = { method: "GET", headers };
       if (opts.signal) init.signal = opts.signal;
       resp = await this.fetchImpl(url, init);
     } catch (e) {
       if (opts.signal?.aborted) return;
-      throw new StreamDisconnectedError(
-        e instanceof Error ? e.message : String(e),
-        e instanceof Error ? e : undefined,
-      );
+      throw new StreamDisconnectedError(e instanceof Error ? e.message : String(e), e instanceof Error ? e : undefined);
     }
 
     if (!resp.ok) {
@@ -307,11 +270,13 @@ export class SessionApi {
     const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
     const onAbort = (): void => {
       // 主动 cancel reader — 让阻塞的 read() 立刻以 done 或 reject 返回
-      void reader.cancel().catch(() => { /* swallow */ });
+      void reader.cancel().catch(() => {
+        /* swallow */
+      });
     };
-    opts.signal?.addEventListener('abort', onAbort);
+    opts.signal?.addEventListener("abort", onAbort);
 
-    let buffer = '';
+    let buffer = "";
     let currentId: string | undefined;
     let dataLines: string[] = [];
 
@@ -320,25 +285,22 @@ export class SessionApi {
       for (;;) {
         let chunk: { done: false; value: string } | { done: true; value?: undefined };
         try {
-          chunk = await reader.read() as typeof chunk;
+          chunk = (await reader.read()) as typeof chunk;
         } catch (e) {
           if (opts.signal?.aborted) return;
-          throw new StreamDisconnectedError(
-            e instanceof Error ? e.message : String(e),
-            e instanceof Error ? e : undefined,
-          );
+          throw new StreamDisconnectedError(e instanceof Error ? e.message : String(e), e instanceof Error ? e : undefined);
         }
         if (chunk.done) return;
         if (opts.signal?.aborted) return;
-        buffer += chunk.value ?? '';
+        buffer += chunk.value ?? "";
         let idx: number;
-        while ((idx = buffer.indexOf('\n')) >= 0) {
+        while ((idx = buffer.indexOf("\n")) >= 0) {
           if (opts.signal?.aborted) return;
-          const raw = buffer.slice(0, idx).replace(/\r$/, '');
+          const raw = buffer.slice(0, idx).replace(/\r$/, "");
           buffer = buffer.slice(idx + 1);
           if (raw.length === 0) {
             if (dataLines.length > 0) {
-              const rawData = dataLines.join('\n');
+              const rawData = dataLines.join("\n");
               dataLines = [];
               const id = currentId;
               currentId = undefined;
@@ -358,22 +320,32 @@ export class SessionApi {
             }
             continue;
           }
-          if (raw.startsWith(':')) continue;
-          const colon = raw.indexOf(':');
+          if (raw.startsWith(":")) continue;
+          const colon = raw.indexOf(":");
           if (colon === -1) continue;
           const field = raw.slice(0, colon).trim();
-          const val = raw.slice(colon + 1).replace(/^ /, '');
+          const val = raw.slice(colon + 1).replace(/^ /, "");
           switch (field) {
-            case 'id':    currentId = val; break;
-            case 'event': /* preserved for future use */ break;
-            case 'data':  dataLines.push(val); break;
-            default: break;
+            case "id":
+              currentId = val;
+              break;
+            case "event":
+              /* preserved for future use */ break;
+            case "data":
+              dataLines.push(val);
+              break;
+            default:
+              break;
           }
         }
       }
     } finally {
-      opts.signal?.removeEventListener('abort', onAbort);
-      try { await reader.cancel(); } catch { /* swallow */ }
+      opts.signal?.removeEventListener("abort", onAbort);
+      try {
+        await reader.cancel();
+      } catch {
+        /* swallow */
+      }
     }
   }
 }

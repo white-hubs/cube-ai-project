@@ -1,25 +1,25 @@
-import { _resetAppConfigCache } from '@cube-ai/ai-center/platform/server-base';
-import { _resetAppConfigCache as resetKbAppConfigCache } from '@cube-ai/kb-core';
+import { resetAppConfigCacheForTests } from "@cube-ai/ai-center/platform/server-base";
+import { _resetAppConfigCache as resetKbAppConfigCache } from "@cube-ai/kb-core";
 
 const ENV_KEYS = [
-  'AGENTIC_ENGINE_SECRETS_SOURCE',
-  'AGENTIC_ENGINE_MEMORY_KIND',
-  'AGENTIC_ENGINE_PROVIDER',
-  'AGENTIC_ENGINE_DESCRIPTOR_LOCAL_DIR',
-  'AGENTIC_ENGINE_MYSQL_URL',
-  'MYSQL_HOST',
-  'MYSQL_PORT',
-  'MYSQL_USER',
-  'MYSQL_USERNAME',
-  'MYSQL_PASSWORD',
-  'MYSQL_DATABASE',
-  'MYSQL_DB',
-  'AGENTIC_ENGINE_REDIS_URL',
-  'REDIS_URL',
-  'CUBE_AI_MOCK',
-  'CUBE_AI_MOCK_FLOWS',
-  'USE_GHCLOUD_IDENTITY',
-  'JWT_KEY_URL',
+  "AGENTIC_ENGINE_SECRETS_SOURCE",
+  "AGENTIC_ENGINE_MEMORY_KIND",
+  "AGENTIC_ENGINE_PROVIDER",
+  "AGENTIC_ENGINE_DESCRIPTOR_LOCAL_DIR",
+  "AGENTIC_ENGINE_MYSQL_URL",
+  "MYSQL_HOST",
+  "MYSQL_PORT",
+  "MYSQL_USER",
+  "MYSQL_USERNAME",
+  "MYSQL_PASSWORD",
+  "MYSQL_DATABASE",
+  "MYSQL_DB",
+  "AGENTIC_ENGINE_REDIS_URL",
+  "REDIS_URL",
+  "CUBE_AI_MOCK",
+  "CUBE_AI_MOCK_FLOWS",
+  "USE_GHCLOUD_IDENTITY",
+  "JWT_KEY_URL",
 ] as const;
 
 export function snapshotAiCenterTestEnv(): Record<string, string | undefined> {
@@ -32,11 +32,11 @@ export function snapshotAiCenterTestEnv(): Record<string, string | undefined> {
 
 function applyMysqlUrlToEnv(mysqlUrl: string): void {
   const parsed = new URL(mysqlUrl);
-  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
   const user = decodeURIComponent(parsed.username);
   const password = decodeURIComponent(parsed.password);
   const host = parsed.hostname;
-  const port = parsed.port || '3306';
+  const port = parsed.port || "3306";
 
   process.env.MYSQL_HOST = host;
   process.env.MYSQL_PORT = port;
@@ -55,13 +55,13 @@ export interface AiCenterIntegrationTestEnv {
 
 /** Integration / e2e: MySQL + optional Redis (ADR-0013 — no SQLite). */
 export function applyAiCenterIntegrationTestEnv(opts: AiCenterIntegrationTestEnv): void {
-  process.env.AGENTIC_ENGINE_SECRETS_SOURCE = 'env';
-  process.env.AGENTIC_ENGINE_MEMORY_KIND = 'in-memory';
-  process.env.AGENTIC_ENGINE_PROVIDER = 'noop';
-  process.env.AGENTIC_ENGINE_DESCRIPTOR_LOCAL_DIR = '';
+  process.env.AGENTIC_ENGINE_SECRETS_SOURCE = "env";
+  process.env.AGENTIC_ENGINE_MEMORY_KIND = "in-memory";
+  process.env.AGENTIC_ENGINE_PROVIDER = "noop";
+  process.env.AGENTIC_ENGINE_DESCRIPTOR_LOCAL_DIR = "";
   // Opt-out of ghcloud identity for integration tests that don't supply a JWT key server.
   // Individual tests that need identity (e.g. identity-e2e.test.ts) must delete this and set JWT_KEY_URL.
-  process.env.USE_GHCLOUD_IDENTITY = '0';
+  process.env.USE_GHCLOUD_IDENTITY = "0";
   applyMysqlUrlToEnv(opts.mysqlUrl);
   if (opts.redisUrl) {
     process.env.AGENTIC_ENGINE_REDIS_URL = opts.redisUrl;
@@ -70,15 +70,13 @@ export function applyAiCenterIntegrationTestEnv(opts: AiCenterIntegrationTestEnv
     delete process.env.AGENTIC_ENGINE_REDIS_URL;
     delete process.env.REDIS_URL;
   }
-  _resetAppConfigCache();
+  resetAppConfigCacheForTests();
   resetKbAppConfigCache();
 }
 
 /** @deprecated Use {@link applyAiCenterIntegrationTestEnv} with Testcontainers MySQL. */
 export function applyAiCenterTestEnv(_sqlitePath: string): void {
-  throw new Error(
-    'applyAiCenterTestEnv(sqlite) removed (ADR-0013). Use applyAiCenterIntegrationTestEnv({ mysqlUrl, redisUrl }).',
-  );
+  throw new Error("applyAiCenterTestEnv(sqlite) removed (ADR-0013). Use applyAiCenterIntegrationTestEnv({ mysqlUrl, redisUrl }).");
 }
 
 export function restoreAiCenterTestEnv(snapshot: Record<string, string | undefined>): void {
@@ -90,6 +88,6 @@ export function restoreAiCenterTestEnv(snapshot: Record<string, string | undefin
       process.env[key] = value;
     }
   }
-  _resetAppConfigCache();
+  resetAppConfigCacheForTests();
   resetKbAppConfigCache();
 }

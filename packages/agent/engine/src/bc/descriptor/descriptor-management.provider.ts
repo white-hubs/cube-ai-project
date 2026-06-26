@@ -11,27 +11,22 @@
  *
  * 无 MySQL 时仍可构造（repository 延迟到方法调用才校验 pool），不阻塞无库 dev 启动。
  */
-import { type Container } from '@dangao/bun-server';
-import type { Pool } from 'mysql2/promise';
-import type { LlmProviderPort } from '@cube-ai/contracts';
-import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from '@cube-ai/contracts/platform';
-import {
-  OUTBOX_WRITER_TOKEN,
-  type OutboxWriter,
-} from '@cube-ai/bun-server-ext-outbox';
-import { buildOutboxWriter } from '../../infra/outbox/outbox-factory';
-import { MYSQL_POOL_TOKEN } from '../../infra/mysql/mysql.tokens';
-import { sharedSfidService } from '../../infra/sfid/shared-sfid';
-import {
-  DescriptorManagementService,
-  type ProposeCandidate,
-  type ProposeCandidateSource,
-} from './descriptor-management.service';
-import { TenantDescriptorRepositoryImpl } from './tenant-descriptor.repository';
-import { DescriptorRegistryService } from './descriptor-registry.service';
-import { RuleRegistryService } from './rule-registry.service';
-import { SkillRegistryService } from './skill-registry.service';
-import { ShelfService } from './shelf.service';
+import { type Container } from "@dangao/bun-server";
+import type { Pool } from "mysql2/promise";
+
+import { OUTBOX_WRITER_TOKEN, type OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
+import type { LlmProviderPort } from "@cube-ai/contracts";
+import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from "@cube-ai/contracts/platform";
+
+import { MYSQL_POOL_TOKEN } from "../../infra/mysql/mysql.tokens";
+import { buildOutboxWriter } from "../../infra/outbox/outbox-factory";
+import { sharedSfidService } from "../../infra/sfid/shared-sfid";
+import { DescriptorManagementService, type ProposeCandidate, type ProposeCandidateSource } from "./descriptor-management.service";
+import { DescriptorRegistryService } from "./descriptor-registry.service";
+import { RuleRegistryService } from "./rule-registry.service";
+import { ShelfService } from "./shelf.service";
+import { SkillRegistryService } from "./skill-registry.service";
+import { TenantDescriptorRepositoryImpl } from "./tenant-descriptor.repository";
 
 function tryResolve<T>(c: Container, token: unknown): T | undefined {
   try {
@@ -52,19 +47,19 @@ function buildCandidateSource(c: Container): ProposeCandidateSource {
   return {
     systemSkills: (): ProposeCandidate[] =>
       (skills?.list() ?? []).map((s) => ({
-        kind: 'skill',
+        kind: "skill",
         ref: s.name,
         ...(s.description ? { description: s.description } : {}),
       })),
     systemRules: (): ProposeCandidate[] =>
       (rules?.list() ?? []).map((r) => ({
-        kind: 'rule',
+        kind: "rule",
         ref: r.name,
         ...(r.description ? { description: r.description } : {}),
       })),
     systemTools: (): ProposeCandidate[] =>
       (tools?.listAll() ?? []).map((t) => ({
-        kind: 'tool',
+        kind: "tool",
         ref: t.name,
         ...(t.description ? { description: t.description } : {}),
       })),
