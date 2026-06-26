@@ -1,31 +1,21 @@
-import { Injectable } from '@dangao/bun-server';
-import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
-import type {
-  CreateSessionInput,
-  SessionRow,
-  SessionRowStatus,
-  CreateSessionRequest as CreateSessionBody,
-} from '@cube-ai/contracts';
-import { SfidService } from '../../infra/sfid/sfid.service';
-import type { SessionRepository } from './repository/session.repository';
-import type { OutboxWriter } from '@cube-ai/bun-server-ext-outbox';
-import { type TransactionContext } from '@cube-ai/bun-server-ext-outbox';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import { appendEngineUtcClockBlock } from '../tools/engine-utc';
-import {
-  hydrateSnapshotSkills,
-  type SkillRegistryResolveLike,
-} from './snapshot-skill-hydration';
-import {
-  hydrateSnapshotRules,
-  snapshotRuleTexts,
-  type RuleRegistryResolveLike,
-} from './snapshot-rule-hydration';
-import { parseTenantDescriptorId } from '@cube-ai/contracts';
-import type { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
-import type { RunnableAgentResolver } from '../descriptor/runnable-agent-resolver';
-import type { RuleDescriptor } from '../descriptor/rule-registry.service';
-import type { SkillDescriptor } from '@tachu/core';
+import { Injectable } from "@dangao/bun-server";
+import type { SkillDescriptor } from "@tachu/core";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+
+import type { OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
+import { type TransactionContext } from "@cube-ai/bun-server-ext-outbox";
+import type { CreateSessionInput, SessionRow, SessionRowStatus, CreateSessionRequest as CreateSessionBody } from "@cube-ai/contracts";
+import { parseTenantDescriptorId } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { SfidService } from "../../infra/sfid/sfid.service";
+import type { RuleDescriptor } from "../descriptor/rule-registry.service";
+import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
+import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
+import { appendEngineUtcClockBlock } from "../tools/engine-utc";
+import type { SessionRepository } from "./repository/session.repository";
+import { hydrateSnapshotRules, snapshotRuleTexts, type RuleRegistryResolveLike } from "./snapshot-rule-hydration";
+import { hydrateSnapshotSkills, type SkillRegistryResolveLike } from "./snapshot-skill-hydration";
 
 const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -45,7 +35,7 @@ export type SessionHttpView = {
   userId: string;
   agentId: string;
   agentVersionNo: number;
-  purpose: 'chat' | 'debug';
+  purpose: "chat" | "debug";
   title: string | null;
   status: SessionRowStatus;
   lastTurnId: string | null;
@@ -61,7 +51,7 @@ function toHttpView(row: SessionRow): SessionHttpView {
     userId: row.userId,
     agentId: row.agentId,
     agentVersionNo: row.agentVersionNo,
-    purpose: row.purpose ?? 'chat',
+    purpose: row.purpose ?? "chat",
     title: row.title,
     status: row.status,
     lastTurnId: row.lastTurnId,
@@ -83,19 +73,18 @@ async function mergeTenantRules(
   tenant: number,
 ): Promise<RuleRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'rule');
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "rule");
   if (!hasTenantRef) return base;
   const tenantRules = new Map<string, RuleDescriptor>();
   for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== 'rule') continue;
+    if (parseTenantDescriptorId(ref)?.kind !== "rule") continue;
     const rule = await resolver.getRule(tenant, ref);
     if (rule) tenantRules.set(ref, rule);
   }
   // 即便预取为空（全部未发布）也返回 wrapper：让 hydrate 逐 ref 抛 not-found，
   // 而非命中「registry 缺失」的内部错误。
   return {
-    resolve: (name: string, version?: string) =>
-      tenantRules.get(name) ?? base?.resolve(name, version),
+    resolve: (name: string, version?: string) => tenantRules.get(name) ?? base?.resolve(name, version),
   };
 }
 
@@ -107,17 +96,16 @@ async function mergeTenantSkills(
   tenant: number,
 ): Promise<SkillRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'skill');
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "skill");
   if (!hasTenantRef) return base;
   const tenantSkills = new Map<string, SkillDescriptor>();
   for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== 'skill') continue;
+    if (parseTenantDescriptorId(ref)?.kind !== "skill") continue;
     const skill = await resolver.getSkill(tenant, ref);
     if (skill) tenantSkills.set(ref, skill);
   }
   return {
-    resolve: (name: string, version?: string) =>
-      tenantSkills.get(name) ?? base?.resolve(name, version),
+    resolve: (name: string, version?: string) => tenantSkills.get(name) ?? base?.resolve(name, version),
   };
 }
 
@@ -137,40 +125,39 @@ async function buildSnapshots(params: {
   runnableAgentResolver?: RunnableAgentResolver;
 }): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown>; agentVersionNo: number }> {
   const frozen = Date.now();
-  const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? '';
+  const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? "";
   // 前缀 id（agt_）→ 租户持久层（仅已发布）；裸 name → 系统级文件/registry（ADR-0016 §5）。
-  const agentIsTenantRef = parseTenantDescriptorId(params.agentId)?.kind === 'agent';
+  const agentIsTenantRef = parseTenantDescriptorId(params.agentId)?.kind === "agent";
   const runnableResolution =
     agentIsTenantRef && params.runnableAgentResolver
-      ? await params.runnableAgentResolver.resolve(params.tenant, params.userId, params.agentId, {
-          ...(params.agentVersionNo !== undefined ? { versionNo: params.agentVersionNo } : {}),
-        })
+      ? await params.runnableAgentResolver.resolve(
+          params.tenant,
+          params.userId,
+          params.agentId,
+          params.agentVersionNo !== undefined ? { versionNo: params.agentVersionNo } : {},
+        )
       : null;
   const agentDescriptor =
     runnableResolution?.record ??
-    (agentIsTenantRef && params.tenantResolver
-      ? await params.tenantResolver.getAgentRecord(params.tenant, params.agentId)
-      : null) ??
+    (agentIsTenantRef && params.tenantResolver ? await params.tenantResolver.getAgentRecord(params.tenant, params.agentId) : null) ??
     (agentIsTenantRef
       ? null
       : ((await params.descriptorLoader?.getAgent?.(params.agentId)) ??
         (await params.descriptorLoader?.loadIndexedAgentDescriptor?.(params.agentId)))) ??
     null;
   if ((params.descriptorLoader || params.tenantResolver) && agentDescriptor == null) {
-    throw AgenticEngineError.fromCode(
-      'RESOURCE_NOT_FOUND_DESCRIPTOR',
-      `Agent descriptor not found: ${params.agentId}`,
-      { agentId: params.agentId },
-    );
+    throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Agent descriptor not found: ${params.agentId}`, {
+      agentId: params.agentId,
+    });
   }
   const agentVersionNo = runnableResolution?.versionNo ?? 1;
   // 系统级文件用 `instructions`，租户级 agent content 用 `prompt`：两者择一。
   const agentInstructions =
-    (agentDescriptor && typeof agentDescriptor['instructions'] === 'string'
-      ? (agentDescriptor['instructions'] as string).trim()
-      : agentDescriptor && typeof agentDescriptor['prompt'] === 'string'
-        ? (agentDescriptor['prompt'] as string).trim()
-        : '');
+    agentDescriptor && typeof agentDescriptor["instructions"] === "string"
+      ? (agentDescriptor["instructions"] as string).trim()
+      : agentDescriptor && typeof agentDescriptor["prompt"] === "string"
+        ? (agentDescriptor["prompt"] as string).trim()
+        : "";
   // TODO(prompt-injection): sessionSuffix is currently injected verbatim into
   // the system prompt with the same trust level as agentInstructions, but it
   // originates from caller-supplied `context.systemSuffix` and should be
@@ -180,80 +167,51 @@ async function buildSnapshots(params: {
   // rule (see CUBE.md > Resisting prompt injection) to mitigate, which is
   // incomplete by itself.
   const sessionSuffix =
-    (params.context && typeof params.context['systemSuffix'] === 'string'
-      ? String(params.context['systemSuffix']).trim()
-      : '');
+    params.context && typeof params.context["systemSuffix"] === "string" ? String(params.context["systemSuffix"]).trim() : "";
   const requestedToolRefs =
-    (agentDescriptor && Array.isArray(agentDescriptor['availableTools'])
-      ? (agentDescriptor['availableTools'] as unknown[]).filter(
-          (x): x is string => typeof x === 'string' && x.length > 0,
-        )
-      : []);
-  const toolRefs = params.toolRegistry
-    ? requestedToolRefs.filter((name) => params.toolRegistry?.resolve(name))
-    : requestedToolRefs;
+    agentDescriptor && Array.isArray(agentDescriptor["availableTools"])
+      ? (agentDescriptor["availableTools"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+      : [];
+  const toolRefs = params.toolRegistry ? requestedToolRefs.filter((name) => params.toolRegistry?.resolve(name)) : requestedToolRefs;
   const ruleRefs =
-    (agentDescriptor && Array.isArray(agentDescriptor['ruleRefs'])
-      ? (agentDescriptor['ruleRefs'] as unknown[]).filter(
-          (x): x is string => typeof x === 'string' && x.length > 0,
-        )
-      : []);
+    agentDescriptor && Array.isArray(agentDescriptor["ruleRefs"])
+      ? (agentDescriptor["ruleRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+      : [];
   const skillRefs =
-    (agentDescriptor && Array.isArray(agentDescriptor['skillRefs'])
-      ? (agentDescriptor['skillRefs'] as unknown[]).filter(
-          (x): x is string => typeof x === 'string' && x.length > 0,
-        )
-      : []);
+    agentDescriptor && Array.isArray(agentDescriptor["skillRefs"])
+      ? (agentDescriptor["skillRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+      : [];
   const subAgentRefs =
-    (agentDescriptor && Array.isArray(agentDescriptor['subAgentRefs'])
-      ? (agentDescriptor['subAgentRefs'] as unknown[]).filter(
-          (x): x is string => typeof x === 'string' && x.length > 0,
-        )
-      : []);
-  const maxDepth =
-    (agentDescriptor && typeof agentDescriptor['maxDepth'] === 'number'
-      ? Number(agentDescriptor['maxDepth'])
-      : undefined);
-  const requestedModel = params.modelCode?.trim() ?? '';
+    agentDescriptor && Array.isArray(agentDescriptor["subAgentRefs"])
+      ? (agentDescriptor["subAgentRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+      : [];
+  const maxDepth = agentDescriptor && typeof agentDescriptor["maxDepth"] === "number" ? Number(agentDescriptor["maxDepth"]) : undefined;
+  const requestedModel = params.modelCode?.trim() ?? "";
   // 前缀 ref（skl_/rul_）经 tenantResolver 预取（仅已发布），与系统 registry 合并成同构 resolve()；
   // 未发布 / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。
-  const skillResolver = await mergeTenantSkills(
-    skillRefs,
-    params.skillRegistry,
-    params.tenantResolver,
-    params.tenant,
-  );
-  const skills =
-    skillRefs.length > 0 ? hydrateSnapshotSkills(skillRefs, skillResolver) : [];
+  const skillResolver = await mergeTenantSkills(skillRefs, params.skillRegistry, params.tenantResolver, params.tenant);
+  const skills = skillRefs.length > 0 ? hydrateSnapshotSkills(skillRefs, skillResolver) : [];
   // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，并注入 system prompt
   // （global prompt 之后、agent prompt 之前）。
-  const ruleResolver = await mergeTenantRules(
-    ruleRefs,
-    params.ruleRegistry,
-    params.tenantResolver,
-    params.tenant,
-  );
-  const rules =
-    ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, ruleResolver) : [];
-  const promptBody = [globalPrompt, ...snapshotRuleTexts(rules), agentInstructions, sessionSuffix]
-    .filter((x) => x.length > 0)
-    .join('\n\n');
+  const ruleResolver = await mergeTenantRules(ruleRefs, params.ruleRegistry, params.tenantResolver, params.tenant);
+  const rules = ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, ruleResolver) : [];
+  const promptBody = [globalPrompt, ...snapshotRuleTexts(rules), agentInstructions, sessionSuffix].filter((x) => x.length > 0).join("\n\n");
   // session 创建时一次性把 UTC 时钟锚点冻结进 snapshot.prompt。
   // 整个 session 复用，不再在每个 turn 重复注入；新鲜时间由 `currentDate` 工具兜底。
   const prompt = appendEngineUtcClockBlock(promptBody, frozen);
   const agentSnapshotJson: Record<string, unknown> = {
-    schema: 'agent-snapshot-v1',
+    schema: "agent-snapshot-v1",
     agent: {
       id: params.agentId,
       versionNo: agentVersionNo,
       content: {
         prompt,
-        modelConfig: { provider: 'unset', model: requestedModel || 'unset', temperature: 0.7 },
+        modelConfig: { provider: "unset", model: requestedModel || "unset", temperature: 0.7 },
         ruleRefs,
         skillRefs,
         toolRefs,
         ...(subAgentRefs.length > 0 ? { subAgentRefs } : {}),
-        ...(typeof maxDepth === 'number' ? { maxDepth } : {}),
+        ...(typeof maxDepth === "number" ? { maxDepth } : {}),
       },
     },
     rules,
@@ -262,7 +220,7 @@ async function buildSnapshots(params: {
     frozenTime: frozen,
   };
   const userPrincipalSnapshotJson: Record<string, unknown> = {
-    schema: 'user-principal-v1',
+    schema: "user-principal-v1",
     tenant: params.tenant,
     userId: params.userId,
     displayName: params.displayName ?? params.userId,
@@ -272,20 +230,14 @@ async function buildSnapshots(params: {
 
   const agentJson = JSON.stringify(agentSnapshotJson);
   const userJson = JSON.stringify(userPrincipalSnapshotJson);
-  const ctxJson = params.context ? JSON.stringify(params.context) : '';
+  const ctxJson = params.context ? JSON.stringify(params.context) : "";
   if (agentJson.length > SNAPSHOT_MAX_BYTES || userJson.length > SNAPSHOT_MAX_BYTES) {
-    throw AgenticEngineError.fromCode(
-      'OUT_OF_RANGE_SNAPSHOT_SIZE',
-      'Snapshot JSON exceeds maximum allowed size',
-      { maxBytes: SNAPSHOT_MAX_BYTES },
-    );
+    throw AgenticEngineError.fromCode("OUT_OF_RANGE_SNAPSHOT_SIZE", "Snapshot JSON exceeds maximum allowed size", {
+      maxBytes: SNAPSHOT_MAX_BYTES,
+    });
   }
   if (ctxJson.length > 64 * 1024) {
-    throw AgenticEngineError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      'context exceeds 64 KiB',
-      {},
-    );
+    throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "context exceeds 64 KiB", {});
   }
 
   return { agent: agentSnapshotJson, user: userPrincipalSnapshotJson, agentVersionNo };
@@ -293,23 +245,19 @@ async function buildSnapshots(params: {
 
 function requirePool(pool: Pool | null): Pool {
   if (!pool) {
-    throw AgenticEngineError.fromCode(
-      'INTERNAL_UNKNOWN',
-      'MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL',
-      {},
-    );
+    throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL", {});
   }
   return pool;
 }
 
 function epochMsFromSql(v: unknown): number {
-  if (typeof v === 'number' && Number.isFinite(v)) {
+  if (typeof v === "number" && Number.isFinite(v)) {
     return v;
   }
   if (v instanceof Date) {
     return v.getTime();
   }
-  if (typeof v === 'string') {
+  if (typeof v === "string") {
     const t = new Date(v).getTime();
     return Number.isNaN(t) ? 0 : t;
   }
@@ -318,26 +266,26 @@ function epochMsFromSql(v: unknown): number {
 
 /** 将 DB `content_json` 规范为对外 `message-content-v1`（含仅写入 blocks 数组的旧行） */
 function normalizeMessageContent(contentJson: unknown): Record<string, unknown> {
-  if (contentJson != null && typeof contentJson === 'object' && !Array.isArray(contentJson)) {
+  if (contentJson != null && typeof contentJson === "object" && !Array.isArray(contentJson)) {
     const o = contentJson as Record<string, unknown>;
-    if (o.schema === 'message-content-v1' && Array.isArray(o.blocks)) {
+    if (o.schema === "message-content-v1" && Array.isArray(o.blocks)) {
       return o as Record<string, unknown>;
     }
     if (Array.isArray(o.blocks)) {
-      return { schema: 'message-content-v1', blocks: o.blocks };
+      return { schema: "message-content-v1", blocks: o.blocks };
     }
   }
   if (Array.isArray(contentJson)) {
-    return { schema: 'message-content-v1', blocks: contentJson };
+    return { schema: "message-content-v1", blocks: contentJson };
   }
   return {
-    schema: 'message-content-v1',
-    blocks: [{ type: 'text', text: typeof contentJson === 'string' ? contentJson : '' }],
+    schema: "message-content-v1",
+    blocks: [{ type: "text", text: typeof contentJson === "string" ? contentJson : "" }],
   };
 }
 
 function mysqlTx(connection: PoolConnection): TransactionContext {
-  return { _brand: 'TransactionContext', mysqlConnection: connection };
+  return { _brand: "TransactionContext", mysqlConnection: connection };
 }
 
 @Injectable()
@@ -374,12 +322,7 @@ export class SessionService {
   /**
    * POST /sessions — create row + session.created outbox (single transaction).
    */
-  async createSession(
-    tenant: number,
-    userId: string,
-    displayName: string | undefined,
-    body: CreateSessionBody,
-  ): Promise<SessionHttpView> {
+  async createSession(tenant: number, userId: string, displayName: string | undefined, body: CreateSessionBody): Promise<SessionHttpView> {
     const snaps = await buildSnapshots({
       tenant,
       userId,
@@ -403,11 +346,11 @@ export class SessionService {
         userId,
         agentId: body.agentId,
         agentVersionNo: snaps.agentVersionNo,
-        purpose: body.purpose ?? 'chat',
+        purpose: body.purpose ?? "chat",
         agentSnapshotJson: snaps.agent,
         userPrincipalSnapshotJson: snaps.user,
         title: body.title ?? null,
-        status: 'ACTIVE',
+        status: "ACTIVE",
         lastTurnId: null,
         lastActiveTime: Date.now(),
         contextJson: body.context ?? null,
@@ -417,8 +360,8 @@ export class SessionService {
 
       await this.outbox.append(mysqlTx(conn), {
         tenant,
-        channel: 'session_lifecycle',
-        eventType: 'session.created',
+        channel: "session_lifecycle",
+        eventType: "session.created",
         payloadJson: {
           sessionId: row.id,
           tenant,
@@ -433,12 +376,7 @@ export class SessionService {
     });
   }
 
-  async getSession(
-    sessionId: string,
-    tenant: number,
-    userId: string,
-    isAdmin: boolean,
-  ): Promise<SessionHttpView | null> {
+  async getSession(sessionId: string, tenant: number, userId: string, isAdmin: boolean): Promise<SessionHttpView | null> {
     const row = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: isAdmin });
     return row ? toHttpView(row) : null;
   }
@@ -454,18 +392,11 @@ export class SessionService {
     isAdmin?: boolean;
     limit: number;
   }): Promise<{ items: unknown[]; page: { hasMore: boolean; nextCursor?: string } }> {
-    const existing = await this.repo.findByIdAsOwner(
-      params.tenant,
-      params.sessionId,
-      params.userId,
-      { admin: params.isAdmin === true },
-    );
+    const existing = await this.repo.findByIdAsOwner(params.tenant, params.sessionId, params.userId, { admin: params.isAdmin === true });
     if (!existing) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_SESSION',
-        `Session ${params.sessionId} not found`,
-        { sessionId: params.sessionId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${params.sessionId} not found`, {
+        sessionId: params.sessionId,
+      });
     }
 
     const limit = Math.min(Math.max(params.limit, 1), 200);
@@ -486,14 +417,14 @@ export class SessionService {
     const items = slice.map((r) => {
       let rawContent: unknown = r.content_json;
       let rawAttachments: unknown = (r as RowDataPacket & { attachments_json?: unknown }).attachments_json;
-      if (typeof rawContent === 'string') {
+      if (typeof rawContent === "string") {
         try {
           rawContent = JSON.parse(rawContent) as unknown;
         } catch {
           rawContent = null;
         }
       }
-      if (typeof rawAttachments === 'string') {
+      if (typeof rawAttachments === "string") {
         try {
           rawAttachments = JSON.parse(rawAttachments) as unknown;
         } catch {
@@ -507,9 +438,7 @@ export class SessionService {
         seq: Number(r.seq),
         role: String(r.role),
         content: normalizeMessageContent(rawContent),
-        ...(Array.isArray(rawAttachments) && rawAttachments.length > 0
-          ? { attachments: rawAttachments }
-          : {}),
+        ...(Array.isArray(rawAttachments) && rawAttachments.length > 0 ? { attachments: rawAttachments } : {}),
         createTime: epochMsFromSql(r.create_time),
       };
     });
@@ -525,13 +454,13 @@ export class SessionService {
     userId: string;
     isAdmin?: boolean;
     statuses?: SessionRowStatus[];
-    purpose?: 'chat' | 'debug' | 'ALL';
+    purpose?: "chat" | "debug" | "ALL";
     cursor?: string;
     limit: number;
   }): Promise<{ items: SessionHttpView[]; nextCursor?: string; hasMore: boolean }> {
     const { items, nextCursor, hasMore } = await this.repo.listByOwner(params.tenant, params.userId, {
       statuses: params.statuses,
-      purpose: params.purpose ?? 'chat',
+      purpose: params.purpose ?? "chat",
       limit: params.limit,
       cursor: params.cursor,
       admin: params.isAdmin === true,
@@ -551,11 +480,11 @@ export class SessionService {
     tenant: number,
     sessionId: string,
     userId: string,
-    patch: { title?: string | null; status?: 'ACTIVE' | 'CLOSED' },
+    patch: { title?: string | null; status?: "ACTIVE" | "CLOSED" },
   ): Promise<void> {
     const existing = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: false });
     if (!existing) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${sessionId} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${sessionId} not found`, {
         sessionId,
       });
     }
@@ -568,23 +497,28 @@ export class SessionService {
       return;
     }
 
-    if (patch.status === 'CLOSED') {
-      if (existing.status !== 'ACTIVE') {
-        throw AgenticEngineError.fromCode(
-          'RESOURCE_CONFLICT_STATE_TRANSITION',
-          'Only ACTIVE sessions can be closed via PATCH',
-          { sessionId, currentStatus: existing.status },
-        );
+    if (patch.status === "CLOSED") {
+      if (existing.status !== "ACTIVE") {
+        throw AgenticEngineError.fromCode("RESOURCE_CONFLICT_STATE_TRANSITION", "Only ACTIVE sessions can be closed via PATCH", {
+          sessionId,
+          currentStatus: existing.status,
+        });
       }
       await this.withTransaction(async (conn) => {
-        await this.repo.updatePartialWithConnection(conn, tenant, sessionId, {
-          ...titlePatch,
-          status: 'CLOSED',
-        }, userId);
+        await this.repo.updatePartialWithConnection(
+          conn,
+          tenant,
+          sessionId,
+          {
+            ...titlePatch,
+            status: "CLOSED",
+          },
+          userId,
+        );
         await this.outbox.append(mysqlTx(conn), {
           tenant,
-          channel: 'session_lifecycle',
-          eventType: 'session.closed',
+          channel: "session_lifecycle",
+          eventType: "session.closed",
           payloadJson: { sessionId, tenant, closedTime: Date.now() },
           target: null,
           scheduleTime: Date.now(),
@@ -593,15 +527,14 @@ export class SessionService {
       return;
     }
 
-    if (patch.status === 'ACTIVE') {
-      if (existing.status !== 'CLOSED') {
-        throw AgenticEngineError.fromCode(
-          'RESOURCE_CONFLICT_STATE_TRANSITION',
-          'Only CLOSED sessions can be reopened via PATCH',
-          { sessionId, currentStatus: existing.status },
-        );
+    if (patch.status === "ACTIVE") {
+      if (existing.status !== "CLOSED") {
+        throw AgenticEngineError.fromCode("RESOURCE_CONFLICT_STATE_TRANSITION", "Only CLOSED sessions can be reopened via PATCH", {
+          sessionId,
+          currentStatus: existing.status,
+        });
       }
-      await this.repo.updatePartial(tenant, sessionId, { ...titlePatch, status: 'ACTIVE' }, userId);
+      await this.repo.updatePartial(tenant, sessionId, { ...titlePatch, status: "ACTIVE" }, userId);
       return;
     }
   }
@@ -610,7 +543,7 @@ export class SessionService {
   async deleteSession(tenant: number, sessionId: string, userId: string): Promise<void> {
     const existing = await this.repo.findByIdAsOwner(tenant, sessionId, userId, { admin: false });
     if (!existing) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${sessionId} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${sessionId} not found`, {
         sessionId,
       });
     }
@@ -619,8 +552,8 @@ export class SessionService {
       await this.repo.softDeleteWithConnection(conn, tenant, sessionId, userId);
       await this.outbox.append(mysqlTx(conn), {
         tenant,
-        channel: 'session_lifecycle',
-        eventType: 'session.deleted',
+        channel: "session_lifecycle",
+        eventType: "session.deleted",
         payloadJson: { sessionId, tenant, deletedTime: Date.now() },
         target: null,
         scheduleTime: Date.now(),

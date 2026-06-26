@@ -1,24 +1,22 @@
-import { describe, expect, mock, test } from 'bun:test';
-import type {
-  DescriptorListingView,
-  ShelfEntryView,
-  TenantDescriptorView,
-} from '@cube-ai/contracts';
-import type { TenantDescriptorRepository } from './tenant-descriptor.repository';
-import type { DescriptorListingRepository } from './listing.service';
-import { ShelfService, type UserShelfRepository } from './shelf.service';
+import { describe, expect, mock, test } from "bun:test";
+
+import type { DescriptorListingView, ShelfEntryView, TenantDescriptorView } from "@cube-ai/contracts";
+
+import type { DescriptorListingRepository } from "./listing.service";
+import { ShelfService, type UserShelfRepository } from "./shelf.service";
+import type { TenantDescriptorRepository } from "./tenant-descriptor.repository";
 
 function fakeDescriptor(over: Partial<TenantDescriptorView> = {}): TenantDescriptorView {
   return {
-    id: 'agt_1',
-    kind: 'agent',
-    name: 'support',
-    ownerUserId: 'alice',
-    status: 'published',
+    id: "agt_1",
+    kind: "agent",
+    name: "support",
+    ownerUserId: "alice",
+    status: "published",
     headVersionNo: 2,
     publishedVersionNo: 1,
     hasUnpublishedChanges: true,
-    content: { prompt: 'draft', displayName: 'Support Agent' },
+    content: { prompt: "draft", displayName: "Support Agent" },
     createTime: 0,
     updateTime: 0,
     ...over,
@@ -27,10 +25,10 @@ function fakeDescriptor(over: Partial<TenantDescriptorView> = {}): TenantDescrip
 
 function fakeListing(over: Partial<DescriptorListingView> = {}): DescriptorListingView {
   return {
-    descriptorId: 'agt_1',
+    descriptorId: "agt_1",
     listed: true,
     sharedVersionNo: 1,
-    publisherUserId: 'alice',
+    publisherUserId: "alice",
     listedTime: 1,
     unlistedTime: null,
     ...over,
@@ -39,15 +37,15 @@ function fakeListing(over: Partial<DescriptorListingView> = {}): DescriptorListi
 
 function fakeEntry(over: Partial<ShelfEntryView> = {}): ShelfEntryView {
   return {
-    id: 'she_1',
-    targetKind: 'agent',
-    targetId: 'agt_1',
-    source: 'ref',
+    id: "she_1",
+    targetKind: "agent",
+    targetId: "agt_1",
+    source: "ref",
     pinVersionNo: null,
     enabled: true,
-    displayName: 'Support Agent',
+    displayName: "Support Agent",
     effectiveVersionNo: 1,
-    runnableStatus: 'runnable',
+    runnableStatus: "runnable",
     ...over,
   };
 }
@@ -60,7 +58,7 @@ function fakeShelfRepo(over: Partial<UserShelfRepository> = {}): UserShelfReposi
     insertRef: mock(async () => fakeEntry()),
     patch: mock(async () => fakeEntry()),
     softDelete: mock(async () => undefined),
-    upsertAuthored: mock(async () => fakeEntry({ source: 'authored', effectiveVersionNo: null })),
+    upsertAuthored: mock(async () => fakeEntry({ source: "authored", effectiveVersionNo: null })),
     ...over,
   };
 }
@@ -92,19 +90,19 @@ function fakeDescriptorRepo(over: Partial<TenantDescriptorRepository> = {}): Ten
   } as unknown as TenantDescriptorRepository;
 }
 
-describe('ShelfService', () => {
-  test('installs listed tenant ref as floating or pinned shelf entry', async () => {
+describe("ShelfService", () => {
+  test("installs listed tenant ref as floating or pinned shelf entry", async () => {
     const shelfRepo = fakeShelfRepo();
     const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo());
 
-    await svc.install(7, 'bob', 'agent', { ref: 'agt_1' });
-    expect(shelfRepo.insertRef).toHaveBeenCalledWith(7, 'bob', 'agent', 'agt_1', null);
+    await svc.install(7, "bob", "agent", { ref: "agt_1" });
+    expect(shelfRepo.insertRef).toHaveBeenCalledWith(7, "bob", "agent", "agt_1", null);
 
-    await svc.install(7, 'bob', 'agent', { ref: 'agt_1', pin: true, mode: 'ref' });
-    expect(shelfRepo.insertRef).toHaveBeenCalledWith(7, 'bob', 'agent', 'agt_1', 1);
+    await svc.install(7, "bob", "agent", { ref: "agt_1", pin: true, mode: "ref" });
+    expect(shelfRepo.insertRef).toHaveBeenCalledWith(7, "bob", "agent", "agt_1", 1);
   });
 
-  test('rejects unlisted tenant ref and copy mode', async () => {
+  test("rejects unlisted tenant ref and copy mode", async () => {
     const shelfRepo = fakeShelfRepo();
     const unlisted = new ShelfService(
       shelfRepo,
@@ -112,23 +110,23 @@ describe('ShelfService', () => {
       fakeDescriptorRepo(),
     );
 
-    await expect(unlisted.install(7, 'bob', 'agent', { ref: 'agt_1' })).rejects.toMatchObject({
-      code: 'FAILED_PRECONDITION_DESCRIPTOR_NOT_LISTED',
+    await expect(unlisted.install(7, "bob", "agent", { ref: "agt_1" })).rejects.toMatchObject({
+      code: "FAILED_PRECONDITION_DESCRIPTOR_NOT_LISTED",
     });
 
-    await expect(
-      unlisted.install(7, 'bob', 'agent', { ref: 'agt_1', mode: 'copy' }),
-    ).rejects.toMatchObject({ code: 'UNIMPLEMENTED_COPY_DESCRIPTOR' });
+    await expect(unlisted.install(7, "bob", "agent", { ref: "agt_1", mode: "copy" })).rejects.toMatchObject({
+      code: "UNIMPLEMENTED_COPY_DESCRIPTOR",
+    });
     expect(shelfRepo.insertRef).not.toHaveBeenCalled();
   });
 
-  test('system library ref without tenant version is runnable when enabled', async () => {
+  test("system library ref without tenant version is runnable when enabled", async () => {
     const svc = new ShelfService(
       fakeShelfRepo({
         listByUser: mock(async () => [
           fakeEntry({
-            targetId: 'safety-baseline',
-            source: 'ref',
+            targetId: "safety-baseline",
+            source: "ref",
             enabled: true,
             effectiveVersionNo: null,
             displayName: undefined,
@@ -139,17 +137,17 @@ describe('ShelfService', () => {
       fakeDescriptorRepo(),
     );
 
-    const entries = await svc.list(7, 'bob', 'agent');
-    expect(entries[0]?.runnableStatus).toBe('runnable');
+    const entries = await svc.list(7, "bob", "agent");
+    expect(entries[0]?.runnableStatus).toBe("runnable");
   });
 
-  test('tenant ref without effective version stays unresolvable', async () => {
+  test("tenant ref without effective version stays unresolvable", async () => {
     const svc = new ShelfService(
       fakeShelfRepo({
         listByUser: mock(async () => [
           fakeEntry({
-            targetId: 'agt_99',
-            source: 'ref',
+            targetId: "agt_99",
+            source: "ref",
             enabled: true,
             effectiveVersionNo: null,
           }),
@@ -159,71 +157,63 @@ describe('ShelfService', () => {
       fakeDescriptorRepo(),
     );
 
-    const entries = await svc.list(7, 'bob', 'agent');
-    expect(entries[0]?.runnableStatus).toBe('unresolvable');
+    const entries = await svc.list(7, "bob", "agent");
+    expect(entries[0]?.runnableStatus).toBe("unresolvable");
   });
 
-  test('lists projected entries and computes disabled status', async () => {
+  test("lists projected entries and computes disabled status", async () => {
     const svc = new ShelfService(
       fakeShelfRepo({ listByUser: mock(async () => [fakeEntry({ enabled: false })]) }),
       fakeListingRepo(),
       fakeDescriptorRepo(),
     );
 
-    const entries = await svc.list(7, 'bob', 'agent');
+    const entries = await svc.list(7, "bob", "agent");
 
-    expect(entries).toEqual([fakeEntry({ enabled: false, runnableStatus: 'disabled' })]);
+    expect(entries).toEqual([fakeEntry({ enabled: false, runnableStatus: "disabled" })]);
   });
 
-  test('filters listed shelf entries by enabled and source', async () => {
+  test("filters listed shelf entries by enabled and source", async () => {
     const svc = new ShelfService(
       fakeShelfRepo({
         listByUser: mock(async () => [
-          fakeEntry({ id: 'she_ref_on', source: 'ref', enabled: true }),
-          fakeEntry({ id: 'she_ref_off', source: 'ref', enabled: false }),
-          fakeEntry({ id: 'she_authored_on', source: 'authored', enabled: true }),
+          fakeEntry({ id: "she_ref_on", source: "ref", enabled: true }),
+          fakeEntry({ id: "she_ref_off", source: "ref", enabled: false }),
+          fakeEntry({ id: "she_authored_on", source: "authored", enabled: true }),
         ]),
       }),
       fakeListingRepo(),
       fakeDescriptorRepo(),
     );
 
-    expect((await svc.list(7, 'bob', 'agent', { enabled: true })).map((e) => e.id)).toEqual([
-      'she_ref_on',
-      'she_authored_on',
-    ]);
-    expect((await svc.list(7, 'bob', 'agent', { source: 'ref' })).map((e) => e.id)).toEqual([
-      'she_ref_on',
-      'she_ref_off',
-    ]);
-    expect((await svc.list(7, 'bob', 'agent', { enabled: true, source: 'authored' })).map((e) => e.id)).toEqual([
-      'she_authored_on',
-    ]);
+    expect((await svc.list(7, "bob", "agent", { enabled: true })).map((e) => e.id)).toEqual(["she_ref_on", "she_authored_on"]);
+    expect((await svc.list(7, "bob", "agent", { source: "ref" })).map((e) => e.id)).toEqual(["she_ref_on", "she_ref_off"]);
+    expect((await svc.list(7, "bob", "agent", { enabled: true, source: "authored" })).map((e) => e.id)).toEqual(["she_authored_on"]);
   });
 
-  test('patch pins to current effective version and remove soft-deletes shelf only', async () => {
+  test("patch pins to current effective version and remove soft-deletes shelf only", async () => {
     const shelfRepo = fakeShelfRepo();
     const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo());
 
-    await svc.patch(7, 'bob', 'she_1', { pin: true });
-    expect(shelfRepo.patch).toHaveBeenCalledWith(7, 'bob', 'she_1', { pinVersionNo: 1 });
+    await svc.patch(7, "bob", "she_1", { pin: true });
+    expect(shelfRepo.patch).toHaveBeenCalledWith(7, "bob", "she_1", { pinVersionNo: 1 });
 
-    await svc.patch(7, 'bob', 'she_1', { enabled: false, pin: false });
-    expect(shelfRepo.patch).toHaveBeenCalledWith(7, 'bob', 'she_1', {
+    await svc.patch(7, "bob", "she_1", { enabled: false, pin: false });
+    expect(shelfRepo.patch).toHaveBeenCalledWith(7, "bob", "she_1", {
       enabled: false,
       pinVersionNo: null,
     });
 
-    await svc.remove(7, 'bob', 'she_1');
-    expect(shelfRepo.softDelete).toHaveBeenCalledWith(7, 'bob', 'she_1');
+    await svc.remove(7, "bob", "she_1");
+    expect(shelfRepo.softDelete).toHaveBeenCalledWith(7, "bob", "she_1");
   });
 
-  test('authored descriptors are inserted into owner shelf', async () => {
+  test("authored descriptors are inserted into owner shelf", async () => {
     const shelfRepo = fakeShelfRepo();
     const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo());
 
-    await svc.upsertAuthored(7, 'alice', 'agt_1', 'agent');
+    await svc.upsertAuthored(7, "alice", "agt_1", "agent");
 
-    expect(shelfRepo.upsertAuthored).toHaveBeenCalledWith(7, 'alice', 'agt_1', 'agent');
+    expect(shelfRepo.upsertAuthored).toHaveBeenCalledWith(7, "alice", "agt_1", "agent");
   });
 });

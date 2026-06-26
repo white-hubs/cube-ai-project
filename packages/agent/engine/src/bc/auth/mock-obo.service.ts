@@ -1,3 +1,5 @@
+import type { CryptoKey, JWK } from "jose";
+import { exportJWK, SignJWT } from "jose";
 /**
  * MockOboService — OBO token provider (RS256) for dev/test.
  *
@@ -6,26 +8,18 @@
  * ref: docs/detailed-design/04-auth-and-authz/mock-obo.md §2
  *      P3-02-auth-oauth2 §3.2
  */
-import { createHash, randomUUID } from 'node:crypto';
-import type { CryptoKey, JWK } from 'jose';
-import { exportJWK, SignJWT } from 'jose';
-import {
-  createPrivateKey,
-  createPublicKey,
-} from 'node:crypto';
-import {
-  DualSubjectSchema,
-  type DualSubject,
-  type ExchangedToken,
-  type OboExchangeInput,
-} from '@cube-ai/contracts';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
+import { createHash, randomUUID } from "node:crypto";
+import { createPrivateKey, createPublicKey } from "node:crypto";
+
+import { DualSubjectSchema, type DualSubject, type ExchangedToken, type OboExchangeInput } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
 
 const DEFAULT_TTL_SECONDS = 600;
 const MAX_TTL_SECONDS = 900;
 
-export const MOCK_OBO_ISSUER = 'agentic-engine-mock-obo';
-export const MOCK_OBO_KID = 'agentic-engine-mock-obo-v1';
+export const MOCK_OBO_ISSUER = "agentic-engine-mock-obo";
+export const MOCK_OBO_KID = "agentic-engine-mock-obo-v1";
 
 export interface MockOboServiceOptions {
   resolvePrivateKeyPem?: () => string | undefined;
@@ -55,24 +49,21 @@ export function getSharedMockOboService(): MockOboService {
 function readJwtUserIdFromAuthorization(rawAuth: string | undefined): string | null {
   if (!rawAuth) return null;
   const auth = rawAuth.trim();
-  if (!auth.toLowerCase().startsWith('bearer ')) return null;
-  const token = auth.slice('bearer '.length).trim();
-  const parts = token.split('.');
+  if (!auth.toLowerCase().startsWith("bearer ")) return null;
+  const token = auth.slice("bearer ".length).trim();
+  const parts = token.split(".");
   if (parts.length !== 3) return null;
-  const payloadSeg = parts[1] ?? '';
+  const payloadSeg = parts[1] ?? "";
   if (!payloadSeg) return null;
   try {
-    const normalized = payloadSeg.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(
-      normalized.length + ((4 - (normalized.length % 4)) % 4),
-      '=',
-    );
-    const decoded = Buffer.from(padded, 'base64').toString('utf8');
+    const normalized = payloadSeg.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const decoded = Buffer.from(padded, "base64").toString("utf8");
     const payload = JSON.parse(decoded) as Record<string, unknown>;
-    for (const key of ['id', 'sub'] as const) {
+    for (const key of ["id", "sub"] as const) {
       const claim = payload[key];
-      if (typeof claim === 'string' && claim.length > 0) return claim;
-      if (typeof claim === 'number' && Number.isFinite(claim)) return String(claim);
+      if (typeof claim === "string" && claim.length > 0) return claim;
+      if (typeof claim === "number" && Number.isFinite(claim)) return String(claim);
     }
     return null;
   } catch {
@@ -99,21 +90,13 @@ export class MockOboService {
      * 这与生产 oauth2 introspection 的输出形态一致，使前端无需为 dev 联调发任何
      * 自定义 header — 主框架自动注入的 `tenant` + `Authorization` 即可走通。
      */
-    const tenantRaw =
-      lower('tenant') ??
-      lower('x-mock-tenant') ??
-      lower('x-mock-tenant-id') ??
-      '1';
+    const tenantRaw = lower("tenant") ?? lower("x-mock-tenant") ?? lower("x-mock-tenant-id") ?? "1";
     const tenant = parseInt(tenantRaw, 10) || 1;
-    const tokenUserId = readJwtUserIdFromAuthorization(lower('authorization'));
-    const userId =
-      tokenUserId ??
-      lower('x-mock-user') ??
-      lower('x-mock-user-id') ??
-      'mock-user';
-    const traceId = lower('x-trace-id') ?? `mock-trace-${Date.now()}`;
-    const scopes = ['engine.use', 'openid'];
-    const rawTokenSha256 = createHash('sha256').update(`${userId}:${tenant}:${traceId}`).digest('hex');
+    const tokenUserId = readJwtUserIdFromAuthorization(lower("authorization"));
+    const userId = tokenUserId ?? lower("x-mock-user") ?? lower("x-mock-user-id") ?? "mock-user";
+    const traceId = lower("x-trace-id") ?? `mock-trace-${Date.now()}`;
+    const scopes = ["engine.use", "openid"];
+    const rawTokenSha256 = createHash("sha256").update(`${userId}:${tenant}:${traceId}`).digest("hex");
 
     return DualSubjectSchema.parse({
       user: {
@@ -125,75 +108,61 @@ export class MockOboService {
         expiresAt: Date.now() + 3600_000,
       },
       service: {
-        clientId: 'mock-obo-client',
-        scopes: ['engine.use'],
+        clientId: "mock-obo-client",
+        scopes: ["engine.use"],
         expiresAt: Date.now() + 3600_000,
       },
       tenant,
       traceId,
-      terminal: 'web',
+      terminal: "web",
     });
   }
 
   private async loadMaterial(): Promise<MaterializedKeys> {
     const pem =
-      process.env['AGENTIC_ENGINE_MOCK_OBO_PRIVATE_KEY_PEM']?.replace(/\\n/g, '\n') ??
-      this.opts.resolvePrivateKeyPem?.()?.replace(/\\n/g, '\n');
+      process.env["AGENTIC_ENGINE_MOCK_OBO_PRIVATE_KEY_PEM"]?.replace(/\\n/g, "\n") ??
+      this.opts.resolvePrivateKeyPem?.()?.replace(/\\n/g, "\n");
 
     if (pem) {
-      const privNode = createPrivateKey({ key: pem, format: 'pem' });
+      const privNode = createPrivateKey({ key: pem, format: "pem" });
       const pubNode = createPublicKey({
-        key: privNode.export({ format: 'pem', type: 'pkcs8' }),
-        format: 'pem',
+        key: privNode.export({ format: "pem", type: "pkcs8" }),
+        format: "pem",
       });
-      const privDer = new Uint8Array(privNode.export({ type: 'pkcs8', format: 'der' }) as Uint8Array);
-      const pubDer = new Uint8Array(pubNode.export({ type: 'spki', format: 'der' }) as Uint8Array);
+      const privDer = new Uint8Array(privNode.export({ type: "pkcs8", format: "der" }) as Uint8Array);
+      const pubDer = new Uint8Array(pubNode.export({ type: "spki", format: "der" }) as Uint8Array);
 
-      const privateKey = await crypto.subtle.importKey(
-        'pkcs8',
-        privDer,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        false,
-        ['sign'],
-      );
+      const privateKey = await crypto.subtle.importKey("pkcs8", privDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
 
-      const pubCrypto = await crypto.subtle.importKey(
-        'spki',
-        pubDer,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        true,
-        ['verify'],
-      );
+      const pubCrypto = await crypto.subtle.importKey("spki", pubDer, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, true, ["verify"]);
       const jwk = await exportJWK(pubCrypto);
       const publicJwk: JWK = {
         ...jwk,
         kid: MOCK_OBO_KID,
-        use: 'sig',
-        alg: 'RS256',
+        use: "sig",
+        alg: "RS256",
       };
 
       return { kid: MOCK_OBO_KID, privateKey, publicJwk };
     }
 
-    const allowDevKeys =
-      process.env['NODE_ENV'] !== 'production' ||
-      process.env['AGENTIC_ENGINE_MOCK_OBO_DEV_AUTOKEY'] === 'true';
+    const allowDevKeys = process.env["NODE_ENV"] !== "production" || process.env["AGENTIC_ENGINE_MOCK_OBO_DEV_AUTOKEY"] === "true";
     if (!allowDevKeys) {
       throw AgenticEngineError.fromCode(
-        'INTERNAL_SECRET_MISSING',
-        'Mock OBO private key missing: set AGENTIC_ENGINE_MOCK_OBO_PRIVATE_KEY_PEM or enable AGENTIC_ENGINE_MOCK_OBO_DEV_AUTOKEY in production',
+        "INTERNAL_SECRET_MISSING",
+        "Mock OBO private key missing: set AGENTIC_ENGINE_MOCK_OBO_PRIVATE_KEY_PEM or enable AGENTIC_ENGINE_MOCK_OBO_DEV_AUTOKEY in production",
       );
     }
 
     const pair = await crypto.subtle.generateKey(
       {
-        name: 'RSASSA-PKCS1-v1_5',
+        name: "RSASSA-PKCS1-v1_5",
         modulusLength: 2048,
         publicExponent: new Uint8Array([1, 0, 1]),
-        hash: 'SHA-256',
+        hash: "SHA-256",
       },
       true,
-      ['sign', 'verify'],
+      ["sign", "verify"],
     );
 
     const privateKey = pair.privateKey;
@@ -201,8 +170,8 @@ export class MockOboService {
     const publicJwk: JWK = {
       ...jwk,
       kid: MOCK_OBO_KID,
-      use: 'sig',
-      alg: 'RS256',
+      use: "sig",
+      alg: "RS256",
     };
 
     return { kid: MOCK_OBO_KID, privateKey, publicJwk };
@@ -226,20 +195,20 @@ export class MockOboService {
     const exp = nowSec + ttl;
     const { privateKey, kid } = await this.ensureMaterial();
 
-    const jti = `obo_${randomUUID().replace(/-/g, '')}`;
-    const userPrefix = createHash('sha256').update(`${input.subjectUserId}`).digest('hex').slice(0, 8);
+    const jti = `obo_${randomUUID().replace(/-/g, "")}`;
+    const userPrefix = createHash("sha256").update(`${input.subjectUserId}`).digest("hex").slice(0, 8);
 
     const jwt = await new SignJWT({
       tenant_id: String(input.tenant),
-      scope: input.targetScope.join(' '),
-      act: { sub: 'cube-agentic-engine' },
+      scope: input.targetScope.join(" "),
+      act: { sub: "cube-agentic-engine" },
       _mock: true,
       _origin_user_token_sha256_prefix: userPrefix,
     })
-      .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT", kid })
       .setIssuer(MOCK_OBO_ISSUER)
       .setSubject(input.subjectUserId)
-      .setAudience(input.audience ?? 'agentic-engine')
+      .setAudience(input.audience ?? "agentic-engine")
       .setIssuedAt(nowSec)
       .setNotBefore(nowSec)
       .setExpirationTime(exp)
@@ -252,13 +221,13 @@ export class MockOboService {
       audience: input.audience,
       scope: [...input.targetScope],
       expiresAt: exp * 1000,
-      source: 'mock',
+      source: "mock",
       kid,
       cached: false,
     };
   }
 
   jwksPath(): string {
-    return '/.well-known/agentic-engine-mock-obo/jwks.json';
+    return "/.well-known/agentic-engine-mock-obo/jwks.json";
   }
 }
