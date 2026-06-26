@@ -1,4 +1,5 @@
 import type { AccessTokenReader, DeveloperApiKeyReader } from '@cube-ai/ai-center/platform/server-base'
+import type { Context } from '@dangao/bun-server'
 import type { SecurityContextHolder } from './security-context'
 import type { SessionContextHolder } from './session-context'
 import { createJwtAuthMiddleware } from './jwt-auth'
@@ -49,10 +50,19 @@ export function createHostPatReader(fallback?: DeveloperApiKeyReader): Developer
   }
 }
 
+function hasDeveloperApiKeyHeader(ctx: Context): boolean {
+  return (ctx.request.headers.get('x-api-key')?.trim() ?? '') !== ''
+}
+
 export interface GhcloudIdentityMiddlewareOptions {
   jwtKeyUrl: string
   securityHolder?: SecurityContextHolder
   sessionHolder?: SessionContextHolder
+  /**
+   * Lets ai-center support host-verified developer API keys alongside ghcloud JWT.
+   * The key is not trusted here; this only lets the request reach execution-auth.
+   */
+  allowDeveloperApiKeyPassThrough?: boolean
 }
 
 /** HTTP middleware chain: session → JWT RS256 → tenant validation (matches ai-server wiring). */
@@ -60,11 +70,12 @@ export function createGhcloudIdentityMiddleware(options: GhcloudIdentityMiddlewa
   const securityHolder = options.securityHolder ?? securityContextHolder
   const sessionHolder = options.sessionHolder ?? sessionContextHolder
   const keyLoader = createJwtKeyLoader(options.jwtKeyUrl)
+  const developerApiKeyBypass = options.allowDeveloperApiKeyPassThrough ? hasDeveloperApiKeyHeader : undefined
 
   return [
     createSessionContextMiddleware(sessionHolder),
-    createJwtAuthMiddleware({ holder: securityHolder, keyLoader }),
-    createTenantValidationMiddleware(securityHolder, sessionHolder),
+    createJwtAuthMiddleware({ holder: securityHolder, keyLoader, bypass: developerApiKeyBypass }),
+    createTenantValidationMiddleware(securityHolder, sessionHolder, { bypass: developerApiKeyBypass }),
   ] as const
 }
 

@@ -18,12 +18,15 @@ function tenantsFromPayload(payload: Record<string, unknown> | undefined): strin
 export function createTenantValidationMiddleware(
   securityHolder: SecurityContextHolder,
   sessionHolder: SessionContextHolder,
-  options?: { whitelistPrefixes?: string[] },
+  options?: { whitelistPrefixes?: string[]; bypass?: (ctx: Context) => boolean },
 ): Middleware {
   const whitelistPrefixes = options?.whitelistPrefixes ?? ['/health', '/metrics']
 
   return async (ctx: Context, next: NextFunction) => {
     if (whitelistPrefixes.some((prefix) => ctx.path.startsWith(prefix))) {
+      return next()
+    }
+    if (options?.bypass?.(ctx)) {
       return next()
     }
 

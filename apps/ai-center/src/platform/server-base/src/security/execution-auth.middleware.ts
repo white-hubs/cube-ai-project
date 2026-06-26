@@ -54,7 +54,7 @@ function isPublicPath(path: string): boolean {
 export function createExecutionAuthMiddleware(deps: {
   accessTokenReader: AccessTokenReader
   apiKeyReader?: DeveloperApiKeyReader
-  /** Host builtin key for in-process callbacks (knowledge-retrieval → POST /search/*). */
+  /** Host builtin key for in-process callbacks (knowledge-retrieval → POST /kb/search/*). */
   builtinSystemApiKey?: string
   prefixes?: string[]
 }): Middleware {

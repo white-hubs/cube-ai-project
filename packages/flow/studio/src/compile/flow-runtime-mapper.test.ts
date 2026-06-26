@@ -196,7 +196,7 @@ describe('flow-runtime-mapper', () => {
         { document_id: 'biz-doc-2', top_k: 6, min_score: 0.4 },
       ]),
     )
-    expect(node.config.api_url).toBe('__AI_CENTER_BASE_URL__/search/by-documents')
+    expect(node.config.api_url).toBe('__AI_CENTER_BASE_URL__/kb/search/by-documents')
 
     const dsl = node.config.cube_dsl as Record<string, unknown>
     expect(dsl.dslVersion).toBe(2)
@@ -204,6 +204,19 @@ describe('flow-runtime-mapper', () => {
     expect(out.name).toBe('SEARCH_RESULTS')
     expect(out.kind).toBe('text')
     expect(out.value_from).toBe('SEARCH_RESULTS')
+    const workflow = dsl.workflow as { blocks?: Array<Record<string, unknown>> }
+    const ifBlock = workflow.blocks?.find((block) => block.type === 'if') as { condition?: unknown; then?: Array<Record<string, unknown>> } | undefined
+    expect(ifBlock?.condition).toEqual({
+      kind: 'and',
+      conditions: [
+        { kind: 'non_empty', field: 'query' },
+        { kind: 'non_empty', field: 'sources' },
+      ],
+    })
+    const bodyExpr = JSON.stringify(ifBlock?.then?.find((block) => block.output_as === 'kr_batch_request_body'))
+    expect(bodyExpr).toContain('documentId')
+    expect(bodyExpr).toContain('topK')
+    expect(bodyExpr).toContain('similarityThreshold')
   })
 
   test('uses ai-center runtime context and mapped document ids when provided', () => {
@@ -238,7 +251,7 @@ describe('flow-runtime-mapper', () => {
         { document_id: 'doc-202', top_k: 3, min_score: 0.4 },
       ]),
     )
-    expect(node.config.api_url).toBe('https://ai-center.example.com/search/by-documents')
+    expect(node.config.api_url).toBe('https://ai-center.example.com/kb/search/by-documents')
     expect(node.config.api_key).toBe('key-123')
     expect(node.config.project_id).toBe('project-456')
   })
