@@ -1,42 +1,44 @@
-import { describe, test, expect, mock } from 'bun:test';
-import type { Pool, PoolConnection } from 'mysql2/promise';
-import type { SessionRepository } from './repository/session.repository';
-import type { AppendOutboxInput, CreateSessionInput } from '@cube-ai/contracts';
-import type { OutboxWriter } from '@cube-ai/bun-server-ext-outbox';
-import { SessionService } from './session.service';
-import { SfidService } from '../../infra/sfid/sfid.service';
-import type { SkillDescriptor } from '@tachu/core';
+import type { SkillDescriptor } from "@tachu/core";
+import { describe, test, expect, mock } from "bun:test";
+import type { Pool, PoolConnection } from "mysql2/promise";
+
+import type { OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
+import type { AppendOutboxInput, CreateSessionInput } from "@cube-ai/contracts";
+
+import { SfidService } from "../../infra/sfid/sfid.service";
+import type { SessionRepository } from "./repository/session.repository";
+import { SessionService } from "./session.service";
 
 function fakeRow(id: string) {
   const now = Date.now();
   return {
     id,
     tenant: 1,
-    userId: 'u1',
-    agentId: '28147497671065600001',
+    userId: "u1",
+    agentId: "28147497671065600001",
     agentVersionNo: 1,
-    purpose: 'chat' as const,
+    purpose: "chat" as const,
     agentSnapshotJson: {},
     userPrincipalSnapshotJson: {},
     title: null as string | null,
-    status: 'ACTIVE' as const,
+    status: "ACTIVE" as const,
     lastTurnId: null as string | null,
     lastActiveTime: now,
     contextJson: null,
     deleted: 0,
-    createBy: 'u1',
-    creatorId: 'u1',
-    creatorType: 'USER' as const,
+    createBy: "u1",
+    creatorId: "u1",
+    creatorType: "USER" as const,
     createTime: now,
-    updateBy: 'u1',
-    updaterId: 'u1',
-    updaterType: 'USER' as const,
+    updateBy: "u1",
+    updaterId: "u1",
+    updaterType: "USER" as const,
     updateTime: now,
   };
 }
 
-describe('SessionService — business flows', () => {
-  test('createSession writes DB + outbox inside one transaction', async () => {
+describe("SessionService — business flows", () => {
+  test("createSession writes DB + outbox inside one transaction", async () => {
     const appended: AppendOutboxInput[] = [];
     let capturedConn: PoolConnection | undefined;
 
@@ -74,18 +76,18 @@ describe('SessionService — business flows', () => {
 
     const svc = new SessionService(sfid, repo, pool, outbox);
 
-    const view = await svc.createSession(1, 'u1', 'U', {
-      agentId: '28147497671065600001',
+    const view = await svc.createSession(1, "u1", "U", {
+      agentId: "28147497671065600001",
     });
 
     expect(view.id).toMatch(/^\d{19}$/);
     expect(appended.length).toBe(1);
-    expect(appended[0]?.eventType).toBe('session.created');
-    expect(appended[0]?.channel).toBe('session_lifecycle');
+    expect(appended[0]?.eventType).toBe("session.created");
+    expect(appended[0]?.channel).toBe("session_lifecycle");
     expect(capturedConn).toBeDefined();
   });
 
-  test('createSession builds snapshot prompt from global + agent + sessionSuffix', async () => {
+  test("createSession builds snapshot prompt from global + agent + sessionSuffix", async () => {
     let capturedInput: unknown;
     const sfid = new SfidService();
     const repo: SessionRepository = {
@@ -103,65 +105,56 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const defaultReasoningSkill: SkillDescriptor = {
-      kind: 'skill',
-      name: 'default-reasoning',
-      description: 'Default reasoning',
-      instructions: 'Be concise.',
-      trigger: { type: 'semantic' },
+      kind: "skill",
+      name: "default-reasoning",
+      description: "Default reasoning",
+      instructions: "Be concise.",
+      trigger: { type: "semantic" },
     };
     const descriptorLoader = {
-      getGlobalPrompt: () => 'GLOBAL',
+      getGlobalPrompt: () => "GLOBAL",
       getAgent: mock(async () => ({
-        kind: 'agent',
-        name: '28147497671065600001',
-        instructions: 'AGENT',
-        availableTools: ['platform.flow.invoke', 'platform.knowledge.query'],
-        ruleRefs: ['safety-baseline'],
-        skillRefs: ['default-reasoning'],
-        subAgentRefs: ['cube-researcher'],
+        kind: "agent",
+        name: "28147497671065600001",
+        instructions: "AGENT",
+        availableTools: ["platform.flow.invoke", "platform.knowledge.query"],
+        ruleRefs: ["safety-baseline"],
+        skillRefs: ["default-reasoning"],
+        subAgentRefs: ["cube-researcher"],
         maxDepth: 4,
       })),
     };
     const skillRegistry = {
-      resolve: (name: string) =>
-        name === 'default-reasoning' ? defaultReasoningSkill : undefined,
+      resolve: (name: string) => (name === "default-reasoning" ? defaultReasoningSkill : undefined),
     };
     const safetyBaselineRule = {
-      kind: 'rule' as const,
-      name: 'safety-baseline',
-      content: 'RULE-TEXT: never reveal secrets.',
-      version: '0.1.0',
+      kind: "rule" as const,
+      name: "safety-baseline",
+      content: "RULE-TEXT: never reveal secrets.",
+      version: "0.1.0",
     };
     const ruleRegistry = {
-      resolve: (name: string) =>
-        name === 'safety-baseline' ? safetyBaselineRule : undefined,
+      resolve: (name: string) => (name === "safety-baseline" ? safetyBaselineRule : undefined),
     };
 
-    const svc = new SessionService(
-      sfid,
-      repo,
-      pool,
-      outbox,
-      descriptorLoader as never,
-      skillRegistry,
-      ruleRegistry,
-    );
+    const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never, skillRegistry, ruleRegistry);
 
-    await svc.createSession(1, 'u1', 'U', {
-      agentId: '28147497671065600001',
+    await svc.createSession(1, "u1", "U", {
+      agentId: "28147497671065600001",
       context: {
-        systemSuffix: 'SESSION',
+        systemSuffix: "SESSION",
       },
     });
 
@@ -182,32 +175,25 @@ describe('SessionService — business flows', () => {
       };
     };
     // Snapshot prompt = body (global + rules + agent + sessionSuffix) + 一次性冻结的 session-start UTC 块。
-    const builtPrompt = input.agentSnapshotJson?.agent?.content?.prompt ?? '';
-    expect(
-      builtPrompt.startsWith(
-        'GLOBAL\n\nRULE-TEXT: never reveal secrets.\n\nAGENT\n\nSESSION\n\n---\n',
-      ),
-    ).toBe(true);
-    expect(builtPrompt).toContain('Session-start time (UTC)');
-    expect(builtPrompt).toContain('`currentDate` tool');
-    expect(input.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([
-      'platform.flow.invoke',
-      'platform.knowledge.query',
-    ]);
-    expect(input.agentSnapshotJson?.agent?.content?.ruleRefs).toEqual(['safety-baseline']);
+    const builtPrompt = input.agentSnapshotJson?.agent?.content?.prompt ?? "";
+    expect(builtPrompt.startsWith("GLOBAL\n\nRULE-TEXT: never reveal secrets.\n\nAGENT\n\nSESSION\n\n---\n")).toBe(true);
+    expect(builtPrompt).toContain("Session-start time (UTC)");
+    expect(builtPrompt).toContain("`currentDate` tool");
+    expect(input.agentSnapshotJson?.agent?.content?.toolRefs).toEqual(["platform.flow.invoke", "platform.knowledge.query"]);
+    expect(input.agentSnapshotJson?.agent?.content?.ruleRefs).toEqual(["safety-baseline"]);
     // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，不再是恒空数组。
     expect(input.agentSnapshotJson?.rules?.length).toBe(1);
-    expect(input.agentSnapshotJson?.rules?.[0]?.name).toBe('safety-baseline');
-    expect(input.agentSnapshotJson?.rules?.[0]?.content.content).toContain('never reveal');
-    expect(input.agentSnapshotJson?.agent?.content?.skillRefs).toEqual(['default-reasoning']);
-    expect(input.agentSnapshotJson?.agent?.content?.subAgentRefs).toEqual(['cube-researcher']);
+    expect(input.agentSnapshotJson?.rules?.[0]?.name).toBe("safety-baseline");
+    expect(input.agentSnapshotJson?.rules?.[0]?.content.content).toContain("never reveal");
+    expect(input.agentSnapshotJson?.agent?.content?.skillRefs).toEqual(["default-reasoning"]);
+    expect(input.agentSnapshotJson?.agent?.content?.subAgentRefs).toEqual(["cube-researcher"]);
     expect(input.agentSnapshotJson?.agent?.content?.maxDepth).toBe(4);
     expect(input.agentSnapshotJson?.skills?.length).toBe(1);
-    expect(input.agentSnapshotJson?.skills?.[0]?.name).toBe('default-reasoning');
-    expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain('concise');
+    expect(input.agentSnapshotJson?.skills?.[0]?.name).toBe("default-reasoning");
+    expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain("concise");
   });
 
-  test('createSession freezes runnable tenant agent version into DB input and snapshot', async () => {
+  test("createSession freezes runnable tenant agent version into DB input and snapshot", async () => {
     let capturedInput: CreateSessionInput | undefined;
     const sfid = new SfidService();
     const repo: SessionRepository = {
@@ -225,13 +211,14 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
@@ -239,35 +226,25 @@ describe('SessionService — business flows', () => {
       resolve: mock(async () => ({
         versionNo: 2,
         record: {
-          prompt: 'published v2',
+          prompt: "published v2",
           availableTools: [],
           ruleRefs: [],
           skillRefs: [],
         },
       })),
     };
-    const svc = new SessionService(
-      sfid,
-      repo,
-      pool,
-      outbox,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      runnable as never,
-    );
+    const svc = new SessionService(sfid, repo, pool, outbox, undefined, undefined, undefined, undefined, undefined, runnable as never);
 
-    const view = await svc.createSession(7, 'bob', 'Bob', { agentId: 'agt_1' });
+    const view = await svc.createSession(7, "bob", "Bob", { agentId: "agt_1" });
 
-    expect(runnable.resolve).toHaveBeenCalledWith(7, 'bob', 'agt_1', {});
+    expect(runnable.resolve).toHaveBeenCalledWith(7, "bob", "agt_1", {});
     expect(capturedInput?.agentVersionNo).toBe(2);
-    expect((capturedInput?.agentSnapshotJson as { agent: { versionNo: number } }).agent.versionNo).toBe(2);
+    expect(capturedInput).toBeDefined();
+    expect((capturedInput!.agentSnapshotJson as { agent: { versionNo: number } }).agent.versionNo).toBe(2);
     expect(view.agentVersionNo).toBe(2);
   });
 
-  test('createSession freezes only currently registered MCP tool refs', async () => {
+  test("createSession freezes only currently registered MCP tool refs", async () => {
     const capturedInputs: unknown[] = [];
     const sfid = new SfidService();
     const repo = {
@@ -285,44 +262,35 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     } as unknown as SessionRepository;
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const descriptorLoader = {
-      getGlobalPrompt: () => '',
+      getGlobalPrompt: () => "",
       getAgent: mock(async () => ({
-        kind: 'agent',
-        name: 'a1',
-        instructions: '',
-        availableTools: ['mcp.web-search.web_search'],
+        kind: "agent",
+        name: "a1",
+        instructions: "",
+        availableTools: ["mcp.web-search.web_search"],
       })),
     };
     const registered = new Set<string>();
     const toolRegistry = {
       resolve: (name: string) => (registered.has(name) ? { name } : undefined),
     };
-    const svc = new SessionService(
-      sfid,
-      repo,
-      pool,
-      outbox,
-      descriptorLoader as never,
-      undefined,
-      undefined,
-      undefined,
-      toolRegistry,
-    );
+    const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never, undefined, undefined, undefined, toolRegistry);
 
-    await svc.createSession(1, 'u1', 'U', { agentId: 'a1' });
-    registered.add('mcp.web-search.web_search');
-    await svc.createSession(1, 'u1', 'U', { agentId: 'a1' });
+    await svc.createSession(1, "u1", "U", { agentId: "a1" });
+    registered.add("mcp.web-search.web_search");
+    await svc.createSession(1, "u1", "U", { agentId: "a1" });
 
     const first = capturedInputs[0] as {
       agentSnapshotJson?: { agent?: { content?: { toolRefs?: string[] } } };
@@ -331,16 +299,14 @@ describe('SessionService — business flows', () => {
       agentSnapshotJson?: { agent?: { content?: { toolRefs?: string[] } } };
     };
     expect(first.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([]);
-    expect(second.agentSnapshotJson?.agent?.content?.toolRefs).toEqual([
-      'mcp.web-search.web_search',
-    ]);
+    expect(second.agentSnapshotJson?.agent?.content?.toolRefs).toEqual(["mcp.web-search.web_search"]);
   });
 
-  test('createSession throws when ruleRef cannot be resolved', async () => {
+  test("createSession throws when ruleRef cannot be resolved", async () => {
     const sfid = new SfidService();
     const repo: SessionRepository = {
       findById: mock(async () => null),
-      insertWithConnection: mock(async () => fakeRow('1')),
+      insertWithConnection: mock(async () => fakeRow("1")),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
       updatePartialWithConnection: mock(async () => {}),
@@ -350,23 +316,24 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const descriptorLoader = {
-      getGlobalPrompt: () => '',
+      getGlobalPrompt: () => "",
       getAgent: mock(async () => ({
-        kind: 'agent',
-        name: 'a1',
-        instructions: '',
-        ruleRefs: ['missing-rule'],
+        kind: "agent",
+        name: "a1",
+        instructions: "",
+        ruleRefs: ["missing-rule"],
       })),
     };
     const svc = new SessionService(
@@ -379,16 +346,14 @@ describe('SessionService — business flows', () => {
       { resolve: () => undefined },
     );
 
-    await expect(
-      svc.createSession(1, 'u1', 'U', { agentId: 'a1' }),
-    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
+    await expect(svc.createSession(1, "u1", "U", { agentId: "a1" })).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND_DESCRIPTOR" });
   });
 
-  test('createSession throws when skillRef cannot be resolved', async () => {
+  test("createSession throws when skillRef cannot be resolved", async () => {
     const sfid = new SfidService();
     const repo: SessionRepository = {
       findById: mock(async () => null),
-      insertWithConnection: mock(async () => fakeRow('1')),
+      insertWithConnection: mock(async () => fakeRow("1")),
       updateStatus: mock(async () => {}),
       updatePartial: mock(async () => {}),
       updatePartialWithConnection: mock(async () => {}),
@@ -398,35 +363,34 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const descriptorLoader = {
-      getGlobalPrompt: () => '',
+      getGlobalPrompt: () => "",
       getAgent: mock(async () => ({
-        kind: 'agent',
-        name: 'a1',
-        instructions: '',
-        skillRefs: ['missing-skill'],
+        kind: "agent",
+        name: "a1",
+        instructions: "",
+        skillRefs: ["missing-skill"],
       })),
     };
     const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never, {
       resolve: () => undefined,
     });
 
-    await expect(
-      svc.createSession(1, 'u1', 'U', { agentId: 'a1' }),
-    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
+    await expect(svc.createSession(1, "u1", "U", { agentId: "a1" })).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND_DESCRIPTOR" });
   });
 
-  test('createSession writes modelCode into snapshot modelConfig', async () => {
+  test("createSession writes modelCode into snapshot modelConfig", async () => {
     let capturedInput: unknown;
     const sfid = new SfidService();
     const repo: SessionRepository = {
@@ -444,30 +408,31 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const descriptorLoader = {
-      getGlobalPrompt: () => '',
+      getGlobalPrompt: () => "",
       getAgent: mock(async () => ({
-        kind: 'agent',
-        name: '28147497671065600001',
-        instructions: '',
+        kind: "agent",
+        name: "28147497671065600001",
+        instructions: "",
         availableTools: [],
       })),
     };
     const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never);
 
-    await svc.createSession(1, 'u1', 'U', {
-      agentId: '28147497671065600001',
-      modelCode: 'gpt-4.1',
+    await svc.createSession(1, "u1", "U", {
+      agentId: "28147497671065600001",
+      modelCode: "gpt-4.1",
     });
 
     const input = capturedInput as {
@@ -475,10 +440,10 @@ describe('SessionService — business flows', () => {
         agent?: { content?: { modelConfig?: { model?: string } } };
       };
     };
-    expect(input.agentSnapshotJson?.agent?.content?.modelConfig?.model).toBe('gpt-4.1');
+    expect(input.agentSnapshotJson?.agent?.content?.modelConfig?.model).toBe("gpt-4.1");
   });
 
-  test('createSession throws RESOURCE_NOT_FOUND_DESCRIPTOR when agent missing in loader', async () => {
+  test("createSession throws RESOURCE_NOT_FOUND_DESCRIPTOR when agent missing in loader", async () => {
     const sfid = new SfidService();
     const repo: SessionRepository = {
       findById: mock(async () => null),
@@ -492,34 +457,35 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     };
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const descriptorLoader = {
-      getGlobalPrompt: () => '',
+      getGlobalPrompt: () => "",
       getAgent: mock(async () => null),
     };
     const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never);
 
-    await expect(
-      svc.createSession(1, 'u1', 'U', { agentId: '28147497671065600001' }),
-    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_DESCRIPTOR' });
+    await expect(svc.createSession(1, "u1", "U", { agentId: "28147497671065600001" })).rejects.toMatchObject({
+      code: "RESOURCE_NOT_FOUND_DESCRIPTOR",
+    });
   });
 
-  test('getSession reads through session owner boundary', async () => {
+  test("getSession reads through session owner boundary", async () => {
     const sfid = new SfidService();
-    const row = fakeRow('28147497671065600001');
+    const row = fakeRow("28147497671065600001");
     const findByIdAsOwner = mock(async () => row);
     const repo = {
       findById: mock(async () => {
-        throw new Error('tenant-only findById must not serve user-facing getSession');
+        throw new Error("tenant-only findById must not serve user-facing getSession");
       }),
       findByIdAsOwner,
       insertWithConnection: mock(async () => row),
@@ -534,15 +500,15 @@ describe('SessionService — business flows', () => {
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const svc = new SessionService(sfid, repo, null, outbox);
 
-    const v = await svc.getSession(row.id, 1, 'u1', false);
-    expect(v?.userId).toBe('u1');
+    const v = await svc.getSession(row.id, 1, "u1", false);
+    expect(v?.userId).toBe("u1");
     expect(v?.agentVersionNo).toBe(1);
-    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, 'u1', { admin: false });
+    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, "u1", { admin: false });
   });
 
-  test('listSessions maps items and pagination flags', async () => {
+  test("listSessions maps items and pagination flags", async () => {
     const sfid = new SfidService();
-    const r1 = fakeRow('28147497671065600001');
+    const r1 = fakeRow("28147497671065600001");
     const repo: SessionRepository = {
       findById: mock(async () => null),
       findByIdAsOwner: mock(async () => null),
@@ -556,7 +522,7 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({
         items: [r1],
         hasMore: true,
-        nextCursor: 'abc',
+        nextCursor: "abc",
       })),
     };
     const outbox: OutboxWriter = { append: mock(async () => {}) };
@@ -564,18 +530,18 @@ describe('SessionService — business flows', () => {
 
     const result = await svc.listSessions({
       tenant: 1,
-      userId: 'u1',
+      userId: "u1",
       limit: 20,
     });
 
     expect(result.items.length).toBe(1);
     expect(result.hasMore).toBe(true);
-    expect(result.nextCursor).toBe('abc');
+    expect(result.nextCursor).toBe("abc");
   });
 
-  test('listSessions passes admin read-through to repository', async () => {
+  test("listSessions passes admin read-through to repository", async () => {
     const sfid = new SfidService();
-    const r1 = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const r1 = { ...fakeRow("28147497671065600001"), userId: "other-user" };
     const listByOwner = mock(async () => ({
       items: [r1],
       hasMore: false,
@@ -597,24 +563,24 @@ describe('SessionService — business flows', () => {
 
     const result = await svc.listSessions({
       tenant: 1,
-      userId: 'admin-user',
+      userId: "admin-user",
       limit: 20,
       isAdmin: true,
     } as never);
 
-    expect(result.items[0]?.userId).toBe('other-user');
-    expect(listByOwner).toHaveBeenCalledWith(1, 'admin-user', {
+    expect(result.items[0]?.userId).toBe("other-user");
+    expect(listByOwner).toHaveBeenCalledWith(1, "admin-user", {
       statuses: undefined,
-      purpose: 'chat',
+      purpose: "chat",
       limit: 20,
       cursor: undefined,
       admin: true,
     });
   });
 
-  test('listSessionMessages preserves multimodal attachments in response items', async () => {
+  test("listSessionMessages preserves multimodal attachments in response items", async () => {
     const sfid = new SfidService();
-    const row = fakeRow('28147497671065600001');
+    const row = fakeRow("28147497671065600001");
     const repo: SessionRepository = {
       findById: mock(async () => row),
       findByIdAsOwner: mock(async () => row),
@@ -629,27 +595,31 @@ describe('SessionService — business flows', () => {
     };
     const attachments = [
       {
-        attachmentId: 'att_01',
-        kind: 'image',
-        fileId: 'file_01',
-        mimeType: 'image/png',
-        previewUrl: '/files/file_01/preview',
+        attachmentId: "att_01",
+        kind: "image",
+        fileId: "file_01",
+        mimeType: "image/png",
+        previewUrl: "/files/file_01/preview",
       },
     ];
     const pool: Pool = {
-      query: mock(async () => [[{
-        id: '28147497671065600011',
-        turn_id: '28147497671065600012',
-        session_id: row.id,
-        seq: 1,
-        role: 'user',
-        content_json: JSON.stringify({
-          schema: 'message-content-v1',
-          blocks: [{ type: 'image_ref', attachmentId: 'att_01' }],
-        }),
-        attachments_json: JSON.stringify(attachments),
-        create_time: new Date('2026-05-24T12:00:00Z'),
-      }]]),
+      query: mock(async () => [
+        [
+          {
+            id: "28147497671065600011",
+            turn_id: "28147497671065600012",
+            session_id: row.id,
+            seq: 1,
+            role: "user",
+            content_json: JSON.stringify({
+              schema: "message-content-v1",
+              blocks: [{ type: "image_ref", attachmentId: "att_01" }],
+            }),
+            attachments_json: JSON.stringify(attachments),
+            create_time: new Date("2026-05-24T12:00:00Z"),
+          },
+        ],
+      ]),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const svc = new SessionService(sfid, repo, pool, outbox);
@@ -657,26 +627,26 @@ describe('SessionService — business flows', () => {
     const result = await svc.listSessionMessages({
       tenant: 1,
       sessionId: row.id,
-      userId: 'u1',
+      userId: "u1",
       limit: 20,
     });
 
     expect(result.items).toEqual([
       expect.objectContaining({
-        id: '28147497671065600011',
-        role: 'user',
+        id: "28147497671065600011",
+        role: "user",
         content: {
-          schema: 'message-content-v1',
-          blocks: [{ type: 'image_ref', attachmentId: 'att_01' }],
+          schema: "message-content-v1",
+          blocks: [{ type: "image_ref", attachmentId: "att_01" }],
         },
         attachments,
       }),
     ]);
   });
 
-  test('listSessionMessages allows admin to read another owner session', async () => {
+  test("listSessionMessages allows admin to read another owner session", async () => {
     const sfid = new SfidService();
-    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const row = { ...fakeRow("28147497671065600001"), userId: "other-user" };
     const findByIdAsOwner = mock(async () => row);
     const repo = {
       findById: mock(async () => row),
@@ -699,18 +669,18 @@ describe('SessionService — business flows', () => {
     const result = await svc.listSessionMessages({
       tenant: 1,
       sessionId: row.id,
-      userId: 'admin-user',
+      userId: "admin-user",
       isAdmin: true,
       limit: 20,
     } as never);
 
     expect(result.items).toEqual([]);
-    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, 'admin-user', { admin: true });
+    expect(findByIdAsOwner).toHaveBeenCalledWith(1, row.id, "admin-user", { admin: true });
   });
 
-  test('patchSession CLOSED emits session.closed outbox', async () => {
+  test("patchSession CLOSED emits session.closed outbox", async () => {
     const sfid = new SfidService();
-    const row = fakeRow('28147497671065600001');
+    const row = fakeRow("28147497671065600001");
     const appended: AppendOutboxInput[] = [];
 
     const repo: SessionRepository = {
@@ -727,32 +697,33 @@ describe('SessionService — business flows', () => {
     };
 
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
 
     const outbox: OutboxWriter = {
-      append: mock(async (_tx, row) => {
-        appended.push(row);
+      append: mock(async (_tx, outboxRow) => {
+        appended.push(outboxRow);
       }),
     };
 
     const svc = new SessionService(sfid, repo, pool, outbox);
 
-    await svc.patchSession(1, row.id, 'u1', { status: 'CLOSED' });
+    await svc.patchSession(1, row.id, "u1", { status: "CLOSED" });
 
-    expect(appended.some((e) => e.eventType === 'session.closed')).toBe(true);
+    expect(appended.some((e) => e.eventType === "session.closed")).toBe(true);
   });
 
-  test('patchSession rejects a session owned by another user as not found', async () => {
+  test("patchSession rejects a session owned by another user as not found", async () => {
     const sfid = new SfidService();
-    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const row = { ...fakeRow("28147497671065600001"), userId: "other-user" };
     const updatePartial = mock(async () => {});
     const repo = {
       findById: mock(async () => row),
@@ -768,15 +739,13 @@ describe('SessionService — business flows', () => {
     } as unknown as SessionRepository;
     const svc = new SessionService(sfid, repo, null, { append: mock(async () => {}) });
 
-    await expect(
-      svc.patchSession(1, row.id, 'u1', { title: 'new title' }),
-    ).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND_SESSION' });
+    await expect(svc.patchSession(1, row.id, "u1", { title: "new title" })).rejects.toMatchObject({ code: "RESOURCE_NOT_FOUND_SESSION" });
     expect(updatePartial).not.toHaveBeenCalled();
   });
 
-  test('deleteSession emits session.deleted outbox', async () => {
+  test("deleteSession emits session.deleted outbox", async () => {
     const sfid = new SfidService();
-    const row = fakeRow('28147497671065600001');
+    const row = fakeRow("28147497671065600001");
     const appended: AppendOutboxInput[] = [];
 
     const repo: SessionRepository = {
@@ -793,32 +762,33 @@ describe('SessionService — business flows', () => {
     };
 
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
 
     const outbox: OutboxWriter = {
-      append: mock(async (_tx, row) => {
-        appended.push(row);
+      append: mock(async (_tx, outboxRow) => {
+        appended.push(outboxRow);
       }),
     };
 
     const svc = new SessionService(sfid, repo, pool, outbox);
 
-    await svc.deleteSession(1, row.id, 'u1');
+    await svc.deleteSession(1, row.id, "u1");
 
-    expect(appended.some((e) => e.eventType === 'session.deleted')).toBe(true);
+    expect(appended.some((e) => e.eventType === "session.deleted")).toBe(true);
   });
 
-  test('deleteSession rejects a session owned by another user before deleting', async () => {
+  test("deleteSession rejects a session owned by another user before deleting", async () => {
     const sfid = new SfidService();
-    const row = { ...fakeRow('28147497671065600001'), userId: 'other-user' };
+    const row = { ...fakeRow("28147497671065600001"), userId: "other-user" };
     const softDeleteWithConnection = mock(async () => {});
     const repo = {
       findById: mock(async () => row),
@@ -833,28 +803,29 @@ describe('SessionService — business flows', () => {
       listByOwner: mock(async () => ({ items: [], hasMore: false })),
     } as unknown as SessionRepository;
     const pool: Pool = {
-      getConnection: mock(async () =>
-        ({
-          beginTransaction: mock(async () => {}),
-          commit: mock(async () => {}),
-          rollback: mock(async () => {}),
-          release: mock(() => {}),
-        }) as unknown as PoolConnection,
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
       ),
     } as unknown as Pool;
     const outbox: OutboxWriter = { append: mock(async () => {}) };
     const svc = new SessionService(sfid, repo, pool, outbox);
 
-    await expect(svc.deleteSession(1, row.id, 'u1')).rejects.toMatchObject({
-      code: 'RESOURCE_NOT_FOUND_SESSION',
+    await expect(svc.deleteSession(1, row.id, "u1")).rejects.toMatchObject({
+      code: "RESOURCE_NOT_FOUND_SESSION",
     });
     expect(softDeleteWithConnection).not.toHaveBeenCalled();
     expect(outbox.append).not.toHaveBeenCalled();
   });
 
-  test('patchSession ACTIVE from CLOSED rejects when current status is ACTIVE', async () => {
+  test("patchSession ACTIVE from CLOSED rejects when current status is ACTIVE", async () => {
     const sfid = new SfidService();
-    const row = fakeRow('28147497671065600001');
+    const row = fakeRow("28147497671065600001");
     const repo: SessionRepository = {
       findById: mock(async () => row),
       findByIdAsOwner: mock(async () => row),
@@ -869,6 +840,6 @@ describe('SessionService — business flows', () => {
     };
     const svc = new SessionService(sfid, repo, null, { append: mock(async () => {}) });
 
-    await expect(svc.patchSession(1, row.id, 'u1', { status: 'ACTIVE' })).rejects.toThrow();
+    await expect(svc.patchSession(1, row.id, "u1", { status: "ACTIVE" })).rejects.toThrow();
   });
 });

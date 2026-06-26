@@ -11,12 +11,12 @@
  *
  * Ref: ADR-0008.
  */
-export * from './types';
-export * from './utils';
-export * from './reasoning-store';
-export * from './port';
-export * from './engine-port';
-export * from './store';
+export * from "./types";
+export * from "./utils";
+export * from "./reasoning-store";
+export * from "./port";
+export * from "./engine-port";
+export * from "./store";
 
 // Re-export sdk-core error types for one-stop instanceof check in business code.
 export {
@@ -25,6 +25,6 @@ export {
   StartTurnFailedError,
   StreamDisconnectedError,
   StoreDisposedError,
-} from '@cube-ai/agent-sdk-client';
+} from "@cube-ai/agent-sdk-client";
 
-export const SDK_ASSISTANT_VERSION = '0.0.1-alpha.10';
+export const SDK_ASSISTANT_VERSION = "0.0.1-alpha.11";

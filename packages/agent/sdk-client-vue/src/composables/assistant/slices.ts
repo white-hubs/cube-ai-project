@@ -3,8 +3,8 @@
  * 每个 hook 仅暴露 AssistantState 的一段切片；底层全部走同一 store snapshot
  * （`shallowReactive(state)` 中转，see `provide-assistant.ts`）。
  */
-import { computed, type ComputedRef, type Ref } from 'vue';
-import type { RuntimeRefs } from '@cube-ai/contracts';
+import { computed, type ComputedRef, type Ref } from "vue";
+
 import type {
   AssistantMessage,
   AssistantSessionSummary,
@@ -16,9 +16,11 @@ import type {
   TurnTokenUsage,
   TurnFailureSummary,
   TurnStatus,
-} from '@cube-ai/agent-sdk-client-assistant';
-import { groupSessionsByDate } from '@cube-ai/agent-sdk-client-assistant';
-import { useAssistant } from './provide-assistant';
+} from "@cube-ai/agent-sdk-client-assistant";
+import { groupSessionsByDate } from "@cube-ai/agent-sdk-client-assistant";
+import type { RuntimeRefs } from "@cube-ai/contracts";
+
+import { useAssistant } from "./provide-assistant";
 
 export interface UseAssistantSessionsReturn {
   sessions: ComputedRef<AssistantSessionSummary[]>;
@@ -31,7 +33,7 @@ export interface UseAssistantSessionsReturn {
     agentId?: string;
     title?: string;
     modelCode?: string;
-    purpose?: 'chat' | 'debug';
+    purpose?: "chat" | "debug";
     agentVersionNo?: number;
     context?: Record<string, unknown>;
   }) => Promise<string>;
@@ -82,8 +84,8 @@ export function useAssistantMessages(): UseAssistantMessagesReturn {
     sending: computed(() => state.sending),
     lastTurnStatus: computed<TurnStatus>(() => {
       const id = state.currentSessionId;
-      if (!id) return 'idle';
-      return state.lastTurnStatusBySessionId[id] ?? 'idle';
+      if (!id) return "idle";
+      return state.lastTurnStatusBySessionId[id] ?? "idle";
     }),
     lastTurnFailure: computed(() => {
       const id = state.currentSessionId;
@@ -109,7 +111,7 @@ export function useAssistantReasoning(): UseAssistantReasoningReturn {
       const msgs = state.messagesBySessionId[id] ?? [];
       for (let i = msgs.length - 1; i >= 0; i--) {
         const m = msgs[i];
-        if (m && m.role === 'assistant') return m.reasoning ?? null;
+        if (m && m.role === "assistant") return m.reasoning ?? null;
       }
       return null;
     }),
@@ -121,8 +123,8 @@ export interface UseAssistantGrantsReturn {
   awaitingGrant: ComputedRef<boolean>;
   respondGrant: (input: {
     grantRequestId: string;
-    decision: 'APPROVE' | 'DENY';
-    scopeChoice?: 'ONCE' | 'SESSION' | 'PERSISTENT';
+    decision: "APPROVE" | "DENY";
+    scopeChoice?: "ONCE" | "SESSION" | "PERSISTENT";
     rememberTtlSeconds?: number;
     note?: string;
   }) => Promise<void>;
@@ -168,9 +170,7 @@ export function useAssistantTokenUsage(): UseAssistantTokenUsageReturn {
 }
 
 export interface UseAssistantDebugReturn {
-  events: ComputedRef<
-    Array<{ ts: number; event: string; data: Record<string, unknown> }>
-  >;
+  events: ComputedRef<Array<{ ts: number; event: string; data: Record<string, unknown> }>>;
 }
 
 export function useAssistantDebug(): UseAssistantDebugReturn {
