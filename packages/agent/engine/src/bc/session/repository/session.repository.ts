@@ -1,15 +1,10 @@
-import { Injectable } from '@dangao/bun-server';
-import type { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
-import type {
-  Sfid,
-  Tenant,
-  SessionRow,
-  SessionRowStatus,
-  SessionPurpose,
-  CreateSessionInput,
-} from '@cube-ai/contracts';
-import { AgenticEngineError } from '../../../infra/errors/agentic-error';
-import { execDynamic, queryRowsDynamic, type SqlValue } from '../../../infra/mysql/sql-helpers';
+import { Injectable } from "@dangao/bun-server";
+import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+
+import type { Sfid, Tenant, SessionRow, SessionRowStatus, SessionPurpose, CreateSessionInput } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../../infra/errors/agentic-error";
+import { execDynamic, queryRowsDynamic, type SqlValue } from "../../../infra/mysql/sql-helpers";
 
 /**
  * SessionRepository interface.
@@ -21,31 +16,16 @@ import { execDynamic, queryRowsDynamic, type SqlValue } from '../../../infra/mys
 export interface SessionRepository {
   findById(tenant: Tenant, id: Sfid): Promise<SessionRow | null>;
 
-  findByIdAsOwner(
-    tenant: Tenant,
-    id: Sfid,
-    userId: string,
-    opts: { admin: boolean },
-  ): Promise<SessionRow | null>;
+  findByIdAsOwner(tenant: Tenant, id: Sfid, userId: string, opts: { admin: boolean }): Promise<SessionRow | null>;
 
   /**
    * Insert within an existing transaction (caller owns BEGIN/COMMIT).
    */
-  insertWithConnection(
-    conn: PoolConnection,
-    tenant: Tenant,
-    sessionId: Sfid,
-    input: CreateSessionInput,
-  ): Promise<SessionRow>;
+  insertWithConnection(conn: PoolConnection, tenant: Tenant, sessionId: Sfid, input: CreateSessionInput): Promise<SessionRow>;
 
   updateStatus(tenant: Tenant, id: Sfid, status: SessionRowStatus): Promise<void>;
 
-  updatePartial(
-    tenant: Tenant,
-    id: Sfid,
-    patch: { title?: string | null; status?: SessionRowStatus },
-    actorUserId: string,
-  ): Promise<void>;
+  updatePartial(tenant: Tenant, id: Sfid, patch: { title?: string | null; status?: SessionRowStatus }, actorUserId: string): Promise<void>;
 
   updatePartialWithConnection(
     conn: PoolConnection,
@@ -59,19 +39,14 @@ export interface SessionRepository {
 
   softDelete(tenant: Tenant, id: Sfid, actorUserId: string): Promise<void>;
 
-  softDeleteWithConnection(
-    conn: PoolConnection,
-    tenant: Tenant,
-    id: Sfid,
-    actorUserId: string,
-  ): Promise<void>;
+  softDeleteWithConnection(conn: PoolConnection, tenant: Tenant, id: Sfid, actorUserId: string): Promise<void>;
 
   listByOwner(
     tenant: Tenant,
     userId: string,
     opts: {
       statuses?: SessionRowStatus[];
-      purpose?: SessionPurpose | 'ALL';
+      purpose?: SessionPurpose | "ALL";
       limit: number;
       cursor?: string;
       admin?: boolean;
@@ -81,17 +56,13 @@ export interface SessionRepository {
 
 function requirePool(pool: Pool | null): Pool {
   if (!pool) {
-    throw AgenticEngineError.fromCode(
-      'INTERNAL_UNKNOWN',
-      'MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL',
-      {},
-    );
+    throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL", {});
   }
   return pool;
 }
 
 function toEpochMs(v: Date | string | number): number {
-  if (typeof v === 'number') return v;
+  if (typeof v === "number") return v;
   if (v instanceof Date) return v.getTime();
   const t = new Date(v).getTime();
   return Number.isNaN(t) ? 0 : t;
@@ -100,11 +71,7 @@ function toEpochMs(v: Date | string | number): number {
 function mapSessionRow(r: RowDataPacket): SessionRow {
   const deletedRaw = r.deleted;
   const deleted =
-    typeof deletedRaw === 'bigint'
-      ? Number(deletedRaw)
-      : typeof deletedRaw === 'string'
-        ? Number(deletedRaw)
-        : Number(deletedRaw);
+    typeof deletedRaw === "bigint" ? Number(deletedRaw) : typeof deletedRaw === "string" ? Number(deletedRaw) : Number(deletedRaw);
 
   const lastTurnId = r.last_turn_id != null ? String(r.last_turn_id) : null;
 
@@ -114,7 +81,7 @@ function mapSessionRow(r: RowDataPacket): SessionRow {
     userId: String(r.user_id),
     agentId: String(r.agent_id),
     agentVersionNo: Number(r.agent_version_no),
-    purpose: (r.purpose != null ? String(r.purpose) : 'chat') as SessionPurpose,
+    purpose: (r.purpose != null ? String(r.purpose) : "chat") as SessionPurpose,
     agentSnapshotJson: parseJsonColumn(r.agent_snapshot_json),
     userPrincipalSnapshotJson: parseJsonColumn(r.user_principal_snapshot_json),
     title: r.title != null ? String(r.title) : null,
@@ -136,8 +103,8 @@ function mapSessionRow(r: RowDataPacket): SessionRow {
 
 function parseJsonColumn(raw: unknown): Record<string, unknown> {
   if (raw == null) return {};
-  if (typeof raw === 'object') return raw as Record<string, unknown>;
-  if (typeof raw === 'string') {
+  if (typeof raw === "object") return raw as Record<string, unknown>;
+  if (typeof raw === "string") {
     try {
       return JSON.parse(raw) as Record<string, unknown>;
     } catch {
@@ -163,12 +130,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     return r ? mapSessionRow(r) : null;
   }
 
-  async findByIdAsOwner(
-    tenant: Tenant,
-    id: Sfid,
-    userId: string,
-    opts: { admin: boolean },
-  ): Promise<SessionRow | null> {
+  async findByIdAsOwner(tenant: Tenant, id: Sfid, userId: string, opts: { admin: boolean }): Promise<SessionRow | null> {
     if (opts.admin) {
       return this.findById(tenant, id);
     }
@@ -183,12 +145,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     return r ? mapSessionRow(r) : null;
   }
 
-  async insertWithConnection(
-    conn: PoolConnection,
-    tenant: Tenant,
-    sessionId: Sfid,
-    input: CreateSessionInput,
-  ): Promise<SessionRow> {
+  async insertWithConnection(conn: PoolConnection, tenant: Tenant, sessionId: Sfid, input: CreateSessionInput): Promise<SessionRow> {
     const nowMs = Date.now();
     const auditActor = input.userId;
     const ts = new Date(nowMs);
@@ -214,7 +171,7 @@ export class SessionRepositoryImpl implements SessionRepository {
         input.userId,
         input.agentId,
         input.agentVersionNo,
-        input.purpose ?? 'chat',
+        input.purpose ?? "chat",
         JSON.stringify(input.agentSnapshotJson),
         JSON.stringify(input.userPrincipalSnapshotJson),
         input.title ?? null,
@@ -231,22 +188,18 @@ export class SessionRepositoryImpl implements SessionRepository {
 
     const row = await this.findByIdWithConnection(conn, tenant, sessionId);
     if (!row) {
-      throw AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'Session insert failed — row not visible', {
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Session insert failed — row not visible", {
         sessionId,
       });
     }
     return row;
   }
 
-  private async findByIdWithConnection(
-    conn: PoolConnection,
-    tenant: Tenant,
-    id: Sfid,
-  ): Promise<SessionRow | null> {
-    const [rows] = await conn.execute<RowDataPacket[]>(
-      `SELECT * FROM sessions WHERE id = ? AND tenant = ? AND deleted = 0 LIMIT 1`,
-      [id, tenant],
-    );
+  private async findByIdWithConnection(conn: PoolConnection, tenant: Tenant, id: Sfid): Promise<SessionRow | null> {
+    const [rows] = await conn.execute<RowDataPacket[]>(`SELECT * FROM sessions WHERE id = ? AND tenant = ? AND deleted = 0 LIMIT 1`, [
+      id,
+      tenant,
+    ]);
     const r = rows[0];
     return r ? mapSessionRow(r) : null;
   }
@@ -262,7 +215,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${id} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${id} not found`, {
         sessionId: id,
       });
     }
@@ -278,28 +231,28 @@ export class SessionRepositoryImpl implements SessionRepository {
     const assignments: string[] = [];
     const vals: SqlValue[] = [];
     if (patch.title !== undefined) {
-      assignments.push('title = ?');
+      assignments.push("title = ?");
       vals.push(patch.title);
     }
     if (patch.status !== undefined) {
-      assignments.push('status = ?');
+      assignments.push("status = ?");
       vals.push(patch.status);
     }
     if (assignments.length === 0) return;
 
-    assignments.push('update_time = ?', 'update_by = ?', 'updater_id = ?', 'updater_type = ?');
-    vals.push(new Date(), actorUserId, actorUserId, 'USER');
+    assignments.push("update_time = ?", "update_by = ?", "updater_id = ?", "updater_type = ?");
+    vals.push(new Date(), actorUserId, actorUserId, "USER");
     vals.push(id, tenant);
 
     const res = await execDynamic(
       p,
-      `UPDATE sessions SET ${assignments.join(', ')}
+      `UPDATE sessions SET ${assignments.join(", ")}
        WHERE id = ? AND tenant = ? AND deleted = 0`,
       vals as ReadonlyArray<SqlValue>,
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${id} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${id} not found`, {
         sessionId: id,
       });
     }
@@ -315,28 +268,28 @@ export class SessionRepositoryImpl implements SessionRepository {
     const assignments: string[] = [];
     const vals: SqlValue[] = [];
     if (patch.title !== undefined) {
-      assignments.push('title = ?');
+      assignments.push("title = ?");
       vals.push(patch.title);
     }
     if (patch.status !== undefined) {
-      assignments.push('status = ?');
+      assignments.push("status = ?");
       vals.push(patch.status);
     }
     if (assignments.length === 0) return;
 
-    assignments.push('update_time = ?', 'update_by = ?', 'updater_id = ?', 'updater_type = ?');
-    vals.push(new Date(), actorUserId, actorUserId, 'USER');
+    assignments.push("update_time = ?", "update_by = ?", "updater_id = ?", "updater_type = ?");
+    vals.push(new Date(), actorUserId, actorUserId, "USER");
     vals.push(id, tenant);
 
     const res = await execDynamic(
       conn,
-      `UPDATE sessions SET ${assignments.join(', ')}
+      `UPDATE sessions SET ${assignments.join(", ")}
        WHERE id = ? AND tenant = ? AND deleted = 0`,
       vals as ReadonlyArray<SqlValue>,
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${id} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${id} not found`, {
         sessionId: id,
       });
     }
@@ -366,18 +319,13 @@ export class SessionRepositoryImpl implements SessionRepository {
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${id} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${id} not found`, {
         sessionId: id,
       });
     }
   }
 
-  async softDeleteWithConnection(
-    conn: PoolConnection,
-    tenant: Tenant,
-    id: Sfid,
-    actorUserId: string,
-  ): Promise<void> {
+  async softDeleteWithConnection(conn: PoolConnection, tenant: Tenant, id: Sfid, actorUserId: string): Promise<void> {
     const deletedMs = Date.now();
     const now = new Date();
     const [res] = await conn.execute(
@@ -389,7 +337,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode('RESOURCE_NOT_FOUND_SESSION', `Session ${id} not found`, {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${id} not found`, {
         sessionId: id,
       });
     }
@@ -400,7 +348,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     userId: string,
     opts: {
       statuses?: SessionRowStatus[];
-      purpose?: SessionPurpose | 'ALL';
+      purpose?: SessionPurpose | "ALL";
       limit: number;
       cursor?: string;
       admin?: boolean;
@@ -408,32 +356,31 @@ export class SessionRepositoryImpl implements SessionRepository {
   ): Promise<{ items: SessionRow[]; nextCursor?: string; hasMore: boolean }> {
     const p = requirePool(this.pool);
     const limit = Math.min(Math.max(opts.limit, 1), 100);
-    const statuses =
-      opts.statuses && opts.statuses.length > 0 ? opts.statuses : (['ACTIVE', 'CLOSED'] as const);
+    const statuses = opts.statuses && opts.statuses.length > 0 ? opts.statuses : (["ACTIVE", "CLOSED"] as const);
 
     let cursorMs: number | undefined;
     let cursorId: string | undefined;
     if (opts.cursor) {
       try {
-        const decoded = JSON.parse(Buffer.from(opts.cursor, 'base64url').toString('utf8')) as {
+        const decoded = JSON.parse(Buffer.from(opts.cursor, "base64url").toString("utf8")) as {
           t?: number;
           id?: string;
         };
         cursorMs = decoded.t;
         cursorId = decoded.id;
       } catch {
-        throw AgenticEngineError.fromCode('INVALID_ARGUMENT_SCHEMA_VIOLATION', 'Invalid cursor', {});
+        throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "Invalid cursor", {});
       }
     }
 
-    const statusPlaceholders = statuses.map(() => '?').join(', ');
+    const statusPlaceholders = statuses.map(() => "?").join(", ");
     const params: SqlValue[] = opts.admin ? [tenant, ...statuses] : [tenant, userId, ...statuses];
     let sql = `
       SELECT * FROM sessions
-      WHERE tenant = ?${opts.admin ? '' : ' AND user_id = ?'} AND deleted = 0
+      WHERE tenant = ?${opts.admin ? "" : " AND user_id = ?"} AND deleted = 0
         AND status IN (${statusPlaceholders})`;
 
-    if (opts.purpose !== undefined && opts.purpose !== 'ALL') {
+    if (opts.purpose !== undefined && opts.purpose !== "ALL") {
       sql += ` AND purpose = ?`;
       params.push(opts.purpose);
     }
@@ -460,10 +407,7 @@ export class SessionRepositoryImpl implements SessionRepository {
     let nextCursor: string | undefined;
     if (hasMore && items.length > 0) {
       const tail = items[items.length - 1]!;
-      nextCursor = Buffer.from(
-        JSON.stringify({ t: tail.lastActiveTime, id: tail.id }),
-        'utf8',
-      ).toString('base64url');
+      nextCursor = Buffer.from(JSON.stringify({ t: tail.lastActiveTime, id: tail.id }), "utf8").toString("base64url");
     }
     return { items, nextCursor, hasMore };
   }

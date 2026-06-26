@@ -2,17 +2,10 @@
  * AssistantEnginePort 默认实现：把 `AgenticClient` 适配为 port 接口。
  * Ref: ADR-0008 §D4.
  */
-import type {
-  AgenticClient,
-  SseEvent,
-} from '@cube-ai/agent-sdk-client';
-import type {
-  AssistantEnginePort,
-  GrantResponseInput,
-  NormalizedSseEvent,
-  PortMessageItem,
-} from './port';
-import type { AssistantSessionSummary, LlmOption } from './types';
+import type { AgenticClient, SseEvent } from "@cube-ai/agent-sdk-client";
+
+import type { AssistantEnginePort, GrantResponseInput, NormalizedSseEvent, PortMessageItem } from "./port";
+import type { AssistantSessionSummary, LlmOption } from "./types";
 
 export interface CreateAgenticEnginePortOptions {
   /**
@@ -21,15 +14,11 @@ export interface CreateAgenticEnginePortOptions {
   listModels?: () => Promise<LlmOption[]>;
 }
 
-export function createAgenticEnginePort(
-  client: AgenticClient,
-  options: CreateAgenticEnginePortOptions = {},
-): AssistantEnginePort {
+export function createAgenticEnginePort(client: AgenticClient, options: CreateAgenticEnginePortOptions = {}): AssistantEnginePort {
   const sessions = client.sessions;
 
   const port: AssistantEnginePort = {
-    startTurn: (sessionId, body, opts) =>
-      sessions.startTurn(sessionId, body, opts),
+    startTurn: (sessionId, body, opts) => sessions.startTurn(sessionId, body, opts),
 
     async *streamEvents(sessionId, opts) {
       for await (const ev of sessions.streamEvents(sessionId, opts)) {
@@ -48,7 +37,7 @@ export function createAgenticEnginePort(
           content: m.content,
           createTime: m.createTime,
           turnId: m.turnId ?? null,
-          ...(attachments !== undefined ? { attachments: attachments as PortMessageItem['attachments'] } : {}),
+          ...(attachments !== undefined ? { attachments: attachments as PortMessageItem["attachments"] } : {}),
         };
       });
       return { items };
@@ -74,11 +63,11 @@ export function createAgenticEnginePort(
       const r = await sessions.list({
         ...(opts?.limit != null ? { limit: opts.limit } : {}),
         ...(opts?.cursor != null ? { cursor: opts.cursor } : {}),
-        purpose: opts?.purpose ?? 'chat',
+        purpose: opts?.purpose ?? "chat",
       });
       const items: AssistantSessionSummary[] = r.items.map((s) => ({
         id: s.id,
-        title: s.title ?? '',
+        title: s.title ?? "",
         updatedAt: s.updateTime,
       }));
       return { items, hasMore: r.page.hasMore };
@@ -123,14 +112,11 @@ export function createAgenticEnginePort(
  */
 function normalize(ev: SseEvent): NormalizedSseEvent {
   const rec = ev as unknown as Record<string, unknown>;
-  const event =
-    (typeof rec.schema === 'string' && rec.schema) ||
-    (typeof rec.event === 'string' && rec.event) ||
-    'unknown';
+  const event = (typeof rec.schema === "string" && rec.schema) || (typeof rec.event === "string" && rec.event) || "unknown";
   // data 字段：去掉 schema 自身，其余字段都视作 data 的成员。
   const data: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(rec)) {
-    if (k === 'schema') continue;
+    if (k === "schema") continue;
     data[k] = v;
   }
   return { event, data, raw: ev };

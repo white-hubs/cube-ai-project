@@ -1,17 +1,19 @@
-import type { Pool, RowDataPacket } from 'mysql2/promise';
-import { parseTenantDescriptorId, type ShelfEntryView } from '@cube-ai/contracts';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import { SfidService } from '../../infra/sfid/sfid.service';
-import { sharedSfidService } from '../../infra/sfid/shared-sfid';
-import type { UserShelfRepository } from './shelf.service';
+import type { Pool, RowDataPacket } from "mysql2/promise";
+
+import { parseTenantDescriptorId, type ShelfEntryView } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { SfidService } from "../../infra/sfid/sfid.service";
+import { sharedSfidService } from "../../infra/sfid/shared-sfid";
+import type { UserShelfRepository } from "./shelf.service";
 
 interface ShelfRow extends RowDataPacket {
   id: string;
   tenant: number;
   user_id: string;
-  target_kind: 'agent' | 'skill';
+  target_kind: "agent" | "skill";
   target_id: string;
-  source: 'authored' | 'ref' | 'copy';
+  source: "authored" | "ref" | "copy";
   pin_version_no: number | null;
   enabled: number | boolean;
   effective_version_no: number | null;
@@ -20,8 +22,7 @@ interface ShelfRow extends RowDataPacket {
 
 function rowToView(row: ShelfRow): ShelfEntryView {
   const enabled = Boolean(row.enabled);
-  const effectiveVersionNo =
-    row.effective_version_no == null ? null : Number(row.effective_version_no);
+  const effectiveVersionNo = row.effective_version_no == null ? null : Number(row.effective_version_no);
   return {
     id: row.id,
     targetKind: row.target_kind,
@@ -32,12 +33,12 @@ function rowToView(row: ShelfRow): ShelfEntryView {
     ...(row.display_name ? { displayName: row.display_name } : {}),
     effectiveVersionNo,
     runnableStatus: !enabled
-      ? 'disabled'
-      : row.source === 'authored' || effectiveVersionNo != null
-        ? 'runnable'
+      ? "disabled"
+      : row.source === "authored" || effectiveVersionNo != null
+        ? "runnable"
         : parseTenantDescriptorId(row.target_id) == null
-          ? 'runnable'
-          : 'unresolvable',
+          ? "runnable"
+          : "unresolvable",
   };
 }
 
@@ -50,8 +51,8 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
   private get pool(): Pool {
     if (!this.poolOrNull) {
       throw AgenticEngineError.fromCode(
-        'INTERNAL_UNKNOWN',
-        'MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL for descriptor shelf',
+        "INTERNAL_UNKNOWN",
+        "MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL for descriptor shelf",
         {},
       );
     }
@@ -62,11 +63,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     return `she_${this.sfid.next()}`;
   }
 
-  private async viewById(
-    tenant: number,
-    userId: string,
-    shelfId: string,
-  ): Promise<ShelfEntryView | null> {
+  private async viewById(tenant: number, userId: string, shelfId: string): Promise<ShelfEntryView | null> {
     const [rows] = await this.pool.execute<ShelfRow[]>(
       `${this.baseSelect()}
        WHERE s.tenant = ? AND s.user_id = ? AND s.id = ? AND s.deleted = 0
@@ -102,11 +99,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
         AND v.version_no = COALESCE(s.pin_version_no, l.shared_version_no)`;
   }
 
-  async listByUser(
-    tenant: number,
-    userId: string,
-    kind: 'agent' | 'skill',
-  ): Promise<ShelfEntryView[]> {
+  async listByUser(tenant: number, userId: string, kind: "agent" | "skill"): Promise<ShelfEntryView[]> {
     const [rows] = await this.pool.execute<ShelfRow[]>(
       `${this.baseSelect()}
        WHERE s.tenant = ? AND s.user_id = ? AND s.target_kind = ? AND s.deleted = 0
@@ -116,11 +109,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     return rows.map(rowToView);
   }
 
-  async findByTarget(
-    tenant: number,
-    userId: string,
-    targetId: string,
-  ): Promise<ShelfEntryView | null> {
+  async findByTarget(tenant: number, userId: string, targetId: string): Promise<ShelfEntryView | null> {
     const [rows] = await this.pool.execute<ShelfRow[]>(
       `${this.baseSelect()}
        WHERE s.tenant = ? AND s.user_id = ? AND s.target_id = ? AND s.deleted = 0
@@ -130,18 +119,14 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     return rows[0] ? rowToView(rows[0]) : null;
   }
 
-  findById(
-    tenant: number,
-    userId: string,
-    shelfId: string,
-  ): Promise<ShelfEntryView | null> {
+  findById(tenant: number, userId: string, shelfId: string): Promise<ShelfEntryView | null> {
     return this.viewById(tenant, userId, shelfId);
   }
 
   async insertRef(
     tenant: number,
     userId: string,
-    kind: 'agent' | 'skill',
+    kind: "agent" | "skill",
     targetId: string,
     pinVersionNo: number | null,
   ): Promise<ShelfEntryView> {
@@ -156,7 +141,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     );
     const view = await this.viewById(tenant, userId, id);
     if (!view) {
-      throw AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'Shelf entry not visible after insert', { id });
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Shelf entry not visible after insert", { id });
     }
     return view;
   }
@@ -169,11 +154,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
   ): Promise<ShelfEntryView> {
     const current = await this.viewById(tenant, userId, shelfId);
     if (!current) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_DESCRIPTOR',
-        `Shelf entry not found: ${shelfId}`,
-        { shelfId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Shelf entry not found: ${shelfId}`, { shelfId });
     }
     const now = new Date();
     await this.pool.execute(
@@ -192,7 +173,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     );
     const view = await this.viewById(tenant, userId, shelfId);
     if (!view) {
-      throw AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'Shelf entry not visible after patch', { shelfId });
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Shelf entry not visible after patch", { shelfId });
     }
     return view;
   }
@@ -208,20 +189,11 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_DESCRIPTOR',
-        `Shelf entry not found: ${shelfId}`,
-        { shelfId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Shelf entry not found: ${shelfId}`, { shelfId });
     }
   }
 
-  async upsertAuthored(
-    tenant: number,
-    userId: string,
-    descriptorId: string,
-    kind: 'agent' | 'skill',
-  ): Promise<ShelfEntryView> {
+  async upsertAuthored(tenant: number, userId: string, descriptorId: string, kind: "agent" | "skill"): Promise<ShelfEntryView> {
     const existing = await this.findByTarget(tenant, userId, descriptorId);
     if (existing) return existing;
     const now = new Date();
@@ -235,7 +207,7 @@ export class UserShelfRepositoryImpl implements UserShelfRepository {
     );
     const view = await this.viewById(tenant, userId, id);
     if (!view) {
-      throw AgenticEngineError.fromCode('INTERNAL_UNKNOWN', 'Authored shelf not visible after insert', { id });
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Authored shelf not visible after insert", { id });
     }
     return view;
   }

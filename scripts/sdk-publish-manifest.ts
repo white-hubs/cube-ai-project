@@ -5,8 +5,7 @@
  *   contracts → leaf SDKs (no inter-SDK deps) → assistant → vue
  */
 /** Nexus private hosted repo — publish target only (install uses npm-group). */
-export const SDK_PUBLISH_REGISTRY =
-  "http://nexus.guhecloud.com:8888/repository/npm-hosted/" as const;
+export const SDK_PUBLISH_REGISTRY = "http://nexus.guhecloud.com:8888/repository/npm-hosted/" as const;
 
 /** Workspace-relative package directories, in publish dependency order. */
 export const SDK_PUBLISH_PACKAGES = [
@@ -18,6 +17,7 @@ export const SDK_PUBLISH_PACKAGES = [
   "packages/kb/sdk-client",
   "packages/kb/sdk-console",
   "packages/llm/sdk-console",
+  "packages/skill/sdk-console",
   "packages/agent/sdk-console",
   "packages/agent/sdk-client-assistant",
   "packages/agent/sdk-client-vue",

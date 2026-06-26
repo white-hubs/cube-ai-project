@@ -1,8 +1,9 @@
-import { z } from 'zod';
-import { SfidSchema } from '../common/ids';
-import { EpochMsSchema } from '../common/time';
-import { AuditFieldsSchema } from '../common/audit';
-import { AgentRefSchema, SessionPurposeSchema } from '../session/session';
+import { z } from "zod";
+
+import { AuditFieldsSchema } from "../common/audit";
+import { SfidSchema } from "../common/ids";
+import { EpochMsSchema } from "../common/time";
+import { AgentRefSchema, SessionPurposeSchema } from "../session/session";
 
 /**
  * Zod schema for the `sessions` table row.
@@ -32,32 +33,32 @@ import { AgentRefSchema, SessionPurposeSchema } from '../session/session';
  * Session row status (DB column status VARCHAR(32)).
  * Named SessionRowStatus to avoid conflict with contracts/session SessionStatus (API DTO).
  */
-export const SessionRowStatusSchema = z.enum(['ACTIVE', 'CLOSED', 'ARCHIVED']);
+export const SessionRowStatusSchema = z.enum(["ACTIVE", "CLOSED", "ARCHIVED"]);
 export type SessionRowStatus = z.infer<typeof SessionRowStatusSchema>;
 
 export const SessionRowSchema = AuditFieldsSchema.extend({
-  id:                         SfidSchema,
-  userId:                     z.string().max(64),
-  agentId:                    AgentRefSchema,
+  id: SfidSchema,
+  userId: z.string().max(64),
+  agentId: AgentRefSchema,
   /** 0 = 草稿 head 哨兵；正整数 = 已发布版本号 */
-  agentVersionNo:             z.number().int().nonnegative(),
-  purpose:                    SessionPurposeSchema.default('chat'),
+  agentVersionNo: z.number().int().nonnegative(),
+  purpose: SessionPurposeSchema.default("chat"),
   /**
    * JSON-inline agent snapshot (Q2:b; ADR-0012).
    * Internal camelCase keys — see mysql-tables.md §6.4.
    * Validated at application layer by a dedicated AgentSnapshotSchema (Phase 2).
    */
-  agentSnapshotJson:          z.record(z.string(), z.unknown()),
+  agentSnapshotJson: z.record(z.string(), z.unknown()),
   /**
    * UserPrincipal snapshot — see mysql-tables.md §6.5.
    * MUST NOT contain access_token / refresh_token / credentials.
    */
-  userPrincipalSnapshotJson:  z.record(z.string(), z.unknown()),
-  title:                      z.string().max(255).nullable(),
-  status:                     SessionRowStatusSchema,
-  lastTurnId:                 SfidSchema.nullable(),
-  lastActiveTime:             EpochMsSchema,
-  contextJson:                z.unknown().nullable(),
+  userPrincipalSnapshotJson: z.record(z.string(), z.unknown()),
+  title: z.string().max(255).nullable(),
+  status: SessionRowStatusSchema,
+  lastTurnId: SfidSchema.nullable(),
+  lastActiveTime: EpochMsSchema,
+  contextJson: z.unknown().nullable(),
 });
 
 export type SessionRow = z.infer<typeof SessionRowSchema>;
@@ -65,7 +66,5 @@ export type SessionRow = z.infer<typeof SessionRowSchema>;
 /** Input type for creating a new session row (id / audit fields generated server-side). */
 export type CreateSessionInput = Omit<
   SessionRow,
-  'id' | 'createBy' | 'creatorId' | 'creatorType' | 'createTime'
-  | 'updateBy' | 'updaterId' | 'updaterType' | 'updateTime'
-  | 'deleted'
+  "id" | "createBy" | "creatorId" | "creatorType" | "createTime" | "updateBy" | "updaterId" | "updaterType" | "updateTime" | "deleted"
 >;

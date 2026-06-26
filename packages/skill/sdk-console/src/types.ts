@@ -1,33 +1,33 @@
 /**
  * Skill categories for AI skill center
  */
-export type SkillCategory = '数据查询' | '工作执行' | '分析汇报' | '知识咨询' | '智能提醒';
+export type SkillCategory = "数据查询" | "工作执行" | "分析汇报" | "知识咨询" | "智能提醒";
 
 /**
  * Skill category codes for API usage
  */
-export type SkillCategoryCode = 'DATA_QUERY' | 'WORK_EXECUTION' | 'ANALYSIS_REPORT' | 'KNOWLEDGE_CONSULT' | 'INTELLIGENT_REMIND';
+export type SkillCategoryCode = "DATA_QUERY" | "WORK_EXECUTION" | "ANALYSIS_REPORT" | "KNOWLEDGE_CONSULT" | "INTELLIGENT_REMIND";
 
 /**
  * Category mapping between display name and code
  */
 export const SKILL_CATEGORY_MAP: Record<SkillCategory, SkillCategoryCode> = {
-  '数据查询': 'DATA_QUERY',
-  '工作执行': 'WORK_EXECUTION',
-  '分析汇报': 'ANALYSIS_REPORT',
-  '知识咨询': 'KNOWLEDGE_CONSULT',
-  '智能提醒': 'INTELLIGENT_REMIND',
+  数据查询: "DATA_QUERY",
+  工作执行: "WORK_EXECUTION",
+  分析汇报: "ANALYSIS_REPORT",
+  知识咨询: "KNOWLEDGE_CONSULT",
+  智能提醒: "INTELLIGENT_REMIND",
 };
 
 /**
  * Reverse category mapping
  */
 export const SKILL_CATEGORY_REVERSE_MAP: Record<SkillCategoryCode, SkillCategory> = {
-  'DATA_QUERY': '数据查询',
-  'WORK_EXECUTION': '工作执行',
-  'ANALYSIS_REPORT': '分析汇报',
-  'KNOWLEDGE_CONSULT': '知识咨询',
-  'INTELLIGENT_REMIND': '智能提醒',
+  DATA_QUERY: "数据查询",
+  WORK_EXECUTION: "工作执行",
+  ANALYSIS_REPORT: "分析汇报",
+  KNOWLEDGE_CONSULT: "知识咨询",
+  INTELLIGENT_REMIND: "智能提醒",
 };
 
 /**
@@ -43,7 +43,7 @@ export interface SkillItem {
   isBuiltin: boolean;
   published: boolean;
   intro?: string;
-  
+
   // Six required configurations (R1-R5 required, R6 optional)
   /** R1: Usage examples - user input -> AI output pairs */
   usageExample?: string;
@@ -57,7 +57,7 @@ export interface SkillItem {
   checklist?: string;
   /** R6: Reference resources - templates, manuals, documents (optional) */
   reference?: string;
-  
+
   // Creation metadata
   createdAt?: string;
   updatedAt?: string;
@@ -73,7 +73,7 @@ export interface UserSkillRelation {
   localVersion: string;
   hasUpdate: boolean;
   latestVersion?: string;
-  source: 'builtin' | 'published' | 'authored';
+  source: "builtin" | "published" | "authored";
 }
 
 /**
@@ -82,7 +82,7 @@ export interface UserSkillRelation {
 export interface SkillBrowseOptions {
   q?: string;
   category?: SkillCategoryCode;
-  tier?: 'system' | 'tenant';
+  tier?: "system" | "tenant";
 }
 
 /**
@@ -94,7 +94,7 @@ export interface SkillContentInput {
   category: SkillCategoryCode;
   intro?: string;
   published?: boolean;
-  
+
   // Six configurations
   usageExample?: string;
   outputSpec?: string;
@@ -114,7 +114,7 @@ export interface SkillDescriptorView {
     version?: string;
     isBuiltin?: boolean;
   };
-  status: 'draft' | 'published';
+  status: "draft" | "published";
   headVersionNo: number;
   publishedVersionNo?: number | null;
   hasUnpublishedChanges?: boolean;
@@ -127,13 +127,13 @@ export interface SkillDescriptorView {
  */
 export interface SkillLibraryItemView {
   ref: string;
-  kind: 'skill';
+  kind: "skill";
   displayName?: string;
   description?: string;
   category?: SkillCategory;
   categoryCode?: SkillCategoryCode;
   tags?: string[];
-  tier: 'system' | 'tenant';
+  tier: "system" | "tenant";
   sharedVersionNo?: number;
   content?: unknown;
 }
@@ -143,14 +143,14 @@ export interface SkillLibraryItemView {
  */
 export interface SkillShelfEntryView {
   id: string;
-  targetKind: 'skill';
+  targetKind: "skill";
   targetId: string;
-  source: 'authored' | 'ref' | 'copy';
+  source: "authored" | "ref" | "copy";
   pinVersionNo?: number | null;
   enabled: boolean;
   displayName?: string;
   effectiveVersionNo?: number | null;
-  runnableStatus: 'runnable' | 'disabled' | 'unresolvable';
+  runnableStatus: "runnable" | "disabled" | "unresolvable";
 }
 
 /**

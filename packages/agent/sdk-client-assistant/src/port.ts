@@ -10,9 +10,10 @@
  *
  * Ref: ADR-0008 §D4.
  */
-import type { SseEvent, StartTurnBody } from '@cube-ai/agent-sdk-client';
-import type { ImageAttachment, RuntimeRefs } from '@cube-ai/contracts';
-import type { AssistantSessionSummary, LlmOption } from './types';
+import type { SseEvent, StartTurnBody } from "@cube-ai/agent-sdk-client";
+import type { ImageAttachment, RuntimeRefs } from "@cube-ai/contracts";
+
+import type { AssistantSessionSummary, LlmOption } from "./types";
 
 export interface AssistantEnginePort {
   startTurn(
@@ -28,16 +29,13 @@ export interface AssistantEnginePort {
     opts?: { turnId?: string; lastEventId?: string; signal?: AbortSignal },
   ): AsyncIterable<NormalizedSseEvent>;
 
-  listMessages(
-    sessionId: string,
-    opts?: { limit?: number },
-  ): Promise<{ items: PortMessageItem[] }>;
+  listMessages(sessionId: string, opts?: { limit?: number }): Promise<{ items: PortMessageItem[] }>;
 
   createSession(req: {
     agentId: string;
     title?: string;
     modelCode?: string;
-    purpose?: 'chat' | 'debug';
+    purpose?: "chat" | "debug";
     agentVersionNo?: number;
     context?: Record<string, unknown>;
   }): Promise<{ id: string; title: string | null; createTime: number }>;
@@ -45,7 +43,7 @@ export interface AssistantEnginePort {
   listSessions(opts?: {
     limit?: number;
     cursor?: string;
-    purpose?: 'chat' | 'debug' | 'ALL';
+    purpose?: "chat" | "debug" | "ALL";
   }): Promise<{ items: AssistantSessionSummary[]; hasMore: boolean }>;
 
   getSession(sessionId: string): Promise<{
@@ -54,10 +52,7 @@ export interface AssistantEnginePort {
     updateTime?: number;
   } | null>;
 
-  patchSession(
-    sessionId: string,
-    patch: { title?: string; status?: 'ACTIVE' | 'CLOSED' },
-  ): Promise<void>;
+  patchSession(sessionId: string, patch: { title?: string; status?: "ACTIVE" | "CLOSED" }): Promise<void>;
 
   deleteSession(sessionId: string): Promise<void>;
 
@@ -80,7 +75,7 @@ export interface NormalizedSseEvent {
 
 export interface PortMessageItem {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: "user" | "assistant" | "system" | "tool";
   content: unknown;
   createTime: number;
   turnId?: string | null;
@@ -93,8 +88,8 @@ export interface GrantResponseInput {
    * Engine `GrantResponseRequest.decision` 枚举（agentic-contracts）—保持大写。
    * UI 侧若有自己的小写枚举，调用前自行 map。
    */
-  decision: 'APPROVE' | 'DENY';
-  scopeChoice?: 'ONCE' | 'SESSION' | 'PERSISTENT';
+  decision: "APPROVE" | "DENY";
+  scopeChoice?: "ONCE" | "SESSION" | "PERSISTENT";
   rememberTtlSeconds?: number;
   note?: string;
 }
