@@ -1,8 +1,21 @@
-# BuildKit registry config for nexus.guhecloud.com:5000 (HTTP / insecure).
+# BuildKit registry config for nexus.guhecloud.com (HTTP / insecure).
 # Copy to a local path and pass to build-image.sh:
-#   cp deploy/buildkit/nexus-guhecloud.toml.example ~/.docker/buildkit/nexus-guhecloud.toml
-#   scripts/build-image.sh --buildkit-config ~/.docker/buildkit/nexus-guhecloud.toml --recreate-builder
+#   cp deploy/buildkit/nexus-guhecloud.toml.example ~/.orbstack/config/buildkit.toml
+#   scripts/build-image.sh --buildkit-config ~/.orbstack/config/buildkit.toml --recreate-builder
+#
+# Also add insecure-registries to Docker/OrbStack (~/.orbstack/config/docker.json):
+#   { "insecure-registries": ["nexus.guhecloud.com:5001", "nexus.guhecloud.com:5000"] }
+#
+# - :5000 — Nexus Docker group (proxy docker.io); buildx docker-container 内拉基础镜像走这里
+# - :5001 — cube-ai-project 发布仓库（build-image.sh --push 目标）
+
+[registry."nexus.guhecloud.com:5001"]
+  http = true
+  insecure = true
 
 [registry."nexus.guhecloud.com:5000"]
   http = true
   insecure = true
+
+[registry."docker.io"]
+  mirrors = ["nexus.guhecloud.com:5000"]
