@@ -1,5 +1,6 @@
-import { Injectable } from '@dangao/bun-server';
-import type { DrainMode } from './types';
+import { Injectable } from "@dangao/bun-server";
+
+import { type DrainMode } from "./types";
 
 /**
  * Minimal interface for an active SSE connection that `DrainService` can
@@ -39,13 +40,13 @@ export class DrainService {
   // ── active stream tracking ─────────────────────────────────────────────
 
   private readonly activeStreams = new Set<SseConnection>();
-  private _draining = false;
+  private drainingState = false;
   /** False after `triggerDrain()` step 1 — new SSE streams get 503. */
-  private _acceptingNewStreams = true;
+  private acceptingNewStreams = true;
 
   /** Whether `/events` should still accept new streams (graceful rollout). */
   isAcceptingNewStreams(): boolean {
-    return this._acceptingNewStreams;
+    return this.acceptingNewStreams;
   }
 
   /**
@@ -66,10 +67,10 @@ export class DrainService {
    * 3. wait until active streams end or timeout
    */
   async triggerDrain(timeoutMs: number): Promise<void> {
-    this._acceptingNewStreams = false;
+    this.acceptingNewStreams = false;
     this.broadcastDrainModePayload();
-    this._draining = true;
-    void this.transition('finalize');
+    this.drainingState = true;
+    void this.transition("finalize");
     await this.waitForDrain(timeoutMs);
   }
 
@@ -77,21 +78,21 @@ export class DrainService {
    * @deprecated Prefer `triggerDrain`; kept for callers that only need the SSE payload.
    */
   broadcastDraining(): void {
-    this._acceptingNewStreams = false;
+    this.acceptingNewStreams = false;
     this.broadcastDrainModePayload();
-    this._draining = true;
-    void this.transition('finalize');
+    this.drainingState = true;
+    void this.transition("finalize");
   }
 
   private broadcastDrainModePayload(): void {
     const payload = {
-      schema: 'drain-mode-v1',
-      reason: 'GRACEFUL_SHUTDOWN',
+      reason: "GRACEFUL_SHUTDOWN",
       reconnectHintMs: 1000,
+      schema: "drain-mode-v1",
     } as const;
     for (const conn of this.activeStreams) {
       try {
-        conn.writeEvent('drain.mode', payload, 'drain');
+        conn.writeEvent("drain.mode", payload, "drain");
       } catch {
         // Swallow — a stream may already be closing.
       }
@@ -122,7 +123,7 @@ export class DrainService {
   }
 
   isDraining(): boolean {
-    return this._draining;
+    return this.drainingState;
   }
 
   activeStreamCount(): number {
@@ -131,11 +132,11 @@ export class DrainService {
 
   // ── DrainMode state-machine (Phase 0a compatibility) ──────────────────
 
-  private _mode: DrainMode = 'running';
+  private drainMode: DrainMode = "running";
   private readonly modeListeners = new Set<(m: DrainMode) => void>();
 
   getMode(): DrainMode {
-    return this._mode;
+    return this.drainMode;
   }
 
   /** Register a DrainMode listener; returns an idempotent unregister function. */
@@ -145,8 +146,10 @@ export class DrainService {
   }
 
   async transition(next: DrainMode): Promise<void> {
-    if (this._mode === next) return;
-    this._mode = next;
+    if (this.drainMode === next) {
+      return;
+    }
+    this.drainMode = next;
     for (const h of this.modeListeners) {
       try {
         h(next);

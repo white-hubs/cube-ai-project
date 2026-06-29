@@ -1,9 +1,8 @@
-import { AgenticClient, type AgenticClientOptions } from '@cube-ai/agent-sdk-client';
-import { inject, provide, type InjectionKey } from 'vue';
+import { type InjectionKey, inject, provide } from "vue";
 
-export const AGENTIC_CLIENT_KEY: InjectionKey<AgenticClient> = Symbol.for(
-  '@cube-ai/agent-sdk-client-vue.client',
-);
+import { AgenticClient, type AgenticClientOptions } from "@cube-ai/agent-sdk-client";
+
+export const AGENTIC_CLIENT_KEY: InjectionKey<AgenticClient> = Symbol.for("@cube-ai/agent-sdk-client-vue.client");
 
 /**
  * Root-level provider: `app.provide(AGENTIC_CLIENT_KEY, new AgenticClient(...))`
@@ -24,8 +23,8 @@ export function useAgenticClient(): AgenticClient {
   const client = inject(AGENTIC_CLIENT_KEY);
   if (!client) {
     throw new Error(
-      '[@cube-ai/agent-sdk-client-vue] AgenticClient is not provided. ' +
-        'Call provideAgenticClient() at the app root or app.provide(AGENTIC_CLIENT_KEY, ...).',
+      "[@cube-ai/agent-sdk-client-vue] AgenticClient is not provided. " +
+        "Call provideAgenticClient() at the app root or app.provide(AGENTIC_CLIENT_KEY, ...).",
     );
   }
   return client;

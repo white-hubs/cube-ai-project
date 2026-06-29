@@ -1,9 +1,9 @@
 import {
   Inject,
   Injectable,
-  SERVICE_REGISTRY_TOKEN,
   type OnModuleDestroy,
   type OnModuleInit,
+  SERVICE_REGISTRY_TOKEN,
   type ServiceInstance,
   type ServiceRegistry,
 } from "@dangao/bun-server";
@@ -39,16 +39,16 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
 
   private buildInstance(): ServiceInstance {
     return {
-      serviceName: this.options.serviceName,
-      ip: this.options.ip,
-      port: this.options.port,
-      weight: 1,
-      healthy: true,
       enabled: true,
+      healthy: true,
+      ip: this.options.ip,
       metadata: {
-        version: this.options.version ?? "0.0.1",
         grpc_server_port: String(this.options.grpcPort),
+        version: this.options.version ?? "0.0.1",
       },
+      port: this.options.port,
+      serviceName: this.options.serviceName,
+      weight: 1,
     };
   }
 
@@ -105,7 +105,7 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
   }
 
   private stopHeartbeat(): void {
-    if (this.heartbeatTimer != null) {
+    if (this.heartbeatTimer !== null && this.heartbeatTimer !== undefined) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
@@ -113,20 +113,24 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
 
   private startRefresh(): void {
     const ms = this.options.refreshTtlMs ?? 30000;
-    if (ms <= 0) return;
+    if (ms <= 0) {
+      return;
+    }
     this.stopRefresh();
     this.refreshTimer = setInterval(() => void this.refreshRegistration(), ms);
   }
 
   private stopRefresh(): void {
-    if (this.refreshTimer != null) {
+    if (this.refreshTimer !== null && this.refreshTimer !== undefined) {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
   }
 
   private async sendHeartbeat(): Promise<void> {
-    if (!this.instance || this.heartbeatInFlight) return;
+    if (!this.instance || this.heartbeatInFlight) {
+      return;
+    }
     this.heartbeatInFlight = true;
     try {
       await this.serviceRegistry.renew(this.instance);
@@ -146,7 +150,9 @@ export class NacosServiceRegistrationService implements OnModuleInit, OnModuleDe
   }
 
   private async refreshRegistration(): Promise<void> {
-    if (!this.instance || this.refreshInFlight) return;
+    if (!this.instance || this.refreshInFlight) {
+      return;
+    }
     this.refreshInFlight = true;
     try {
       await this.serviceRegistry.register(this.instance);

@@ -1,13 +1,12 @@
+import { AgentConsoleClient as BaseAgentConsoleClient } from "./client";
 import {
-  AgentConsoleClient as BaseAgentConsoleClient,
-} from './client';
-import {
+  type AgentConsoleConfig,
   agentConsoleRequestJson as agentConsoleRequestJsonValue,
   agentConsoleRequestText as agentConsoleRequestTextValue,
   agentConsoleStreamSse as agentConsoleStreamSseValue,
-  type AgentConsoleConfig,
-} from './http';
+} from "./http";
 
+export type { ProposeRequest, ProposeResult, ProposeSuggestion } from "@cube-ai/contracts";
 export type {
   AgentContentInput,
   FromDocumentResult,
@@ -16,8 +15,7 @@ export type {
   RuleContentInput,
   ShelfListOptions,
   SkillContentInput,
-} from './client';
-export type { ProposeRequest, ProposeResult, ProposeSuggestion } from '@cube-ai/contracts';
+} from "./client";
 
 const agentConsoleRequestJson = agentConsoleRequestJsonValue;
 const agentConsoleRequestText = agentConsoleRequestTextValue;
@@ -29,9 +27,5 @@ export function createAgentConsoleClient(config: AgentConsoleConfig): AgentConso
   return new AgentConsoleClient(config);
 }
 
-export {
-  agentConsoleRequestJson,
-  agentConsoleRequestText,
-  agentConsoleStreamSse,
-};
-export type { AgentConsoleConfig, AgentConsoleSseEvent } from './http';
+export type { AgentConsoleConfig, AgentConsoleSseEvent } from "./http";
+export { agentConsoleRequestJson, agentConsoleRequestText, agentConsoleStreamSse };

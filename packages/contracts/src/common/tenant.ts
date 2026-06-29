@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Tenant identifier schema.
@@ -13,11 +13,7 @@ import { z } from 'zod';
  * ref: docs/detailed-design/00-foundations/naming-and-db-conventions.md §2.2
  *      docs/technical-design/phase-1/P1-01-foundations.md §3.4
  */
-export const TenantSchema = z
-  .number()
-  .int()
-  .nonnegative()
-  .max(2_147_483_647, 'Tenant ID must be within INT(10) range');
+export const TenantSchema = z.number().int().nonnegative().max(2_147_483_647, "Tenant ID must be within INT(10) range");
 
 export type TenantId = z.infer<typeof TenantSchema>;
 /** Backwards-compatible alias used by P1-03 data layer. */

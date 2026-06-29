@@ -2,17 +2,19 @@
 // @generated from file guhecloud/cube/base/file/grpc/v1/file_types.proto (package guhecloud.cube.base.file.client.v1, syntax proto3)
 /* eslint-disable */
 
+import type { Message } from "@bufbuild/protobuf";
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
-import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file guhecloud/cube/base/file/grpc/v1/file_types.proto.
  */
-export const file_guhecloud_cube_base_file_grpc_v1_file_types: GenFile = /*@__PURE__*/
-  fileDesc("CjFndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX3R5cGVzLnByb3RvEiJndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxIvYCCgZGaWxlVm8SDwoCaWQYASABKANIAIgBARIRCgRuYW1lGAIgASgJSAGIAQESEwoGc3VmZml4GAMgASgJSAKIAQESEQoEcGF0aBgEIAEoCUgDiAEBEhEKBHNpemUYBSABKAVIBIgBARIWCglyZWZfY291bnQYBiABKAVIBYgBARIRCgR0eXBlGAcgASgJSAaIAQESGQoMYnVzaW5lc3Nfa2V5GAggASgDSAeIAQESGgoNZW5kcG9pbnRfcGF0aBgJIAEoCUgIiAEBEjQKC2NyZWF0ZV90aW1lGAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgJiAEBQgUKA19pZEIHCgVfbmFtZUIJCgdfc3VmZml4QgcKBV9wYXRoQgcKBV9zaXplQgwKCl9yZWZfY291bnRCBwoFX3R5cGVCDwoNX2J1c2luZXNzX2tleUIQCg5fZW5kcG9pbnRfcGF0aEIOCgxfY3JlYXRlX3RpbWUidQoMRmlsZUdlbmVyYXRlEhEKCWZpbGVfbmFtZRgBIAEoCRIXCgpzY2VuZV9jb2RlGAIgASgJSACIAQESGQoMYnVzaW5lc3Nfa2V5GAMgASgJSAGIAQFCDQoLX3NjZW5lX2NvZGVCDwoNX2J1c2luZXNzX2tleSJFCgxGaWxlSWRzUXVlcnkSCwoDaWRzGAEgAygDEhgKC2ZpbGVfaWRfc3RyGAIgASgJSACIAQFCDgoMX2ZpbGVfaWRfc3RyIiUKDEJ1c2luZXNzS2V5cxIVCg1idXNpbmVzc19rZXlzGAEgAygDInAKDVJhd1VwbG9hZFBhcnQSDwoHY29udGVudBgBIAEoDBIVCghmaWxlbmFtZRgCIAEoCUgAiAEBEhkKDGNvbnRlbnRfdHlwZRgDIAEoCUgBiAEBQgsKCV9maWxlbmFtZUIPCg1fY29udGVudF90eXBlIpUCCgpGaWxlTW9kaWZ5EhMKBnRlbmFudBgBIAEoBUgAiAEBEhkKDGJ1c2luZXNzX2tleRgCIAEoCUgBiAEBEj8KBGZpbGUYAyABKAsyMS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJhd1VwbG9hZFBhcnQSHQoQYXBwbGljYXRpb25fY29kZRgEIAEoCUgCiAEBEhYKCXdhdGVybWFyaxgFIAEoCUgDiAEBEhQKB2ZpbGVfaWQYBiABKANIBIgBAUIJCgdfdGVuYW50Qg8KDV9idXNpbmVzc19rZXlCEwoRX2FwcGxpY2F0aW9uX2NvZGVCDAoKX3dhdGVybWFya0IKCghfZmlsZV9pZCLJAQoKRmlsZVVwbG9hZBITCgZ0ZW5hbnQYASABKAVIAIgBARISCgpzY2VuZV9jb2RlGAIgASgJEj8KBGZpbGUYAyABKAsyMS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJhd1VwbG9hZFBhcnQSFgoJd2F0ZXJtYXJrGAQgASgJSAGIAQESFAoHZmlsZV9pZBgFIAEoA0gCiAEBQgkKB190ZW5hbnRCDAoKX3dhdGVybWFya0IKCghfZmlsZV9pZCKMAQoKRmlsZUluZHVjZRISCgpzY2VuZV9jb2RlGAEgASgJEhQKDGZpbGVfaWRfbGlzdBgCIAMoAxIYCgtmaWxlX2lkX3N0chgDIAEoCUgAiAEBEhkKDGJ1c2luZXNzX2tleRgEIAEoA0gBiAEBQg4KDF9maWxlX2lkX3N0ckIPCg1fYnVzaW5lc3Nfa2V5IuEBCg9GaWxlUmVmTXV0YXRpb24SGQoMYnVzaW5lc3Nfa2V5GAEgASgDSACIAQESFwoKc2NlbmVfY29kZRgCIAEoCUgBiAEBEhQKDGZpbGVfaWRfbGlzdBgDIAMoAxIYCgtmaWxlX2lkX3N0chgEIAEoCUgCiAEBEhQKB2ZpbGVfaWQYBSABKANIA4gBARIQCgN0YWcYBiABKAlIBIgBAUIPCg1fYnVzaW5lc3Nfa2V5Qg0KC19zY2VuZV9jb2RlQg4KDF9maWxlX2lkX3N0ckIKCghfZmlsZV9pZEIGCgRfdGFnIkcKCkZpbGVWb0xpc3QSOQoFaXRlbXMYASADKAsyKi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWbyJrChhGaWxlVm9CeUJ1c2luZXNzS2V5RW50cnkSFAoMYnVzaW5lc3Nfa2V5GAEgASgDEjkKBWZpbGVzGAIgAygLMiouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm8iZwoWRmlsZVZvQnlCdXNpbmVzc0tleU1hcBJNCgdlbnRyaWVzGAEgAygLMjwuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm9CeUJ1c2luZXNzS2V5RW50cnkiWAoOT3B0aW9uYWxGaWxlVm8SPQoEZmlsZRgBIAEoCzIqLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvSACIAQFCBwoFX2ZpbGUiGQoJRmlsZUJ5dGVzEgwKBGRhdGEYASABKAwiLAoKRmlsZUJhc2U2NBITCgZiYXNlNjQYASABKAlIAIgBAUIJCgdfYmFzZTY0IiwKDE9wdGlvbmFsQm9vbBISCgV2YWx1ZRgBIAEoCEgAiAEBQggKBl92YWx1ZSIcCg5HZXRCeUlkUmVxdWVzdBIKCgJpZBgBIAEoAyIvChdHZXRCeUJ1c2luZXNzS2V5UmVxdWVzdBIUCgxidXNpbmVzc19rZXkYASABKAMiQwoeR2V0QnlCdXNpbmVzc0tleVdpdGhUYWdSZXF1ZXN0EhQKDGJ1c2luZXNzX2tleRgBIAEoAxILCgN0YWcYAiABKAkiSAoVUmVzb3VyY2VCdW5kbGVSZXF1ZXN0EhEKCWZpbGVfbmFtZRgBIAEoCRIOCgZidWNrZXQYAiABKAkSDAoEcGF0aBgDIAEoCUI6CiZjb20uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MUIORmlsZVR5cGVzUHJvdG9QAWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+export const file_guhecloud_cube_base_file_grpc_v1_file_types: GenFile /*@__PURE__*/ = fileDesc(
+  "CjFndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX3R5cGVzLnByb3RvEiJndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxIvYCCgZGaWxlVm8SDwoCaWQYASABKANIAIgBARIRCgRuYW1lGAIgASgJSAGIAQESEwoGc3VmZml4GAMgASgJSAKIAQESEQoEcGF0aBgEIAEoCUgDiAEBEhEKBHNpemUYBSABKAVIBIgBARIWCglyZWZfY291bnQYBiABKAVIBYgBARIRCgR0eXBlGAcgASgJSAaIAQESGQoMYnVzaW5lc3Nfa2V5GAggASgDSAeIAQESGgoNZW5kcG9pbnRfcGF0aBgJIAEoCUgIiAEBEjQKC2NyZWF0ZV90aW1lGAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgJiAEBQgUKA19pZEIHCgVfbmFtZUIJCgdfc3VmZml4QgcKBV9wYXRoQgcKBV9zaXplQgwKCl9yZWZfY291bnRCBwoFX3R5cGVCDwoNX2J1c2luZXNzX2tleUIQCg5fZW5kcG9pbnRfcGF0aEIOCgxfY3JlYXRlX3RpbWUidQoMRmlsZUdlbmVyYXRlEhEKCWZpbGVfbmFtZRgBIAEoCRIXCgpzY2VuZV9jb2RlGAIgASgJSACIAQESGQoMYnVzaW5lc3Nfa2V5GAMgASgJSAGIAQFCDQoLX3NjZW5lX2NvZGVCDwoNX2J1c2luZXNzX2tleSJFCgxGaWxlSWRzUXVlcnkSCwoDaWRzGAEgAygDEhgKC2ZpbGVfaWRfc3RyGAIgASgJSACIAQFCDgoMX2ZpbGVfaWRfc3RyIiUKDEJ1c2luZXNzS2V5cxIVCg1idXNpbmVzc19rZXlzGAEgAygDInAKDVJhd1VwbG9hZFBhcnQSDwoHY29udGVudBgBIAEoDBIVCghmaWxlbmFtZRgCIAEoCUgAiAEBEhkKDGNvbnRlbnRfdHlwZRgDIAEoCUgBiAEBQgsKCV9maWxlbmFtZUIPCg1fY29udGVudF90eXBlIpUCCgpGaWxlTW9kaWZ5EhMKBnRlbmFudBgBIAEoBUgAiAEBEhkKDGJ1c2luZXNzX2tleRgCIAEoCUgBiAEBEj8KBGZpbGUYAyABKAsyMS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJhd1VwbG9hZFBhcnQSHQoQYXBwbGljYXRpb25fY29kZRgEIAEoCUgCiAEBEhYKCXdhdGVybWFyaxgFIAEoCUgDiAEBEhQKB2ZpbGVfaWQYBiABKANIBIgBAUIJCgdfdGVuYW50Qg8KDV9idXNpbmVzc19rZXlCEwoRX2FwcGxpY2F0aW9uX2NvZGVCDAoKX3dhdGVybWFya0IKCghfZmlsZV9pZCLJAQoKRmlsZVVwbG9hZBITCgZ0ZW5hbnQYASABKAVIAIgBARISCgpzY2VuZV9jb2RlGAIgASgJEj8KBGZpbGUYAyABKAsyMS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJhd1VwbG9hZFBhcnQSFgoJd2F0ZXJtYXJrGAQgASgJSAGIAQESFAoHZmlsZV9pZBgFIAEoA0gCiAEBQgkKB190ZW5hbnRCDAoKX3dhdGVybWFya0IKCghfZmlsZV9pZCKMAQoKRmlsZUluZHVjZRISCgpzY2VuZV9jb2RlGAEgASgJEhQKDGZpbGVfaWRfbGlzdBgCIAMoAxIYCgtmaWxlX2lkX3N0chgDIAEoCUgAiAEBEhkKDGJ1c2luZXNzX2tleRgEIAEoA0gBiAEBQg4KDF9maWxlX2lkX3N0ckIPCg1fYnVzaW5lc3Nfa2V5IuEBCg9GaWxlUmVmTXV0YXRpb24SGQoMYnVzaW5lc3Nfa2V5GAEgASgDSACIAQESFwoKc2NlbmVfY29kZRgCIAEoCUgBiAEBEhQKDGZpbGVfaWRfbGlzdBgDIAMoAxIYCgtmaWxlX2lkX3N0chgEIAEoCUgCiAEBEhQKB2ZpbGVfaWQYBSABKANIA4gBARIQCgN0YWcYBiABKAlIBIgBAUIPCg1fYnVzaW5lc3Nfa2V5Qg0KC19zY2VuZV9jb2RlQg4KDF9maWxlX2lkX3N0ckIKCghfZmlsZV9pZEIGCgRfdGFnIkcKCkZpbGVWb0xpc3QSOQoFaXRlbXMYASADKAsyKi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWbyJrChhGaWxlVm9CeUJ1c2luZXNzS2V5RW50cnkSFAoMYnVzaW5lc3Nfa2V5GAEgASgDEjkKBWZpbGVzGAIgAygLMiouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm8iZwoWRmlsZVZvQnlCdXNpbmVzc0tleU1hcBJNCgdlbnRyaWVzGAEgAygLMjwuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm9CeUJ1c2luZXNzS2V5RW50cnkiWAoOT3B0aW9uYWxGaWxlVm8SPQoEZmlsZRgBIAEoCzIqLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvSACIAQFCBwoFX2ZpbGUiGQoJRmlsZUJ5dGVzEgwKBGRhdGEYASABKAwiLAoKRmlsZUJhc2U2NBITCgZiYXNlNjQYASABKAlIAIgBAUIJCgdfYmFzZTY0IiwKDE9wdGlvbmFsQm9vbBISCgV2YWx1ZRgBIAEoCEgAiAEBQggKBl92YWx1ZSIcCg5HZXRCeUlkUmVxdWVzdBIKCgJpZBgBIAEoAyIvChdHZXRCeUJ1c2luZXNzS2V5UmVxdWVzdBIUCgxidXNpbmVzc19rZXkYASABKAMiQwoeR2V0QnlCdXNpbmVzc0tleVdpdGhUYWdSZXF1ZXN0EhQKDGJ1c2luZXNzX2tleRgBIAEoAxILCgN0YWcYAiABKAkiSAoVUmVzb3VyY2VCdW5kbGVSZXF1ZXN0EhEKCWZpbGVfbmFtZRgBIAEoCRIOCgZidWNrZXQYAiABKAkSDAoEcGF0aBgDIAEoCUI6CiZjb20uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MUIORmlsZVR5cGVzUHJvdG9QAWIGcHJvdG8z",
+  [file_google_protobuf_timestamp],
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileVo
@@ -73,8 +75,7 @@ export type FileVo = Message<"guhecloud.cube.base.file.client.v1.FileVo"> & {
  * Describes the message guhecloud.cube.base.file.client.v1.FileVo.
  * Use `create(FileVoSchema)` to create a new message.
  */
-export const FileVoSchema: GenMessage<FileVo> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 0);
+export const FileVoSchema: GenMessage<FileVo> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 0);
 
 /**
  * FileGenerateParam
@@ -104,8 +105,7 @@ export type FileGenerate = Message<"guhecloud.cube.base.file.client.v1.FileGener
  * Describes the message guhecloud.cube.base.file.client.v1.FileGenerate.
  * Use `create(FileGenerateSchema)` to create a new message.
  */
-export const FileGenerateSchema: GenMessage<FileGenerate> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 1);
+export const FileGenerateSchema: GenMessage<FileGenerate> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 1);
 
 /**
  * FileParam
@@ -128,8 +128,7 @@ export type FileIdsQuery = Message<"guhecloud.cube.base.file.client.v1.FileIdsQu
  * Describes the message guhecloud.cube.base.file.client.v1.FileIdsQuery.
  * Use `create(FileIdsQuerySchema)` to create a new message.
  */
-export const FileIdsQuerySchema: GenMessage<FileIdsQuery> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 2);
+export const FileIdsQuerySchema: GenMessage<FileIdsQuery> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 2);
 
 /**
  * BusinessKeysParam
@@ -147,8 +146,7 @@ export type BusinessKeys = Message<"guhecloud.cube.base.file.client.v1.BusinessK
  * Describes the message guhecloud.cube.base.file.client.v1.BusinessKeys.
  * Use `create(BusinessKeysSchema)` to create a new message.
  */
-export const BusinessKeysSchema: GenMessage<BusinessKeys> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 3);
+export const BusinessKeysSchema: GenMessage<BusinessKeys> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 3);
 
 /**
  * 表达 MultipartFile：字节 + 可选元数据（gRPC 无 multipart 本体）
@@ -176,8 +174,10 @@ export type RawUploadPart = Message<"guhecloud.cube.base.file.client.v1.RawUploa
  * Describes the message guhecloud.cube.base.file.client.v1.RawUploadPart.
  * Use `create(RawUploadPartSchema)` to create a new message.
  */
-export const RawUploadPartSchema: GenMessage<RawUploadPart> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 4);
+export const RawUploadPartSchema: GenMessage<RawUploadPart> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  4,
+);
 
 /**
  * FileModifyParam（原 Feign 为 multipart）
@@ -220,8 +220,7 @@ export type FileModify = Message<"guhecloud.cube.base.file.client.v1.FileModify"
  * Describes the message guhecloud.cube.base.file.client.v1.FileModify.
  * Use `create(FileModifySchema)` to create a new message.
  */
-export const FileModifySchema: GenMessage<FileModify> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 5);
+export const FileModifySchema: GenMessage<FileModify> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 5);
 
 /**
  * FileUploadParam
@@ -259,8 +258,7 @@ export type FileUpload = Message<"guhecloud.cube.base.file.client.v1.FileUpload"
  * Describes the message guhecloud.cube.base.file.client.v1.FileUpload.
  * Use `create(FileUploadSchema)` to create a new message.
  */
-export const FileUploadSchema: GenMessage<FileUpload> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 6);
+export const FileUploadSchema: GenMessage<FileUpload> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 6);
 
 /**
  * FileInduceParam
@@ -293,8 +291,7 @@ export type FileInduce = Message<"guhecloud.cube.base.file.client.v1.FileInduce"
  * Describes the message guhecloud.cube.base.file.client.v1.FileInduce.
  * Use `create(FileInduceSchema)` to create a new message.
  */
-export const FileInduceSchema: GenMessage<FileInduce> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 7);
+export const FileInduceSchema: GenMessage<FileInduce> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 7);
 
 /**
  * FileRefCreateParam / FileRefRemoveParam
@@ -337,8 +334,10 @@ export type FileRefMutation = Message<"guhecloud.cube.base.file.client.v1.FileRe
  * Describes the message guhecloud.cube.base.file.client.v1.FileRefMutation.
  * Use `create(FileRefMutationSchema)` to create a new message.
  */
-export const FileRefMutationSchema: GenMessage<FileRefMutation> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 8);
+export const FileRefMutationSchema: GenMessage<FileRefMutation> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  8,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileVoList
@@ -354,8 +353,7 @@ export type FileVoList = Message<"guhecloud.cube.base.file.client.v1.FileVoList"
  * Describes the message guhecloud.cube.base.file.client.v1.FileVoList.
  * Use `create(FileVoListSchema)` to create a new message.
  */
-export const FileVoListSchema: GenMessage<FileVoList> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 9);
+export const FileVoListSchema: GenMessage<FileVoList> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 9);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileVoByBusinessKeyEntry
@@ -376,8 +374,10 @@ export type FileVoByBusinessKeyEntry = Message<"guhecloud.cube.base.file.client.
  * Describes the message guhecloud.cube.base.file.client.v1.FileVoByBusinessKeyEntry.
  * Use `create(FileVoByBusinessKeyEntrySchema)` to create a new message.
  */
-export const FileVoByBusinessKeyEntrySchema: GenMessage<FileVoByBusinessKeyEntry> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 10);
+export const FileVoByBusinessKeyEntrySchema: GenMessage<FileVoByBusinessKeyEntry> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  10,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileVoByBusinessKeyMap
@@ -393,8 +393,10 @@ export type FileVoByBusinessKeyMap = Message<"guhecloud.cube.base.file.client.v1
  * Describes the message guhecloud.cube.base.file.client.v1.FileVoByBusinessKeyMap.
  * Use `create(FileVoByBusinessKeyMapSchema)` to create a new message.
  */
-export const FileVoByBusinessKeyMapSchema: GenMessage<FileVoByBusinessKeyMap> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 11);
+export const FileVoByBusinessKeyMapSchema: GenMessage<FileVoByBusinessKeyMap> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  11,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.OptionalFileVo
@@ -410,8 +412,10 @@ export type OptionalFileVo = Message<"guhecloud.cube.base.file.client.v1.Optiona
  * Describes the message guhecloud.cube.base.file.client.v1.OptionalFileVo.
  * Use `create(OptionalFileVoSchema)` to create a new message.
  */
-export const OptionalFileVoSchema: GenMessage<OptionalFileVo> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 12);
+export const OptionalFileVoSchema: GenMessage<OptionalFileVo> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  12,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileBytes
@@ -427,8 +431,7 @@ export type FileBytes = Message<"guhecloud.cube.base.file.client.v1.FileBytes"> 
  * Describes the message guhecloud.cube.base.file.client.v1.FileBytes.
  * Use `create(FileBytesSchema)` to create a new message.
  */
-export const FileBytesSchema: GenMessage<FileBytes> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 13);
+export const FileBytesSchema: GenMessage<FileBytes> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 13);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileBase64
@@ -444,8 +447,7 @@ export type FileBase64 = Message<"guhecloud.cube.base.file.client.v1.FileBase64"
  * Describes the message guhecloud.cube.base.file.client.v1.FileBase64.
  * Use `create(FileBase64Schema)` to create a new message.
  */
-export const FileBase64Schema: GenMessage<FileBase64> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 14);
+export const FileBase64Schema: GenMessage<FileBase64> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 14);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.OptionalBool
@@ -461,8 +463,7 @@ export type OptionalBool = Message<"guhecloud.cube.base.file.client.v1.OptionalB
  * Describes the message guhecloud.cube.base.file.client.v1.OptionalBool.
  * Use `create(OptionalBoolSchema)` to create a new message.
  */
-export const OptionalBoolSchema: GenMessage<OptionalBool> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 15);
+export const OptionalBoolSchema: GenMessage<OptionalBool> /*@__PURE__*/ = messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 15);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.GetByIdRequest
@@ -478,8 +479,10 @@ export type GetByIdRequest = Message<"guhecloud.cube.base.file.client.v1.GetById
  * Describes the message guhecloud.cube.base.file.client.v1.GetByIdRequest.
  * Use `create(GetByIdRequestSchema)` to create a new message.
  */
-export const GetByIdRequestSchema: GenMessage<GetByIdRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 16);
+export const GetByIdRequestSchema: GenMessage<GetByIdRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  16,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.GetByBusinessKeyRequest
@@ -495,8 +498,10 @@ export type GetByBusinessKeyRequest = Message<"guhecloud.cube.base.file.client.v
  * Describes the message guhecloud.cube.base.file.client.v1.GetByBusinessKeyRequest.
  * Use `create(GetByBusinessKeyRequestSchema)` to create a new message.
  */
-export const GetByBusinessKeyRequestSchema: GenMessage<GetByBusinessKeyRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 17);
+export const GetByBusinessKeyRequestSchema: GenMessage<GetByBusinessKeyRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  17,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.GetByBusinessKeyWithTagRequest
@@ -517,8 +522,10 @@ export type GetByBusinessKeyWithTagRequest = Message<"guhecloud.cube.base.file.c
  * Describes the message guhecloud.cube.base.file.client.v1.GetByBusinessKeyWithTagRequest.
  * Use `create(GetByBusinessKeyWithTagRequestSchema)` to create a new message.
  */
-export const GetByBusinessKeyWithTagRequestSchema: GenMessage<GetByBusinessKeyWithTagRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 18);
+export const GetByBusinessKeyWithTagRequestSchema: GenMessage<GetByBusinessKeyWithTagRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  18,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.ResourceBundleRequest
@@ -544,6 +551,7 @@ export type ResourceBundleRequest = Message<"guhecloud.cube.base.file.client.v1.
  * Describes the message guhecloud.cube.base.file.client.v1.ResourceBundleRequest.
  * Use `create(ResourceBundleRequestSchema)` to create a new message.
  */
-export const ResourceBundleRequestSchema: GenMessage<ResourceBundleRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_types, 19);
-
+export const ResourceBundleRequestSchema: GenMessage<ResourceBundleRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_types,
+  19,
+);

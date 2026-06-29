@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Cursor-based pagination — request and response schemas.
@@ -13,18 +13,18 @@ import { z } from 'zod';
  * when present.
  */
 export const CursorPaginationRequestSchema = z.object({
-  /** Maximum number of items to return. Default 20, max 100. */
-  limit: z.number().int().min(1).max(100).default(20),
   /** Opaque cursor from a previous response; omit for the first page. */
   cursor: z.string().optional(),
+  /** Maximum number of items to return. Default 20, max 100. */
+  limit: z.number().int().min(1).max(100).default(20),
 });
 export type CursorPaginationRequest = z.infer<typeof CursorPaginationRequestSchema>;
 
 export const CursorPaginationResponseSchema = z.object({
-  /** Cursor for the next page; absent when `hasMore` is false (§6.2). */
-  nextCursor: z.string().optional(),
   /** Whether more items exist beyond this page. */
   hasMore: z.boolean(),
+  /** Cursor for the next page; absent when `hasMore` is false (§6.2). */
+  nextCursor: z.string().optional(),
 });
 export type CursorPaginationResponse = z.infer<typeof CursorPaginationResponseSchema>;
 
@@ -52,14 +52,10 @@ export interface PaginatedResponse<T> {
  * @param limit      - the requested limit
  * @param getCursor  - function to extract the opaque cursor from an item
  */
-export function buildPaginatedResponse<T>(
-  rows: T[],
-  limit: number,
-  getCursor: (item: T) => string,
-): PaginatedResponse<T> {
+export function buildPaginatedResponse<T>(rows: T[], limit: number, getCursor: (item: T) => string): PaginatedResponse<T> {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
-  const lastItem = items[items.length - 1];
+  const lastItem = items.at(-1);
   return {
     items,
     page: {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 const DEPENDENCY_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"] as const;
@@ -8,9 +8,9 @@ const IGNORED_DIRS = new Set([".git", ".husky", ".tmp", "coverage", "dist", "lib
 const FORMAT_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".vue"] as const;
 const SCOPE_PATTERN = String.raw`[A-Za-z0-9._-]+(?:,\s*[A-Za-z0-9._-]+)*`;
 const COMMIT_ITEM_PATTERN = String.raw`(?:feat|fix|hotfix|chore|docs|test|refactor|build|ci|perf|style|revert)\(${SCOPE_PATTERN}\)`;
-const SINGLE_COMMIT_SUBJECT_RE = new RegExp(String.raw`^${COMMIT_ITEM_PATTERN}: .+$`);
-const GROUPED_COMMIT_SUBJECT_RE = new RegExp(String.raw`^\{${COMMIT_ITEM_PATTERN}(?:,\s*${COMMIT_ITEM_PATTERN})+\}: .+$`);
-const PERSONAL_BRANCH_RE = /^[a-z][a-z0-9._-]*\/[A-Za-z0-9._-]+$/;
+const SINGLE_COMMIT_SUBJECT_RE = new RegExp(String.raw`^${COMMIT_ITEM_PATTERN}: .+$`, "u");
+const GROUPED_COMMIT_SUBJECT_RE = new RegExp(String.raw`^\{${COMMIT_ITEM_PATTERN}(?:,\s*${COMMIT_ITEM_PATTERN})+\}: .+$`, "u");
+const PERSONAL_BRANCH_RE = /^[a-z][a-z0-9._-]*\/[A-Za-z0-9._-]+$/u;
 const ZERO_SHA = "0000000000000000000000000000000000000000";
 
 export interface DependencyPolicyViolation {
@@ -74,29 +74,29 @@ function readJsonFile(filePath: string): Record<string, unknown> {
 
 function runGit(args: string[]): CommandResult {
   const result = Bun.spawnSync(["git", ...args], {
+    stderr: "pipe",
     stdin: "ignore",
     stdout: "pipe",
-    stderr: "pipe",
   });
 
   return {
     exitCode: result.exitCode ?? 1,
-    stdout: result.stdout.toString(),
     stderr: result.stderr.toString(),
+    stdout: result.stdout.toString(),
   };
 }
 
 async function runCommand(command: string, args: string[]): Promise<CommandResult> {
   const result = Bun.spawnSync([command, ...args], {
+    stderr: "pipe",
     stdin: "inherit",
     stdout: "pipe",
-    stderr: "pipe",
   });
 
   return {
     exitCode: result.exitCode ?? 1,
-    stdout: result.stdout.toString(),
     stderr: result.stderr.toString(),
+    stdout: result.stdout.toString(),
   };
 }
 
@@ -119,15 +119,15 @@ function parseNameStatus(output: string): ChangedFile[] {
       const status = parts[0] ?? "";
       if (status.startsWith("R") || status.startsWith("C")) {
         return {
-          status,
           oldPath: parts[1],
           path: parts[2] ?? parts[1] ?? "",
+          status,
         };
       }
 
       return {
-        status,
         path: parts[1] ?? "",
+        status,
       };
     })
     .filter((file) => file.path);
@@ -171,16 +171,17 @@ function isAllowedSubPackageDependencyVersion(version: string): boolean {
 }
 
 function isConcreteCatalogVersion(version: string): boolean {
-  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version);
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u.test(version);
 }
 
-function collectRootCatalogSections(rootPackageJson: Record<string, unknown>): Array<{ field: string; deps: Record<string, string> }> {
-  const sections: Array<{ field: string; deps: Record<string, string> }> = [];
-  sections.push({ field: "catalog", deps: readDependencyMap(rootPackageJson.catalog) });
+function collectRootCatalogSections(rootPackageJson: Record<string, unknown>): { field: string; deps: Record<string, string> }[] {
+  const sections: { field: string; deps: Record<string, string> }[] = [
+    { deps: readDependencyMap(rootPackageJson.catalog), field: "catalog" },
+  ];
 
   if (rootPackageJson.catalogs && typeof rootPackageJson.catalogs === "object") {
     for (const [catalogName, entries] of Object.entries(rootPackageJson.catalogs as Record<string, unknown>)) {
-      sections.push({ field: `catalogs.${catalogName}`, deps: readDependencyMap(entries) });
+      sections.push({ deps: readDependencyMap(entries), field: `catalogs.${catalogName}` });
     }
   }
 
@@ -194,9 +195,9 @@ function getRootDependencyPolicyViolations(rootPackageJson: Record<string, unkno
     for (const [dependencyName, version] of Object.entries(deps)) {
       if (!isConcreteCatalogVersion(version)) {
         violations.push({
-          packageJsonPath: "package.json",
-          field,
           dependencyName,
+          field,
+          packageJsonPath: "package.json",
           version,
         });
       }
@@ -207,9 +208,9 @@ function getRootDependencyPolicyViolations(rootPackageJson: Record<string, unkno
     for (const [dependencyName, version] of Object.entries(readDependencyMap(rootPackageJson[field]))) {
       if (!isAllowedSubPackageDependencyVersion(version)) {
         violations.push({
-          packageJsonPath: "package.json",
-          field,
           dependencyName,
+          field,
+          packageJsonPath: "package.json",
           version,
         });
       }
@@ -231,9 +232,9 @@ export async function getDependencyPolicyViolations(rootDir = process.cwd()): Pr
       for (const [dependencyName, version] of Object.entries(readDependencyMap(packageJson[field]))) {
         if (!isAllowedSubPackageDependencyVersion(version)) {
           violations.push({
-            packageJsonPath: repoPath,
-            field,
             dependencyName,
+            field,
+            packageJsonPath: repoPath,
             version,
           });
         }
@@ -248,6 +249,11 @@ function isValidCommitSubject(subject: string): boolean {
   return SINGLE_COMMIT_SUBJECT_RE.test(subject) || GROUPED_COMMIT_SUBJECT_RE.test(subject);
 }
 
+/** Git 自动生成的 merge commit（Merge branch / Merge remote-tracking branch 等）。 */
+export function isMergeCommitSubject(subject: string): boolean {
+  return subject.startsWith("Merge ");
+}
+
 function isGuhecloudEmail(email: string): boolean {
   return email.endsWith("@guhecloud.com");
 }
@@ -255,7 +261,7 @@ function isGuhecloudEmail(email: string): boolean {
 export function getCommitPolicyViolations(commits: CommitInfo[]): CommitPolicyViolation[] {
   return commits.flatMap((commit) => {
     const reasons: string[] = [];
-    if (!isValidCommitSubject(commit.subject)) {
+    if (!isMergeCommitSubject(commit.subject) && !isValidCommitSubject(commit.subject)) {
       reasons.push("commit subject must match type(scope): message or {type(scope), type(scope)}: message");
     }
     if (!isGuhecloudEmail(commit.authorEmail)) {
@@ -270,14 +276,14 @@ export function isValidBranchName(branchName: string): boolean {
   return branchName === "main" || branchName.startsWith("release-") || PERSONAL_BRANCH_RE.test(branchName);
 }
 
-function parsePrePushInput(input: string): Array<{ localRef: string; localSha: string; remoteRef: string; remoteSha: string }> {
+function parsePrePushInput(input: string): { localRef: string; localSha: string; remoteRef: string; remoteSha: string }[] {
   return input
     .trim()
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [localRef, localSha, remoteRef, remoteSha] = line.split(/\s+/);
+      const [localRef, localSha, remoteRef, remoteSha] = line.split(/\s+/u);
       if (!localRef || !localSha || !remoteRef || !remoteSha) {
         throw new Error(`invalid pre-push input line: ${line}`);
       }
@@ -412,7 +418,7 @@ export async function runAutoFormatGate(changedFiles: ChangedFile[], runner: Com
     changedFiles
       .filter((file) => !file.status.startsWith("D"))
       .map((file) => file.path)
-      .filter(isFormatableFile),
+      .filter((value) => isFormatableFile(value)),
   );
 
   if (files.length === 0) {
@@ -456,7 +462,7 @@ async function runLintGate(changedFiles: ChangedFile[]): Promise<void> {
     changedFiles
       .filter((file) => !file.status.startsWith("D"))
       .map((file) => file.path)
-      .filter(isLintableFile),
+      .filter((value) => isLintableFile(value)),
   );
 
   if (files.length === 0) {
@@ -502,8 +508,8 @@ function getCommitsInRange(range: string): CommitInfo[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [sha = "", subject = "", authorEmail = ""] = line.split("\x1f");
-      return { sha, subject, authorEmail };
+      const [sha = "", subject = "", authorEmail = ""] = line.split("\u001F");
+      return { authorEmail, sha, subject };
     });
 }
 
@@ -548,24 +554,26 @@ async function main(): Promise<void> {
   console.log(`changed files: ${changedFiles.length}`);
 
   await runPrePushChecks({
+    branch: runBranchGate,
+    build: runBuildGate,
+    commit: async () => runCommitGate(context.range),
     deps: runDependencyGate,
     fmt: async () => {
       assertCleanWorkingTree();
       await runAutoFormatGate(changedFiles);
     },
     lint: async () => runLintGate(changedFiles),
-    build: runBuildGate,
-    commit: async () => runCommitGate(context.range),
-    branch: runBranchGate,
   });
 
   console.log("pre-push checks passed");
 }
 
 if (import.meta.path === Bun.main || process.argv[1]?.endsWith("pre-push-check.ts")) {
-  main().catch((error) => {
+  try {
+    await main();
+  } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`pre-push failed: ${message}`);
     process.exit(1);
-  });
+  }
 }

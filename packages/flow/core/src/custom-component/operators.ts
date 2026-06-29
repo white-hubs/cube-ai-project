@@ -1,122 +1,120 @@
-import type { CubeCustomStep } from './dsl-shared'
+import type { CubeCustomStep } from "./dsl-shared";
 
-export type OperatorStep = {
-  action: CubeCustomStep['action'] | 'message_merge' | 'message_to_openai_content'
-  params: Record<string, unknown>
+export interface OperatorStep {
+  action: CubeCustomStep["action"] | "message_merge" | "message_to_openai_content";
+  params: Record<string, unknown>;
 }
 
-export type OperatorEmit = {
-  lines: string[]
-  imports: string[]
-  pip?: { name: string; version?: string }[]
+export interface OperatorEmit {
+  lines: string[];
+  imports: string[];
+  pip?: { name: string; version?: string }[];
 }
 
 /** inputNames 为 undefined 时占位符一律展开为 self.name（v1 行为）。 */
 export function expandPlaceholders(expr: string, inputNames?: Set<string>): string {
-  return expr.replace(/\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g, (_m, name: string) => {
-    if (/^_s\d+$/.test(name)) return name
-    if (inputNames === undefined) return `self.${name}`
-    if (inputNames.has(name)) return `self.${name}`
-    return name
-  })
+  return expr.replaceAll(/\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/gu, (_m, name: string) => {
+    if (/^_s\d+$/u.test(name)) {
+      return name;
+    }
+    if (inputNames === undefined) {
+      return `self.${name}`;
+    }
+    if (inputNames.has(name)) {
+      return `self.${name}`;
+    }
+    return name;
+  });
 }
 
 /**
  * 算子级 pip 依赖（LF metadata / 环境由联调决定是否消费）。
  */
-export const OPERATOR_PIP: Record<OperatorStep['action'], { name: string; version?: string }[] | undefined> = {
+export const OPERATOR_PIP: Record<OperatorStep["action"], { name: string; version?: string }[] | undefined> = {
   assign: undefined,
-  http_request: [{ name: 'requests' }],
+  http_request: [{ name: "requests" }],
   json_parse: undefined,
-  template_render: undefined,
   message_merge: undefined,
-  message_to_openai_content: [{ name: 'requests' }],
-}
+  message_to_openai_content: [{ name: "requests" }],
+  template_render: undefined,
+};
 
 function timeoutSecondsFromMs(raw: unknown, fallbackMs = 30000): string {
-  const timeoutMs =
-    typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? raw : fallbackMs
-  return String(timeoutMs / 1000)
+  const timeoutMs = typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : fallbackMs;
+  return String(timeoutMs / 1000);
 }
 
-export function emitOperatorStep(
-  step: OperatorStep,
-  targetVar: string,
-  inputNames?: Set<string>,
-): OperatorEmit {
-  const varName = targetVar
-  const action = step.action
-  const p = step.params
+export function emitOperatorStep(step: OperatorStep, targetVar: string, inputNames?: Set<string>): OperatorEmit {
+  const varName = targetVar;
+  const action = step.action;
+  const p = step.params;
 
-  if (action === 'assign') {
+  if (action === "assign") {
     const expr =
-      typeof p['expr'] === 'string'
-        ? expandPlaceholders(p['expr'], inputNames)
-        : expandPlaceholders(String(p['expr'] ?? ''), inputNames)
-    return { lines: [`${varName} = ${expr}`], imports: [] }
+      typeof p["expr"] === "string" ? expandPlaceholders(p["expr"], inputNames) : expandPlaceholders(String(p["expr"] ?? ""), inputNames);
+    return { imports: [], lines: [`${varName} = ${expr}`] };
   }
 
-  if (action === 'http_request') {
-    const method = typeof p['method'] === 'string' ? p['method'].toUpperCase() : 'GET'
-    const urlRaw = typeof p['url'] === 'string' ? p['url'] : ''
-    const urlPy = expandPlaceholders(urlRaw, inputNames)
-    const timeoutSeconds = timeoutSecondsFromMs(p['timeout_ms'])
+  if (action === "http_request") {
+    const method = typeof p["method"] === "string" ? p["method"].toUpperCase() : "GET";
+    const urlRaw = typeof p["url"] === "string" ? p["url"] : "";
+    const urlPy = expandPlaceholders(urlRaw, inputNames);
+    const timeoutSeconds = timeoutSecondsFromMs(p["timeout_ms"]);
     const body =
-      p['body'] != null && typeof p['body'] === 'string' && p['body'].length > 0
-        ? expandPlaceholders(p['body'], inputNames)
-        : undefined
-    const lines: string[] = []
-    if (method === 'POST' && body !== undefined) {
-      lines.push(`${varName} = requests.request("${method}", ${urlPy}, data=${body}, timeout=${timeoutSeconds}).text`)
+      p["body"] !== null && p["body"] !== undefined && typeof p["body"] === "string" && p["body"].length > 0
+        ? expandPlaceholders(p["body"], inputNames)
+        : undefined;
+    const lines: string[] = [];
+    if (method === "POST" && body !== undefined) {
+      lines.push(`${varName} = requests.request("${method}", ${urlPy}, data=${body}, timeout=${timeoutSeconds}).text`);
     } else {
-      lines.push(`${varName} = requests.request("${method}", ${urlPy}, timeout=${timeoutSeconds}).text`)
+      lines.push(`${varName} = requests.request("${method}", ${urlPy}, timeout=${timeoutSeconds}).text`);
     }
-    return { lines, imports: ['import requests'], pip: OPERATOR_PIP.http_request }
+    return { imports: ["import requests"], lines, pip: OPERATOR_PIP.http_request };
   }
 
-  if (action === 'json_parse') {
+  if (action === "json_parse") {
     const src =
-      typeof p['from'] === 'string'
-        ? expandPlaceholders(p['from'], inputNames)
-        : expandPlaceholders(String(p['from'] ?? '_s0'), inputNames)
-    return { lines: [`${varName} = json.loads(${src})`], imports: ['import json'] }
+      typeof p["from"] === "string"
+        ? expandPlaceholders(p["from"], inputNames)
+        : expandPlaceholders(String(p["from"] ?? "_s0"), inputNames);
+    return { imports: ["import json"], lines: [`${varName} = json.loads(${src})`] };
   }
 
-  if (action === 'template_render') {
-    const tpl = typeof p['template'] === 'string' ? p['template'] : ''
-    const mapping = p['mapping']
-    const lines: string[] = []
-    if (mapping && typeof mapping === 'object' && !Array.isArray(mapping)) {
-      const parts: string[] = []
+  if (action === "template_render") {
+    const tpl = typeof p["template"] === "string" ? p["template"] : "";
+    const mapping = p["mapping"];
+    const lines: string[] = [];
+    if (mapping && typeof mapping === "object" && !Array.isArray(mapping)) {
+      const parts: string[] = [];
       for (const [k, v] of Object.entries(mapping as Record<string, unknown>)) {
-        const rhs = typeof v === 'string' ? expandPlaceholders(v, inputNames) : JSON.stringify(v)
-        parts.push(`${JSON.stringify(k)}: str(${rhs})`)
+        const rhs = typeof v === "string" ? expandPlaceholders(v, inputNames) : JSON.stringify(v);
+        parts.push(`${JSON.stringify(k)}: str(${rhs})`);
       }
-      const dictLit = '{' + parts.join(', ') + '}'
-      lines.push(`${varName} = ${JSON.stringify(tpl)}.format(**${dictLit})`)
+      const dictLit = `{${parts.join(", ")}}`;
+      lines.push(`${varName} = ${JSON.stringify(tpl)}.format(**${dictLit})`);
     } else {
-      lines.push(`${varName} = ${JSON.stringify(tpl)}`)
+      lines.push(`${varName} = ${JSON.stringify(tpl)}`);
     }
-    return { lines, imports: [] }
+    return { imports: [], lines };
   }
 
-  if (action === 'message_merge') {
+  if (action === "message_merge") {
     const textExpr =
-      typeof p['text'] === 'string'
-        ? expandPlaceholders(p['text'], inputNames)
-        : expandPlaceholders(String(p['text'] ?? ''), inputNames)
+      typeof p["text"] === "string" ? expandPlaceholders(p["text"], inputNames) : expandPlaceholders(String(p["text"] ?? ""), inputNames);
     const messageExpr =
-      typeof p['message'] === 'string'
-        ? expandPlaceholders(p['message'], inputNames)
-        : expandPlaceholders(String(p['message'] ?? 'None'), inputNames)
-    const textSrcVar = `_${varName}_text_source`
-    const textVar = `_${varName}_text`
-    const textDataVar = `_${varName}_text_data`
-    const srcVar = `_${varName}_source`
-    const srcDataVar = `_${varName}_source_data`
-    const originalTextVar = `_${varName}_original_text`
-    const filesVar = `_${varName}_files`
+      typeof p["message"] === "string"
+        ? expandPlaceholders(p["message"], inputNames)
+        : expandPlaceholders(String(p["message"] ?? "None"), inputNames);
+    const textSrcVar = `_${varName}_text_source`;
+    const textVar = `_${varName}_text`;
+    const textDataVar = `_${varName}_text_data`;
+    const srcVar = `_${varName}_source`;
+    const srcDataVar = `_${varName}_source_data`;
+    const originalTextVar = `_${varName}_original_text`;
+    const filesVar = `_${varName}_files`;
     return {
+      imports: ["from lfx.schema.message import Message"],
       lines: [
         `${textSrcVar} = ${textExpr}`,
         `${textVar} = getattr(${textSrcVar}, "text", None)`,
@@ -145,46 +143,54 @@ export function emitOperatorStep(
         `if ${filesVar} is not None:`,
         `    ${varName}.files = ${filesVar}`,
       ],
-      imports: ['from lfx.schema.message import Message'],
-    }
+    };
   }
 
-  if (action === 'message_to_openai_content') {
+  if (action === "message_to_openai_content") {
     const messageExpr =
-      typeof p['message'] === 'string'
-        ? expandPlaceholders(p['message'], inputNames)
-        : expandPlaceholders(String(p['message'] ?? 'None'), inputNames)
+      typeof p["message"] === "string"
+        ? expandPlaceholders(p["message"], inputNames)
+        : expandPlaceholders(String(p["message"] ?? "None"), inputNames);
     const maxFileBytes =
-      typeof p['max_file_bytes'] === 'number' && Number.isFinite(p['max_file_bytes']) && p['max_file_bytes'] > 0
-        ? Math.floor(p['max_file_bytes'])
-        : 20 * 1024 * 1024
-    const srcVar = `_${varName}_message`
-    const srcDataVar = `_${varName}_message_data`
-    const textVar = `_${varName}_text`
-    const filesVar = `_${varName}_files`
-    const maxBytesVar = `_${varName}_max_file_bytes`
-    const fileVar = `_${varName}_file`
-    const rawUrlVar = `_${varName}_raw_url`
-    const rawCandidatesVar = `_${varName}_raw_candidates`
-    const rawCandidateVar = `_${varName}_raw_candidate`
-    const fetchUrlVar = `_${varName}_fetch_url`
-    const baseUrlVar = `_${varName}_base_url`
-    const mimeVar = `_${varName}_mime`
-    const guessedMimeVar = `_${varName}_guessed_mime`
-    const dataHeaderVar = `_${varName}_data_header`
-    const dataPayloadVar = `_${varName}_data_payload`
-    const responseVar = `_${varName}_response`
-    const bytesVar = `_${varName}_bytes`
-    const readBytesVar = `_${varName}_read_file_bytes`
-    const resolvedPathVar = `_${varName}_resolved_path`
-    const localCandidatesVar = `_${varName}_local_candidates`
-    const localCandidateVar = `_${varName}_local_candidate`
-    const urlVar = `_${varName}_url`
-    const fileDataVar = `_${varName}_file_data`
-    const imageCountVar = `_${varName}_image_count`
-    const errorsVar = `_${varName}_file_errors`
-    const lastErrorVar = `_${varName}_last_error`
+      typeof p["max_file_bytes"] === "number" && Number.isFinite(p["max_file_bytes"]) && p["max_file_bytes"] > 0
+        ? Math.floor(p["max_file_bytes"])
+        : 20 * 1024 * 1024;
+    const srcVar = `_${varName}_message`;
+    const srcDataVar = `_${varName}_message_data`;
+    const textVar = `_${varName}_text`;
+    const filesVar = `_${varName}_files`;
+    const maxBytesVar = `_${varName}_max_file_bytes`;
+    const fileVar = `_${varName}_file`;
+    const rawUrlVar = `_${varName}_raw_url`;
+    const rawCandidatesVar = `_${varName}_raw_candidates`;
+    const rawCandidateVar = `_${varName}_raw_candidate`;
+    const fetchUrlVar = `_${varName}_fetch_url`;
+    const baseUrlVar = `_${varName}_base_url`;
+    const mimeVar = `_${varName}_mime`;
+    const guessedMimeVar = `_${varName}_guessed_mime`;
+    const dataHeaderVar = `_${varName}_data_header`;
+    const dataPayloadVar = `_${varName}_data_payload`;
+    const responseVar = `_${varName}_response`;
+    const bytesVar = `_${varName}_bytes`;
+    const readBytesVar = `_${varName}_read_file_bytes`;
+    const resolvedPathVar = `_${varName}_resolved_path`;
+    const localCandidatesVar = `_${varName}_local_candidates`;
+    const localCandidateVar = `_${varName}_local_candidate`;
+    const urlVar = `_${varName}_url`;
+    const fileDataVar = `_${varName}_file_data`;
+    const imageCountVar = `_${varName}_image_count`;
+    const errorsVar = `_${varName}_file_errors`;
+    const lastErrorVar = `_${varName}_last_error`;
     return {
+      imports: [
+        "import base64",
+        "import mimetypes",
+        "import os",
+        "import requests",
+        "import urllib.parse",
+        "from lfx.base.data.storage_utils import parse_storage_path, read_file_bytes",
+        "from lfx.utils.async_helpers import run_until_complete",
+      ],
       lines: [
         `${maxBytesVar} = ${maxFileBytes}`,
         `def ${readBytesVar}(_path_value):`,
@@ -318,33 +324,28 @@ export function emitOperatorStep(
         `else:`,
         `    ${varName} = str(${textVar} or "")`,
       ],
-      imports: [
-        'import base64',
-        'import mimetypes',
-        'import os',
-        'import requests',
-        'import urllib.parse',
-        'from lfx.base.data.storage_utils import parse_storage_path, read_file_bytes',
-        'from lfx.utils.async_helpers import run_until_complete',
-      ],
       pip: OPERATOR_PIP.message_to_openai_content,
-    }
+    };
   }
 
-  return { lines: [`${varName} = None`], imports: [] }
+  return { imports: [], lines: [`${varName} = None`] };
 }
 
 export function collectPipFromSteps(steps: OperatorStep[]): { name: string; version?: string }[] {
-  const seen = new Set<string>()
-  const out: { name: string; version?: string }[] = []
+  const seen = new Set<string>();
+  const out: { name: string; version?: string }[] = [];
   for (const s of steps) {
-    const list = OPERATOR_PIP[s.action]
-    if (!list) continue
+    const list = OPERATOR_PIP[s.action];
+    if (!list) {
+      continue;
+    }
     for (const d of list) {
-      if (seen.has(d.name)) continue
-      seen.add(d.name)
-      out.push(d)
+      if (seen.has(d.name)) {
+        continue;
+      }
+      seen.add(d.name);
+      out.push(d);
     }
   }
-  return out
+  return out;
 }

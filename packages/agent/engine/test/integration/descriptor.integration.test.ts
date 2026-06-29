@@ -6,6 +6,6 @@
  *
  * 实现：`descriptor-nacos.testcontainers.test.ts`；基础设施：`@cube-ai/test-infra`（`nacos/nacos-server:v3.1.0`）。
  */
-import { describe } from 'bun:test';
+import { describe } from "bun:test";
 
-describe.skip('Descriptor Nacos（已迁移 → descriptor-nacos.testcontainers.test.ts）', () => {});
+describe.skip("Descriptor Nacos（已迁移 → descriptor-nacos.testcontainers.test.ts）", () => {});

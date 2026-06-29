@@ -1,5 +1,5 @@
 import { resetAppConfigCacheForTests } from "@cube-ai/ai-center/platform/server-base";
-import { _resetAppConfigCache as resetKbAppConfigCache } from "@cube-ai/kb-core";
+import { resetAppConfigCache as resetKbAppConfigCache } from "@cube-ai/kb-core";
 
 const ENV_KEYS = [
   "AGENTIC_ENGINE_SECRETS_SOURCE",

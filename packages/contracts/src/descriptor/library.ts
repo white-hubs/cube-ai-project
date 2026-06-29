@@ -1,46 +1,43 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-export const LibrarySourceTierSchema = z.enum(['tenant', 'system']);
+export const LibrarySourceTierSchema = z.enum(["tenant", "system"]);
 export type LibrarySourceTier = z.infer<typeof LibrarySourceTierSchema>;
 
 const LibraryItemBaseSchema = z.object({
-  ref: z.string(),
-  kind: z.enum(['agent', 'skill']),
-  displayName: z.string().optional(),
   description: z.string().optional(),
+  displayName: z.string().optional(),
+  kind: z.enum(["agent", "skill"]),
+  ref: z.string(),
   tags: z.array(z.string()).optional(),
 });
 
 const TenantLibraryItemViewSchema = LibraryItemBaseSchema.extend({
-  tier: z.literal('tenant'),
-  sharedVersionNo: z.number().int().optional(),
   content: z.unknown().optional(),
+  sharedVersionNo: z.number().int().optional(),
+  tier: z.literal("tenant"),
 });
 
 const SystemLibraryItemViewSchema = LibraryItemBaseSchema.extend({
-  tier: z.literal('system'),
-  sharedVersionNo: z.undefined().optional(),
   content: z.undefined().optional(),
+  sharedVersionNo: z.undefined().optional(),
+  tier: z.literal("system"),
 });
 
-export const LibraryItemViewSchema = z.discriminatedUnion('tier', [
-  TenantLibraryItemViewSchema,
-  SystemLibraryItemViewSchema,
-]);
+export const LibraryItemViewSchema = z.discriminatedUnion("tier", [TenantLibraryItemViewSchema, SystemLibraryItemViewSchema]);
 export type LibraryItemView = z.infer<typeof LibraryItemViewSchema>;
 
 export const PluginCatalogItemViewSchema = z.object({
-  toolName: z.string(),
-  displayName: z.string().optional(),
   description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  displayName: z.string().optional(),
   installed: z.boolean(),
+  tags: z.array(z.string()).optional(),
+  toolName: z.string(),
 });
 export type PluginCatalogItemView = z.infer<typeof PluginCatalogItemViewSchema>;
 
 export const AvailableToolViewSchema = z.object({
-  toolName: z.string(),
   enabled: z.boolean(),
+  toolName: z.string(),
 });
 export type AvailableToolView = z.infer<typeof AvailableToolViewSchema>;
 

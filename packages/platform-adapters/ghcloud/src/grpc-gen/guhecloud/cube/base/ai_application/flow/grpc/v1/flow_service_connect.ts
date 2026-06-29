@@ -3,8 +3,9 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { RunFlowRequest, RunFlowResponse, RunFlowStreamEvent, UploadFlowImageRequest, UploadFlowImageResponse } from "./flow_types_pb";
 import { MethodKind } from "@bufbuild/protobuf";
+
+import { RunFlowRequest, RunFlowResponse, RunFlowStreamEvent, UploadFlowImageRequest, UploadFlowImageResponse } from "./flow_types_pb";
 
 /**
  * @generated from service guhecloud.cube.base.ai_application.flow.v1.FlowServiceGrpc
@@ -39,6 +40,5 @@ export const FlowServiceGrpc = {
       O: RunFlowStreamEvent,
       kind: MethodKind.ServerStreaming,
     },
-  }
+  },
 } as const;
-

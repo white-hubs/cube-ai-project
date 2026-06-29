@@ -1,152 +1,152 @@
-const MARKDOWN_TOKENS = /(^|\s)([#>*_`\-[\]()!]+)/g
-const HTML_TAGS = /<[^>]+>/g
-const MULTIPLE_SPACES = /\s+/g
-const LINE_SEPARATOR = '\n'
-const PARAGRAPH_SEPARATOR = '\n\n'
+const MARKDOWN_TOKENS = /(^|\s)([#>*_`\-[\]()!]+)/gu;
+const HTML_TAGS = /<[^>]+>/gu;
+const MULTIPLE_SPACES = /\s+/gu;
+const LINE_SEPARATOR = "\n";
+const PARAGRAPH_SEPARATOR = "\n\n";
 
 const HTML_ENTITIES: Record<string, string> = {
-  '&nbsp;': ' ',
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-}
+  "&#39;": "'",
+  "&amp;": "&",
+  "&gt;": ">",
+  "&lt;": "<",
+  "&nbsp;": " ",
+  "&quot;": '"',
+};
 
 export function normalizePlainText(input: string): string {
-  return input.replace(MULTIPLE_SPACES, ' ').trim()
+  return input.replace(MULTIPLE_SPACES, " ").trim();
 }
 
 function normalizePlainTextPreservingParagraphs(input: string): string {
   return input
-    .replace(/\r\n?/g, LINE_SEPARATOR)
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/ *\n */g, LINE_SEPARATOR)
-    .replace(/\n{3,}/g, PARAGRAPH_SEPARATOR)
-    .trim()
+    .replaceAll(/\r\n?/gu, LINE_SEPARATOR)
+    .replaceAll(/[^\S\n]+/gu, " ")
+    .replaceAll(/ *\n */gu, LINE_SEPARATOR)
+    .replaceAll(/\n{3,}/gu, PARAGRAPH_SEPARATOR)
+    .trim();
 }
 
 export function splitSdkStyleInstructionBlocks(input: string): string[] {
-  const normalized = normalizePlainTextPreservingParagraphs(input).replace(/\n+/g, ' ').trim()
-  if (!normalized.includes('{') || !normalized.includes('}')) {
-    return []
+  const normalized = normalizePlainTextPreservingParagraphs(input).replaceAll(/\n+/gu, " ").trim();
+  if (!normalized.includes("{") || !normalized.includes("}")) {
+    return [];
   }
 
-  const blocks: string[] = []
-  let current = ''
-  let depth = 0
-  let sawBrace = false
+  const blocks: string[] = [];
+  let current = "";
+  let depth = 0;
+  let sawBrace = false;
 
   for (let index = 0; index < normalized.length; index += 1) {
-    const character = normalized[index]
-    current += character
+    const character = normalized[index];
+    current += character;
 
-    if (character === '{') {
-      depth += 1
-      sawBrace = true
-      continue
+    if (character === "{") {
+      depth += 1;
+      sawBrace = true;
+      continue;
     }
 
-    if (character !== '}' || depth === 0) {
-      continue
+    if (character !== "}" || depth === 0) {
+      continue;
     }
 
-    depth -= 1
+    depth -= 1;
     if (depth !== 0) {
-      continue
+      continue;
     }
 
-    const block = current.trim()
+    const block = current.trim();
     if (sawBrace && block.length > 0) {
-      blocks.push(block)
-      current = ''
-      sawBrace = false
+      blocks.push(block);
+      current = "";
+      sawBrace = false;
     }
 
-    while (normalized[index + 1] === ' ') {
-      index += 1
+    while (normalized[index + 1] === " ") {
+      index += 1;
     }
   }
 
   if (depth !== 0 || blocks.length === 0) {
-    return []
+    return [];
   }
 
-  const trailing = current.trim()
+  const trailing = current.trim();
   if (trailing.length > 0) {
-    blocks.push(trailing)
+    blocks.push(trailing);
   }
 
-  return blocks
+  return blocks;
 }
 
 export function convertPlainTextToMarkdownForIngestion(input: string): string {
-  const normalized = normalizePlainTextPreservingParagraphs(input)
+  const normalized = normalizePlainTextPreservingParagraphs(input);
   if (!normalized) {
-    return ''
+    return "";
   }
 
-  const sdkInstructionBlocks = splitSdkStyleInstructionBlocks(normalized)
+  const sdkInstructionBlocks = splitSdkStyleInstructionBlocks(normalized);
   if (sdkInstructionBlocks.length >= 2) {
-    return sdkInstructionBlocks.map((block, index) => `### 指令 ${index + 1}\n\n${block}`).join(PARAGRAPH_SEPARATOR)
+    return sdkInstructionBlocks.map((block, index) => `### 指令 ${index + 1}\n\n${block}`).join(PARAGRAPH_SEPARATOR);
   }
 
   if (normalized.includes(PARAGRAPH_SEPARATOR)) {
-    return normalized
+    return normalized;
   }
 
   const lines = normalized
     .split(LINE_SEPARATOR)
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .filter((line) => line.length > 0);
 
   if (lines.length <= 1) {
-    return normalized
+    return normalized;
   }
 
-  return lines.map((line) => `- ${line}`).join(PARAGRAPH_SEPARATOR)
+  return lines.map((line) => `- ${line}`).join(PARAGRAPH_SEPARATOR);
 }
 
 export function stripMarkdown(input: string): string {
   const withoutTokens = input
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)]\([^)]*\)/g, '$1')
-    .replace(MARKDOWN_TOKENS, ' ')
+    .replaceAll(/```[\s\S]*?```/gu, " ")
+    .replaceAll(/`([^`]+)`/gu, "$1")
+    .replaceAll(/!\[[^\u005D]*\]\([^)]*\)/gu, " ")
+    .replaceAll(/\[([^\u005D]+)\]\([^)]*\)/gu, "$1")
+    .replace(MARKDOWN_TOKENS, " ");
 
-  return normalizePlainText(withoutTokens)
+  return normalizePlainText(withoutTokens);
 }
 
 export function stripHtml(input: string): string {
   const withoutScripts = input
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(HTML_TAGS, ' ')
+    .replaceAll(/<script[\s\S]*?<\/script>/giu, " ")
+    .replaceAll(/<style[\s\S]*?<\/style>/giu, " ")
+    .replace(HTML_TAGS, " ");
 
-  let text = withoutScripts
+  let text = withoutScripts;
   for (const [entity, value] of Object.entries(HTML_ENTITIES)) {
-    text = text.replaceAll(entity, value)
+    text = text.replaceAll(entity, value);
   }
 
-  return normalizePlainText(text)
+  return normalizePlainText(text);
 }
 
 export function extractPdfText(buffer: Uint8Array): string {
-  const binary = Buffer.from(buffer).toString('latin1')
-  const matches = binary.match(/\((?:\\.|[^()])+\)/g) ?? []
+  const binary = Buffer.from(buffer).toString("latin1");
+  const matches = binary.match(/\((?:\\.|[^()])+\)/gu) ?? [];
   const extracted = matches
     .map((value) => {
-      const trimmed = value.slice(1, -1)
+      const trimmed = value.slice(1, -1);
       return trimmed
-        .replace(/\\n/g, ' ')
-        .replace(/\\r/g, ' ')
-        .replace(/\\t/g, ' ')
-        .replace(/\\\\/g, '\\')
-        .replace(/\\\(/g, '(')
-        .replace(/\\\)/g, ')')
+        .replaceAll(/\\n/gu, " ")
+        .replaceAll(/\\r/gu, " ")
+        .replaceAll(/\\t/gu, " ")
+        .replaceAll(/\\\\/gu, "\\")
+        .replaceAll(/\\\(/gu, "(")
+        .replaceAll(/\\\)/gu, ")");
     })
-    .join(' ')
+    .join(" ");
 
-  return normalizePlainText(extracted)
+  return normalizePlainText(extracted);
 }

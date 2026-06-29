@@ -1,3 +1,29 @@
+import { Queue } from "bullmq";
+import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+import type Redis from "ioredis";
+import { type Pool, type RowDataPacket, createPool } from "mysql2/promise";
+
+import {
+  BullMqEnqueueAdapter,
+  type BullMqEnqueuePort,
+  BullMqJobDispatcher,
+  CompositeDispatcher,
+  type LeaderElection,
+  type OutboxDispatcherI,
+  OutboxRelayService,
+  OutboxWriterImpl,
+  type TransactionContext,
+  createTestRedisClient,
+} from "@cube-ai/bun-server-ext-outbox";
+import {
+  type MysqlRedisStack,
+  applyMinimalMysqlSchema,
+  registerProcessShutdown,
+  resolveShouldRunTestcontainers,
+  startMysqlRedis,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
 /**
  * P1-07 Jobs end-to-end — Testcontainers 差异化补丁。
  *
@@ -22,46 +48,15 @@
  *
  * 权威：docs/detailed-design/06-jobs/bullmq-protocol.md §3.3 / §5.4 / §5.8
  */
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  setDefaultTimeout,
-} from 'bun:test';
-import type Redis from 'ioredis';
-import { Queue } from 'bullmq';
-import { createPool, type Pool, type RowDataPacket } from 'mysql2/promise';
-import {
-  BullMqEnqueueAdapter,
-  BullMqJobDispatcher,
-  CompositeDispatcher,
-  OutboxRelayService,
-  OutboxWriterImpl,
-  createTestRedisClient,
-  type BullMqEnqueuePort,
-  type LeaderElection,
-  type OutboxDispatcherI,
-  type TransactionContext,
-} from '@cube-ai/bun-server-ext-outbox';
-import {
-  applyMinimalMysqlSchema,
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startMysqlRedis,
-  stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
 
-const QUEUE_NAME = 'agentic-engine-long-running-jobs';
+const QUEUE_NAME = "agentic-engine-long-running-jobs";
 /** Matches `BullMqEnqueueAdapter` and engine `bullmq-queues.ts` (`agentic:engine:bull`). */
-const BULL_PREFIX = 'agentic:engine:bull';
+const BULL_PREFIX = "agentic:engine:bull";
 
 const fakeLeader = {
+  isLeader: () => true,
   start: async () => {},
   stop: async () => {},
-  isLeader: () => true,
 } as unknown as LeaderElection;
 
 const run = await resolveShouldRunTestcontainers();
@@ -84,10 +79,10 @@ if (run) {
 
 function createMysqlPoolForTest(mysqlUrl: string): Pool {
   return createPool({
-    uri: mysqlUrl,
+    bigNumberStrings: true,
     connectionLimit: 4,
     supportBigNumbers: true,
-    bigNumberStrings: true,
+    uri: mysqlUrl,
   });
 }
 
@@ -96,7 +91,7 @@ function nextSfidFactory(): () => string {
   const base = BigInt(Date.now());
   return () => {
     const id = ((base << 22n) | counter++).toString();
-    return id.padStart(19, '1').slice(-19);
+    return id.padStart(19, "1").slice(-19);
   };
 }
 
@@ -111,274 +106,257 @@ function buildVerifierQueue(redis: Redis): Queue {
   });
 }
 
-(run ? describe : describe.skip)(
-  '[testcontainers] P1-07 jobs end-to-end (outbox → relay → BullMQ)',
-  () => {
-    let pool: Pool;
-    let redis: Redis;
-    let writer: OutboxWriterImpl;
+(run ? describe : describe.skip)("[testcontainers] P1-07 jobs end-to-end (outbox → relay → BullMQ)", () => {
+  let pool: Pool;
+  let redis: Redis;
+  let writer: OutboxWriterImpl;
 
-    beforeAll(async () => {
-      const s = await startMysqlRedis();
-      try {
-        await applyMinimalMysqlSchema(s.mysqlUrl);
-        stackHolder.current = s;
-      } catch (e) {
-        await s.stop();
-        throw e;
-      }
-      pool = createMysqlPoolForTest(s.mysqlUrl);
-      redis = createTestRedisClient(s.redisUrl);
-      writer = new OutboxWriterImpl({ nextSfid: nextSfidFactory() });
-    }, HOOK_MS);
+  beforeAll(async () => {
+    const s = await startMysqlRedis();
+    try {
+      await applyMinimalMysqlSchema(s.mysqlUrl);
+      stackHolder.current = s;
+    } catch (e) {
+      await s.stop();
+      throw e;
+    }
+    pool = createMysqlPoolForTest(s.mysqlUrl);
+    redis = createTestRedisClient(s.redisUrl);
+    writer = new OutboxWriterImpl({ nextSfid: nextSfidFactory() });
+  }, HOOK_MS);
 
-    afterAll(async () => {
-      try {
-        await redis?.quit();
-      } catch {
-        /* noop */
-      }
-      try {
-        await pool?.end();
-      } catch {
-        /* noop */
-      }
-      if (stackHolder.current) {
-        await stackHolder.current.stop().catch(() => {});
-        stackHolder.current = null;
-      }
-      await stopTrackedTestcontainersIfAny();
-    });
+  afterAll(async () => {
+    try {
+      await redis?.quit();
+    } catch {
+      /* noop */
+    }
+    try {
+      await pool?.end();
+    } catch {
+      /* noop */
+    }
+    if (stackHolder.current) {
+      await stackHolder.current.stop().catch(() => {});
+      stackHolder.current = null;
+    }
+    await stopTrackedTestcontainersIfAny();
+  });
 
-    /**
-     * 在事务内 INSERT 一条 outbox row（用 `OutboxWriterImpl`），返回行 `id`。
-     */
-    async function insertOutboxRow(input: {
-      tenant: number;
-      channel: 'bullmq_job';
-      eventType: string;
-      payload: Record<string, unknown>;
-      target: string | null;
-    }): Promise<string> {
-      const conn = await pool.getConnection();
-      try {
-        await conn.beginTransaction();
-        const tx: TransactionContext = {
-          _brand: 'TransactionContext',
-          mysqlConnection: conn,
-        };
-        await writer.append(tx, {
-          tenant: input.tenant,
-          channel: input.channel,
-          eventType: input.eventType,
-          payloadJson: input.payload,
-          target: input.target,
-          /** 防止容器/宿主机时钟漂移把行排除在 schedule_time<=NOW(3) 之外 */
-          scheduleTime: Date.now() - 3_600_000,
-        });
-        const [rows] = await conn.query<RowDataPacket[]>(
-          `SELECT CAST(id AS CHAR) AS id FROM outbox_events
+  /**
+   * 在事务内 INSERT 一条 outbox row（用 `OutboxWriterImpl`），返回行 `id`。
+   */
+  async function insertOutboxRow(input: {
+    tenant: number;
+    channel: "bullmq_job";
+    eventType: string;
+    payload: Record<string, unknown>;
+    target: string | null;
+  }): Promise<string> {
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const tx: TransactionContext = {
+        _brand: "TransactionContext",
+        mysqlConnection: conn,
+      };
+      await writer.append(tx, {
+        channel: input.channel,
+        eventType: input.eventType,
+        payloadJson: input.payload,
+        /** 防止容器/宿主机时钟漂移把行排除在 schedule_time<=NOW(3) 之外 */
+        scheduleTime: Date.now() - 3_600_000,
+        target: input.target,
+        tenant: input.tenant,
+      });
+      const [rows] = await conn.query<RowDataPacket[]>(
+        `SELECT CAST(id AS CHAR) AS id FROM outbox_events
              WHERE tenant = ? AND channel = ? AND event_type = ?
              ORDER BY create_time DESC LIMIT 1`,
-          [input.tenant, input.channel, input.eventType],
-        );
-        await conn.commit();
-        const id = (rows[0] as { id?: string } | undefined)?.id ?? '';
-        if (!id) throw new Error('insertOutboxRow: missing id after INSERT');
-        return id;
-      } catch (e) {
-        await conn.rollback();
-        throw e;
-      } finally {
-        conn.release();
-      }
-    }
-
-    async function selectOutboxStatus(id: string): Promise<{
-      status: string;
-      attempts: number;
-      lastError: string | null;
-    }> {
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT status, attempts, last_error FROM outbox_events WHERE id = ?`,
-        [id],
+        [input.tenant, input.channel, input.eventType],
       );
-      const r = rows[0] as
-        | { status?: string; attempts?: number; last_error?: string | null }
-        | undefined;
-      return {
-        status: String(r?.status ?? ''),
-        attempts: Number(r?.attempts ?? -1),
-        lastError: r?.last_error ?? null,
-      };
-    }
-
-    /**
-     * Test 1 — 端到端：outbox row(`bullmq_job`) → `OutboxRelayService` 选中 →
-     * `BullMqJobDispatcher` enqueue → BullMQ `Queue` 内出现 jobId 对应 job；
-     * outbox row 状态 PUBLISHED。
-     */
-    it('outbox bullmq_job row → relay → BullMQ Queue.add (jobId 出现)', async () => {
-      const tenant = 8_001;
-      const jobId = `tc-${Date.now()}-1`;
-
-      const id = await insertOutboxRow({
-        tenant,
-        channel: 'bullmq_job',
-        eventType: 'job.long_running',
-        payload: { jobId, tenant, payloadKind: 'tool_call' },
-        target: QUEUE_NAME,
-      });
-
-      const enqueueAdapter = new BullMqEnqueueAdapter(redis);
-      const dispatcher: OutboxDispatcherI = new CompositeDispatcher(
-        new BullMqJobDispatcher(enqueueAdapter),
-      );
-
-      const relay = new OutboxRelayService(fakeLeader, dispatcher, {
-        mysqlPool: pool,
-        batchSize: 10,
-        /** 避免后台 timer 在 stop() 之前再次扫描行 */
-        pollIntervalMs: 600_000,
-        isRelayLeader: () => true,
-      });
-      await relay.start(dispatcher);
-      await relay.relayOnce();
-      await relay.stop();
-
-      const after = await selectOutboxStatus(id);
-      expect(after.status).toBe('PUBLISHED');
-      expect(after.attempts).toBe(0);
-
-      const verifier = buildVerifierQueue(redis);
-      try {
-        const job = await verifier.getJob(jobId);
-        expect(job).not.toBeNull();
-        expect(job?.id).toBe(jobId);
-      } finally {
-        await verifier.close();
+      await conn.commit();
+      const id = (rows[0] as { id?: string } | undefined)?.id ?? "";
+      if (!id) {
+        throw new Error("insertOutboxRow: missing id after INSERT");
       }
+      return id;
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async function selectOutboxStatus(id: string): Promise<{
+    status: string;
+    attempts: number;
+    lastError: string | null;
+  }> {
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT status, attempts, last_error FROM outbox_events WHERE id = ?`, [id]);
+    const r = rows[0] as { status?: string; attempts?: number; last_error?: string | null } | undefined;
+    return {
+      attempts: Number(r?.attempts ?? -1),
+      lastError: r?.last_error ?? null,
+      status: String(r?.status ?? ""),
+    };
+  }
+
+  /**
+   * Test 1 — 端到端：outbox row(`bullmq_job`) → `OutboxRelayService` 选中 →
+   * `BullMqJobDispatcher` enqueue → BullMQ `Queue` 内出现 jobId 对应 job；
+   * outbox row 状态 PUBLISHED。
+   */
+  it("outbox bullmq_job row → relay → BullMQ Queue.add (jobId 出现)", async () => {
+    const tenant = 8_001;
+    const jobId = `tc-${Date.now()}-1`;
+
+    const id = await insertOutboxRow({
+      channel: "bullmq_job",
+      eventType: "job.long_running",
+      payload: { jobId, payloadKind: "tool_call", tenant },
+      target: QUEUE_NAME,
+      tenant,
     });
 
-    /**
-     * Test 2 — 重复 jobId：两条 outbox row（不同 SFID）payload.jobId 相同 →
-     * BullMQ 队列里仅 1 个 job（add(jobId, …) 自带去重）。
-     *
-     * Ref: bullmq-protocol.md §3.3 / §11 test #2
-     */
-    it('重复 jobId 通过 outbox 派发两次 → BullMQ 仅 1 个 job', async () => {
-      const tenant = 8_002;
-      const jobId = `tc-${Date.now()}-dup`;
+    const enqueueAdapter = new BullMqEnqueueAdapter(redis);
+    const dispatcher: OutboxDispatcherI = new CompositeDispatcher(new BullMqJobDispatcher(enqueueAdapter));
 
-      const id1 = await insertOutboxRow({
-        tenant,
-        channel: 'bullmq_job',
-        eventType: 'job.long_running',
-        payload: { jobId, tenant, attempt: 1 },
-        target: QUEUE_NAME,
-      });
-      const id2 = await insertOutboxRow({
-        tenant,
-        channel: 'bullmq_job',
-        eventType: 'job.long_running',
-        payload: { jobId, tenant, attempt: 2 },
-        target: QUEUE_NAME,
-      });
-      expect(id1).not.toBe(id2);
+    const relay = new OutboxRelayService(fakeLeader, dispatcher, {
+      batchSize: 10,
+      isRelayLeader: () => true,
+      mysqlPool: pool,
+      /** 避免后台 timer 在 stop() 之前再次扫描行 */
+      pollIntervalMs: 600_000,
+    });
+    await relay.start(dispatcher);
+    await relay.relayOnce();
+    await relay.stop();
 
-      const enqueueAdapter = new BullMqEnqueueAdapter(redis);
-      const dispatcher: OutboxDispatcherI = new CompositeDispatcher(
-        new BullMqJobDispatcher(enqueueAdapter),
-      );
+    const after = await selectOutboxStatus(id);
+    expect(after.status).toBe("PUBLISHED");
+    expect(after.attempts).toBe(0);
 
-      const relay = new OutboxRelayService(fakeLeader, dispatcher, {
-        mysqlPool: pool,
-        batchSize: 10,
-        pollIntervalMs: 600_000,
-        isRelayLeader: () => true,
-      });
-      await relay.start(dispatcher);
-      await relay.relayOnce();
-      await relay.stop();
+    const verifier = buildVerifierQueue(redis);
+    try {
+      const job = await verifier.getJob(jobId);
+      expect(job).not.toBeNull();
+      expect(job?.id).toBe(jobId);
+    } finally {
+      await verifier.close();
+    }
+  });
 
-      expect((await selectOutboxStatus(id1)).status).toBe('PUBLISHED');
-      expect((await selectOutboxStatus(id2)).status).toBe('PUBLISHED');
+  /**
+   * Test 2 — 重复 jobId：两条 outbox row（不同 SFID）payload.jobId 相同 →
+   * BullMQ 队列里仅 1 个 job（add(jobId, …) 自带去重）。
+   *
+   * Ref: bullmq-protocol.md §3.3 / §11 test #2
+   */
+  it("重复 jobId 通过 outbox 派发两次 → BullMQ 仅 1 个 job", async () => {
+    const tenant = 8_002;
+    const jobId = `tc-${Date.now()}-dup`;
 
-      const verifier = buildVerifierQueue(redis);
-      try {
-        const job = await verifier.getJob(jobId);
-        expect(job).not.toBeNull();
-        expect(job?.id).toBe(jobId);
+    const id1 = await insertOutboxRow({
+      channel: "bullmq_job",
+      eventType: "job.long_running",
+      payload: { attempt: 1, jobId, tenant },
+      target: QUEUE_NAME,
+      tenant,
+    });
+    const id2 = await insertOutboxRow({
+      channel: "bullmq_job",
+      eventType: "job.long_running",
+      payload: { attempt: 2, jobId, tenant },
+      target: QUEUE_NAME,
+      tenant,
+    });
+    expect(id1).not.toBe(id2);
 
-        /** 整队列里 jobId == 我们的 → 只有 1 个 */
-        const all = await verifier.getJobs(
-          ['waiting', 'active', 'delayed', 'paused', 'completed', 'failed'],
-          0,
-          50,
-        );
-        const matched = all.filter((j) => j.id === jobId);
-        expect(matched.length).toBe(1);
-      } finally {
-        await verifier.close();
-      }
+    const enqueueAdapter = new BullMqEnqueueAdapter(redis);
+    const dispatcher: OutboxDispatcherI = new CompositeDispatcher(new BullMqJobDispatcher(enqueueAdapter));
+
+    const relay = new OutboxRelayService(fakeLeader, dispatcher, {
+      batchSize: 10,
+      isRelayLeader: () => true,
+      mysqlPool: pool,
+      pollIntervalMs: 600_000,
+    });
+    await relay.start(dispatcher);
+    await relay.relayOnce();
+    await relay.stop();
+
+    expect((await selectOutboxStatus(id1)).status).toBe("PUBLISHED");
+    expect((await selectOutboxStatus(id2)).status).toBe("PUBLISHED");
+
+    const verifier = buildVerifierQueue(redis);
+    try {
+      const job = await verifier.getJob(jobId);
+      expect(job).not.toBeNull();
+      expect(job?.id).toBe(jobId);
+
+      /** 整队列里 jobId == 我们的 → 只有 1 个 */
+      const all = await verifier.getJobs(["waiting", "active", "delayed", "paused", "completed", "failed"], 0, 50);
+      const matched = all.filter((j) => j.id === jobId);
+      expect(matched.length).toBe(1);
+    } finally {
+      await verifier.close();
+    }
+  });
+
+  /**
+   * Test 3 — 持续失败 10 次后 outbox row 进入 `DEAD`（无 BullMQ enqueue）。
+   *
+   * 受限于 relay 的指数退避（1s/4s/16s/…），手动把 `next_attempt_time = NULL`
+   * 推动每次轮询都能选中同一行；配合 always-fail dispatcher 累加 attempts。
+   *
+   * Ref: bullmq-protocol.md §5.8 / §11 test #4
+   */
+  it("relay dispatcher 连续失败 10 次 → outbox row 标 DEAD", async () => {
+    const tenant = 8_003;
+    const jobId = `tc-${Date.now()}-dead`;
+
+    const id = await insertOutboxRow({
+      channel: "bullmq_job",
+      eventType: "job.long_running",
+      payload: { jobId, tenant },
+      target: QUEUE_NAME,
+      tenant,
     });
 
-    /**
-     * Test 3 — 持续失败 10 次后 outbox row 进入 `DEAD`（无 BullMQ enqueue）。
-     *
-     * 受限于 relay 的指数退避（1s/4s/16s/…），手动把 `next_attempt_time = NULL`
-     * 推动每次轮询都能选中同一行；配合 always-fail dispatcher 累加 attempts。
-     *
-     * Ref: bullmq-protocol.md §5.8 / §11 test #4
-     */
-    it('relay dispatcher 连续失败 10 次 → outbox row 标 DEAD', async () => {
-      const tenant = 8_003;
-      const jobId = `tc-${Date.now()}-dead`;
+    const failingEnqueue: BullMqEnqueuePort = {
+      add: async () => {
+        throw new Error("enqueue always fails (simulated)");
+      },
+    };
+    const dispatcher: OutboxDispatcherI = new CompositeDispatcher(new BullMqJobDispatcher(failingEnqueue));
 
-      const id = await insertOutboxRow({
-        tenant,
-        channel: 'bullmq_job',
-        eventType: 'job.long_running',
-        payload: { jobId, tenant },
-        target: QUEUE_NAME,
-      });
-
-      const failingEnqueue: BullMqEnqueuePort = {
-        add: async () => {
-          throw new Error('enqueue always fails (simulated)');
-        },
-      };
-      const dispatcher: OutboxDispatcherI = new CompositeDispatcher(
-        new BullMqJobDispatcher(failingEnqueue),
-      );
-
-      const relay = new OutboxRelayService(fakeLeader, dispatcher, {
-        mysqlPool: pool,
-        batchSize: 10,
-        /** 长 interval 防 timer 干扰精确 attempts 计数 */
-        pollIntervalMs: 600_000,
-        isRelayLeader: () => true,
-      });
-      await relay.start(dispatcher);
-      try {
-        for (let i = 0; i < 12; i++) {
-          await relay.relayOnce();
-          const cur = await selectOutboxStatus(id);
-          if (cur.status === 'DEAD') break;
-          /** 推平指数退避，触发下一次扫描 */
-          await pool.query(
-            `UPDATE outbox_events SET next_attempt_time = NULL WHERE id = ?`,
-            [id],
-          );
+    const relay = new OutboxRelayService(fakeLeader, dispatcher, {
+      batchSize: 10,
+      isRelayLeader: () => true,
+      mysqlPool: pool,
+      /** 长 interval 防 timer 干扰精确 attempts 计数 */
+      pollIntervalMs: 600_000,
+    });
+    await relay.start(dispatcher);
+    try {
+      for (let i = 0; i < 12; i++) {
+        await relay.relayOnce();
+        const cur = await selectOutboxStatus(id);
+        if (cur.status === "DEAD") {
+          break;
         }
-      } finally {
-        await relay.stop();
+        /** 推平指数退避，触发下一次扫描 */
+        await pool.query(`UPDATE outbox_events SET next_attempt_time = NULL WHERE id = ?`, [id]);
       }
+    } finally {
+      await relay.stop();
+    }
 
-      const final = await selectOutboxStatus(id);
-      expect(final.status).toBe('DEAD');
-      expect(final.attempts).toBeGreaterThanOrEqual(10);
-      expect(final.lastError).toContain('enqueue always fails');
-    });
-  },
-);
+    const final = await selectOutboxStatus(id);
+    expect(final.status).toBe("DEAD");
+    expect(final.attempts).toBeGreaterThanOrEqual(10);
+    expect(final.lastError).toContain("enqueue always fails");
+  });
+});

@@ -1,19 +1,18 @@
-import { Global, Module } from '@dangao/bun-server';
-import Redis from 'ioredis';
-import { DrainService } from './drain.service';
-import { InMemoryReplayBufferStore, RedisReplayBufferStore } from './replay-buffer';
-import { SessionSseEmitter } from './sse-emitter';
-import { SSE_REPLAY_BUFFER_STORE_TOKEN } from './sse.tokens';
+import { Global, Module } from "@dangao/bun-server";
+import Redis from "ioredis";
 
-export { SSE_REPLAY_BUFFER_STORE_TOKEN } from './sse.tokens';
+import { DrainService } from "./drain.service";
+import { InMemoryReplayBufferStore, RedisReplayBufferStore } from "./replay-buffer";
+import { SessionSseEmitter } from "./sse-emitter";
+import { SSE_REPLAY_BUFFER_STORE_TOKEN } from "./sse.tokens";
+
+export { SSE_REPLAY_BUFFER_STORE_TOKEN } from "./sse.tokens";
 
 function createRedisOptional(): Redis | null {
-  const url =
-    process.env.AGENTIC_ENGINE_REDIS_URL ??
-    process.env.REDIS_URL ??
-    process.env.BUN_REDIS_URL ??
-    '';
-  if (!url) return null;
+  const url = process.env.AGENTIC_ENGINE_REDIS_URL ?? process.env.REDIS_URL ?? process.env.BUN_REDIS_URL ?? "";
+  if (!url) {
+    return null;
+  }
   return new Redis(url, {
     lazyConnect: true,
     maxRetriesPerRequest: 2,
@@ -28,6 +27,7 @@ function createRedisOptional(): Redis | null {
  */
 @Global()
 @Module({
+  exports: [DrainService, SessionSseEmitter, SSE_REPLAY_BUFFER_STORE_TOKEN],
   providers: [
     DrainService,
     SessionSseEmitter,
@@ -42,6 +42,5 @@ function createRedisOptional(): Redis | null {
       },
     },
   ],
-  exports: [DrainService, SessionSseEmitter, SSE_REPLAY_BUFFER_STORE_TOKEN],
 })
 export class SseExtModule {}

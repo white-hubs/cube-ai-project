@@ -1,14 +1,11 @@
-import {
-  CUBE_CUSTOM_COMPONENT_DSL_KEY,
-  CUBE_LF_CODE_OPAQUE_KEY,
-} from '../shared-imports/cube-component-schema'
-import type { CubeFlowGraph } from '../contracts/cube-flow'
-import { compileCustomComponentDslV2 } from './compile-v2'
-import { detectCustomDslVersion } from './dsl.schema'
-import { transpileCustomComponentDsl } from './transpile'
+import { type CubeFlowGraph } from "../contracts/cube-flow";
+import { CUBE_CUSTOM_COMPONENT_DSL_KEY, CUBE_LF_CODE_OPAQUE_KEY } from "../shared-imports/cube-component-schema";
+import { compileCustomComponentDslV2 } from "./compile-v2";
+import { detectCustomDslVersion } from "./dsl.schema";
+import { transpileCustomComponentDsl } from "./transpile";
 
 function deepClone<T>(x: T): T {
-  return JSON.parse(JSON.stringify(x)) as T
+  return JSON.parse(JSON.stringify(x)) as T;
 }
 
 /**
@@ -16,51 +13,50 @@ function deepClone<T>(x: T): T {
  * 不修改入参；返回新图副本供下游合并器使用。
  */
 export function prepareCubeGraphLangflowExport(graph: CubeFlowGraph): CubeFlowGraph {
-  const out = deepClone(graph)
+  const out = deepClone(graph);
   for (const n of out.nodes) {
-    if (n.cubeType !== 'cube.lf.CustomComponent') continue
-    const cfg = { ...n.config } as Record<string, unknown>
-    const dslRaw = cfg[CUBE_CUSTOM_COMPONENT_DSL_KEY]
-    if (dslRaw != null && String(dslRaw).trim() !== '') {
-      let parsed: unknown
-      if (typeof dslRaw === 'string') {
+    if (n.cubeType !== "cube.lf.CustomComponent") {
+      continue;
+    }
+    const cfg = { ...n.config } as Record<string, unknown>;
+    const dslRaw = cfg[CUBE_CUSTOM_COMPONENT_DSL_KEY];
+    if (dslRaw !== null && dslRaw !== undefined && String(dslRaw).trim() !== "") {
+      let parsed: unknown;
+      if (typeof dslRaw === "string") {
         try {
-          parsed = JSON.parse(dslRaw) as unknown
+          parsed = JSON.parse(dslRaw) as unknown;
         } catch (e) {
           throw new CubeCustomComponentPrepareError(
             `节点 ${n.lfNodeId} 的 ${CUBE_CUSTOM_COMPONENT_DSL_KEY} 不是合法 JSON：${e instanceof Error ? e.message : String(e)}`,
-          )
+          );
         }
       } else {
-        parsed = dslRaw
+        parsed = dslRaw;
       }
       try {
-        const code =
-          detectCustomDslVersion(parsed) === 2
-            ? compileCustomComponentDslV2(parsed)
-            : transpileCustomComponentDsl(parsed)
-        cfg['code'] = code
+        const code = detectCustomDslVersion(parsed) === 2 ? compileCustomComponentDslV2(parsed) : transpileCustomComponentDsl(parsed);
+        cfg["code"] = code;
       } catch (e) {
         throw new CubeCustomComponentPrepareError(
           `节点 ${n.lfNodeId} 的 ${CUBE_CUSTOM_COMPONENT_DSL_KEY} 编译失败：${e instanceof Error ? e.message : String(e)}`,
-        )
+        );
       }
-      n.config = cfg
-      continue
+      n.config = cfg;
+      continue;
     }
-    const opaque = cfg[CUBE_LF_CODE_OPAQUE_KEY]
-    if (typeof opaque === 'string' && opaque.length > 0) {
-      cfg['code'] = opaque
-      n.config = cfg
+    const opaque = cfg[CUBE_LF_CODE_OPAQUE_KEY];
+    if (typeof opaque === "string" && opaque.length > 0) {
+      cfg["code"] = opaque;
+      n.config = cfg;
     }
   }
-  return out
+  return out;
 }
 
 export class CubeCustomComponentPrepareError extends Error {
-  readonly code = 'CUSTOM_COMPONENT_PREPARE_FAILED' as const
+  readonly code = "CUSTOM_COMPONENT_PREPARE_FAILED" as const;
   constructor(message: string) {
-    super(message)
-    this.name = 'CubeCustomComponentPrepareError'
+    super(message);
+    this.name = "CubeCustomComponentPrepareError";
   }
 }

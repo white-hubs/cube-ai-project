@@ -1,9 +1,9 @@
-export * from './types';
+export * from "./types";
 // [P1-03] writer (single-row INSERT inside an existing transaction)
-export * from './outbox-writer';
+export * from "./outbox-writer";
 // [P1-07] leader election + dispatcher abstractions for relay
-export * from './leader-election';
-export * from './bullmq-enqueue.adapter';
+export * from "./leader-election";
+export * from "./bullmq-enqueue.adapter";
 // Re-export dispatcher without OutboxEventRow (conflicts with types.ts)
 export {
   OUTBOX_CHANNELS,
@@ -20,16 +20,16 @@ export {
   REDIS_PUBSUB_PORT_TOKEN,
   CODE_UNIMPLEMENTED_PHASE4,
   CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL,
-} from './dispatcher';
+} from "./dispatcher";
 export type {
   BullMqEnqueuePort,
   RedisPubSubPort,
   OutboxChannel,
   OutboxDispatcherI,
   OutboxEventRow as DispatchableOutboxRow,
-} from './dispatcher';
-export * from './relay.service';
-export * from './outbox.module';
-export { createTestRedisClient } from './test-redis-client';
+} from "./dispatcher";
+export * from "./relay.service";
+export * from "./outbox.module";
+export { createTestRedisClient } from "./test-redis-client";
 
-export const OUTBOX_EXT_VERSION = '0.0.0-m2-skeleton-c';
+export const OUTBOX_EXT_VERSION = "0.0.0-m2-skeleton-c";

@@ -1,128 +1,138 @@
-import { describe, expect, test } from 'bun:test';
-import { createFlowClient } from './client';
+import { describe, expect, test } from "bun:test";
 
-describe('FlowClient', () => {
-  test('run POST /flow/run/:flowId with stream=false', async () => {
-    let capturedUrl = '';
+import { createFlowClient } from "./client";
+
+describe("FlowClient", () => {
+  test("run POST /flow/run/:flowId with stream=false", async () => {
+    let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
       capturedInit = init;
-      return Response.json({ outputs: [{ text: 'ok' }] });
+      return Response.json({ outputs: [{ text: "ok" }] });
     };
 
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const result = await client.run('flow-abc', { input: 'hello' });
+    const result = await client.run("flow-abc", { input: "hello" });
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/run/flow-abc');
-    expect(capturedInit?.method).toBe('POST');
-    expect(JSON.parse(String(capturedInit?.body))).toEqual({ stream: false, input: 'hello' });
-    expect(result).toEqual({ outputs: [{ text: 'ok' }] });
+    expect(capturedUrl).toBe("http://ai-center.test/flow/run/flow-abc");
+    expect(capturedInit?.method).toBe("POST");
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({ input: "hello", stream: false });
+    expect(result).toEqual({ outputs: [{ text: "ok" }] });
   });
 
-  test('createFlow POST /flow/studio/ with editorFlowJson body', async () => {
-    let capturedUrl = '';
+  test("createFlow POST /flow/studio/ with editorFlowJson body", async () => {
+    let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
       capturedInit = init;
-      return Response.json({ id: '123', name: 'demo' });
+      return Response.json({ id: "123", name: "demo" });
     };
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const result = await client.createFlow({ name: 'demo', editorFlowJson: { nodes: [], edges: [] } });
+    const result = await client.createFlow({ editorFlowJson: { edges: [], nodes: [] }, name: "demo" });
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/');
-    expect(capturedInit?.method).toBe('POST');
-    expect((result as { id: string }).id).toBe('123');
+    expect(capturedUrl).toBe("http://ai-center.test/flow/console/studio/");
+    expect(capturedInit?.method).toBe("POST");
+    expect((result as { id: string }).id).toBe("123");
   });
 
-  test('listFlowsPage GET /flow/studio/ with paging query', async () => {
-    let capturedUrl = '';
+  test("listFlowsPage GET /flow/studio/ with paging query", async () => {
+    let capturedUrl = "";
     const fetchImpl = async (url: string): Promise<Response> => {
       capturedUrl = url;
-      return Response.json({ total: 0, pages: 0, currentPage: 1, pageSize: 20, records: [] });
+      return Response.json({ currentPage: 1, pageSize: 20, pages: 0, records: [], total: 0 });
     };
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    await client.listFlowsPage({ pageNumber: 1, pageSize: 20, keyword: 'foo' });
-    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/?pageNumber=1&pageSize=20&keyword=foo');
+    await client.listFlowsPage({ keyword: "foo", pageNumber: 1, pageSize: 20 });
+    expect(capturedUrl).toBe("http://ai-center.test/flow/console/studio/?pageNumber=1&pageSize=20&keyword=foo");
   });
 
-  test('exportFlow GET /flow/studio/:id/export', async () => {
-    let capturedUrl = '';
+  test("exportFlow GET /flow/studio/:id/export", async () => {
+    let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
       capturedInit = init;
       return Response.json({
-        schemaVersion: '1',
-        exportedAt: 1700000000000,
-        flow: { id: 'flow-1', name: 'demo', description: null, enabled: true, remark: null, compileStatus: 'ok', compileRevision: 'r1', publishedRevision: null },
-        editorFlowJson: { nodes: [], edges: [] },
         compiledFlowJson: null,
         componentSnapshotJson: null,
+        editorFlowJson: { edges: [], nodes: [] },
+        exportedAt: 1700000000000,
+        flow: {
+          compileRevision: "r1",
+          compileStatus: "ok",
+          description: null,
+          enabled: true,
+          id: "flow-1",
+          name: "demo",
+          publishedRevision: null,
+          remark: null,
+        },
+        schemaVersion: "1",
       });
     };
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const result = await client.exportFlow('flow-1');
+    const result = await client.exportFlow("flow-1");
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/export');
-    expect(capturedInit?.method).toBe('GET');
-    expect(result.schemaVersion).toBe('1');
-    expect(result.flow.id).toBe('flow-1');
+    expect(capturedUrl).toBe("http://ai-center.test/flow/console/studio/flow-1/export");
+    expect(capturedInit?.method).toBe("GET");
+    expect(result.schemaVersion).toBe("1");
+    expect(result.flow.id).toBe("flow-1");
   });
 
-  test('importFlow POST /flow/studio/:id/import with body', async () => {
-    let capturedUrl = '';
+  test("importFlow POST /flow/studio/:id/import with body", async () => {
+    let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
       capturedInit = init;
-      return Response.json({ id: 'flow-1', name: 'imported', editorFlowJson: { nodes: [], edges: [] } });
+      return Response.json({ editorFlowJson: { edges: [], nodes: [] }, id: "flow-1", name: "imported" });
     };
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const body = { name: 'imported', editorFlowJson: { nodes: [], edges: [] } };
-    const result = await client.importFlow('flow-1', body);
+    const body = { editorFlowJson: { edges: [], nodes: [] }, name: "imported" };
+    const result = await client.importFlow("flow-1", body);
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/import');
-    expect(capturedInit?.method).toBe('POST');
+    expect(capturedUrl).toBe("http://ai-center.test/flow/console/studio/flow-1/import");
+    expect(capturedInit?.method).toBe("POST");
     expect(JSON.parse(String(capturedInit?.body))).toEqual(body);
-    expect((result as { id: string; name: string }).id).toBe('flow-1');
-    expect((result as { id: string; name: string }).name).toBe('imported');
+    expect((result as { id: string; name: string }).id).toBe("flow-1");
+    expect((result as { id: string; name: string }).name).toBe("imported");
   });
 
-  test('runFlow POST /flow/studio/:id/run with JSON body', async () => {
-    let capturedUrl = '';
+  test("runFlow POST /flow/studio/:id/run with JSON body", async () => {
+    let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       capturedUrl = url;
       capturedInit = init;
-      return Response.json({ raw: { outputs: [{ text: 'done' }], session_id: 'sess-1' } });
+      return Response.json({ raw: { outputs: [{ text: "done" }], session_id: "sess-1" } });
     };
     const client = createFlowClient({
-      baseUrl: 'http://ai-center.test',
+      baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const body = { input: 'hello', sessionId: 'sess-1' };
-    const result = await client.runFlow('flow-1', body);
+    const body = { input: "hello", sessionId: "sess-1" };
+    const result = await client.runFlow("flow-1", body);
 
-    expect(capturedUrl).toBe('http://ai-center.test/flow/console/studio/flow-1/run');
-    expect(capturedInit?.method).toBe('POST');
+    expect(capturedUrl).toBe("http://ai-center.test/flow/console/studio/flow-1/run");
+    expect(capturedInit?.method).toBe("POST");
     expect(JSON.parse(String(capturedInit?.body))).toEqual(body);
-    expect(result).toEqual({ raw: { outputs: [{ text: 'done' }], session_id: 'sess-1' } });
+    expect(result).toEqual({ raw: { outputs: [{ text: "done" }], session_id: "sess-1" } });
   });
 });

@@ -1,9 +1,9 @@
 {
   "name": "@cube-ai/flow-core",
   "version": "0.0.0",
-  "type": "module",
   "private": true,
   "description": "Flow bounded context — Langflow sync, DSL v2, playground, execution (M4).",
+  "type": "module",
   "exports": {
     ".": {
       "import": "./src/index.ts",
@@ -25,9 +25,9 @@
     "sync-components": "bun run scripts/sync-components.ts --from-file data/langflow-api-all.json --out generated/cube-component-catalog.json"
   },
   "dependencies": {
-    "@cube-ai/tenant-context": "workspace:*",
     "@cube-ai/contracts": "workspace:*",
     "@cube-ai/llm-core": "workspace:*",
+    "@cube-ai/tenant-context": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",

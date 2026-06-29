@@ -3,8 +3,8 @@
  * 避免驱动将 `Date` 按 UTC 序列化导致入库少 8 小时。
  */
 export function formatMysqlDateTimeShanghai(date: Date = new Date()): string {
-  return date.toLocaleString('sv-SE', {
-    timeZone: 'Asia/Shanghai',
+  return date.toLocaleString("sv-SE", {
     hour12: false,
-  })
+    timeZone: "Asia/Shanghai",
+  });
 }

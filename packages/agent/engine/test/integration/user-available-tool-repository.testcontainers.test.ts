@@ -1,15 +1,17 @@
-import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { createPool } from 'mysql2/promise';
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { createPool } from "mysql2/promise";
+
 import {
+  type MysqlRedisStack,
   applyMinimalMysqlSchema,
   registerProcessShutdown,
   resolveShouldRunTestcontainers,
   startMysqlRedis,
   stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
-import { SfidService } from '../../src/infra/sfid/sfid.service';
-import { UserAvailableToolRepositoryImpl } from '../../src/bc/descriptor/user-available-tool.repository';
+} from "@cube-ai/test-infra";
+
+import { UserAvailableToolRepositoryImpl } from "../../src/bc/descriptor/user-available-tool.repository";
+import { SfidService } from "../../src/infra/sfid/sfid.service";
 
 const run = await resolveShouldRunTestcontainers();
 const stackHolder: { current: MysqlRedisStack | null } = { current: null };
@@ -29,7 +31,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('UserAvailableToolRepository [testcontainers]', () => {
+(run ? describe : describe.skip)("UserAvailableToolRepository [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startMysqlRedis();
     try {
@@ -49,26 +51,28 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('install, patch, list and remove available tools', async () => {
-    const pool = createPool({ uri: stackHolder.current!.mysqlUrl, connectionLimit: 2 });
-    try {
-      const repo = new UserAvailableToolRepositoryImpl(pool, new SfidService());
-      const installed = await repo.insert(901, 'bob', 'currentDate');
-      expect(installed).toEqual({ toolName: 'currentDate', enabled: true });
-      expect(await repo.findByName(901, 'bob', 'currentDate')).toEqual(installed);
+  test(
+    "install, patch, list and remove available tools",
+    async () => {
+      const pool = createPool({ connectionLimit: 2, uri: stackHolder.current!.mysqlUrl });
+      try {
+        const repo = new UserAvailableToolRepositoryImpl(pool, new SfidService());
+        const installed = await repo.insert(901, "bob", "currentDate");
+        expect(installed).toEqual({ enabled: true, toolName: "currentDate" });
+        expect(await repo.findByName(901, "bob", "currentDate")).toEqual(installed);
 
-      expect(await repo.patch(901, 'bob', 'currentDate', false)).toEqual({
-        toolName: 'currentDate',
-        enabled: false,
-      });
-      expect(await repo.listByUser(901, 'bob')).toEqual([
-        { toolName: 'currentDate', enabled: false },
-      ]);
+        expect(await repo.patch(901, "bob", "currentDate", false)).toEqual({
+          enabled: false,
+          toolName: "currentDate",
+        });
+        expect(await repo.listByUser(901, "bob")).toEqual([{ enabled: false, toolName: "currentDate" }]);
 
-      await repo.softDelete(901, 'bob', 'currentDate');
-      expect(await repo.listByUser(901, 'bob')).toEqual([]);
-    } finally {
-      await pool.end();
-    }
-  }, HOOK_MS);
+        await repo.softDelete(901, "bob", "currentDate");
+        expect(await repo.listByUser(901, "bob")).toEqual([]);
+      } finally {
+        await pool.end();
+      }
+    },
+    HOOK_MS,
+  );
 });

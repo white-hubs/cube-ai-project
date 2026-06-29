@@ -1,4 +1,4 @@
-import { ErrorResponseSchema, type ErrorResponse } from '@cube-ai/contracts';
+import { type ErrorResponse, ErrorResponseSchema } from "@cube-ai/contracts";
 
 /**
  * SDK-side mirror of the engine's 5-field error envelope
@@ -13,7 +13,7 @@ export class AgenticError extends Error {
     public readonly timestamp: number,
   ) {
     super(message);
-    this.name = 'AgenticError';
+    this.name = "AgenticError";
   }
 
   static async fromResponse(response: Response): Promise<AgenticError> {
@@ -29,12 +29,6 @@ export class AgenticError extends Error {
       const b: ErrorResponse = parsed.data;
       return new AgenticError(b.status, b.code, b.message, b.details, b.timestamp);
     }
-    return new AgenticError(
-      response.status,
-      null,
-      response.statusText || text || 'Unknown error',
-      null,
-      Date.now(),
-    );
+    return new AgenticError(response.status, null, response.statusText || text || "Unknown error", null, Date.now());
   }
 }

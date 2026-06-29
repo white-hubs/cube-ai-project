@@ -1,7 +1,8 @@
-import { z } from 'zod';
-import { SfidSchema } from '../common/ids';
-import { EpochMsSchema } from '../common/time';
-import { toolCallIdSchema } from '../tool-ack/ack';
+import { z } from "zod";
+
+import { SfidSchema } from "../common/ids";
+import { EpochMsSchema } from "../common/time";
+import { toolCallIdSchema } from "../tool-ack/ack";
 
 /**
  * Full SSE event definitions aligned with contracts.md §4.3.
@@ -12,10 +13,10 @@ import { toolCallIdSchema } from '../tool-ack/ack';
 // ── Turn events ──────────────────────────────────────────────────────────────
 
 export const TurnStartedEventSchema = z.object({
-  schema:        z.literal('turn-started-v1'),
-  turnId:        SfidSchema,
-  turnNo:        z.number().int().positive(),
-  startTime:     EpochMsSchema,
+  schema: z.literal("turn-started-v1"),
+  startTime: EpochMsSchema,
+  turnId: SfidSchema,
+  turnNo: z.number().int().positive(),
   userMessageId: SfidSchema,
 });
 export type TurnStartedEvent = z.infer<typeof TurnStartedEventSchema>;
@@ -27,62 +28,62 @@ export type TurnStartedEvent = z.infer<typeof TurnStartedEventSchema>;
 // 客户端按 `reasoning-step-v1.phase` 自行聚合，而非依赖服务端事件。
 
 export const TurnCompletedEventSchema = z.object({
-  schema:         z.literal('turn-completed-v1'),
-  turnId:         SfidSchema,
-  finalMessageId: SfidSchema,
-  tokenUsage: z.object({
-    input:  z.number().int().nonnegative(),
-    output: z.number().int().nonnegative(),
-    total:  z.number().int().nonnegative(),
-  }),
   durationMs: z.number().int().nonnegative(),
-  endTime:    EpochMsSchema,
+  endTime: EpochMsSchema,
+  finalMessageId: SfidSchema,
+  schema: z.literal("turn-completed-v1"),
+  tokenUsage: z.object({
+    input: z.number().int().nonnegative(),
+    output: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+  }),
+  turnId: SfidSchema,
 });
 export type TurnCompletedEvent = z.infer<typeof TurnCompletedEventSchema>;
 
 export const TurnCancelledEventSchema = z.object({
-  schema:  z.literal('turn-cancelled-v1'),
-  turnId:  SfidSchema,
-  reason:  z.enum(['USER_REQUEST', 'CLIENT_DISCONNECT', 'TIMEOUT', 'ADMINISTRATIVE']),
   endTime: EpochMsSchema,
+  reason: z.enum(["USER_REQUEST", "CLIENT_DISCONNECT", "TIMEOUT", "ADMINISTRATIVE"]),
+  schema: z.literal("turn-cancelled-v1"),
+  turnId: SfidSchema,
 });
 export type TurnCancelledEvent = z.infer<typeof TurnCancelledEventSchema>;
 
 export const TurnFailedEventSchema = z.object({
-  schema:  z.literal('turn-failed-v1'),
-  turnId:  SfidSchema,
+  endTime: EpochMsSchema,
   error: z.object({
-    code:      z.string(),
-    message:   z.string(),
+    code: z.string(),
+    message: z.string(),
     retryable: z.boolean(),
   }),
-  endTime: EpochMsSchema,
+  schema: z.literal("turn-failed-v1"),
+  turnId: SfidSchema,
 });
 export type TurnFailedEvent = z.infer<typeof TurnFailedEventSchema>;
 
 export const IntentRoutingEventSchema = z.object({
-  schema: z.literal('intent-routing-v1'),
-  turnId: SfidSchema,
-  state:  z.enum(['matched', 'fallback', 'empty']),
   /** 当 `state=fallback` 且因同 priority 并列触发「交给主模型选」时为 true（ADR-0020）。 */
   multiMatch: z.boolean().optional(),
+  schema: z.literal("intent-routing-v1"),
+  state: z.enum(["matched", "fallback", "empty"]),
+  turnId: SfidSchema,
 });
 export type IntentRoutingEvent = z.infer<typeof IntentRoutingEventSchema>;
 
 export const EffectiveRouteResolvedEventSchema = z.object({
-  schema: z.literal('effective-route-resolved-v1'),
-  turnId: SfidSchema,
-  requested: z.object({
-    modelCode: z.string().optional(),
-    providerCode: z.string().optional(),
-    providerId: z.string().optional(),
-  }),
   effective: z.object({
     modelCode: z.string(),
     providerCode: z.string().optional(),
     providerId: z.string().optional(),
   }),
-  reason: z.enum(['DIRECT', 'IMAGE_CAPABILITY_REROUTE', 'FALLBACK']),
+  reason: z.enum(["DIRECT", "IMAGE_CAPABILITY_REROUTE", "FALLBACK"]),
+  requested: z.object({
+    modelCode: z.string().optional(),
+    providerCode: z.string().optional(),
+    providerId: z.string().optional(),
+  }),
+  schema: z.literal("effective-route-resolved-v1"),
+  turnId: SfidSchema,
 });
 export type EffectiveRouteResolvedEvent = z.infer<typeof EffectiveRouteResolvedEventSchema>;
 
@@ -96,21 +97,21 @@ export type EffectiveRouteResolvedEvent = z.infer<typeof EffectiveRouteResolvedE
  * 新 schema 传输；前者负责生命周期（START/END、嵌套），后者负责文本流。
  */
 export const MessageDeltaEventSchema = z.object({
-  schema:    z.literal('message-delta-v1'),
-  turnId:    SfidSchema,
-  messageId: SfidSchema,
-  seqInTurn: z.number().int().positive(),
   delta: z.object({
-    type: z.literal('text'),
+    type: z.literal("text"),
     text: z.string(),
   }),
+  messageId: SfidSchema,
+  schema: z.literal("message-delta-v1"),
+  seqInTurn: z.number().int().positive(),
+  turnId: SfidSchema,
 });
 export type MessageDeltaEvent = z.infer<typeof MessageDeltaEventSchema>;
 
 export const MessageCompletedEventSchema = z.object({
-  schema:    z.literal('message-completed-v1'),
-  turnId:    SfidSchema,
   messageId: SfidSchema,
+  schema: z.literal("message-completed-v1"),
+  turnId: SfidSchema,
 });
 export type MessageCompletedEvent = z.infer<typeof MessageCompletedEventSchema>;
 
@@ -134,75 +135,63 @@ export type MessageCompletedEvent = z.infer<typeof MessageCompletedEventSchema>;
 
 /** Reasoning step lifecycle event：START / END 两态。 */
 export const ReasoningStepEventSchema = z.object({
-  schema:        z.literal('reasoning-step-v1'),
-  turnId:        SfidSchema,
-  /** 由 SfidService.next() 生成，与 turnId/messageId 同体系。 */
-  stepId:        SfidSchema,
-  /** 顶层 phase step 缺省；嵌套子 step（`model-reasoning` 等）必填。 */
-  parentStepId:  SfidSchema.optional(),
-  kind:          z.enum(['phase', 'model-reasoning', 'tool-loop']),
-  event:         z.enum(['START', 'END']),
-  /** 客户端展示标签；mapper 内置 phase → 中文映射可被宿主覆盖。 */
-  label:         z.string(),
-  /** 仅当 `kind === 'phase'` 时存在；与 tachu `EnginePhase` 字面量一致。 */
-  phase: z
-    .enum([
-      'session',
-      'safety',
-      'intent',
-      'precheck',
-      'planning',
-      'graph-check',
-      'execution',
-      'validation',
-      'output',
-    ])
-    .optional(),
-  /** 仅 `event === 'END'` 存在。 */
-  ok:    z.boolean().optional(),
   error: z
     .object({
-      code:    z.string(),
+      code: z.string(),
       message: z.string(),
     })
     .optional(),
-  time:  EpochMsSchema,
+  event: z.enum(["START", "END"]),
+  kind: z.enum(["phase", "model-reasoning", "tool-loop"]),
+  /** 客户端展示标签；mapper 内置 phase → 中文映射可被宿主覆盖。 */
+  label: z.string(),
   /** 弹性槽位：planning 阶段可放 RankedPlan 概要等结构化补充。 */
-  meta:  z.record(z.string(), z.unknown()).optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
+  /** 仅 `event === 'END'` 存在。 */
+  ok: z.boolean().optional(),
+  /** 顶层 phase step 缺省；嵌套子 step（`model-reasoning` 等）必填。 */
+  parentStepId: SfidSchema.optional(),
+  /** 仅当 `kind === 'phase'` 时存在；与 tachu `EnginePhase` 字面量一致。 */
+  phase: z.enum(["session", "safety", "intent", "precheck", "planning", "graph-check", "execution", "validation", "output"]).optional(),
+  schema: z.literal("reasoning-step-v1"),
+  /** 由 SfidService.next() 生成，与 turnId/messageId 同体系。 */
+  stepId: SfidSchema,
+  time: EpochMsSchema,
+  turnId: SfidSchema,
 });
 export type ReasoningStepEvent = z.infer<typeof ReasoningStepEventSchema>;
 
 /** Reasoning text delta event：附属于某个 step；step 内 `seqInStep` 单调。 */
 export const ReasoningDeltaEventSchema = z.object({
-  schema:    z.literal('reasoning-delta-v1'),
-  turnId:    SfidSchema,
-  stepId:    SfidSchema,
+  schema: z.literal("reasoning-delta-v1"),
   /** Step 范围序号；step 内从 1 起单调递增，与 `message-delta-v1.seqInTurn` 解耦。 */
   seqInStep: z.number().int().positive(),
-  text:      z.string(),
   /**
    * `phase`：tachu 阶段进度文本（当前未使用，预留给将来按 phase 注释展示）
    * `model`：模型自身 reasoning_content 流（DeepSeek-R1 / o-series 等）
    * `tool-loop`：工具循环中的模型过程文本；不持久化为最终答案正文
    */
-  source:    z.enum(['phase', 'model', 'tool-loop']),
+  source: z.enum(["phase", "model", "tool-loop"]),
+  stepId: SfidSchema,
+  text: z.string(),
+  turnId: SfidSchema,
 });
 export type ReasoningDeltaEvent = z.infer<typeof ReasoningDeltaEventSchema>;
 
 // ── Tool events ───────────────────────────────────────────────────────────────
 
 export const ToolCallStartedEventSchema = z.object({
-  schema:       z.literal('tool-call-started-v1'),
-  turnId:       SfidSchema,
+  args: z.record(z.string(), z.unknown()),
+  meta: z.object({
+    execution: z.enum(["LOCAL", "REMOTE", "LONG_RUNNING"]),
+    consent: z.enum(["NEVER", "ON_FIRST_USE", "EACH_CALL", "ADMIN_ONLY"]),
+  }),
   /** Optional reasoning phase parent; old engines may omit it. */
   parentStepId: SfidSchema.optional(),
-  toolCallId:   toolCallIdSchema,
-  toolName:     z.string(),
-  args:         z.record(z.string(), z.unknown()),
-  meta: z.object({
-    execution: z.enum(['LOCAL', 'REMOTE', 'LONG_RUNNING']),
-    consent:   z.enum(['NEVER', 'ON_FIRST_USE', 'EACH_CALL', 'ADMIN_ONLY']),
-  }),
+  schema: z.literal("tool-call-started-v1"),
+  toolCallId: toolCallIdSchema,
+  toolName: z.string(),
+  turnId: SfidSchema,
 });
 export type ToolCallStartedEvent = z.infer<typeof ToolCallStartedEventSchema>;
 
@@ -211,73 +200,75 @@ export type ToolCallStartedEvent = z.infer<typeof ToolCallStartedEventSchema>;
  * `ok=true` → output present; `ok=false` → error present.
  */
 export const ToolCallCompletedEventSchema = z.object({
-  schema:       z.literal('tool-call-completed-v1'),
-  turnId:       SfidSchema,
+  durationMs: z.number().int().nonnegative(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      retryable: z.boolean(),
+    })
+    .optional(),
+  ok: z.boolean(),
+  output: z.unknown().optional(),
   /** Optional reasoning phase parent; old engines may omit it. */
   parentStepId: SfidSchema.optional(),
-  toolCallId:   toolCallIdSchema,
-  toolName:     z.string(),
-  durationMs:   z.number().int().nonnegative(),
-  ok:           z.boolean(),
-  output:       z.unknown().optional(),
-  error: z.object({
-    code:      z.string(),
-    message:   z.string(),
-    retryable: z.boolean(),
-  }).optional(),
+  schema: z.literal("tool-call-completed-v1"),
+  toolCallId: toolCallIdSchema,
+  toolName: z.string(),
+  turnId: SfidSchema,
 });
 export type ToolCallCompletedEvent = z.infer<typeof ToolCallCompletedEventSchema>;
 
 // ── Grant events ──────────────────────────────────────────────────────────────
 
 export const GrantRequestEventSchema = z.object({
-  schema:         z.literal('grant-request-v1'),
-  turnId:         SfidSchema,
+  argsPreview: z.record(z.string(), z.unknown()),
+  expiresTime: EpochMsSchema,
   grantRequestId: SfidSchema,
-  toolName:       z.string(),
-  reason:         z.string(),
-  argsPreview:    z.record(z.string(), z.unknown()),
-  scopeHint:      z.enum(['PERSISTENT', 'ONCE']),
-  expiresTime:    EpochMsSchema,
+  reason: z.string(),
+  schema: z.literal("grant-request-v1"),
+  scopeHint: z.enum(["PERSISTENT", "ONCE"]),
+  toolName: z.string(),
+  turnId: SfidSchema,
 });
 export type GrantRequestEvent = z.infer<typeof GrantRequestEventSchema>;
 
 // ── Usage events ──────────────────────────────────────────────────────────────
 
 const TokenUsageTripletSchema = z.object({
-  input:  z.number().int().nonnegative(),
+  input: z.number().int().nonnegative(),
   output: z.number().int().nonnegative(),
-  total:  z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
 });
 
 const UsageAttributionSchema = z.object({
-  id:       z.string(),
-  kind:     z.string(),
+  id: z.string(),
+  kind: z.string(),
+  label: z.string().optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
   parentId: z.string().optional(),
-  label:    z.string().optional(),
-  meta:     z.record(z.string(), z.unknown()).optional(),
 });
 
 export const UsageDeltaV1EventSchema = z.object({
-  schema:     z.literal('usage-delta-v1'),
-  turnId:     SfidSchema,
-  delta:      z.object({ input: z.number().int().nonnegative(), output: z.number().int().nonnegative() }),
-  cumulative: TokenUsageTripletSchema,
-  usage: TokenUsageTripletSchema.optional(),
+  accuracy: z.enum(["estimated", "final"]).optional(),
   attribution: UsageAttributionSchema.optional(),
-  accuracy: z.enum(['estimated', 'final']).optional(),
-  terminal: z.enum(['cancelled', 'failed', 'disconnected']).optional(),
+  cumulative: TokenUsageTripletSchema,
+  delta: z.object({ input: z.number().int().nonnegative(), output: z.number().int().nonnegative() }),
+  schema: z.literal("usage-delta-v1"),
+  terminal: z.enum(["cancelled", "failed", "disconnected"]).optional(),
+  turnId: SfidSchema,
+  usage: TokenUsageTripletSchema.optional(),
 });
 export type UsageDeltaV1Event = z.infer<typeof UsageDeltaV1EventSchema>;
 
 export const UsageDeltaV2EventSchema = z.object({
-  schema:     z.literal('usage-delta-v2'),
-  turnId:     SfidSchema,
-  usage:      TokenUsageTripletSchema,
-  cumulative: TokenUsageTripletSchema,
+  accuracy: z.enum(["estimated", "final"]).optional(),
   attribution: UsageAttributionSchema.optional(),
-  accuracy: z.enum(['estimated', 'final']).optional(),
-  terminal: z.enum(['cancelled', 'failed', 'disconnected']).optional(),
+  cumulative: TokenUsageTripletSchema,
+  schema: z.literal("usage-delta-v2"),
+  terminal: z.enum(["cancelled", "failed", "disconnected"]).optional(),
+  turnId: SfidSchema,
+  usage: TokenUsageTripletSchema,
 });
 export type UsageDeltaV2Event = z.infer<typeof UsageDeltaV2EventSchema>;
 export type UsageDeltaEvent = UsageDeltaV1Event | UsageDeltaV2Event;
@@ -285,14 +276,14 @@ export type UsageDeltaEvent = UsageDeltaV1Event | UsageDeltaV2Event;
 // ── System events ─────────────────────────────────────────────────────────────
 
 export const PingEventV2Schema = z.object({
-  schema: z.literal('ping-v1'),
+  schema: z.literal("ping-v1"),
 });
 export type PingEventV2 = z.infer<typeof PingEventV2Schema>;
 
 export const DrainModeEventSchema = z.object({
-  schema:          z.literal('drain-mode-v1'),
-  reason:          z.enum(['GRACEFUL_SHUTDOWN']),
+  reason: z.enum(["GRACEFUL_SHUTDOWN"]),
   reconnectHintMs: z.number().int().positive(),
+  schema: z.literal("drain-mode-v1"),
 });
 export type DrainModeEvent = z.infer<typeof DrainModeEventSchema>;
 
@@ -303,7 +294,7 @@ export type DrainModeEvent = z.infer<typeof DrainModeEventSchema>;
  * SDK uses `sseEventSchema.safeParse()` — unknown schema → soft fail.
  * Ref: contracts.md §4.3 / §5.3
  */
-export const SseEventSchema = z.discriminatedUnion('schema', [
+export const SseEventSchema = z.discriminatedUnion("schema", [
   TurnStartedEventSchema,
   MessageDeltaEventSchema,
   MessageCompletedEventSchema,
@@ -325,5 +316,5 @@ export const SseEventSchema = z.discriminatedUnion('schema', [
 export type SseEvent = z.infer<typeof SseEventSchema>;
 
 /** SSE event ID format: <turnId_SFID>:<seq6> */
-export const SseEventIdSchema = z.string().regex(/^\d{1,20}:\d{6}$/);
+export const SseEventIdSchema = z.string().regex(/^\d{1,20}:\d{6}$/u);
 export type SseEventId = z.infer<typeof SseEventIdSchema>;

@@ -1,8 +1,8 @@
-import { defineComponent } from 'vue';
-import { RouterView } from 'vue-router';
+import { defineComponent } from "vue";
+import { RouterView } from "vue-router";
 
 export const App = defineComponent({
-  name: 'App',
+  name: "App",
   setup: () => (): JSX.Element => (
     <div class="shell">
       <header>

@@ -1,11 +1,8 @@
-import { Module, type Container } from '@dangao/bun-server';
-import { LlmProvidersController } from './llm-providers.controller';
-import { LlmGatewayController } from './llm-gateway.controller';
-import {
-  LLM_HTTP_TENANT_RESOLVER_TOKEN,
-  type LlmHttpTenantResolver,
-  LlmHttpTenantResolverService,
-} from './request-tenant';
+import { type Container, Module } from "@dangao/bun-server";
+
+import { LlmGatewayController } from "./llm-gateway.controller";
+import { LlmProvidersController } from "./llm-providers.controller";
+import { LLM_HTTP_TENANT_RESOLVER_TOKEN, type LlmHttpTenantResolver, LlmHttpTenantResolverService } from "./request-tenant";
 
 @Module({
   controllers: [LlmProvidersController, LlmGatewayController],
@@ -19,10 +16,7 @@ import {
     // 命令式 c.resolve(...) 装配方式保持一致。
     {
       provide: LlmHttpTenantResolverService,
-      useFactory: (c: Container) =>
-        new LlmHttpTenantResolverService(
-          c.resolve(LLM_HTTP_TENANT_RESOLVER_TOKEN) as LlmHttpTenantResolver,
-        ),
+      useFactory: (c: Container) => new LlmHttpTenantResolverService(c.resolve(LLM_HTTP_TENANT_RESOLVER_TOKEN) as LlmHttpTenantResolver),
     },
   ],
 })

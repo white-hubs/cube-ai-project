@@ -5,8 +5,9 @@
  *
  * 镜像：`otel/opentelemetry-collector-contrib:0.94.0`（固定版本，避免 latest 漂移）。
  */
-import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
-import { testInfraLog, withProgressLog } from './log';
+import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
+
+import { testInfraLog, withProgressLog } from "./log";
 
 /**
  * 最小 collector config：OTLP HTTP 接收（4318） + debug exporter 详细日志输出。
@@ -43,7 +44,9 @@ let otelTracked: StartedTestContainer[] | null = null;
 
 export async function stopTrackedOtelCollectorIfAny(): Promise<void> {
   const arr = otelTracked;
-  if (!arr?.length) return;
+  if (!arr?.length) {
+    return;
+  }
   testInfraLog(`Stopping ${arr.length} OTel Collector Testcontainer(s)…`);
   await Promise.all(
     arr.map((c) =>
@@ -52,7 +55,9 @@ export async function stopTrackedOtelCollectorIfAny(): Promise<void> {
       }),
     ),
   );
-  if (otelTracked === arr) otelTracked = null;
+  if (otelTracked === arr) {
+    otelTracked = null;
+  }
 }
 
 export interface OtelCollectorStack {
@@ -73,31 +78,27 @@ export async function startOtelCollector(): Promise<OtelCollectorStack> {
   const started: StartedTestContainer[] = [];
   otelTracked = started;
 
-  const image = 'otel/opentelemetry-collector-contrib:0.94.0';
+  const image = "otel/opentelemetry-collector-contrib:0.94.0";
 
   try {
     testInfraLog(`Starting OTel Collector (${image})…`);
     const t0 = Date.now();
 
     const container = await withProgressLog(
-      'OtelCollector GenericContainer.start()',
+      "OtelCollector GenericContainer.start()",
       new GenericContainer(image)
         .withExposedPorts(4318)
         .withCopyContentToContainer([
           {
             content: DEFAULT_OTEL_COLLECTOR_CONFIG_YAML,
-            target: '/etc/otelcol-contrib/config.yaml',
+            target: "/etc/otelcol-contrib/config.yaml",
           },
         ])
         /**
          * collector 启动日志会出现 `Everything is ready` / `Starting GRPC server` /
          * `Starting HTTP server`；任一即视为就绪。
          */
-        .withWaitStrategy(
-          Wait.forLogMessage(
-            /Everything is ready|Starting GRPC server|Starting HTTP server/i,
-          ),
-        )
+        .withWaitStrategy(Wait.forLogMessage(/Everything is ready|Starting GRPC server|Starting HTTP server/iu))
         .withStartupTimeout(180_000)
         .start(),
     );
@@ -113,16 +114,18 @@ export async function startOtelCollector(): Promise<OtelCollectorStack> {
       endpoint,
       async snapshotLogs(collectMs = 1_500): Promise<string> {
         const stream = await container.logs();
-        let combined = '';
+        let combined = "";
         const onData = (chunk: Buffer | string): void => {
-          combined += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          combined += typeof chunk === "string" ? chunk : chunk.toString("utf8");
         };
-        stream.on('data', onData);
+        stream.on("data", onData);
         await new Promise((r) => setTimeout(r, collectMs));
-        stream.off('data', onData);
+        stream.off("data", onData);
         try {
           const dt = (stream as { destroy?: () => void }).destroy;
-          if (typeof dt === 'function') dt.call(stream);
+          if (typeof dt === "function") {
+            dt.call(stream);
+          }
         } catch {
           /* ignore */
         }
@@ -130,7 +133,9 @@ export async function startOtelCollector(): Promise<OtelCollectorStack> {
       },
       async stop(): Promise<void> {
         await container.stop().catch(() => {});
-        if (otelTracked === started) otelTracked = null;
+        if (otelTracked === started) {
+          otelTracked = null;
+        }
       },
     };
   } catch (e) {
@@ -141,7 +146,9 @@ export async function startOtelCollector(): Promise<OtelCollectorStack> {
         }),
       ),
     );
-    if (otelTracked === started) otelTracked = null;
+    if (otelTracked === started) {
+      otelTracked = null;
+    }
     throw e;
   }
 }

@@ -13,21 +13,21 @@ ADR-0001 决定在新仓 `cube-ai-project` 按中台领域重做边界。旧三�
 
 ## Decision
 
-### 领域包清单（@cube-ai/*）
+### 领域包清单（@cube-ai/\*）
 
 > 包名派生规则、目录布局、SDK 面命名见 **ADR-0011**（命名哲学）；本表是其在「包边界与依赖」语境下的权威清单。
 
-| 包 | 领域职责 | 对外暴露 |
-|---|---|---|
-| `contracts` | port + wire schema + 不变量常量；零依赖（仅 zod） | 共享内核 |
-| `agent-engine` | session/turn/SSE/tool 编排（活跃运行时） | 消费 ports |
-| `llm-core` | chat·stream·embed·tool-call·vision + 能力匹配 + 目录驱动路由；**含 catalog 权威**（model registry / vendor 凭据，自 ghcloud 收编） | `LlmProviderPort`（内部经 `LlmCatalogPort` 解耦 provider/catalog 两 BC） |
-| `flow-core` | flow 引擎 / Langflow / DSL / components / playground / webhook 等**整套**（自 cube-ai 收编，横切收归；ADR-0012/0004） | `FlowInvokerPort` + 直达 `/flow/*`（独立 SSE） |
-| `kb-core` | 检索 / ingestion（自 cube-ai **整套**收编） | `KnowledgeQueryPort` + 直达 `/kb/*` |
-| `embedding` | 向量化（文本→向量，无状态算力，经 `LlmProviderPort.embed`），跨 kb/agent-engine 共享 | `EmbeddingPort` |
-| `agent-sdk-client*` | agent/chat 消费面（`-vue` / `-assistant` / `-mock`），只走 HTTP/SSE | — |
-| `<domain>-sdk-<face>` | 各能力 client/console SDK（`flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`），按需 | — |
-| `platform-adapter-ghcloud` | 平台侧**租户身份**（鉴权 / 租户解析）；**不再实现 `LlmCatalogPort`** | 实现平台身份 port |
+| 包                         | 领域职责                                                                                                                           | 对外暴露                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `contracts`                | port + wire schema + 不变量常量；零依赖（仅 zod）                                                                                  | 共享内核                                                                 |
+| `agent-engine`             | session/turn/SSE/tool 编排（活跃运行时）                                                                                           | 消费 ports                                                               |
+| `llm-core`                 | chat·stream·embed·tool-call·vision + 能力匹配 + 目录驱动路由；**含 catalog 权威**（model registry / vendor 凭据，自 ghcloud 收编） | `LlmProviderPort`（内部经 `LlmCatalogPort` 解耦 provider/catalog 两 BC） |
+| `flow-core`                | flow 引擎 / Langflow / DSL / components / playground / webhook 等**整套**（自 cube-ai 收编，横切收归；ADR-0012/0004）              | `FlowInvokerPort` + 直达 `/flow/*`（独立 SSE）                           |
+| `kb-core`                  | 检索 / ingestion（自 cube-ai **整套**收编）                                                                                        | `KnowledgeQueryPort` + 直达 `/kb/*`                                      |
+| `embedding`                | 向量化（文本→向量，无状态算力，经 `LlmProviderPort.embed`），跨 kb/agent-engine 共享                                               | `EmbeddingPort`                                                          |
+| `agent-sdk-client*`        | agent/chat 消费面（`-vue` / `-assistant` / `-mock`），只走 HTTP/SSE                                                                | —                                                                        |
+| `<domain>-sdk-<face>`      | 各能力 client/console SDK（`flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`），按需                     | —                                                                        |
+| `platform-adapter-ghcloud` | 平台侧**租户身份**（鉴权 / 租户解析）；**不再实现 `LlmCatalogPort`**                                                               | 实现平台身份 port                                                        |
 
 > **`llm-core` 是多包领域的后端核**：catalog（model registry + vendor 凭据，原 ghcloud `llm-catalog`）与 provider（调用）同生命周期、同凭据域，**合为一个包内的两个 BC**（`src/catalog` / `src/provider`），非两个 workspace 包——遵循 ADR-0011「包=seam 非 responsibility」。其管理面经 `llm-sdk-console` 消费。
 >

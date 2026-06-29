@@ -9,15 +9,11 @@
  *   docs/technical-design/phase-1/P1-03-data-outbox.md §3.3
  */
 
-export type {
-  OutboxEventRow,
-  OutboxChannel,
-  OutboxStatus,
-  AppendOutboxInput,
-} from '@cube-ai/contracts';
+export type { OutboxStatus, OutboxChannel, OutboxEventRow, AppendOutboxInput } from "@cube-ai/contracts";
+import type { OutboxEventRow } from "@cube-ai/contracts";
 
 /** Callback invoked once per row the Relay has dispatched from the outbox table. */
-export type OutboxDispatcher = (row: import('@cube-ai/contracts').OutboxEventRow) => Promise<void>;
+export type OutboxDispatcher = (row: OutboxEventRow) => Promise<void>;
 
 export interface OutboxRelayOptions {
   /**

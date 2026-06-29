@@ -1,4 +1,4 @@
-import { kbRequestJson, type KbSdkConfig } from './http';
+import { type KbSdkConfig, kbRequestJson } from "./http";
 
 export interface SearchBody {
   query: string;
@@ -9,11 +9,11 @@ export interface SearchBody {
 
 export interface SearchByDocumentsBody {
   query: string;
-  documents: Array<{
+  documents: {
     documentId: string;
     topK?: number;
     similarityThreshold?: number;
-  }>;
+  }[];
 }
 
 export interface SearchByDirectoryBody {
@@ -46,17 +46,17 @@ export class KbClient {
   constructor(private readonly config: KbSdkConfig) {}
 
   async search(body: SearchBody): Promise<KbSearchResult> {
-    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search', body);
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, "POST", "/search", body);
     return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 
   async searchByDocuments(body: SearchByDocumentsBody): Promise<KbSearchResult> {
-    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search/by-documents', body);
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, "POST", "/search/by-documents", body);
     return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 
   async searchByDirectory(body: SearchByDirectoryBody): Promise<KbSearchResult> {
-    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, 'POST', '/search/by-directory', body);
+    const raw = await kbRequestJson<{ items?: KbSearchItem[] }>(this.config, "POST", "/search/by-directory", body);
     return { items: (raw as { items?: KbSearchItem[] }).items ?? [] };
   }
 }

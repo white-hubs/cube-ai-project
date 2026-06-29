@@ -24,8 +24,8 @@ bun run --filter @cube-ai/agent-sdk-client-mock build
 ## Using from tests
 
 ```ts
-import { startMockEngine } from '@cube-ai/agent-sdk-client-mock';
-import { AgenticClient } from '@cube-ai/agent-sdk-client';
+import { startMockEngine } from "@cube-ai/agent-sdk-client-mock";
+import { AgenticClient } from "@cube-ai/agent-sdk-client";
 
 const mock = await startMockEngine();
 const client = new AgenticClient({ baseUrl: mock.url });

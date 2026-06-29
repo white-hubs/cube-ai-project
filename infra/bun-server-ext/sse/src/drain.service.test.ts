@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+
 /**
  * Unit tests for DrainService (P1-11)
  *
@@ -12,29 +14,27 @@
  *  5. waitForDrain force-closes streams after timeout
  *  6. DrainMode state-machine compatibility (P1-06 interface)
  */
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { DrainService } from './drain.service';
-import type { SseConnection } from './drain.service';
+import { DrainService, type SseConnection } from "./drain.service";
 
-describe('DrainService', () => {
+describe("DrainService", () => {
   let svc: DrainService;
 
   beforeEach(() => {
     svc = new DrainService();
   });
 
-  it('should start with activeStreamCount = 0 and not draining', () => {
+  it("should start with activeStreamCount = 0 and not draining", () => {
     expect(svc.activeStreamCount()).toBe(0);
     expect(svc.isDraining()).toBe(false);
   });
 
-  it('registerStream increments activeStreamCount', () => {
+  it("registerStream increments activeStreamCount", () => {
     const conn = makeConn();
     svc.registerStream(conn);
     expect(svc.activeStreamCount()).toBe(1);
   });
 
-  it('unregister function decrements activeStreamCount', () => {
+  it("unregister function decrements activeStreamCount", () => {
     const conn = makeConn();
     const unregister = svc.registerStream(conn);
     expect(svc.activeStreamCount()).toBe(1);
@@ -42,7 +42,7 @@ describe('DrainService', () => {
     expect(svc.activeStreamCount()).toBe(0);
   });
 
-  it('multiple streams tracked independently', () => {
+  it("multiple streams tracked independently", () => {
     const conn1 = makeConn();
     const conn2 = makeConn();
     const unregister1 = svc.registerStream(conn1);
@@ -52,7 +52,7 @@ describe('DrainService', () => {
     expect(svc.activeStreamCount()).toBe(1);
   });
 
-  it('waitForDrain resolves immediately when no active streams', async () => {
+  it("waitForDrain resolves immediately when no active streams", async () => {
     const start = Date.now();
     await svc.waitForDrain(5_000);
     // Should not take anywhere near 5s
@@ -60,11 +60,11 @@ describe('DrainService', () => {
     expect(svc.activeStreamCount()).toBe(0);
   });
 
-  it('starts accepting new SSE streams until drain', () => {
+  it("starts accepting new SSE streams until drain", () => {
     expect(svc.isAcceptingNewStreams()).toBe(true);
   });
 
-  it('broadcastDraining sends drain.mode event with drain-mode-v1', () => {
+  it("broadcastDraining sends drain.mode event with drain-mode-v1", () => {
     const conn1 = makeConn();
     const conn2 = makeConn();
     svc.registerStream(conn1);
@@ -75,30 +75,30 @@ describe('DrainService', () => {
     expect(svc.isDraining()).toBe(true);
     expect(svc.isAcceptingNewStreams()).toBe(false);
     expect(conn1.writeEvent).toHaveBeenCalledWith(
-      'drain.mode',
+      "drain.mode",
       expect.objectContaining({
-        schema: 'drain-mode-v1',
-        reason: 'GRACEFUL_SHUTDOWN',
+        reason: "GRACEFUL_SHUTDOWN",
         reconnectHintMs: 1000,
+        schema: "drain-mode-v1",
       }),
-      'drain',
+      "drain",
     );
     expect(conn2.writeEvent).toHaveBeenCalledWith(
-      'drain.mode',
+      "drain.mode",
       expect.objectContaining({
-        schema: 'drain-mode-v1',
+        schema: "drain-mode-v1",
       }),
-      'drain',
+      "drain",
     );
   });
 
-  it('triggerDrain resolves quickly when no SSE connections block', async () => {
+  it("triggerDrain resolves quickly when no SSE connections block", async () => {
     const started = Date.now();
     await svc.triggerDrain(5_000);
     expect(Date.now() - started).toBeLessThan(800);
   });
 
-  it('waitForDrain force-closes remaining streams after timeout', async () => {
+  it("waitForDrain force-closes remaining streams after timeout", async () => {
     const conn = makeConn(); // conn never calls unregister itself
     svc.registerStream(conn);
 
@@ -109,7 +109,7 @@ describe('DrainService', () => {
     expect(svc.activeStreamCount()).toBe(0);
   });
 
-  it('waitForDrain exits early if streams disconnect during grace window', async () => {
+  it("waitForDrain exits early if streams disconnect during grace window", async () => {
     const conn = makeConn();
     const unregister = svc.registerStream(conn);
 
@@ -128,31 +128,31 @@ describe('DrainService', () => {
   // ── DrainMode state-machine (P1-06 compatibility) ───────────────────────
 
   it('getMode() starts at "running"', () => {
-    expect(svc.getMode()).toBe('running');
+    expect(svc.getMode()).toBe("running");
   });
 
-  it('transition changes mode and notifies listeners', async () => {
+  it("transition changes mode and notifies listeners", async () => {
     const listener = mock<(m: string) => void>();
     svc.onChange(listener);
-    await svc.transition('paused');
-    expect(svc.getMode()).toBe('paused');
-    expect(listener).toHaveBeenCalledWith('paused');
+    await svc.transition("paused");
+    expect(svc.getMode()).toBe("paused");
+    expect(listener).toHaveBeenCalledWith("paused");
   });
 
-  it('onChange returns unregister; listener not called after unregister', async () => {
+  it("onChange returns unregister; listener not called after unregister", async () => {
     const listener = mock<(m: string) => void>();
     const unregister = svc.onChange(listener);
     unregister();
-    await svc.transition('paused');
+    await svc.transition("paused");
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('broadcastDraining transitions mode to finalize', async () => {
+  it("broadcastDraining transitions mode to finalize", async () => {
     svc.registerStream(makeConn());
     svc.broadcastDraining();
     // Give microtasks time to run
     await new Promise((r) => setTimeout(r, 0));
-    expect(svc.getMode()).toBe('finalize');
+    expect(svc.getMode()).toBe("finalize");
   });
 });
 
@@ -163,7 +163,7 @@ function makeConn(): SseConnection & {
   close: ReturnType<typeof mock>;
 } {
   return {
-    writeEvent: mock(),
     close: mock(),
+    writeEvent: mock(),
   };
 }

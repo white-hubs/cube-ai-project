@@ -11,54 +11,48 @@
  *
  * 枚举值全部 UPPERCASE（对齐 descriptor-schema.md v2.0 Phase 5 规范对齐重写节）。
  */
-import { z } from 'zod';
+import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Enums（所有业务枚举 UPPERCASE — descriptor-schema.md 顶部 v2.0 重写说明）
 // ---------------------------------------------------------------------------
 
 /** execution 模式 — descriptor-schema.md §3.1 */
-export const ExecutionMode = z.enum(['LOCAL', 'REMOTE', 'LONG_RUNNING']);
+export const ExecutionMode = z.enum(["LOCAL", "REMOTE", "LONG_RUNNING"]);
 export type ExecutionMode = z.infer<typeof ExecutionMode>;
 
 /** consent 模式（4 值闭集）— descriptor-schema.md §3.2 */
-export const ConsentMode = z.enum(['NEVER', 'ON_FIRST_USE', 'EACH_CALL', 'ADMIN_ONLY']);
+export const ConsentMode = z.enum(["NEVER", "ON_FIRST_USE", "EACH_CALL", "ADMIN_ONLY"]);
 export type ConsentMode = z.infer<typeof ConsentMode>;
 
 /** 主体类型 — descriptor-schema.md §3.3 */
-export const PrincipalKind = z.enum(['USER', 'SERVICE', 'ANY']);
+export const PrincipalKind = z.enum(["USER", "SERVICE", "ANY"]);
 export type PrincipalKind = z.infer<typeof PrincipalKind>;
 
 /** Tool 分类（可选）— descriptor-schema.md §2 */
-export const ToolCategory = z.enum(['PLATFORM', 'MEMORY', 'CUSTOM', 'MCP']);
+export const ToolCategory = z.enum(["PLATFORM", "MEMORY", "CUSTOM", "MCP"]);
 export type ToolCategory = z.infer<typeof ToolCategory>;
 
 /** costEstimate.category — descriptor-schema.md §6.2 */
-export const CostEstimateCategory = z.enum([
-  'IO_LIGHT',
-  'IO_MEDIUM',
-  'IO_HEAVY',
-  'LLM_CALL',
-  'LONG_RUNNING',
-]);
+export const CostEstimateCategory = z.enum(["IO_LIGHT", "IO_MEDIUM", "IO_HEAVY", "LLM_CALL", "LONG_RUNNING"]);
 export type CostEstimateCategory = z.infer<typeof CostEstimateCategory>;
 
 /** HandlerKind（来自 P1-08 prompt §6.1，不在 descriptor-schema.md 中）*/
 export const HandlerKind = z.enum([
-  'http',
-  'shell',
-  'sql',
-  'vector',
-  'memory',
-  'openapi',
-  'mcp',
-  'llm',
-  'flow',
-  'flowList',
-  'knowledge',
-  'clock',
-  'qwenImage',
-  'descriptorOps',
+  "http",
+  "shell",
+  "sql",
+  "vector",
+  "memory",
+  "openapi",
+  "mcp",
+  "llm",
+  "flow",
+  "flowList",
+  "knowledge",
+  "clock",
+  "qwenImage",
+  "descriptorOps",
 ]);
 export type HandlerKind = z.infer<typeof HandlerKind>;
 
@@ -67,7 +61,7 @@ export type HandlerKind = z.infer<typeof HandlerKind>;
 // ---------------------------------------------------------------------------
 
 export const EXECUTE_REF_PATTERN =
-  /^(builtin:[a-z0-9_]+(\.[a-z0-9_]+)+|ext:\d+:[a-z0-9_]+(\.[a-z0-9_]+)+|mcp:[a-z0-9][a-z0-9\-]{0,31}:[a-zA-Z0-9_.\-]+)$/;
+  /^(builtin:[a-z0-9_]+(\.[a-z0-9_]+)+|ext:\d+:[a-z0-9_]+(\.[a-z0-9_]+)+|mcp:[a-z0-9][a-z0-9-]{0,31}:[a-zA-Z0-9_.-]+)$/u;
 
 /** 校验 execute ref 字符串 — descriptor-schema.md §5.2 */
 export function validateExecuteRef(ref: string): boolean {
@@ -78,7 +72,7 @@ export function validateExecuteRef(ref: string): boolean {
 // sideEffects pattern — descriptor-schema.md §3.4
 // ---------------------------------------------------------------------------
 
-const SIDE_EFFECT_PATTERN = /^[a-z]+:[a-z0-9_.\-]+$/;
+const SIDE_EFFECT_PATTERN = /^[a-z]+:[a-z0-9_.-]+$/u;
 
 // ---------------------------------------------------------------------------
 // Sub-schemas
@@ -87,14 +81,12 @@ const SIDE_EFFECT_PATTERN = /^[a-z]+:[a-z0-9_.\-]+$/;
 /** meta 对象 — descriptor-schema.md §3（6 个必需字段，additionalProperties: false）*/
 export const ToolDescriptorMeta = z
   .object({
-    execution:          ExecutionMode,
-    consent:            ConsentMode,
-    requiresPrincipal:  PrincipalKind,
-    timeoutMs:          z.number().int().min(100).max(600_000),
-    idempotent:         z.boolean(),
-    sideEffects:        z
-      .array(z.string().regex(SIDE_EFFECT_PATTERN, 'sideEffect must match <category>:<resource>'))
-      .default([]),
+    consent: ConsentMode,
+    execution: ExecutionMode,
+    idempotent: z.boolean(),
+    requiresPrincipal: PrincipalKind,
+    sideEffects: z.array(z.string().regex(SIDE_EFFECT_PATTERN, "sideEffect must match <category>:<resource>")).default([]),
+    timeoutMs: z.number().int().min(100).max(600_000),
   })
   .strict();
 
@@ -102,18 +94,18 @@ export type ToolDescriptorMeta = z.infer<typeof ToolDescriptorMeta>;
 
 /** requires 对象 — descriptor-schema.md §2 */
 export const ToolDescriptorRequires = z.object({
-  principal:   PrincipalKind,
-  oauthScope:  z.array(z.string()),
-  obo:         z
+  oauthScope: z.array(z.string()),
+  obo: z
     .union([
       z.null(),
       z.object({
         audience: z.string().min(1),
-        scope:    z.array(z.string()).optional(),
+        scope: z.array(z.string()).optional(),
       }),
     ])
     .optional()
     .nullable(),
+  principal: PrincipalKind,
 });
 
 export type ToolDescriptorRequires = z.infer<typeof ToolDescriptorRequires>;
@@ -121,23 +113,23 @@ export type ToolDescriptorRequires = z.infer<typeof ToolDescriptorRequires>;
 /** inputSchema / outputSchema（JSON Schema draft 2020-12 骨架校验）— descriptor-schema.md §4 */
 const JsonSchemaObject = z
   .object({
-    type:       z.literal('object'),
     properties: z.record(z.string(), z.unknown()),
+    type: z.literal("object"),
   })
   .passthrough();
 
 /** rateLimit 可选字段 — descriptor-schema.md §6.1 */
 const RateLimit = z.object({
-  perUserPerMin:    z.number().optional(),
-  perTenantPerMin:  z.number().optional(),
-  globalPerMin:     z.number().optional(),
+  globalPerMin: z.number().optional(),
+  perTenantPerMin: z.number().optional(),
+  perUserPerMin: z.number().optional(),
 });
 
 /** retryPolicy 可选字段 — descriptor-schema.md §6.3 */
 const RetryPolicy = z.object({
-  maxAttempts:  z.number().int().optional(),
-  backoffMs:    z.number().optional(),
-  retryOn:      z.array(z.string()).optional(),
+  backoffMs: z.number().optional(),
+  maxAttempts: z.number().int().optional(),
+  retryOn: z.array(z.string()).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -147,26 +139,23 @@ const RetryPolicy = z.object({
 
 export const ToolDescriptor = z.object({
   // --- 必需字段（descriptor-schema.md §8.1）---
-  schemaVersion:  z.literal(1),
-  kind:           z.literal('TOOL'),
-  name:           z.string().min(1).max(128),
-  displayName:    z.string().min(1).max(128),
-  isPreset:       z.boolean(),
-  meta:           ToolDescriptorMeta,
-  inputSchema:    JsonSchemaObject,
-  outputSchema:   JsonSchemaObject,
-  requires:       ToolDescriptorRequires,
-  execute:        z
-    .string()
-    .max(128)
-    .regex(EXECUTE_REF_PATTERN, 'INVALID_ARGUMENT_DESCRIPTOR_EXECUTE_REF'),
+  schemaVersion: z.literal(1),
+  kind: z.literal("TOOL"),
+  name: z.string().min(1).max(128),
+  displayName: z.string().min(1).max(128),
+  isPreset: z.boolean(),
+  meta: ToolDescriptorMeta,
+  inputSchema: JsonSchemaObject,
+  outputSchema: JsonSchemaObject,
+  requires: ToolDescriptorRequires,
+  execute: z.string().max(128).regex(EXECUTE_REF_PATTERN, "INVALID_ARGUMENT_DESCRIPTOR_EXECUTE_REF"),
 
   // --- 推荐字段 ---
-  description:    z.string().max(2048).optional(),
+  description: z.string().max(2048).optional(),
 
   // --- 可选字段（M1 预留）---
-  tags:               z.array(z.string()).optional(),
-  category:           ToolCategory.optional(),
+  tags: z.array(z.string()).optional(),
+  category: ToolCategory.optional(),
 
   /**
    * 工具**执行**消费的资源声明（ADR-0026 D4c）。
@@ -174,17 +163,17 @@ export const ToolDescriptor = z.object({
    * 选择调用该工具时需要看到什么」。仅作 `resourceDemandRouter` 的输入参考
    * （`candidateTools`），core 绝不据此自动裁剪推理 prompt。
    */
-  consumes:           z
+  consumes: z
     .object({
-      kinds:    z.array(z.string()).optional(),
+      kinds: z.array(z.string()).optional(),
       required: z.boolean().optional(),
     })
     .optional(),
-  rateLimit:          RateLimit.optional(),
-  costEstimate:       z.object({ category: CostEstimateCategory }).optional(),
-  retryPolicy:        RetryPolicy.optional(),
-  deprecated:         z.boolean().optional(),
-  deprecatedMessage:  z.string().nullable().optional(),
+  rateLimit: RateLimit.optional(),
+  costEstimate: z.object({ category: CostEstimateCategory }).optional(),
+  retryPolicy: RetryPolicy.optional(),
+  deprecated: z.boolean().optional(),
+  deprecatedMessage: z.string().nullable().optional(),
 
   /**
    * handler 字段（P1-08 骨架扩展；与 execute ref 并存）。
@@ -193,8 +182,8 @@ export const ToolDescriptor = z.object({
    */
   handler: z
     .object({
-      kind:   HandlerKind,
       config: z.object({}).passthrough(),
+      kind: HandlerKind,
     })
     .optional(),
 
@@ -209,7 +198,10 @@ export const ToolDescriptor = z.object({
    * M1 文档中版本存于 descriptor_versions.version_no；这里作骨架占位。
    * TODO(P1-08): Phase 2 从 descriptor_versions DB 行读取，不在 JSON 中存 — ref design doc §4.1, §13 A-1
    */
-  version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(),
+  version: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/u)
+    .optional(),
 });
 
 export type ToolDescriptor = z.infer<typeof ToolDescriptor>;
@@ -219,14 +211,14 @@ export type ToolDescriptor = z.infer<typeof ToolDescriptor>;
 // ---------------------------------------------------------------------------
 
 export const LONG_RUNNING_OUTPUT_SCHEMA = {
-  type: 'object' as const,
-  required: ['scheduled', 'jobId'],
   properties: {
-    scheduled:           { const: true },
-    jobId:               { type: 'string', pattern: '^\\d{1,20}$', description: 'SFID 纯数字' },
-    statusUrl:           { type: 'string', format: 'uri' },
-    estimatedDurationMs: { type: 'integer' },
+    estimatedDurationMs: { type: "integer" },
+    jobId: { description: "SFID 纯数字", pattern: "^\\d{1,20}$", type: "string" },
+    scheduled: { const: true },
+    statusUrl: { format: "uri", type: "string" },
   },
+  required: ["scheduled", "jobId"],
+  type: "object" as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -242,9 +234,7 @@ export interface DescriptorValidationResult {
  * 在 Zod parse 之外执行 descriptor-schema.md §8.5 的 7 条跨字段一致性校验。
  * Zod schema 本身已覆盖步骤 1-4；本函数补覆盖步骤 5-8。
  */
-export function validateDescriptorConsistency(
-  d: ToolDescriptor,
-): DescriptorValidationResult {
+export function validateDescriptorConsistency(d: ToolDescriptor): DescriptorValidationResult {
   const errors: string[] = [];
 
   // 步骤 5：meta.requiresPrincipal === requires.principal
@@ -256,25 +246,21 @@ export function validateDescriptorConsistency(
 
   // 步骤 6：oauthScope 排序规范
   const scopes = d.requires.oauthScope;
-  const sorted = [...scopes].sort();
+  const sorted = [...scopes].toSorted();
   if (JSON.stringify(scopes) !== JSON.stringify(sorted)) {
-    errors.push(
-      `INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY: oauthScope must be sorted ascending`,
-    );
+    errors.push(`INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY: oauthScope must be sorted ascending`);
   }
 
   // 步骤 8：isPreset=true ⇔ execute 以 builtin: 开头（tenant=0 体现在运行时）
   // 注：tenant 字段在 ToolDescriptor JSON 中无，由 DB 列存储；此处只检查 execute 前缀
-  if (d.isPreset && !d.execute.startsWith('builtin:')) {
-    errors.push(
-      `FAILED_PRECONDITION_DESCRIPTOR_TENANT_MISMATCH: isPreset=true but execute ref is not builtin:*`,
-    );
+  if (d.isPreset && !d.execute.startsWith("builtin:")) {
+    errors.push(`FAILED_PRECONDITION_DESCRIPTOR_TENANT_MISMATCH: isPreset=true but execute ref is not builtin:*`);
   }
 
   // LONG_RUNNING output schema 必须含 scheduled + jobId — §10 不变式 3
-  if (d.meta.execution === 'LONG_RUNNING') {
+  if (d.meta.execution === "LONG_RUNNING") {
     const outProps = d.outputSchema.properties as Record<string, unknown>;
-    if (!('scheduled' in outProps) || !('jobId' in outProps)) {
+    if (!("scheduled" in outProps) || !("jobId" in outProps)) {
       errors.push(
         `INVALID_ARGUMENT_DESCRIPTOR_LONG_RUNNING_OUTPUT: LONG_RUNNING tool outputSchema must have 'scheduled' and 'jobId' fields`,
       );
@@ -283,10 +269,8 @@ export function validateDescriptorConsistency(
 
   // deprecated=true ⇒ deprecatedMessage 非 null — §10 不变式 4
   if (d.deprecated === true && !d.deprecatedMessage) {
-    errors.push(
-      `INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY: deprecated=true but deprecatedMessage is null/missing`,
-    );
+    errors.push(`INVALID_ARGUMENT_DESCRIPTOR_CONSISTENCY: deprecated=true but deprecatedMessage is null/missing`);
   }
 
-  return { ok: errors.length === 0, errors };
+  return { errors, ok: errors.length === 0 };
 }

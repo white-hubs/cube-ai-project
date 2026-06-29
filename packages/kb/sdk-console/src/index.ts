@@ -1,2 +1,2 @@
-export * from './client';
-export type { KbConsoleConfig } from './http';
+export * from "./client";
+export type { KbConsoleConfig } from "./http";

@@ -133,15 +133,13 @@ CREATE TABLE IF NOT EXISTS \`flow_studio_release\` (
 
 function splitSqlStatements(schema: string): string[] {
   return schema
-    .split(';')
+    .split(";")
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
 }
 
 /** Idempotent DDL bootstrap for flow_studio_* tables (ADR-0013). */
-export async function applyFlowStudioMysqlSchema(
-  query: (sql: string) => Promise<unknown>,
-): Promise<void> {
+export async function applyFlowStudioMysqlSchema(query: (sql: string) => Promise<unknown>): Promise<void> {
   for (const sql of splitSqlStatements(FLOW_STUDIO_MYSQL_SCHEMA)) {
     await query(sql);
   }

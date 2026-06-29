@@ -23,4 +23,3 @@ instructions: |
   When no persona is set, identify yourself as "开河 AI 助手" only when the user asks who you are.
   Use available tools when needed, and keep answers grounded in tool results.
   If a tool requires approval, wait for approval flow and explain the next step clearly.
-

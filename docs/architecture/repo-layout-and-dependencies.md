@@ -91,23 +91,23 @@ cube-ai-project/
 
 包名 = `@cube-ai/` + 去顶层根后的路径段以 `-` 连接；集合目录前缀单数化。
 
-| 磁盘路径 | 包名 | 备注 |
-|---|---|---|
-| `packages/contracts` | `@cube-ai/contracts` | 单包扁平 |
-| `packages/agent/engine` | `@cube-ai/agent-engine` | 活跃运行时（`engine` 非 `core`） |
-| `packages/agent/sdk-client-vue` | `@cube-ai/agent-sdk-client-vue` | client 面 + 框架后缀 |
-| `packages/llm/core` | `@cube-ai/llm-core` | provider + catalog 两 BC |
-| `packages/llm/sdk-console` | `@cube-ai/llm-sdk-console` | console 面 |
-| `packages/flow/core` | `@cube-ai/flow-core` | 被动库（`core`） |
-| `packages/flow/studio` | `@cube-ai/flow-studio` | 编辑器投影层（ADR-0014） |
-| `packages/kb/sdk-client` | `@cube-ai/kb-sdk-client` | client 面 |
-| `packages/embedding` | `@cube-ai/embedding` | 单包扁平·向量化 capability |
-| `packages/platform-adapters/ghcloud` | `@cube-ai/platform-adapter-ghcloud` | 集合目录复数→前缀单数 |
-| `infra/bun-server-ext/sse` | `@cube-ai/bun-server-ext-sse` | 框架名单数 |
-| `infra/vector-qdrant` | `@cube-ai/vector-qdrant` | 向量存储 infra·Qdrant 驱动（kb/engine 直连） |
-| `infra/test-infra` | `@cube-ai/test-infra` | |
-| `apps/ai-center` | `@cube-ai/ai-center` | 组合根 app |
-| `apps/ai-sdk-playground` | `@cube-ai/ai-sdk-playground` | 内部 SDK 验证沙箱 |
+| 磁盘路径                             | 包名                                | 备注                                         |
+| ------------------------------------ | ----------------------------------- | -------------------------------------------- |
+| `packages/contracts`                 | `@cube-ai/contracts`                | 单包扁平                                     |
+| `packages/agent/engine`              | `@cube-ai/agent-engine`             | 活跃运行时（`engine` 非 `core`）             |
+| `packages/agent/sdk-client-vue`      | `@cube-ai/agent-sdk-client-vue`     | client 面 + 框架后缀                         |
+| `packages/llm/core`                  | `@cube-ai/llm-core`                 | provider + catalog 两 BC                     |
+| `packages/llm/sdk-console`           | `@cube-ai/llm-sdk-console`          | console 面                                   |
+| `packages/flow/core`                 | `@cube-ai/flow-core`                | 被动库（`core`）                             |
+| `packages/flow/studio`               | `@cube-ai/flow-studio`              | 编辑器投影层（ADR-0014）                     |
+| `packages/kb/sdk-client`             | `@cube-ai/kb-sdk-client`            | client 面                                    |
+| `packages/embedding`                 | `@cube-ai/embedding`                | 单包扁平·向量化 capability                   |
+| `packages/platform-adapters/ghcloud` | `@cube-ai/platform-adapter-ghcloud` | 集合目录复数→前缀单数                        |
+| `infra/bun-server-ext/sse`           | `@cube-ai/bun-server-ext-sse`       | 框架名单数                                   |
+| `infra/vector-qdrant`                | `@cube-ai/vector-qdrant`            | 向量存储 infra·Qdrant 驱动（kb/engine 直连） |
+| `infra/test-infra`                   | `@cube-ai/test-infra`               |                                              |
+| `apps/ai-center`                     | `@cube-ai/ai-center`                | 组合根 app                                   |
+| `apps/ai-sdk-playground`             | `@cube-ai/ai-sdk-playground`        | 内部 SDK 验证沙箱                            |
 
 ## 3. 运行时端口图（必须无环，ADR-0002）
 
@@ -202,17 +202,17 @@ flowchart LR
 
 ## 5. 依赖速查表
 
-| 包 | 编译期 import | 运行时经 port 消费 | 对外暴露 |
-|---|---|---|---|
-| `contracts` | （仅 zod） | — | 所有 port / wire schema / 常量 |
-| `agent-engine` | contracts（+ 直连 infra/vector-qdrant） | flow-core · kb-core · llm-core · embedding(memory) · platform-adapter-ghcloud(身份) | 运行时核心（消费 ports；向量存储直连 infra） |
-| `llm-core` | contracts | —（provider/catalog 两 BC 包内自洽，经包内 `LlmCatalogPort`） | `LlmProviderPort` + 消费面 `/llm/providers` + 管理面 `/llm/console/*` + 网关 `/v1/*`（豁免，ADR-0003） |
-| `flow-core` | contracts | llm-core | `FlowInvokerPort` |
-| `kb-core` | contracts（+ 直连 infra/vector-qdrant） | embedding | `KnowledgeQueryPort` |
-| `embedding` | contracts | llm-core（embed） | `EmbeddingPort` |
-| `infra/vector-qdrant` | （Qdrant client lib） | —（infra，被 kb/engine 直连，不反依赖能力包） | 共享 Qdrant 驱动（无 contracts port） |
-| `platform-adapter-ghcloud` | contracts | —（被 DI 装配） | 平台身份 port（鉴权/租户解析） |
-| `agent-sdk-client*` / `<domain>-sdk-<face>` | （仅 contracts wire schema 类型） | — HTTP/SSE | 前端消费面(client) / 管理面(console) |
-| `apps/ai-center` | 所有后端包 | （组合根，DI 装配 port↔adapter） | 单进程宿主 + 领域路由 |
+| 包                                          | 编译期 import                           | 运行时经 port 消费                                                                  | 对外暴露                                                                                               |
+| ------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `contracts`                                 | （仅 zod）                              | —                                                                                   | 所有 port / wire schema / 常量                                                                         |
+| `agent-engine`                              | contracts（+ 直连 infra/vector-qdrant） | flow-core · kb-core · llm-core · embedding(memory) · platform-adapter-ghcloud(身份) | 运行时核心（消费 ports；向量存储直连 infra）                                                           |
+| `llm-core`                                  | contracts                               | —（provider/catalog 两 BC 包内自洽，经包内 `LlmCatalogPort`）                       | `LlmProviderPort` + 消费面 `/llm/providers` + 管理面 `/llm/console/*` + 网关 `/v1/*`（豁免，ADR-0003） |
+| `flow-core`                                 | contracts                               | llm-core                                                                            | `FlowInvokerPort`                                                                                      |
+| `kb-core`                                   | contracts（+ 直连 infra/vector-qdrant） | embedding                                                                           | `KnowledgeQueryPort`                                                                                   |
+| `embedding`                                 | contracts                               | llm-core（embed）                                                                   | `EmbeddingPort`                                                                                        |
+| `infra/vector-qdrant`                       | （Qdrant client lib）                   | —（infra，被 kb/engine 直连，不反依赖能力包）                                       | 共享 Qdrant 驱动（无 contracts port）                                                                  |
+| `platform-adapter-ghcloud`                  | contracts                               | —（被 DI 装配）                                                                     | 平台身份 port（鉴权/租户解析）                                                                         |
+| `agent-sdk-client*` / `<domain>-sdk-<face>` | （仅 contracts wire schema 类型）       | — HTTP/SSE                                                                          | 前端消费面(client) / 管理面(console)                                                                   |
+| `apps/ai-center`                            | 所有后端包                              | （组合根，DI 装配 port↔adapter）                                                    | 单进程宿主 + 领域路由                                                                                  |
 
 铁律一句话：**跨领域耦合只有 contracts port 一种；contracts 是唯一可被自由 import 的共享内核。** model registry / vendor 凭据权威单源于 `llm-core`，ghcloud 退为租户身份提供方。

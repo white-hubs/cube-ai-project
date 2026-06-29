@@ -1,3 +1,11 @@
+import { describe, expect, test } from "bun:test";
+import { effectScope } from "vue";
+
+import { type AgenticClient } from "@cube-ai/agent-sdk-client";
+import { type GrantRequestEvent, type SseEvent } from "@cube-ai/contracts";
+
+import { useGrants } from "./use-grants";
+
 /**
  * useGrants 单元测试（离线，纯响应式 — 不需要 DOM）：
  *   - handleEvent：grant-request-v1 → pendingGrant 落位；其它 schema 忽略
@@ -6,30 +14,25 @@
  *   - 无 pending 时 approve/deny 不调用 client
  *   - effectScope dispose → pendingGrant 清空（卸载清理）
  */
-import { describe, expect, test } from 'bun:test';
-import { effectScope } from 'vue';
-import type { AgenticClient } from '@cube-ai/agent-sdk-client';
-import type { GrantRequestEvent, SseEvent } from '@cube-ai/contracts';
-import { useGrants } from './use-grants';
 
 function makeGrantEvent(overrides: Partial<GrantRequestEvent> = {}): GrantRequestEvent {
   return {
-    schema: 'grant-request-v1',
-    turnId: '20001',
-    grantRequestId: '30001',
-    toolName: 'delete_file',
-    reason: 'destructive op',
-    argsPreview: { path: '/tmp/x' },
-    scopeHint: 'ONCE',
+    argsPreview: { path: "/tmp/x" },
     expiresTime: Date.now() + 60_000,
+    grantRequestId: "30001",
+    reason: "destructive op",
+    schema: "grant-request-v1",
+    scopeHint: "ONCE",
+    toolName: "delete_file",
+    turnId: "20001",
     ...overrides,
   };
 }
 
 interface RespondCall {
   grantRequestId: string;
-  decision: 'APPROVE' | 'DENY';
-  scopeChoice?: 'ONCE' | 'SESSION' | 'PERSISTENT';
+  decision: "APPROVE" | "DENY";
+  scopeChoice?: "ONCE" | "SESSION" | "PERSISTENT";
   rememberTtlSeconds?: number;
   note?: string;
 }
@@ -43,17 +46,17 @@ function stubClient(): { client: AgenticClient; calls: RespondCall[] } {
       },
     },
   } as unknown as AgenticClient;
-  return { client, calls };
+  return { calls, client };
 }
 
-describe('useGrants', () => {
-  test('handleEvent: grant-request-v1 设置 pendingGrant；其它事件忽略', () => {
+describe("useGrants", () => {
+  test("handleEvent: grant-request-v1 设置 pendingGrant；其它事件忽略", () => {
     const { client } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;
     expect(api.pendingGrant.value).toBeNull();
 
-    api.handleEvent({ schema: 'turn-started-v1', turnId: '20001' } as unknown as SseEvent);
+    api.handleEvent({ schema: "turn-started-v1", turnId: "20001" } as unknown as SseEvent);
     expect(api.pendingGrant.value).toBeNull();
 
     const ev = makeGrantEvent();
@@ -62,51 +65,49 @@ describe('useGrants', () => {
     scope.stop();
   });
 
-  test('后到的 grant-request-v1 覆盖前一个 pendingGrant', () => {
+  test("后到的 grant-request-v1 覆盖前一个 pendingGrant", () => {
     const { client } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;
-    api.handleEvent(makeGrantEvent({ grantRequestId: '30001' }));
-    api.handleEvent(makeGrantEvent({ grantRequestId: '30002' }));
-    expect(api.pendingGrant.value?.grantRequestId).toBe('30002');
+    api.handleEvent(makeGrantEvent({ grantRequestId: "30001" }));
+    api.handleEvent(makeGrantEvent({ grantRequestId: "30002" }));
+    expect(api.pendingGrant.value?.grantRequestId).toBe("30002");
     scope.stop();
   });
 
-  test('approve: decision=APPROVE + 透传 opts + 清空 pending', async () => {
+  test("approve: decision=APPROVE + 透传 opts + 清空 pending", async () => {
     const { client, calls } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;
-    api.handleEvent(makeGrantEvent({ grantRequestId: '30009' }));
+    api.handleEvent(makeGrantEvent({ grantRequestId: "30009" }));
 
-    await api.approve({ scopeChoice: 'SESSION', rememberTtlSeconds: 600, note: 'ok' });
+    await api.approve({ note: "ok", rememberTtlSeconds: 600, scopeChoice: "SESSION" });
     expect(calls).toEqual([
       {
-        grantRequestId: '30009',
-        decision: 'APPROVE',
-        scopeChoice: 'SESSION',
+        decision: "APPROVE",
+        grantRequestId: "30009",
+        note: "ok",
         rememberTtlSeconds: 600,
-        note: 'ok',
+        scopeChoice: "SESSION",
       },
     ]);
     expect(api.pendingGrant.value).toBeNull();
     scope.stop();
   });
 
-  test('deny: decision=DENY + note + 清空 pending', async () => {
+  test("deny: decision=DENY + note + 清空 pending", async () => {
     const { client, calls } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;
-    api.handleEvent(makeGrantEvent({ grantRequestId: '30010' }));
+    api.handleEvent(makeGrantEvent({ grantRequestId: "30010" }));
 
-    await api.deny({ note: 'nope' });
-    expect(calls).toEqual([
-      { grantRequestId: '30010', decision: 'DENY', note: 'nope' },
-    ]);
+    await api.deny({ note: "nope" });
+    expect(calls).toEqual([{ decision: "DENY", grantRequestId: "30010", note: "nope" }]);
     expect(api.pendingGrant.value).toBeNull();
     scope.stop();
   });
 
-  test('无 pending 时 approve/deny 不调用 client', async () => {
+  test("无 pending 时 approve/deny 不调用 client", async () => {
     const { client, calls } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;
@@ -116,7 +117,7 @@ describe('useGrants', () => {
     scope.stop();
   });
 
-  test('scope dispose → pendingGrant 清空（卸载清理）', () => {
+  test("scope dispose → pendingGrant 清空（卸载清理）", () => {
     const { client } = stubClient();
     const scope = effectScope();
     const api = scope.run(() => useGrants(client))!;

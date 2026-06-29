@@ -52,8 +52,8 @@ bun run test:containers:cleanup  # 手动清理孤儿（`test:containers` 退出
 
 ## Profiles
 
-| Profile | 服务 |
-|---------|------|
-| `deps` | mysql, redis, qdrant |
-| `ai-center` | ai-center 应用容器（源码形态） |
-| `ai-center-prebuilt` | ai-center 预编译二进制容器 |
+| Profile              | 服务                           |
+| -------------------- | ------------------------------ |
+| `deps`               | mysql, redis, qdrant           |
+| `ai-center`          | ai-center 应用容器（源码形态） |
+| `ai-center-prebuilt` | ai-center 预编译二进制容器     |

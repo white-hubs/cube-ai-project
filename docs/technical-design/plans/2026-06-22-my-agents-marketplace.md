@@ -24,6 +24,7 @@ contracts(wire schema 扩展)
 ```
 
 **不做（v1，明确划界）：**
+
 - **rule 不进货架 / 库**：rule 仅作为 agent 内部 `ruleRefs` 引用，保持 ADR-0016 的租户 CRUD；本轮不给 rule 加 owner/上架/安装（owner 列对三 kind 都加，但 rule 不暴露货架/库端点）。
 - **copy（解耦复制）不实现**：只落 `copied_from` 列 + `source='copy'` 枚举位 + 端点 501 占位（D5 留口子）。
 - **跨租户 / 全局库不实现**：listing 只在本租户可见；`scope` 字段先不落表（用 listing 行存在性 = tenant 域，见 OQ）。
@@ -67,12 +68,12 @@ ALTER TABLE tenant_descriptors
 
 **版本模型语义改造（D4，修订 ADR-0016 §4）**——列不删，只改写入语义：
 
-| 列 | ADR-0016 旧义 | ADR-0030 新义 |
-|---|---|---|
-| `head_version_no` | 每次保存 +1，且每次保存都建版本行 | **草稿修订计数**（每次保存 +1，用于乐观并发 / 「草稿已变」展示）；**不再**与版本表一一对应 |
-| `draft_content_json`（新） | — | 最近一次保存的**可变**草稿内容（authoring 视图读它） |
-| `published_version_no` | 指向 versions 的已发布版本号 | 不变（NULL=从未发布） |
-| `tenant_descriptor_versions` | append 每次保存 | **只在 publish 时 append**；`version_no` = 已发布序列（`published_version_no` 的取值域） |
+| 列                           | ADR-0016 旧义                     | ADR-0030 新义                                                                              |
+| ---------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `head_version_no`            | 每次保存 +1，且每次保存都建版本行 | **草稿修订计数**（每次保存 +1，用于乐观并发 / 「草稿已变」展示）；**不再**与版本表一一对应 |
+| `draft_content_json`（新）   | —                                 | 最近一次保存的**可变**草稿内容（authoring 视图读它）                                       |
+| `published_version_no`       | 指向 versions 的已发布版本号      | 不变（NULL=从未发布）                                                                      |
+| `tenant_descriptor_versions` | append 每次保存                   | **只在 publish 时 append**；`version_no` = 已发布序列（`published_version_no` 的取值域）   |
 
 **回填（V005 内联；ADR-0012-addendum 默认 fresh-start，下面是防御性兜底）：**
 
@@ -84,6 +85,7 @@ UPDATE tenant_descriptors td
   WHERE td.draft_content_json IS NULL;
 UPDATE tenant_descriptors SET owner_user_id = create_by WHERE owner_user_id IS NULL;
 ```
+
 > ⚠️ Caveat：若已有历史数据且 `tenant_descriptor_versions` 混入了「草稿期版本」，新旧 `version_no` 序列语义不一致。生产切换前确认表为空或仅含已发布版本（见 OQ-V）。
 
 ### 2. `descriptor_listing`：上架记录 / 共享版本指针（D3 上架·D5 浮动）
@@ -103,6 +105,7 @@ CREATE TABLE IF NOT EXISTS descriptor_listing (
   KEY idx_tenant_listed (tenant, listed)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ADR-0030 上架记录 + 共享版本指针';
 ```
+
 - **上架(`descriptor_id, versionNo`)**：owner only；`versionNo` 必须是已发布版本；upsert → `listed=1, shared_version_no=versionNo, listed_time=now`。
 - **下架(`descriptor_id`)**：owner/admin；`listed=0, unlisted_time=now`，**保留** `shared_version_no`（→ 已安装浮动 ref 冻结在此，不破坏 B，对应「A 下架后不影响 B」）。
 - 库浏览 = `listed=1` 行；安装只允许 `listed=1`。
@@ -127,6 +130,7 @@ CREATE TABLE IF NOT EXISTS user_descriptor_shelf (
   KEY idx_tenant_user_kind (tenant, user_id, target_kind, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ADR-0030 我的智能体/我的技能 货架投影';
 ```
+
 - **authored 条目**：作者 `create` descriptor 时**自动**插一条 `source='authored', pin_version_no=NULL`（D1 自动上架到本人货架）。
 - **ref 条目**：从库安装时插入，`pin_version_no` NULL=浮动 / 非 NULL=钉版。
 - **移除（D6）**：`deleted=now`，**不动** descriptor / listing。
@@ -149,6 +153,7 @@ CREATE TABLE IF NOT EXISTS user_available_tool (
   KEY idx_tenant_user (tenant, user_id, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ADR-0030 插件库安装/可用工具集（install-only）';
 ```
+
 - 无 owner / 无版本 / 无 listing：插件库目录权威 = 系统 `DescriptorRegistryService`（tools）。
 - 安装 = insert；启用/禁用 = `enabled`；移除 = `deleted=now`。
 - **运行时鉴权不变**：工具实际调用仍走 ADR-0006 的 per-user consent/grant；本表只决定「这个工具是否出现在我可选/可编排的工具面板」。
@@ -164,14 +169,14 @@ CREATE TABLE IF NOT EXISTS user_available_tool (
 ```ts
 export const TenantDescriptorViewSchema = z.object({
   id: z.string(),
-  kind: z.enum(['agent', 'skill', 'rule']),
+  kind: z.enum(["agent", "skill", "rule"]),
   name: z.string(),
-  ownerUserId: z.string().nullable(),          // D2：新增
+  ownerUserId: z.string().nullable(), // D2：新增
   status: TenantDescriptorStatusSchema,
-  headVersionNo: z.number().int(),             // 改义：草稿修订计数
+  headVersionNo: z.number().int(), // 改义：草稿修订计数
   publishedVersionNo: z.number().int().nullable(),
-  hasUnpublishedChanges: z.boolean(),          // D4：草稿是否领先于已发布
-  content: z.unknown(),                        // authoring 视图=草稿内容
+  hasUnpublishedChanges: z.boolean(), // D4：草稿是否领先于已发布
+  content: z.unknown(), // authoring 视图=草稿内容
   createTime: z.number(),
   updateTime: z.number(),
 });
@@ -205,13 +210,13 @@ export const DescriptorListingViewSchema = z.object({
 ### 3. 库浏览（`library.ts`，内容可见性分层 D9）
 
 ```ts
-export const LibrarySourceTier = z.enum(['tenant', 'system']);
+export const LibrarySourceTier = z.enum(["tenant", "system"]);
 
 /** 库条目：tenant 层带 content，system 层只给能力说明（不透明） */
 export const LibraryItemViewSchema = z.object({
   // 安装用引用：tenant=agt_/skl_，system=裸 name
   ref: z.string(),
-  kind: z.enum(['agent', 'skill']),
+  kind: z.enum(["agent", "skill"]),
   tier: LibrarySourceTier,
   displayName: z.string().optional(),
   description: z.string().optional(),
@@ -225,30 +230,30 @@ export const LibraryItemViewSchema = z.object({
 ### 4. 安装 / 货架（`shelf.ts`，D1/D5/D6/D7）
 
 ```ts
-export const ShelfSource = z.enum(['authored', 'ref', 'copy']);
+export const ShelfSource = z.enum(["authored", "ref", "copy"]);
 
 export const InstallRequestSchema = z.object({
-  ref: z.string(),                              // 库条目 ref（agt_/skl_/裸 name）
-  mode: z.enum(['ref', 'copy']).default('ref'), // copy → 501（D5 口子）
-  pin: z.boolean().default(false),              // true=钉版（钉到当前 sharedVersionNo）；false=浮动（默认，D5）
+  ref: z.string(), // 库条目 ref（agt_/skl_/裸 name）
+  mode: z.enum(["ref", "copy"]).default("ref"), // copy → 501（D5 口子）
+  pin: z.boolean().default(false), // true=钉版（钉到当前 sharedVersionNo）；false=浮动（默认，D5）
 });
 
 export const ShelfEntryViewSchema = z.object({
-  id: z.string(),                               // she_
-  targetKind: z.enum(['agent', 'skill']),
+  id: z.string(), // she_
+  targetKind: z.enum(["agent", "skill"]),
   targetId: z.string(),
   source: ShelfSource,
-  pinVersionNo: z.number().int().nullable(),    // null=浮动
+  pinVersionNo: z.number().int().nullable(), // null=浮动
   enabled: z.boolean(),
   // 投影便利字段（join 自 descriptor/listing/registry）：
   displayName: z.string().optional(),
   effectiveVersionNo: z.number().int().nullable(), // 当前会解析到的版本（浮动=sharedVersionNo；钉版=pin；草稿=null）
-  runnableStatus: z.enum(['runnable', 'disabled', 'unresolvable']),
+  runnableStatus: z.enum(["runnable", "disabled", "unresolvable"]),
 });
 
 export const ShelfPatchSchema = z.object({
   enabled: z.boolean().optional(),
-  pin: z.boolean().optional(),                  // true→钉到当前 effective；false→转浮动
+  pin: z.boolean().optional(), // true→钉到当前 effective；false→转浮动
 });
 ```
 
@@ -258,7 +263,7 @@ export const ShelfPatchSchema = z.object({
 export const PluginCatalogItemViewSchema = z.object({
   toolName: z.string(),
   displayName: z.string().optional(),
-  description: z.string().optional(),  // 系统级=只给能力说明（D9 不透明）
+  description: z.string().optional(), // 系统级=只给能力说明（D9 不透明）
   tags: z.array(z.string()).optional(),
   installed: z.boolean(),
 });
@@ -292,14 +297,15 @@ interface TenantDescriptorRepository {
   resolvePublished(tenant, id): Promise<TenantDescriptorView | null>; // 不变（读 published 版本）
 
   // 新增（D4 版本历史 / 回滚 / 运行时按版本解析）
-  listVersions(tenant, id): Promise<DescriptorVersion[]>;              // 只列已发布
-  getVersionContent(tenant, id, versionNo): Promise<unknown | null>;  // 解析/diff/回滚预览
+  listVersions(tenant, id): Promise<DescriptorVersion[]>; // 只列已发布
+  getVersionContent(tenant, id, versionNo): Promise<unknown | null>; // 解析/diff/回滚预览
   rollback(tenant, id, versionNo, actor): Promise<TenantDescriptorView>; // 旧版内容→append 成新版本→置 published
-  resolveDraft(tenant, id): Promise<TenantDescriptorView | null>;     // 作者跑草稿用
+  resolveDraft(tenant, id): Promise<TenantDescriptorView | null>; // 作者跑草稿用
 }
 ```
 
 要点：
+
 - `upsert`：`INSERT ... ON DUPLICATE`/事务里——新建时写 `owner_user_id=actor`、`draft_content_json=content`、`head_version_no=1`、`published_version_no=NULL`、`status='draft'`；已存在时覆盖 `draft_content_json`、`head_version_no+1`、`status='draft'`。**不再** insert 版本行。
 - `publish`：事务里读 `draft_content_json` → `version_no=COALESCE(MAX published,0)+1` → insert `tenant_descriptor_versions` → `UPDATE published_version_no=version_no, status='published'`。
 - `rollback(versionNo)`：读旧版本 content → 走 publish 同路径 append 成**新**版本（保留 append-only / 不改历史，D4），并把 `draft_content_json` 同步为该内容（编辑器即时一致）。
@@ -390,41 +396,50 @@ resolveRunnableAgent(tenant, userId, agentRef, isAdmin, opts?: { versionNo? }):
 
 > 全部控制器 `@Controller('')` + 在 `apps/ai-center/src/assembler/domain-prefix-mounts.ts` 的 `DOMAIN_PREFIX_MOUNTS` 注册 base，与现有 `DescriptorManagementController → /agent/console` 一致。鉴权统一 `readSubject(ctx)` → `tenant/userId/scopes`。SDK 默认前缀 `/agent/console`，故全部挂 `/agent/console/*` 保持前缀统一。
 
-| 面 | 方法 + 路径（含 base） | 说明 | 写控 |
-|---|---|---|---|
-| 管理(扩展) | `GET /agent/console/agents/:id/versions` | 已发布版本列表（D4） | owner |
-| 管理(扩展) | `GET /agent/console/agents/:id/versions/:no` | 单版本内容（diff/预览） | owner |
-| 管理(扩展) | `POST /agent/console/agents/:id/rollback` `{versionNo}` | 回滚=旧版内容出新版本 | owner |
-| 管理(扩展) | `POST /agent/console/agents/:id/list` `{versionNo}` | 上架到库 | owner |
-| 管理(扩展) | `POST /agent/console/agents/:id/unlist` | 下架 | owner/admin |
-| 管理(扩展) | `GET /agent/console/agents/:id/listing` | 上架状态 | owner |
-| 货架 | `GET /agent/console/my/agents?enabled=&source=` | 我的智能体（含草稿/已装） | self |
-| 货架 | `GET /agent/console/my/skills` | 我的技能 | self |
-| 货架 | `POST /agent/console/my/agents` `InstallRequest` | 安装（ref 浮动/钉版；copy→501） | self |
-| 货架 | `PATCH /agent/console/my/agents/:sheId` `ShelfPatch` | 启用/禁用 / 浮动↔钉版 | self |
-| 货架 | `DELETE /agent/console/my/agents/:sheId` | 移除（软删货架条目，204） | self |
-| 库 | `GET /agent/console/library/agents?q=&tier=` | 浏览（tenant 透明 + system 不透明） | self |
-| 库 | `GET /agent/console/library/agents/:ref` | 详情（system 仅能力说明） | self |
-| 库 | `GET /agent/console/library/skills` `/:ref` | 同上（skill） | self |
-| 插件 | `GET /agent/console/plugins` | 插件库目录（只能力说明，含 installed） | self |
-| 插件 | `GET /agent/console/my/tools` | 我的可用工具集 | self |
-| 插件 | `POST /agent/console/my/tools` `{toolName}` | 安装工具 | self |
-| 插件 | `PATCH /agent/console/my/tools/:toolName` `{enabled}` | 启用/禁用 | self |
-| 插件 | `DELETE /agent/console/my/tools/:toolName` | 移除 | self |
+| 面         | 方法 + 路径（含 base）                                  | 说明                                   | 写控        |
+| ---------- | ------------------------------------------------------- | -------------------------------------- | ----------- |
+| 管理(扩展) | `GET /agent/console/agents/:id/versions`                | 已发布版本列表（D4）                   | owner       |
+| 管理(扩展) | `GET /agent/console/agents/:id/versions/:no`            | 单版本内容（diff/预览）                | owner       |
+| 管理(扩展) | `POST /agent/console/agents/:id/rollback` `{versionNo}` | 回滚=旧版内容出新版本                  | owner       |
+| 管理(扩展) | `POST /agent/console/agents/:id/list` `{versionNo}`     | 上架到库                               | owner       |
+| 管理(扩展) | `POST /agent/console/agents/:id/unlist`                 | 下架                                   | owner/admin |
+| 管理(扩展) | `GET /agent/console/agents/:id/listing`                 | 上架状态                               | owner       |
+| 货架       | `GET /agent/console/my/agents?enabled=&source=`         | 我的智能体（含草稿/已装）              | self        |
+| 货架       | `GET /agent/console/my/skills`                          | 我的技能                               | self        |
+| 货架       | `POST /agent/console/my/agents` `InstallRequest`        | 安装（ref 浮动/钉版；copy→501）        | self        |
+| 货架       | `PATCH /agent/console/my/agents/:sheId` `ShelfPatch`    | 启用/禁用 / 浮动↔钉版                  | self        |
+| 货架       | `DELETE /agent/console/my/agents/:sheId`                | 移除（软删货架条目，204）              | self        |
+| 库         | `GET /agent/console/library/agents?q=&tier=`            | 浏览（tenant 透明 + system 不透明）    | self        |
+| 库         | `GET /agent/console/library/agents/:ref`                | 详情（system 仅能力说明）              | self        |
+| 库         | `GET /agent/console/library/skills` `/:ref`             | 同上（skill）                          | self        |
+| 插件       | `GET /agent/console/plugins`                            | 插件库目录（只能力说明，含 installed） | self        |
+| 插件       | `GET /agent/console/my/tools`                           | 我的可用工具集                         | self        |
+| 插件       | `POST /agent/console/my/tools` `{toolName}`             | 安装工具                               | self        |
+| 插件       | `PATCH /agent/console/my/tools/:toolName` `{enabled}`   | 启用/禁用                              | self        |
+| 插件       | `DELETE /agent/console/my/tools/:toolName`              | 移除                                   | self        |
 
 > skill 货架/库端点与 agent 对称（`/my/skills`、`/library/skills`）。skill 不可独立运行，故无运行时解析端点；其安装只决定 authoring 期可见性。`source` 过滤让前端区分「我创作的（authored，可编辑/发布）」vs「已安装（ref）」。
 
 控制器骨架（沿用现有 `requireCtx/readSubject/tenantOf/actorOf`）：
 
 ```ts
-@Controller('') // mount: /agent/console/my
+@Controller("") // mount: /agent/console/my
 export class MyShelfController {
   constructor(private readonly shelf: ShelfService) {}
-  @GET('/agents')  listAgents() { const ctx=requireCtx(); const s=readSubject(ctx);
-    return this.shelf.list(s.tenant, s.user.userId, 'agent', queryOf(ctx)); }
-  @POST('/agents') install() { /* InstallRequestSchema.parse → shelf.install */ }
-  @PATCH('/agents/:sheId') patch() { /* ShelfPatchSchema */ }
-  @DELETE('/agents/:sheId') remove() { /* 204 */ }
+  @GET("/agents") listAgents() {
+    const ctx = requireCtx();
+    const s = readSubject(ctx);
+    return this.shelf.list(s.tenant, s.user.userId, "agent", queryOf(ctx));
+  }
+  @POST("/agents") install() {
+    /* InstallRequestSchema.parse → shelf.install */
+  }
+  @PATCH("/agents/:sheId") patch() {
+    /* ShelfPatchSchema */
+  }
+  @DELETE("/agents/:sheId") remove() {
+    /* 204 */
+  }
   // …/skills 对称；…/tools 走 ToolShelfService
 }
 ```
@@ -467,16 +482,16 @@ removeTool(toolName): Promise<void>
 
 ## 里程碑（按依赖顺序；每步 `typecheck && bun test` 全绿）
 
-| M | 标题 | 关键文件 | 退出条件 |
-|---|---|---|---|
-| **M1** | contracts wire schema | `contracts/src/descriptor/{tenant-descriptor,listing,library,shelf}.ts` + `index.ts` + `*.test.ts` | 新 schema parse/默认值单测绿；`TenantDescriptorView` 加 `ownerUserId/hasUnpublishedChanges` |
-| **M2** | migration V005 | `engine/migrations/V005__my_agents_marketplace.sql` | testcontainers：起库跑迁移 → 四处 DDL（1 ALTER + 3 CREATE）成功、幂等可重入 |
-| **M3** | 版本模型改造 + owner 写控 + admin scope | `tenant-descriptor.repository.ts` / `descriptor-management.service.ts` / 新 `descriptor-owner.ts` / 改 controller 增 versions/rollback | 草稿覆盖写不增版本、publish 才出版本、rollback、listVersions 单测绿；owner/admin 写控单测绿；既有 descriptor 测试改绿 |
-| **M4** | listing + library（分层投影） | 新 `descriptor-listing.repository.ts` / `listing.service.ts` / `library.service.ts` / `LibraryController` + 管理面 list/unlist | 上架需已发布版本、下架冻结 sharedVersion、库 system tier 不返回 content —— 单测 + 1 个 testcontainers 端到端 |
-| **M5** | shelf（安装/启用禁用/移除）+ create 自动上架 | 新 `user-shelf.repository.ts` / `shelf.service.ts` / `MyShelfController` + create 钩子 | 浮动/钉版安装、enable/disable、移除不动 descriptor、authored 自动入架 —— 单测绿 |
-| **M6** | 运行时解析投影 | 新 `runnable-agent-resolver.ts` / 改 `session.service.ts`(agentVersionNo) / `buildSnapshots` 入参 / `SessionController.create` | 作者跑草稿、非作者必须装且启用、浮动跟随/下架冻结/钉版固定 —— testcontainers 会话创建端到端绿；`agent_version_no` 落实际版本 |
-| **M7** | 插件库 + 可用工具 + outbox 失效接线 | 新 `user-available-tool.repository.ts` / `plugin-catalog.service.ts` / `ToolShelfController` + publish/list/unlist/softDelete 写 `descriptor_reload` | 工具目录只给能力说明、安装/启停/移除、resolver 收到 reload 精确失效 —— 单测 + testcontainers |
-| **M8** | SDK 扩面（+ 可选 ai-sdk-playground UI） | `sdk-console/src/client.ts`(+test) / `domain-prefix-mounts.ts` 注册新控制器 / `sdk-console` `index.ts` | SDK 方法单测（mock fetch）绿；mounts 注册全；`bun run build` 绿。UI 可后置 |
+| M      | 标题                                         | 关键文件                                                                                                                                             | 退出条件                                                                                                                     |
+| ------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **M1** | contracts wire schema                        | `contracts/src/descriptor/{tenant-descriptor,listing,library,shelf}.ts` + `index.ts` + `*.test.ts`                                                   | 新 schema parse/默认值单测绿；`TenantDescriptorView` 加 `ownerUserId/hasUnpublishedChanges`                                  |
+| **M2** | migration V005                               | `engine/migrations/V005__my_agents_marketplace.sql`                                                                                                  | testcontainers：起库跑迁移 → 四处 DDL（1 ALTER + 3 CREATE）成功、幂等可重入                                                  |
+| **M3** | 版本模型改造 + owner 写控 + admin scope      | `tenant-descriptor.repository.ts` / `descriptor-management.service.ts` / 新 `descriptor-owner.ts` / 改 controller 增 versions/rollback               | 草稿覆盖写不增版本、publish 才出版本、rollback、listVersions 单测绿；owner/admin 写控单测绿；既有 descriptor 测试改绿        |
+| **M4** | listing + library（分层投影）                | 新 `descriptor-listing.repository.ts` / `listing.service.ts` / `library.service.ts` / `LibraryController` + 管理面 list/unlist                       | 上架需已发布版本、下架冻结 sharedVersion、库 system tier 不返回 content —— 单测 + 1 个 testcontainers 端到端                 |
+| **M5** | shelf（安装/启用禁用/移除）+ create 自动上架 | 新 `user-shelf.repository.ts` / `shelf.service.ts` / `MyShelfController` + create 钩子                                                               | 浮动/钉版安装、enable/disable、移除不动 descriptor、authored 自动入架 —— 单测绿                                              |
+| **M6** | 运行时解析投影                               | 新 `runnable-agent-resolver.ts` / 改 `session.service.ts`(agentVersionNo) / `buildSnapshots` 入参 / `SessionController.create`                       | 作者跑草稿、非作者必须装且启用、浮动跟随/下架冻结/钉版固定 —— testcontainers 会话创建端到端绿；`agent_version_no` 落实际版本 |
+| **M7** | 插件库 + 可用工具 + outbox 失效接线          | 新 `user-available-tool.repository.ts` / `plugin-catalog.service.ts` / `ToolShelfController` + publish/list/unlist/softDelete 写 `descriptor_reload` | 工具目录只给能力说明、安装/启停/移除、resolver 收到 reload 精确失效 —— 单测 + testcontainers                                 |
+| **M8** | SDK 扩面（+ 可选 ai-sdk-playground UI）      | `sdk-console/src/client.ts`(+test) / `domain-prefix-mounts.ts` 注册新控制器 / `sdk-console` `index.ts`                                               | SDK 方法单测（mock fetch）绿；mounts 注册全；`bun run build` 绿。UI 可后置                                                   |
 
 > M2/M4/M6/M7 的 DB 行为务必落 `*.testcontainers.test.ts`；离线 `bun test` 自动 skip，提交前本地 `bun run test:containers` 至少跑一次相关用例。
 
@@ -485,12 +500,14 @@ removeTool(toolName): Promise<void>
 ## 测试与验收约定
 
 **单元（离线 `bun test`）：**
+
 - contracts：schema 默认值 / 拒绝非法（M1）。
 - repository（可用 fake pool 或 testcontainers）：版本模型不变量（草稿覆盖、publish append、rollback append-only、listVersions 只列已发布）。
 - service：owner 写控矩阵（owner✓ / 他人✗ / admin 仅 unlist+softDelete✓ edit/publish✗）。
 - resolver：解析决策表（系统/作者草稿/作者指定版本/非作者未装→404/已装禁用→404/浮动/钉版/下架冻结）——纯函数化，table-driven。
 
 **集成（`*.testcontainers.test.ts`，`bun run test:containers`）：**
+
 - 端到端：作者 create→（自动入架，可跑草稿）→publish→上架→他人 library 见→install(浮动)→他人创建会话解析到 sharedVersion→作者发新版+改上架版本→他人**新**会话跟随新版（浮动）→作者下架→他人仍可跑（冻结）→钉版安装者不受发新版影响。
 - 可见性：system tier 库条目 / 插件目录响应**不含** prompt/instructions/凭据字段（断言字段缺失）。
 - admin：带 `engine.descriptor.admin` scope 可 unlist/softDelete 他人 descriptor；无 scope 403。

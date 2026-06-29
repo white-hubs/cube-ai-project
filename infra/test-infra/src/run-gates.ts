@@ -1,4 +1,4 @@
-import { getContainerRuntimeClient } from 'testcontainers';
+import { getContainerRuntimeClient } from "testcontainers";
 
 /**
  * Testcontainers 集成测试门闸 — 由根目录脚本注入环境变量，避免裸 `bun test` 拉起 Docker。
@@ -10,11 +10,11 @@ import { getContainerRuntimeClient } from 'testcontainers';
  *   （与裸设 `USE_TESTCONTAINERS=1` 但未启动 Docker 的错误相比，整组用例会 `describe.skip` 并告警一次）。
  */
 export function shouldRunTestcontainers(): boolean {
-  return process.env['USE_TESTCONTAINERS'] === '1';
+  return process.env["USE_TESTCONTAINERS"] === "1";
 }
 
 export function shouldRunNacosTestcontainers(): boolean {
-  return process.env['USE_NACOS_TESTCONTAINERS'] === '1';
+  return process.env["USE_NACOS_TESTCONTAINERS"] === "1";
 }
 
 let runtimeReachablePromise: Promise<boolean> | null = null;
@@ -28,9 +28,9 @@ async function probeTestcontainerRuntimeOnce(): Promise<boolean> {
     if (!warnedNoContainerRuntime) {
       warnedNoContainerRuntime = true;
       console.warn(
-        '[test-infra] 未检测到可用容器运行时（Docker 等）；Testcontainers 无法连接。\n' +
-          '集成测试套件将 skip。请先启动 Docker Desktop / Colima，或正确设置 DOCKER_HOST / socket。\n' +
-          '若仅跑纯单测请勿设置 USE_TESTCONTAINERS=1。',
+        "[test-infra] 未检测到可用容器运行时（Docker 等）；Testcontainers 无法连接。\n" +
+          "集成测试套件将 skip。请先启动 Docker Desktop / Colima，或正确设置 DOCKER_HOST / socket。\n" +
+          "若仅跑纯单测请勿设置 USE_TESTCONTAINERS=1。",
       );
     }
     return false;
@@ -46,13 +46,17 @@ function getCachedRuntimeReachable(): Promise<boolean> {
 
 /** 环境门闸成立且 Docker / Testcontainers 可达时方为 true（进程内缓存一次探测结果）。 */
 export async function resolveShouldRunTestcontainers(): Promise<boolean> {
-  if (!shouldRunTestcontainers()) return false;
+  if (!shouldRunTestcontainers()) {
+    return false;
+  }
   return getCachedRuntimeReachable();
 }
 
 /** Nacos Testcontainers：`USE_NACOS_TESTCONTAINERS=1` 且运行时可达（进程内与同批其它 resolve 共用探测）。 */
 export async function resolveShouldRunNacosTestcontainers(): Promise<boolean> {
-  if (!shouldRunNacosTestcontainers()) return false;
+  if (!shouldRunNacosTestcontainers()) {
+    return false;
+  }
   return getCachedRuntimeReachable();
 }
 
@@ -63,14 +67,13 @@ export async function resolveShouldRunNacosTestcontainers(): Promise<boolean> {
  *   或 `bun run test:containers:ollama`
  */
 export function shouldRunOllamaE2e(): boolean {
-  return (
-    process.env['USE_TESTCONTAINERS'] === '1' &&
-    process.env['RUN_OLLAMA_E2E'] === '1'
-  );
+  return process.env["USE_TESTCONTAINERS"] === "1" && process.env["RUN_OLLAMA_E2E"] === "1";
 }
 
 /** Ollama E2e：`RUN_OLLAMA_E2E` + `USE_TESTCONTAINERS` 且运行时可达。 */
 export async function resolveShouldRunOllamaE2e(): Promise<boolean> {
-  if (!shouldRunOllamaE2e()) return false;
+  if (!shouldRunOllamaE2e()) {
+    return false;
+  }
   return getCachedRuntimeReachable();
 }

@@ -1,23 +1,26 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import { buildKbMysqlConfigFromEnv, hasKbMysqlConfigFromEnv } from './kb-mysql-database.service';
+import { afterEach, describe, expect, test } from "bun:test";
+
+import { buildKbMysqlConfigFromEnv, hasKbMysqlConfigFromEnv } from "./kb-mysql-database.service";
 
 const ENV_KEYS = [
-  'MYSQL_HOST',
-  'MYSQL_PORT',
-  'MYSQL_DATABASE',
-  'MYSQL_DB',
-  'MYSQL_USERNAME',
-  'MYSQL_USER',
-  'MYSQL_PASSWORD',
-  'KB_MYSQL_URL',
-  'AGENTIC_ENGINE_MYSQL_URL',
+  "MYSQL_HOST",
+  "MYSQL_PORT",
+  "MYSQL_DATABASE",
+  "MYSQL_DB",
+  "MYSQL_USERNAME",
+  "MYSQL_USER",
+  "MYSQL_PASSWORD",
+  "KB_MYSQL_URL",
+  "AGENTIC_ENGINE_MYSQL_URL",
 ] as const;
 
 const saved = new Map<string, string | undefined>();
 
 function setEnv(overrides: Partial<Record<(typeof ENV_KEYS)[number], string>>): void {
   for (const key of ENV_KEYS) {
-    if (!saved.has(key)) saved.set(key, process.env[key]);
+    if (!saved.has(key)) {
+      saved.set(key, process.env[key]);
+    }
     delete process.env[key];
     delete Bun.env[key];
   }
@@ -38,74 +41,74 @@ afterEach(() => {
   saved.clear();
 });
 
-describe('buildKbMysqlConfigFromEnv', () => {
-  test('falls back to AGENTIC_ENGINE_MYSQL_URL when discrete MYSQL_* are unset (engine standalone / testcontainers)', () => {
-    setEnv({ AGENTIC_ENGINE_MYSQL_URL: 'mysql://eng:s3cret@10.0.0.9:32768/cube_ai_center' });
+describe("buildKbMysqlConfigFromEnv", () => {
+  test("falls back to AGENTIC_ENGINE_MYSQL_URL when discrete MYSQL_* are unset (engine standalone / testcontainers)", () => {
+    setEnv({ AGENTIC_ENGINE_MYSQL_URL: "mysql://eng:s3cret@10.0.0.9:32768/cube_ai_center" });
     expect(buildKbMysqlConfigFromEnv()).toEqual({
-      host: '10.0.0.9',
+      database: "cube_ai_center",
+      host: "10.0.0.9",
+      password: "s3cret",
       port: 32768,
-      database: 'cube_ai_center',
-      user: 'eng',
-      password: 's3cret',
+      user: "eng",
     });
   });
 
-  test('KB_MYSQL_URL takes precedence over AGENTIC_ENGINE_MYSQL_URL', () => {
+  test("KB_MYSQL_URL takes precedence over AGENTIC_ENGINE_MYSQL_URL", () => {
     setEnv({
-      KB_MYSQL_URL: 'mysql://kb:kbpw@kb-host:3307/kb_db',
-      AGENTIC_ENGINE_MYSQL_URL: 'mysql://eng:engpw@eng-host:3306/agentic_engine',
+      AGENTIC_ENGINE_MYSQL_URL: "mysql://eng:engpw@eng-host:3306/agentic_engine",
+      KB_MYSQL_URL: "mysql://kb:kbpw@kb-host:3307/kb_db",
     });
     const cfg = buildKbMysqlConfigFromEnv();
-    expect(cfg.host).toBe('kb-host');
+    expect(cfg.host).toBe("kb-host");
     expect(cfg.port).toBe(3307);
-    expect(cfg.database).toBe('kb_db');
+    expect(cfg.database).toBe("kb_db");
   });
 
-  test('discrete MYSQL_* env vars override URL-derived values (compose convention)', () => {
+  test("discrete MYSQL_* env vars override URL-derived values (compose convention)", () => {
     setEnv({
-      MYSQL_HOST: 'compose-mysql',
-      MYSQL_PORT: '3306',
-      MYSQL_USERNAME: 'agentic_engine',
-      MYSQL_PASSWORD: 'dev',
-      AGENTIC_ENGINE_MYSQL_URL: 'mysql://other:pw@elsewhere:9999/otherdb',
+      AGENTIC_ENGINE_MYSQL_URL: "mysql://other:pw@elsewhere:9999/otherdb",
+      MYSQL_HOST: "compose-mysql",
+      MYSQL_PASSWORD: "dev",
+      MYSQL_PORT: "3306",
+      MYSQL_USERNAME: "agentic_engine",
     });
     const cfg = buildKbMysqlConfigFromEnv();
-    expect(cfg.host).toBe('compose-mysql');
+    expect(cfg.host).toBe("compose-mysql");
     expect(cfg.port).toBe(3306);
-    expect(cfg.user).toBe('agentic_engine');
+    expect(cfg.user).toBe("agentic_engine");
   });
 
-  test('defaults apply when nothing configured', () => {
+  test("defaults apply when nothing configured", () => {
     setEnv({});
     expect(buildKbMysqlConfigFromEnv()).toEqual({
-      host: '127.0.0.1',
+      database: "cube_ai_center",
+      host: "127.0.0.1",
+      password: "",
       port: 3306,
-      database: 'cube_ai_center',
-      user: 'root',
-      password: '',
+      user: "root",
     });
   });
 
-  test('malformed URL is ignored, defaults apply', () => {
-    setEnv({ AGENTIC_ENGINE_MYSQL_URL: 'not-a-url' });
+  test("malformed URL is ignored, defaults apply", () => {
+    setEnv({ AGENTIC_ENGINE_MYSQL_URL: "not-a-url" });
     const cfg = buildKbMysqlConfigFromEnv();
-    expect(cfg.host).toBe('127.0.0.1');
+    expect(cfg.host).toBe("127.0.0.1");
   });
 });
 
-describe('hasKbMysqlConfigFromEnv', () => {
-  test('false when no source configured', () => {
+describe("hasKbMysqlConfigFromEnv", () => {
+  test("false when no source configured", () => {
     setEnv({});
     expect(hasKbMysqlConfigFromEnv()).toBe(false);
   });
 
-  test('true with AGENTIC_ENGINE_MYSQL_URL', () => {
-    setEnv({ AGENTIC_ENGINE_MYSQL_URL: 'mysql://u:p@h:3306/db' });
+  test("true with AGENTIC_ENGINE_MYSQL_URL", () => {
+    setEnv({ AGENTIC_ENGINE_MYSQL_URL: "mysql://u:p@h:3306/db" });
     expect(hasKbMysqlConfigFromEnv()).toBe(true);
   });
 
-  test('true with MYSQL_HOST', () => {
-    setEnv({ MYSQL_HOST: 'somewhere' });
+  test("true with MYSQL_HOST", () => {
+    setEnv({ MYSQL_HOST: "somewhere" });
     expect(hasKbMysqlConfigFromEnv()).toBe(true);
   });
 });

@@ -1,39 +1,36 @@
-import { describe, expect, it } from 'bun:test';
-import { ImageGenerationRequestSchema } from './image-generation';
+import { describe, expect, it } from "bun:test";
 
-describe('ImageGenerationRequestSchema', () => {
-  it('parses a minimal text2image request', () => {
-    const r = ImageGenerationRequestSchema.parse({ tenant: 1, modelCode: 'qwen-image', prompt: 'a cat' });
-    expect(r.prompt).toBe('a cat');
-    expect(r.modelCode).toBe('qwen-image');
+import { ImageGenerationRequestSchema } from "./image-generation";
+
+describe("ImageGenerationRequestSchema", () => {
+  it("parses a minimal text2image request", () => {
+    const r = ImageGenerationRequestSchema.parse({ modelCode: "qwen-image", prompt: "a cat", tenant: 1 });
+    expect(r.prompt).toBe("a cat");
+    expect(r.modelCode).toBe("qwen-image");
     expect(r.tenant).toBe(1);
   });
 
-  it('allows optional fields', () => {
+  it("allows optional fields", () => {
     const r = ImageGenerationRequestSchema.parse({
-      tenant: 2,
-      modelCode: 'wanx-v1',
-      prompt: 'a mountain',
+      modelCode: "wanx-v1",
       n: 2,
-      size: '1024x1024',
-      negativePrompt: 'blurry',
+      negativePrompt: "blurry",
+      prompt: "a mountain",
+      referenceImages: ["https://example.com/ref.png"],
       seed: 42,
-      referenceImages: ['https://example.com/ref.png'],
+      size: "1024x1024",
+      tenant: 2,
     });
     expect(r.n).toBe(2);
     expect(r.seed).toBe(42);
-    expect(r.referenceImages?.[0]).toBe('https://example.com/ref.png');
+    expect(r.referenceImages?.[0]).toBe("https://example.com/ref.png");
   });
 
-  it('rejects n > 4', () => {
-    expect(() =>
-      ImageGenerationRequestSchema.parse({ tenant: 1, modelCode: 'x', prompt: 'y', n: 5 }),
-    ).toThrow();
+  it("rejects n > 4", () => {
+    expect(() => ImageGenerationRequestSchema.parse({ modelCode: "x", n: 5, prompt: "y", tenant: 1 })).toThrow();
   });
 
-  it('rejects empty prompt', () => {
-    expect(() =>
-      ImageGenerationRequestSchema.parse({ tenant: 1, modelCode: 'x', prompt: '' }),
-    ).toThrow();
+  it("rejects empty prompt", () => {
+    expect(() => ImageGenerationRequestSchema.parse({ modelCode: "x", prompt: "", tenant: 1 })).toThrow();
   });
 });

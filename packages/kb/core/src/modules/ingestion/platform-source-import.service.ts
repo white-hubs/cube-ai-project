@@ -1,12 +1,12 @@
-import { Inject, Injectable } from '@dangao/bun-server'
-import type { PlatformKbSourcePort } from '../../port/platform-source.port'
-import { PLATFORM_KB_SOURCE_PORT_TOKEN } from '../../port/platform-source.port'
-import { DocumentService } from '../documents/services/document.service'
+import { Inject, Injectable } from "@dangao/bun-server";
+
+import { PLATFORM_KB_SOURCE_PORT_TOKEN, type PlatformKbSourcePort } from "../../port/platform-source.port";
+import { DocumentService } from "../documents/services/document.service";
 
 export interface PlatformImportResult {
-  imported: number
-  errors: number
-  errorDetails: Array<{ externalId: string; error: string }>
+  imported: number;
+  errors: number;
+  errorDetails: { externalId: string; error: string }[];
 }
 
 @Injectable()
@@ -22,35 +22,27 @@ export class PlatformSourceImportService {
    *
    * Errors on individual documents are collected rather than aborting the batch.
    */
-  public async importFromPlatformKb(
-    platformKbId: string,
-    directoryId: string,
-    signal?: AbortSignal,
-  ): Promise<PlatformImportResult> {
-    const sourceDocs = await this.platformKbSourcePort.listSourceDocs(platformKbId, signal)
+  public async importFromPlatformKb(platformKbId: string, directoryId: string, signal?: AbortSignal): Promise<PlatformImportResult> {
+    const sourceDocs = await this.platformKbSourcePort.listSourceDocs(platformKbId, signal);
 
-    let imported = 0
-    let errors = 0
-    const errorDetails: Array<{ externalId: string; error: string }> = []
+    let imported = 0;
+    let errors = 0;
+    const errorDetails: { externalId: string; error: string }[] = [];
 
     for (const doc of sourceDocs) {
       try {
-        const file = new File(
-          [doc.bytes],
-          doc.fileName,
-          { type: doc.mimeType ?? 'application/octet-stream' },
-        )
-        await this.documentService.uploadDocument(file, directoryId, undefined, doc.externalId)
-        imported++
+        const file = new File([doc.bytes], doc.fileName, { type: doc.mimeType ?? "application/octet-stream" });
+        await this.documentService.uploadDocument(file, directoryId, undefined, doc.externalId);
+        imported++;
       } catch (err: unknown) {
-        errors++
+        errors++;
         errorDetails.push({
-          externalId: doc.externalId,
           error: err instanceof Error ? err.message : String(err),
-        })
+          externalId: doc.externalId,
+        });
       }
     }
 
-    return { imported, errors, errorDetails }
+    return { errorDetails, errors, imported };
   }
 }

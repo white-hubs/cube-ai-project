@@ -1,12 +1,12 @@
-import type { QdrantClientLike } from './client';
+import type { QdrantClientLike } from "./client";
 
-export const DENSE_VECTOR_NAME = 'dense';
-export const SPARSE_VECTOR_NAME = 'sparse';
+export const DENSE_VECTOR_NAME = "dense";
+export const SPARSE_VECTOR_NAME = "sparse";
 
 export interface DenseVectorSpec {
   name?: string;
   size: number;
-  distance?: 'Cosine' | 'Euclid' | 'Dot' | 'Manhattan';
+  distance?: "Cosine" | "Euclid" | "Dot" | "Manhattan";
 }
 
 export interface SparseVectorSpec {
@@ -27,7 +27,7 @@ function getErrorMessage(error: unknown): string {
 
 function isNotFoundError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
-  return message.includes('404') || message.includes('not found');
+  return message.includes("404") || message.includes("not found");
 }
 
 export function hasHybridVectorSchema(
@@ -36,42 +36,34 @@ export function hasHybridVectorSchema(
   sparseName = SPARSE_VECTOR_NAME,
 ): boolean {
   const config = collection.config;
-  if (!config || typeof config !== 'object') {
+  if (!config || typeof config !== "object") {
     return false;
   }
   const params = (config as { params?: Record<string, unknown> }).params;
-  if (!params || typeof params !== 'object') {
+  if (!params || typeof params !== "object") {
     return false;
   }
 
   const vectors = (params as { vectors?: Record<string, unknown> }).vectors;
   const sparseVectors = (params as { sparse_vectors?: Record<string, unknown> }).sparse_vectors;
-  const denseConfig =
-    vectors && typeof vectors === 'object'
-      ? (vectors as Record<string, unknown>)[denseName]
-      : undefined;
+  const denseConfig = vectors && typeof vectors === "object" ? (vectors as Record<string, unknown>)[denseName] : undefined;
   const sparseConfig =
-    sparseVectors && typeof sparseVectors === 'object'
-      ? (sparseVectors as Record<string, unknown>)[sparseName]
-      : undefined;
+    sparseVectors && typeof sparseVectors === "object" ? (sparseVectors as Record<string, unknown>)[sparseName] : undefined;
 
   return Boolean(denseConfig && sparseConfig);
 }
 
-export function hasDenseOnlySchema(
-  collection: Record<string, unknown>,
-  denseName = DENSE_VECTOR_NAME,
-): boolean {
+export function hasDenseOnlySchema(collection: Record<string, unknown>, denseName = DENSE_VECTOR_NAME): boolean {
   const config = collection.config;
-  if (!config || typeof config !== 'object') {
+  if (!config || typeof config !== "object") {
     return false;
   }
   const params = (config as { params?: Record<string, unknown> }).params;
-  if (!params || typeof params !== 'object') {
+  if (!params || typeof params !== "object") {
     return false;
   }
   const vectors = (params as { vectors?: Record<string, unknown> }).vectors;
-  if (!vectors || typeof vectors !== 'object') {
+  if (!vectors || typeof vectors !== "object") {
     return false;
   }
   const denseConfig = (vectors as Record<string, unknown>)[denseName];
@@ -105,15 +97,15 @@ export class QdrantCollectionService {
     } catch (error) {
       const message = getErrorMessage(error);
       if (!isNotFoundError(error)) {
-        throw new Error(`Qdrant collection check failed: ${message}`);
+        throw new Error(`Qdrant collection check failed: ${message}`, { cause: error });
       }
     }
 
     const createPayload: Record<string, unknown> = {
       vectors: {
         [denseName]: {
+          distance: spec.dense.distance ?? "Cosine",
           size: spec.dense.size,
-          distance: spec.dense.distance ?? 'Cosine',
         },
       },
     };

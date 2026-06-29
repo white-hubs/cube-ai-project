@@ -1,27 +1,28 @@
-import { Context, contextStore } from '@dangao/bun-server'
-import type { HandlerContext } from '@connectrpc/connect'
-import { decodeGrpcInnerInvokeSignature } from './grpc-inner-invoke'
-import { sessionContextHolder, type SessionContext } from './session-context'
+import { type HandlerContext } from "@connectrpc/connect";
+import { Context, contextStore } from "@dangao/bun-server";
+
+import { decodeGrpcInnerInvokeSignature } from "./grpc-inner-invoke";
+import { type SessionContext, sessionContextHolder } from "./session-context";
 
 export interface ConnectInnerInvokeValidationOptions {
-  internalInvokeSecretKey?: string | null
+  internalInvokeSecretKey?: string | null;
 }
 
 export function validateConnectInnerInvoke(headers: Headers, options: ConnectInnerInvokeValidationOptions = {}): void {
-  const secretKey = options.internalInvokeSecretKey?.trim()
+  const secretKey = options.internalInvokeSecretKey?.trim();
   if (!secretKey) {
-    return
+    return;
   }
-  const signature = headers.get('feign_inner_invoke')?.trim()
+  const signature = headers.get("feign_inner_invoke")?.trim();
   if (!signature) {
-    throw new Error('missing feign_inner_invoke')
+    throw new Error("missing feign_inner_invoke");
   }
-  const decoded = decodeGrpcInnerInvokeSignature(secretKey, signature)
-  if (decoded.marker !== 'FEIGN_INNER_ORIGINAL') {
-    throw new Error('invalid feign_inner_invoke marker')
+  const decoded = decodeGrpcInnerInvokeSignature(secretKey, signature);
+  if (decoded.marker !== "FEIGN_INNER_ORIGINAL") {
+    throw new Error("invalid feign_inner_invoke marker");
   }
   if (decoded.expiresAtMs <= Date.now()) {
-    throw new Error('feign_inner_invoke expired')
+    throw new Error("feign_inner_invoke expired");
   }
 }
 
@@ -30,30 +31,30 @@ export function validateConnectInnerInvoke(headers: Headers, options: ConnectInn
  * Connect/gRPC 独立端口未经过 HTTP 中间件时，需在 handler 内配合 {@link contextStore} 调用。
  */
 export function buildSessionContextFromConnectHeaders(handlerContext: HandlerContext): SessionContext {
-  const headers = handlerContext.requestHeader
-  const tenantHeader = headers.get('tenant')
-  const tenantRaw = tenantHeader?.trim() ?? ''
-  const tenant = /^\d+$/.test(tenantRaw) ? tenantRaw : null
-  let pathname = '/'
-  let domain: string | null = null
+  const headers = handlerContext.requestHeader;
+  const tenantHeader = headers.get("tenant");
+  const tenantRaw = tenantHeader?.trim() ?? "";
+  const tenant = /^\d+$/u.test(tenantRaw) ? tenantRaw : null;
+  let pathname = "/";
+  let domain: string | null = null;
   try {
-    const u = new URL(handlerContext.url)
-    pathname = u.pathname
-    domain = u.host
+    const u = new URL(handlerContext.url);
+    pathname = u.pathname;
+    domain = u.host;
   } catch {
     /* invalid url — keep defaults */
   }
   return {
-    uri: pathname,
-    host: 'grpc',
+    authorization: headers.get("authorization"),
     domain,
-    authorization: headers.get('authorization'),
+    host: "grpc",
+    permission: headers.get("permission"),
+    signature: headers.get("signature"),
     tenant,
-    terminal: headers.get('terminal'),
-    version: headers.get('version'),
-    signature: headers.get('signature'),
-    permission: headers.get('permission'),
-  }
+    terminal: headers.get("terminal"),
+    uri: pathname,
+    version: headers.get("version"),
+  };
 }
 
 export async function runWithConnectHandlerSession<T>(
@@ -61,22 +62,22 @@ export async function runWithConnectHandlerSession<T>(
   fn: () => Promise<T>,
   options: ConnectInnerInvokeValidationOptions = {},
 ): Promise<T> {
-  validateConnectInnerInvoke(handlerContext.requestHeader, options)
+  validateConnectInnerInvoke(handlerContext.requestHeader, options);
   const req = new Request(handlerContext.url, {
-    method: handlerContext.requestMethod,
     headers: handlerContext.requestHeader,
+    method: handlerContext.requestMethod,
     signal: handlerContext.signal,
-  })
-  const ctx = new Context(req)
-  const session = buildSessionContextFromConnectHeaders(handlerContext)
+  });
+  const ctx = new Context(req);
+  const session = buildSessionContextFromConnectHeaders(handlerContext);
   return contextStore.run(ctx, async () => {
-    sessionContextHolder.setContext(session)
+    sessionContextHolder.setContext(session);
     try {
-      return await fn()
+      return await fn();
     } finally {
-      sessionContextHolder.clearContext()
+      sessionContextHolder.clearContext();
     }
-  })
+  });
 }
 
 export function streamWithConnectHandlerSession<T>(
@@ -84,20 +85,20 @@ export function streamWithConnectHandlerSession<T>(
   produce: () => AsyncIterable<T>,
   options: ConnectInnerInvokeValidationOptions = {},
 ): AsyncIterable<T> {
-  validateConnectInnerInvoke(handlerContext.requestHeader, options)
+  validateConnectInnerInvoke(handlerContext.requestHeader, options);
   const req = new Request(handlerContext.url, {
-    method: handlerContext.requestMethod,
     headers: handlerContext.requestHeader,
+    method: handlerContext.requestMethod,
     signal: handlerContext.signal,
-  })
-  const ctx = new Context(req)
-  const session = buildSessionContextFromConnectHeaders(handlerContext)
+  });
+  const ctx = new Context(req);
+  const session = buildSessionContextFromConnectHeaders(handlerContext);
   return contextStore.run(ctx, async function* () {
-    sessionContextHolder.setContext(session)
+    sessionContextHolder.setContext(session);
     try {
-      yield* produce()
+      yield* produce();
     } finally {
-      sessionContextHolder.clearContext()
+      sessionContextHolder.clearContext();
     }
-  }) as AsyncIterable<T>
+  }) as AsyncIterable<T>;
 }

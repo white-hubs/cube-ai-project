@@ -1,5 +1,6 @@
-import { z } from 'zod';
-import { EpochMsSchema } from '../common/time';
+import { z } from "zod";
+
+import { EpochMsSchema } from "../common/time";
 
 /**
  * SSE event envelope (aligned with 01-api/session.md §15 event dictionary).
@@ -13,9 +14,9 @@ import { EpochMsSchema } from '../common/time';
  * may keep using as a building block.
  */
 export const SseEventBaseSchema = z.object({
-  id: z.string(),
   event: z.string(),
-  schema: z.string().regex(/^[a-z][a-z0-9-]*-v\d+$/),
+  id: z.string(),
+  schema: z.string().regex(/^[a-z][a-z0-9-]*-v\d+$/u),
   time: EpochMsSchema,
 });
 export type SseEventBase = z.infer<typeof SseEventBaseSchema>;

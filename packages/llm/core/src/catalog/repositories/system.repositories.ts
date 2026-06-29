@@ -1,15 +1,5 @@
-import {
-  type CatalogMysqlPool,
-  exec,
-  queryRows,
-  SYSTEM_AUDIT,
-} from './catalog-mysql-pool';
-import type {
-  MatchRuleRow,
-  SystemModelRow,
-  SystemProviderRow,
-  SystemTypeRow,
-} from './row-types';
+import { type CatalogMysqlPool, SYSTEM_AUDIT, exec, queryRows } from "./catalog-mysql-pool";
+import type { MatchRuleRow, SystemModelRow, SystemProviderRow, SystemTypeRow } from "./row-types";
 
 /** 系统供应商类型字典（ai_system_llm_provider_type）。 */
 export class SystemLlmProviderTypeRepository {
@@ -31,9 +21,7 @@ export class SystemLlmProviderTypeRepository {
     return rows[0] ?? null;
   }
 
-  async upsert(
-    row: Pick<SystemTypeRow, 'code' | 'display_name' | 'description' | 'sort_order' | 'enabled'>,
-  ): Promise<void> {
+  async upsert(row: Pick<SystemTypeRow, "code" | "display_name" | "description" | "sort_order" | "enabled">): Promise<void> {
     const now = new Date();
     await exec(
       this.pool,
@@ -84,8 +72,10 @@ export class SystemLlmProviderRepository {
   }
 
   async listByTypeCodes(typeCodes: string[]): Promise<SystemProviderRow[]> {
-    if (typeCodes.length === 0) return [];
-    const placeholders = typeCodes.map(() => '?').join(', ');
+    if (typeCodes.length === 0) {
+      return [];
+    }
+    const placeholders = typeCodes.map(() => "?").join(", ");
     return queryRows<SystemProviderRow>(
       this.pool,
       `SELECT * FROM ai_system_llm_provider WHERE type_code IN (${placeholders}) AND (deleted IS NULL OR deleted = 0)`,
@@ -93,9 +83,7 @@ export class SystemLlmProviderRepository {
     );
   }
 
-  async upsert(
-    row: Pick<SystemProviderRow, 'id' | 'provider_code' | 'type_code' | 'name' | 'icon_url' | 'default_remark'>,
-  ): Promise<void> {
+  async upsert(row: Pick<SystemProviderRow, "id" | "provider_code" | "type_code" | "name" | "icon_url" | "default_remark">): Promise<void> {
     const now = new Date();
     await exec(
       this.pool,

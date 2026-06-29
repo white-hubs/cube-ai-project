@@ -1,7 +1,5 @@
 {
-  "systemTypes": [
-    { "id": 1, "code": "openai", "display_name": "OpenAI", "enabled": 1 }
-  ],
+  "systemTypes": [{ "id": 1, "code": "openai", "display_name": "OpenAI", "enabled": 1 }],
   "systemProviders": [
     {
       "id": 10,

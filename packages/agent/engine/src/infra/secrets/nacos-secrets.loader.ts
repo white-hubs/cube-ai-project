@@ -1,7 +1,7 @@
-import { Injectable } from '@dangao/bun-server';
-import { NacosClient, NacosConfigClient } from '@dangao/nacos-client';
+import { Injectable } from "@dangao/bun-server";
+import { NacosClient, NacosConfigClient } from "@dangao/nacos-client";
 
-import { AgenticEngineError } from '../errors/agentic-error';
+import { AgenticEngineError } from "../errors/agentic-error";
 
 /**
  * In-process secrets registry (process-memory only; never serialised).
@@ -57,17 +57,15 @@ export class NacosSecretsLoader {
    */
   async load(): Promise<SecretsRegistry> {
     const source = process.env.AGENTIC_ENGINE_SECRETS_SOURCE;
-    if (source === 'env' || !this.config.nacosAddress?.trim()) {
+    if (source === "env" || !this.config.nacosAddress?.trim()) {
       this.loadFromEnvPrefix();
       return this;
     }
 
     const client = this.getOrCreateClient();
     const cfg = new NacosConfigClient(client);
-    const group = this.config.secretsGroup ?? 'agentic-engine-secrets';
-    const dataId =
-      process.env.AGENTIC_ENGINE_SECRETS_BUNDLE_DATA_ID ??
-      'agentic-engine-secrets';
+    const group = this.config.secretsGroup ?? "agentic-engine-secrets";
+    const dataId = process.env.AGENTIC_ENGINE_SECRETS_BUNDLE_DATA_ID ?? "agentic-engine-secrets";
 
     const result = await cfg.getConfig({
       dataId,
@@ -79,16 +77,12 @@ export class NacosSecretsLoader {
     try {
       parsed = JSON.parse(result.content) as Record<string, unknown>;
     } catch (e) {
-      throw new Error(
-        `NacosSecretsLoader: secrets bundle JSON parse failed for ${dataId}: ${e}`,
-      );
+      throw new Error(`NacosSecretsLoader: secrets bundle JSON parse failed for ${dataId}: ${e}`, { cause: e });
     }
 
     for (const [k, v] of Object.entries(parsed)) {
-      if (typeof v !== 'string') {
-        throw new Error(
-          `NacosSecretsLoader: secret '${k}' must be a string in bundle JSON`,
-        );
+      if (typeof v !== "string") {
+        throw new Error(`NacosSecretsLoader: secret '${k}' must be a string in bundle JSON`);
       }
       this.secrets[k] = v;
     }
@@ -112,7 +106,7 @@ export class NacosSecretsLoader {
    * `AGENTIC_SECRET_<ALIAS>` 优先于 `process.env[ALIAS]`，填充 `secrets` 映射。
    */
   private loadFromEnvPrefix(): void {
-    const prefix = 'AGENTIC_SECRET_';
+    const prefix = "AGENTIC_SECRET_";
     for (const [k, v] of Object.entries(process.env)) {
       if (!k.startsWith(prefix) || v === undefined) continue;
       const alias = k.slice(prefix.length);
@@ -124,19 +118,14 @@ export class NacosSecretsLoader {
    * 环境变量优先 → 已加载 Nacos bundle。
    */
   get(refAlias: string): string {
-    const fromEnv =
-      process.env[`AGENTIC_SECRET_${refAlias}`] ?? process.env[refAlias];
-    if (fromEnv !== undefined && fromEnv !== '') {
+    const fromEnv = process.env[`AGENTIC_SECRET_${refAlias}`] ?? process.env[refAlias];
+    if (fromEnv !== undefined && fromEnv !== "") {
       return fromEnv;
     }
 
     const v = this.secrets[refAlias];
     if (v === undefined) {
-      throw AgenticEngineError.fromCode(
-        'UNAVAILABLE_SECRET_NOT_FOUND',
-        `Secret '${refAlias}' not available`,
-        { refAlias },
-      );
+      throw AgenticEngineError.fromCode("UNAVAILABLE_SECRET_NOT_FOUND", `Secret '${refAlias}' not available`, { refAlias });
     }
     return v;
   }

@@ -1,5 +1,6 @@
-import { z } from 'zod';
-import { EpochMsSchema } from '../common/time';
+import { z } from "zod";
+
+import { EpochMsSchema } from "../common/time";
 
 /**
  * Standard error response body — 5 required fields, aligned with the
@@ -13,10 +14,10 @@ import { EpochMsSchema } from '../common/time';
  *   it is NOT a top-level field (intentional alignment with Kaihe).
  */
 export const ErrorResponseSchema = z.object({
-  status: z.number().int(),
   code: z.string().nullable(),
-  message: z.string(),
   details: z.unknown().nullable(),
+  message: z.string(),
+  status: z.number().int(),
   timestamp: EpochMsSchema,
 });
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
@@ -38,20 +39,17 @@ export const ErrorDetailsSchema = z
 export type ErrorDetails = z.infer<typeof ErrorDetailsSchema>;
 
 /** Build a `details` object that always includes `traceId` and enforces a 4 KB size cap (regulation §10.6). */
-export function buildErrorDetails(
-  traceId: string,
-  extra?: Record<string, unknown> | null,
-): ErrorDetails {
+export function buildErrorDetails(traceId: string, extra?: Record<string, unknown> | null): ErrorDetails {
   // traceId is authoritative; cannot be overridden by extra fields (regulation §10.6).
-  const details: ErrorDetails = { ...(extra ?? {}), traceId };
+  const details: ErrorDetails = { ...extra, traceId };
 
   const MAX_DETAILS_BYTES = 4 * 1024;
   const json = JSON.stringify(details);
-  if (Buffer.byteLength(json, 'utf8') > MAX_DETAILS_BYTES) {
+  if (Buffer.byteLength(json, "utf8") > MAX_DETAILS_BYTES) {
     return {
+      reason: "details exceeded 4 KB",
       traceId,
       truncated: true,
-      reason: 'details exceeded 4 KB',
     };
   }
   return details;

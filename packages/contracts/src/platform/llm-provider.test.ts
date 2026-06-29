@@ -1,57 +1,58 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from "bun:test";
+
 import {
   LlmChatRequestSchema,
   LlmChatResponseSchema,
   LlmEmbedRequestSchema,
   LlmEmbedResultSchema,
+  type LlmProviderPort,
   LlmSparseVectorSchema,
   LlmStreamChunkSchema,
-  type LlmProviderPort,
-} from './llm-provider';
+} from "./llm-provider";
 
-describe('LlmProviderPort contracts', () => {
-  it('LlmChatRequestSchema requires tenant and modelCode', () => {
+describe("LlmProviderPort contracts", () => {
+  it("LlmChatRequestSchema requires tenant and modelCode", () => {
     expect(() =>
       LlmChatRequestSchema.parse({
+        messages: [{ role: "user", content: "hi" }],
+        modelCode: "gpt-4o",
         tenant: 1,
-        modelCode: 'gpt-4o',
-        messages: [{ role: 'user', content: 'hi' }],
       }),
     ).not.toThrow();
 
     expect(() =>
       LlmChatRequestSchema.parse({
-        tenant: 1,
-        modelCode: 'gpt-4o',
         messages: [],
+        modelCode: "gpt-4o",
+        tenant: 1,
       }),
     ).toThrow();
   });
 
-  it('LlmChatResponseSchema accepts content and usage', () => {
+  it("LlmChatResponseSchema accepts content and usage", () => {
     const ok = LlmChatResponseSchema.parse({
-      content: 'hello',
-      finishReason: 'stop',
-      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+      content: "hello",
+      finishReason: "stop",
+      usage: { completionTokens: 2, promptTokens: 1, totalTokens: 3 },
     });
-    expect(ok.content).toBe('hello');
+    expect(ok.content).toBe("hello");
   });
 
-  it('LlmStreamChunkSchema accepts text-delta and finish', () => {
-    expect(LlmStreamChunkSchema.parse({ type: 'text-delta', delta: 'x' })).toEqual({
-      type: 'text-delta',
-      delta: 'x',
+  it("LlmStreamChunkSchema accepts text-delta and finish", () => {
+    expect(LlmStreamChunkSchema.parse({ delta: "x", type: "text-delta" })).toEqual({
+      delta: "x",
+      type: "text-delta",
     });
     expect(
       LlmStreamChunkSchema.parse({
-        type: 'finish',
-        finishReason: 'stop',
-        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        finishReason: "stop",
+        type: "finish",
+        usage: { completionTokens: 1, promptTokens: 1, totalTokens: 2 },
       }).type,
-    ).toBe('finish');
+    ).toBe("finish");
   });
 
-  it('LlmEmbedResultSchema enforces G3 dense + optional sparse', () => {
+  it("LlmEmbedResultSchema enforces G3 dense + optional sparse", () => {
     expect(
       LlmEmbedResultSchema.parse({
         dense: [0.1, 0.2],
@@ -67,27 +68,27 @@ describe('LlmProviderPort contracts', () => {
     expect(LlmSparseVectorSchema.parse(null)).toBeNull();
   });
 
-  it('LlmEmbedRequestSchema accepts purpose and retrievalProfile context', () => {
+  it("LlmEmbedRequestSchema accepts purpose and retrievalProfile context", () => {
     const ok = LlmEmbedRequestSchema.parse({
+      contexts: [{ retrievalProfile: "semantic-qa" }],
+      input: ["query text"],
+      modelCode: "doubao-embedding-vision-251215",
+      purpose: "query",
       tenant: 42,
-      modelCode: 'doubao-embedding-vision-251215',
-      input: ['query text'],
-      purpose: 'query',
-      contexts: [{ retrievalProfile: 'semantic-qa' }],
     });
-    expect(ok.purpose).toBe('query');
+    expect(ok.purpose).toBe("query");
   });
 
-  it('LlmProviderPort type compiles for chat/stream/embed', () => {
+  it("LlmProviderPort type compiles for chat/stream/embed", () => {
     const fake: LlmProviderPort = {
-      chat: async () => ({ content: 'ok', finishReason: 'stop' }),
-      chatStream: async function* () {
-        yield { type: 'finish', finishReason: 'stop' };
+      chat: async () => ({ content: "ok", finishReason: "stop" }),
+      async *chatStream() {
+        yield { type: "finish", finishReason: "stop" };
       },
       embed: async () => [{ dense: [1] }],
     };
-    expect(typeof fake.chat).toBe('function');
-    expect(typeof fake.chatStream).toBe('function');
-    expect(typeof fake.embed).toBe('function');
+    expect(typeof fake.chat).toBe("function");
+    expect(typeof fake.chatStream).toBe("function");
+    expect(typeof fake.embed).toBe("function");
   });
 });

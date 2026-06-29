@@ -27,12 +27,12 @@
 
 典型路径示例：
 
-| 领域 | 消费面（client） | 管理面（console） |
-|---|---|---|
-| agent | `/agent/sessions` `/agent/jobs` `/agent/grants` `/agent/files` `/agent/mcp/descriptor` | `/agent/console/agents` `/agent/console/skills` `/agent/console/rules` |
-| flow | `/flow/run` `/flow/webhook` `/flow/files` | `/flow/console/flows` `/flow/console/studio` `/flow/console/components` `/flow/console/mcp` `/flow/console/execution` `/flow/console/custom-component-templates` |
-| kb | `/kb/search` | `/kb/console/documents` `/kb/console/directories` |
-| llm | `/llm/providers` | `/llm/console/*`（providers / models CRUD / 远程同步 / 连通测试） |
+| 领域  | 消费面（client）                                                                       | 管理面（console）                                                                                                                                                |
+| ----- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agent | `/agent/sessions` `/agent/jobs` `/agent/grants` `/agent/files` `/agent/mcp/descriptor` | `/agent/console/agents` `/agent/console/skills` `/agent/console/rules`                                                                                           |
+| flow  | `/flow/run` `/flow/webhook` `/flow/files`                                              | `/flow/console/flows` `/flow/console/studio` `/flow/console/components` `/flow/console/mcp` `/flow/console/execution` `/flow/console/custom-component-templates` |
+| kb    | `/kb/search`                                                                           | `/kb/console/documents` `/kb/console/directories`                                                                                                                |
+| llm   | `/llm/providers`                                                                       | `/llm/console/*`（providers / models CRUD / 远程同步 / 连通测试）                                                                                                |
 
 ### 2. `/v1/*` LLM OpenAI 兼容网关豁免（ADR-0003 不变）
 
@@ -54,7 +54,7 @@ ai-center 装配期（`src/routes/`）使用 helper 函数重写各 BC 控制器
 
 本 addendum 明确取代旧版（2026-06-06）的以下两项决议：
 
-- ~~Agent 消费面 HTTP canonical = engine `/v1/*`~~  
+- ~~Agent 消费面 HTTP canonical = engine `/v1/*`~~
 - ~~`/agent` 仅 UI 路由，禁止作 API pathPrefix~~
 
 上述内容**全部失效**，以本文「两轴方案」为准。

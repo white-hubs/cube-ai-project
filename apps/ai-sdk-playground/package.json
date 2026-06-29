@@ -2,8 +2,8 @@
   "name": "@cube-ai/ai-sdk-playground",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Internal SDK verification playground — capability list + invoker shell",
+  "type": "module",
   "scripts": {
     "codegen:capabilities": "bun scripts/codegen-capabilities.ts",
     "predev": "bun run codegen:capabilities",

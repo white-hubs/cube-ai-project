@@ -21,6 +21,7 @@ C1 把三处 LLM 实现收敛成单一 `LlmProviderPort`，但「进程内 TS �
 1. **进程内面 —— `LlmProviderPort`**：`agent-engine`、in-repo `flow-core` 等同进程消费者经 DI 消费。
 
    > **M1 落地（2026-06-06）**：`LlmProviderPort` 已在 `@cube-ai/contracts` 定义（`packages/contracts/src/platform/llm-provider.ts`）；`@cube-ai/llm-core` 实现 catalog-driven provider；`embed` 返回 `{dense, sparse?}`（G3）。engine 衔接仍保留 tachu `ProviderAdapter` 作实现细节，M2 加 adapter 层。
+
 2. **网络面 —— LLM 网关**：对外暴露 **OpenAI 兼容**端点（`/v1/chat/completions`、`/v1/embeddings` 等），作为全平台 LLM 流量的统一收口；供异构运行时（Langflow）与远程消费者（前端）使用。
 
 **为何 OpenAI 兼容**：Langflow / 前端 / 外部工具本就普遍说 `base_url + api_key`，指向网关近乎零改造；这是让「单一 provider」跨「进程内 / 异构运行时 / 远程」三类消费者成立的务实通用面。
@@ -40,10 +41,10 @@ C1 把三处 LLM 实现收敛成单一 `LlmProviderPort`，但「进程内 TS �
 
 cube-ai 服务拆分后 flow 实有两条独立凭据路径需收口（assistant 玩具不迁、kb 经 ADR-0005 已决、Langflow 留例外）：
 
-| 源 | 现状 | 落地 |
-|---|---|---|
-| `settings/model-providers` | apiKey 存 `app_kv`（flow 第二 catalog） | **并入 llm-core catalog**：一次性迁 `model_provider` 记录 `(provider, apiKey, base_url, models)` 进 catalog；**flow 自有存储退役**；per-project 配置映射 catalog **租户级 provider 配置**。前端**设置页退役**，模型接入统一去 catalog console（`llm-sdk-console` / `/llm/*`，ADR-0008）——**单一权威、无重复 UI**。 |
-| `cube-linear-engine` 节点 config 焊 `api_key` | DSL 节点内嵌 vendor key | 节点 schema 去 `api_key`/`base_url`、改携 **modelRef（catalog model id）**；inline `openai-compat-chat` 换注入 **`LlmProviderPort`**（进程内面，**非回环网关**）；凭据由 provider 经 catalog 解析。 |
+| 源                                            | 现状                                    | 落地                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settings/model-providers`                    | apiKey 存 `app_kv`（flow 第二 catalog） | **并入 llm-core catalog**：一次性迁 `model_provider` 记录 `(provider, apiKey, base_url, models)` 进 catalog；**flow 自有存储退役**；per-project 配置映射 catalog **租户级 provider 配置**。前端**设置页退役**，模型接入统一去 catalog console（`llm-sdk-console` / `/llm/*`，ADR-0008）——**单一权威、无重复 UI**。 |
+| `cube-linear-engine` 节点 config 焊 `api_key` | DSL 节点内嵌 vendor key                 | 节点 schema 去 `api_key`/`base_url`、改携 **modelRef（catalog model id）**；inline `openai-compat-chat` 换注入 **`LlmProviderPort`**（进程内面，**非回环网关**）；凭据由 provider 经 catalog 解析。                                                                                                                |
 
 **节点 key 软过渡（去风险）**：engine 优先 `modelRef + LlmProviderPort`；持久化里**残留 `api_key` 的 legacy 节点**经 port 的临时 **key-override fallback** 承接（登记入下方例外清单），**数据迁移完成即 sunset**——区别于 Langflow（长期例外）。
 

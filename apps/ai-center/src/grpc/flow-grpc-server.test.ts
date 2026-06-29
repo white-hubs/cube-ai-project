@@ -1,41 +1,35 @@
-import { afterEach, describe, expect, test } from 'bun:test'
-import { createClient } from '@connectrpc/connect'
-import { createGrpcTransport } from '@connectrpc/connect-node'
-import { create } from '@bufbuild/protobuf'
-import { FlowServiceGrpc, RunFlowRequestSchema, UploadFlowImageRequestSchema } from '@cube-ai/platform-adapter-ghcloud'
-import { startFlowGrpcServer } from './flow-grpc-server'
+import { create } from "@bufbuild/protobuf";
+import { createClient } from "@connectrpc/connect";
+import { createGrpcTransport } from "@connectrpc/connect-node";
+import { afterEach, describe, expect, test } from "bun:test";
 
-describe('startFlowGrpcServer', () => {
-  const servers: Array<{ close: () => Promise<void> }> = []
+import { FlowServiceGrpc, RunFlowRequestSchema, UploadFlowImageRequestSchema } from "@cube-ai/platform-adapter-ghcloud";
+
+import { startFlowGrpcServer } from "./flow-grpc-server";
+
+describe("startFlowGrpcServer", () => {
+  const servers: { close: () => Promise<void> }[] = [];
 
   afterEach(async () => {
     while (servers.length > 0) {
-      await servers.pop()?.close()
+      await servers.pop()?.close();
     }
-  })
+  });
 
-  test('serves unary and server-streaming flow grpc methods', async () => {
+  test("serves unary and server-streaming flow grpc methods", async () => {
     const server = await startFlowGrpcServer({
-      hostname: '127.0.0.1',
-      port: 0,
       flowService: {
-        uploadFlowFile: async (flowId, file) => ({
-          flowId,
-          file_path: `${flowId}/${file.name}`,
-          name: file.name,
-          mime: file.type,
-        }),
         runFlow: async (flowId, body) => ({
           raw: {
             session_id: `${flowId}-session`,
-            outputs: [body.input ?? '', body.variables ?? {}],
+            outputs: [body.input ?? "", body.variables ?? {}],
           },
         }),
         runFlowStream: async (flowId, body) =>
           new Response(
             `event: token
 id: ${flowId}-1
-data: ${body.input ?? ''}
+data: ${body.input ?? ""}
 
 event: end
 data: [DONE]
@@ -43,77 +37,85 @@ data: [DONE]
 `,
             {
               headers: {
-                'content-type': 'text/event-stream',
+                "content-type": "text/event-stream",
               },
             },
           ),
+        uploadFlowFile: async (flowId, file) => ({
+          flowId,
+          file_path: `${flowId}/${file.name}`,
+          name: file.name,
+          mime: file.type,
+        }),
       },
-    })
-    servers.push(server)
+      hostname: "127.0.0.1",
+      port: 0,
+    });
+    servers.push(server);
 
     const transport = createGrpcTransport({
       baseUrl: `http://127.0.0.1:${server.port}`,
-    })
-    const client = createClient(FlowServiceGrpc, transport)
+    });
+    const client = createClient(FlowServiceGrpc, transport);
 
     const uploadResponse = await client.uploadFlowImage(
       create(UploadFlowImageRequestSchema, {
-        flowId: 'flow-1',
+        flowId: "flow-1",
         image: {
           content: new Uint8Array([1, 2, 3]),
-          filename: 'image.png',
-          contentType: 'image/png',
+          contentType: "image/png",
+          filename: "image.png",
         },
       }),
-      { headers: { tenant: '900001' } },
-    )
+      { headers: { tenant: "900001" } },
+    );
 
-    expect(uploadResponse.image?.filePath).toBe('flow-1/image.png')
+    expect(uploadResponse.image?.filePath).toBe("flow-1/image.png");
 
     const unaryResponse = await client.runFlow(
       create(RunFlowRequestSchema, {
-        flowId: 'flow-1',
-        input: 'hello',
+        flowId: "flow-1",
         images: [uploadResponse.image!],
+        input: "hello",
         variables: {
-          name: 'cube',
+          name: "cube",
         },
       }),
-      { headers: { tenant: '900001' } },
-    )
+      { headers: { tenant: "900001" } },
+    );
 
-    expect(unaryResponse.sessionId).toBe('flow-1-session')
-    expect(unaryResponse.outputsJson).toContain('hello')
-    expect(unaryResponse.outputsJson).toContain('flow-1/image.png')
+    expect(unaryResponse.sessionId).toBe("flow-1-session");
+    expect(unaryResponse.outputsJson).toContain("hello");
+    expect(unaryResponse.outputsJson).toContain("flow-1/image.png");
 
     const stream = client.runFlowStream(
       create(RunFlowRequestSchema, {
-        flowId: 'flow-1',
-        input: 'hello',
+        flowId: "flow-1",
+        input: "hello",
       }),
-      { headers: { tenant: '900001' } },
-    )
+      { headers: { tenant: "900001" } },
+    );
 
-    const events: Array<{ event?: string; data?: string; done?: boolean }> = []
+    const events: { event?: string; data?: string; done?: boolean }[] = [];
     for await (const item of stream) {
       events.push({
-        event: item.event,
         data: item.data,
         done: item.done,
-      })
+        event: item.event,
+      });
     }
 
     expect(events).toEqual([
       {
-        event: 'token',
-        data: 'hello',
+        data: "hello",
         done: false,
+        event: "token",
       },
       {
-        event: 'end',
-        data: '[DONE]',
+        data: "[DONE]",
         done: true,
+        event: "end",
       },
-    ])
-  })
-})
+    ]);
+  });
+});

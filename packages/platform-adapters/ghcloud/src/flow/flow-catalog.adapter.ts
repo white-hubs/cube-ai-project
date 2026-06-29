@@ -1,12 +1,13 @@
 import {
   FlowCatalogItemSchema,
-  FlowCatalogListResponseSchema,
   type FlowCatalogListRequest,
   type FlowCatalogListResponse,
+  FlowCatalogListResponseSchema,
   type FlowCatalogPort,
-} from '@cube-ai/contracts';
-import { GhcloudPlatformError } from '../errors';
-import { doFetchJson } from '../fetch-utils';
+} from "@cube-ai/contracts";
+
+import { GhcloudPlatformError } from "../errors";
+import { doFetchJson } from "../fetch-utils";
 
 export interface GhcloudFlowCatalogAdapterOpts {
   baseUrl: string;
@@ -16,37 +17,30 @@ export interface GhcloudFlowCatalogAdapterOpts {
 }
 
 function mapRemoteRow(raw: unknown): Record<string, unknown> {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      'flow list item must be a JSON object',
-    );
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "flow list item must be a JSON object");
   }
   const o = raw as Record<string, unknown>;
-  const id = o['id'];
-  if (typeof id !== 'string' && typeof id !== 'number') {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      'flow list item missing string/number id',
-    );
+  const id = o["id"];
+  if (typeof id !== "string" && typeof id !== "number") {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "flow list item missing string/number id");
   }
-  const name = o['name'];
-  const descRaw = o['description'];
-  const description =
-    descRaw === undefined
-      ? undefined
-      : descRaw === null
-        ? null
-        : typeof descRaw === 'string'
-          ? descRaw
-          : String(descRaw);
+  const name = o["name"];
+  const descRaw = o["description"];
+  const description = descRaw === undefined ? undefined : descRaw === null ? null : typeof descRaw === "string" ? descRaw : String(descRaw);
   const item: Record<string, unknown> = {
     flowId: String(id),
-    name: typeof name === 'string' ? name : String(name ?? ''),
+    name: typeof name === "string" ? name : String(name ?? ""),
   };
-  if (description !== undefined) item['description'] = description;
-  if (o['enabled'] !== undefined) item['enabled'] = o['enabled'];
-  if (typeof o['compileStatus'] === 'string') item['compileStatus'] = o['compileStatus'];
+  if (description !== undefined) {
+    item["description"] = description;
+  }
+  if (o["enabled"] !== undefined) {
+    item["enabled"] = o["enabled"];
+  }
+  if (typeof o["compileStatus"] === "string") {
+    item["compileStatus"] = o["compileStatus"];
+  }
   return item;
 }
 
@@ -62,24 +56,24 @@ function normalizeListBody(body: unknown): {
   if (Array.isArray(body)) {
     return { rows: body };
   }
-  if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+  if (body !== null && typeof body === "object" && !Array.isArray(body)) {
     const o = body as Record<string, unknown>;
-    const records = o['records'];
+    const records = o["records"];
     if (Array.isArray(records)) {
       return {
-        rows: records,
         pagination: {
-          total: Number(o['total'] ?? 0),
-          pages: Number(o['pages'] ?? 0),
-          currentPage: Number(o['currentPage'] ?? 1),
-          pageSize: Number(o['pageSize'] ?? records.length),
+          currentPage: Number(o["currentPage"] ?? 1),
+          pageSize: Number(o["pageSize"] ?? records.length),
+          pages: Number(o["pages"] ?? 0),
+          total: Number(o["total"] ?? 0),
         },
+        rows: records,
       };
     }
   }
   throw GhcloudPlatformError.fromCode(
-    'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-    'flow list remote body must be an array or a paged object with records[]',
+    "INVALID_ARGUMENT_SCHEMA_VIOLATION",
+    "flow list remote body must be an array or a paged object with records[]",
   );
 }
 
@@ -88,30 +82,30 @@ export class GhcloudFlowCatalogAdapter implements FlowCatalogPort {
 
   async list(req: FlowCatalogListRequest, signal: AbortSignal): Promise<FlowCatalogListResponse> {
     const token = req.userToken ?? (await this.opts.tokenProvider(req.tenant));
-    const url = new URL(`${this.opts.baseUrl.replace(/\/$/u, '')}/ai/flows`);
-    if (req.keyword != null && req.keyword.trim() !== '') {
-      url.searchParams.set('keyword', req.keyword.trim());
+    const url = new URL(`${this.opts.baseUrl.replace(/\/$/u, "")}/ai/flows`);
+    if (req.keyword !== null && req.keyword !== undefined && req.keyword.trim() !== "") {
+      url.searchParams.set("keyword", req.keyword.trim());
     }
-    if (req.pageNumber != null && req.pageSize != null) {
-      url.searchParams.set('pageNumber', String(req.pageNumber));
-      url.searchParams.set('pageSize', String(req.pageSize));
+    if (req.pageNumber !== null && req.pageNumber !== undefined && req.pageSize !== null && req.pageSize !== undefined) {
+      url.searchParams.set("pageNumber", String(req.pageNumber));
+      url.searchParams.set("pageSize", String(req.pageSize));
     }
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
+      "X-Engine-Caller": "cube-agentic-engine",
+      "X-Trace-Id": req.traceId,
       tenant: String(req.tenant),
-      terminal: 'bimops-manage-web',
-      'X-Trace-Id': req.traceId,
-      'X-Engine-Caller': 'cube-agentic-engine',
+      terminal: "bimops-manage-web",
     };
 
     const { body } = await this.fetchWithCallerAbort({
-      url: url.toString(),
-      method: 'GET',
+      fetchImpl: this.opts.fetchImpl,
       headers,
+      method: "GET",
       signal,
       timeoutMs: this.opts.timeoutMs ?? 30_000,
-      fetchImpl: this.opts.fetchImpl,
+      url: url.toString(),
     });
 
     const { rows, pagination } = normalizeListBody(body);
@@ -122,34 +116,24 @@ export class GhcloudFlowCatalogAdapter implements FlowCatalogPort {
     });
   }
 
-  private async fetchWithCallerAbort(
-    opts: Parameters<typeof doFetchJson>[0],
-  ): Promise<Awaited<ReturnType<typeof doFetchJson>>> {
+  private async fetchWithCallerAbort(opts: Parameters<typeof doFetchJson>[0]): Promise<Awaited<ReturnType<typeof doFetchJson>>> {
     if (opts.signal.aborted) {
-      throw GhcloudPlatformError.fromCode(
-        'UPSTREAM_NETWORK_TIMEOUT',
-        `${opts.method} ${opts.url} aborted by caller`,
-      );
+      throw GhcloudPlatformError.fromCode("UPSTREAM_NETWORK_TIMEOUT", `${opts.method} ${opts.url} aborted by caller`);
     }
 
     let abortListener: (() => void) | undefined;
     const abortPromise = new Promise<never>((_resolve, reject) => {
       abortListener = () => {
-        reject(
-          GhcloudPlatformError.fromCode(
-            'UPSTREAM_NETWORK_TIMEOUT',
-            `${opts.method} ${opts.url} aborted by caller`,
-          ),
-        );
+        reject(GhcloudPlatformError.fromCode("UPSTREAM_NETWORK_TIMEOUT", `${opts.method} ${opts.url} aborted by caller`));
       };
-      opts.signal.addEventListener('abort', abortListener, { once: true });
+      opts.signal.addEventListener("abort", abortListener, { once: true });
     });
 
     try {
       return await Promise.race([doFetchJson(opts), abortPromise]);
     } finally {
       if (abortListener) {
-        opts.signal.removeEventListener('abort', abortListener);
+        opts.signal.removeEventListener("abort", abortListener);
       }
     }
   }

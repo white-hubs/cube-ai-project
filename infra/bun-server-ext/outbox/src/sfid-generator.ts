@@ -33,9 +33,7 @@ export class OutboxSfidGenerator {
     if (now < this.lastMs) {
       const drift = this.lastMs - now;
       if (drift > 5) {
-        throw new Error(
-          `[OutboxSfidGenerator] Clock regression detected: ${drift}ms. Refusing to generate ID.`,
-        );
+        throw new Error(`[OutboxSfidGenerator] Clock regression detected: ${drift}ms. Refusing to generate ID.`);
       }
       now = this.lastMs;
     }
@@ -55,8 +53,7 @@ export class OutboxSfidGenerator {
     }
 
     const ts = BigInt(now) - SFID_EPOCH;
-    const id =
-      (ts << TIMESTAMP_SHIFT) | (this.nodeId << NODE_SHIFT) | BigInt(this.seq);
+    const id = (ts << TIMESTAMP_SHIFT) | (this.nodeId << NODE_SHIFT) | BigInt(this.seq);
     return id.toString(10);
   }
 }

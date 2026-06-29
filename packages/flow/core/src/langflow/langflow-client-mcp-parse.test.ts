@@ -1,24 +1,25 @@
-import { describe, expect, test } from 'bun:test'
-import { extractMcpServerNamesFromJson } from './langflow-client'
+import { describe, expect, test } from "bun:test";
 
-describe('extractMcpServerNamesFromJson', () => {
-  test('array of { name }', () => {
-    expect(extractMcpServerNamesFromJson([{ name: 'a' }, { name: 'b' }])).toEqual(['a', 'b'])
-  })
+import { extractMcpServerNamesFromJson } from "./langflow-client";
 
-  test('array of strings', () => {
-    expect(extractMcpServerNamesFromJson(['x', 'y'])).toEqual(['x', 'y'])
-  })
+describe("extractMcpServerNamesFromJson", () => {
+  test("array of { name }", () => {
+    expect(extractMcpServerNamesFromJson([{ name: "a" }, { name: "b" }])).toEqual(["a", "b"]);
+  });
 
-  test('{ data: array }', () => {
-    expect(extractMcpServerNamesFromJson({ data: [{ name: 'n' }] })).toEqual(['n'])
-  })
+  test("array of strings", () => {
+    expect(extractMcpServerNamesFromJson(["x", "y"])).toEqual(["x", "y"]);
+  });
 
-  test('{ mcpServers: { k: {} } }', () => {
-    expect(extractMcpServerNamesFromJson({ mcpServers: { foo: {}, bar: {} } })).toEqual(['foo', 'bar'])
-  })
+  test("{ data: array }", () => {
+    expect(extractMcpServerNamesFromJson({ data: [{ name: "n" }] })).toEqual(["n"]);
+  });
 
-  test('{ name } uses server_name fallback', () => {
-    expect(extractMcpServerNamesFromJson([{ server_name: 'z' }])).toEqual(['z'])
-  })
-})
+  test("{ mcpServers: { k: {} } }", () => {
+    expect(extractMcpServerNamesFromJson({ mcpServers: { bar: {}, foo: {} } })).toEqual(["foo", "bar"]);
+  });
+
+  test("{ name } uses server_name fallback", () => {
+    expect(extractMcpServerNamesFromJson([{ server_name: "z" }])).toEqual(["z"]);
+  });
+});

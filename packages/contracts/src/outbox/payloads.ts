@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Discriminated-union payload schemas for outbox_events.payload_json.
@@ -26,14 +26,14 @@ import { z } from 'zod';
 
 // ─── Common ────────────────────────────────────────────────────────────────
 
-const SfidStringSchema = z.string().regex(/^\d{1,20}$/, 'Must be SFID decimal string');
+const SfidStringSchema = z.string().regex(/^\d{1,20}$/u, "Must be SFID decimal string");
 
 /** Common origin fields shared by all usage payloads. */
 const UsageOriginSchema = z.object({
-  tenant:    z.number().int().min(1),
-  userId:    z.string().max(64).nullable().optional(),
   sessionId: SfidStringSchema.nullable().optional(),
-  turnId:    SfidStringSchema.nullable().optional(),
+  tenant: z.number().int().min(1),
+  turnId: SfidStringSchema.nullable().optional(),
+  userId: z.string().max(64).nullable().optional(),
 });
 
 // ─── usage.llm_call ────────────────────────────────────────────────────────
@@ -43,23 +43,23 @@ const UsageOriginSchema = z.object({
  * Ref: outbox-contract.md §3.2
  */
 export const UsageLlmCallPayloadSchema = UsageOriginSchema.extend({
-  schema:       z.literal('usage.llm_call.v1'),
-  provider:     z.enum(['OPENAI', 'ANTHROPIC', 'BEDROCK', 'QWEN', 'DEEPSEEK', 'DOUBAO', 'OTHER']),
-  model:        z.string().max(64),
-  phase:        z.enum(['INITIAL', 'TOOL_LOOP', 'FINAL']).nullable().optional(),
-  inputTokens:  z.number().int().nonnegative(),
-  outputTokens: z.number().int().nonnegative(),
   cachedTokens: z.number().int().nonnegative().nullable().optional(),
-  durationMs:   z.number().int().nonnegative(),
-  outcome:      z.enum(['COMPLETED', 'FAILED']),
-  errorCode:    z
+  durationMs: z.number().int().nonnegative(),
+  errorCode: z
     .string()
     .max(64)
-    .regex(/^[A-Z][A-Z0-9_]*$|^$/)
+    .regex(/^[A-Z][A-Z0-9_]*$|^$/u)
     .nullable()
     .optional(),
+  extensions: z.record(z.string(), z.unknown()).nullable().optional(),
+  inputTokens: z.number().int().nonnegative(),
+  model: z.string().max(64),
   occurredTime: z.number().int().nonnegative(),
-  extensions:   z.record(z.string(), z.unknown()).nullable().optional(),
+  outcome: z.enum(["COMPLETED", "FAILED"]),
+  outputTokens: z.number().int().nonnegative(),
+  phase: z.enum(["INITIAL", "TOOL_LOOP", "FINAL"]).nullable().optional(),
+  provider: z.enum(["OPENAI", "ANTHROPIC", "BEDROCK", "QWEN", "DEEPSEEK", "DOUBAO", "OTHER"]),
+  schema: z.literal("usage.llm_call.v1"),
 });
 export type UsageLlmCallPayload = z.infer<typeof UsageLlmCallPayloadSchema>;
 
@@ -72,43 +72,44 @@ export type UsageLlmCallPayload = z.infer<typeof UsageLlmCallPayloadSchema>;
  * Ref: outbox-contract.md §4.2
  */
 export const UsageToolCallPayloadSchema = UsageOriginSchema.extend({
-  schema:       z.literal('usage.tool_call.v1'),
-  toolCallId:   z.string().max(64).nullable().optional(),
-  toolRef:      z.string().regex(/^(builtin|ext|mcp):/).max(128),
-  toolName:     z.string().max(64),
-  execution:    z.enum(['SYNC', 'ASYNC', 'LONG_RUNNING']),
-  durationMs:   z.number().int().nonnegative(),
-  outcome:      z.enum(['COMPLETED', 'FAILED', 'CANCELLED']),
-  errorCode:    z
+  durationMs: z.number().int().nonnegative(),
+  errorCode: z
     .string()
     .max(64)
-    .regex(/^[A-Z][A-Z0-9_]*$|^$/)
+    .regex(/^[A-Z][A-Z0-9_]*$|^$/u)
     .nullable()
     .optional(),
-  scheduled:    z.boolean().optional(),
-  jobId:        SfidStringSchema.nullable().optional(),
+  execution: z.enum(["SYNC", "ASYNC", "LONG_RUNNING"]),
+  extensions: z.record(z.string(), z.unknown()).nullable().optional(),
+  jobId: SfidStringSchema.nullable().optional(),
   occurredTime: z.number().int().nonnegative(),
-  extensions:   z.record(z.string(), z.unknown()).nullable().optional(),
+  outcome: z.enum(["COMPLETED", "FAILED", "CANCELLED"]),
+  scheduled: z.boolean().optional(),
+  schema: z.literal("usage.tool_call.v1"),
+  toolCallId: z.string().max(64).nullable().optional(),
+  toolName: z.string().max(64),
+  toolRef: z
+    .string()
+    .regex(/^(builtin|ext|mcp):/u)
+    .max(128),
 });
 export type UsageToolCallPayload = z.infer<typeof UsageToolCallPayloadSchema>;
 
 /** Strict schema with cross-field rules (for emit-time validation). */
-export const UsageToolCallPayloadStrictSchema = UsageToolCallPayloadSchema.superRefine(
-  (data, ctx) => {
-    if (data.execution === 'LONG_RUNNING' && data.outcome === 'COMPLETED' && !data.jobId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'jobId is required when execution=LONG_RUNNING and outcome=COMPLETED',
-      });
-    }
-    if (data.outcome === 'FAILED' && !data.errorCode) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'errorCode is required when outcome=FAILED',
-      });
-    }
-  },
-);
+export const UsageToolCallPayloadStrictSchema = UsageToolCallPayloadSchema.superRefine((data, ctx) => {
+  if (data.execution === "LONG_RUNNING" && data.outcome === "COMPLETED" && !data.jobId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "jobId is required when execution=LONG_RUNNING and outcome=COMPLETED",
+    });
+  }
+  if (data.outcome === "FAILED" && !data.errorCode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "errorCode is required when outcome=FAILED",
+    });
+  }
+});
 
 // ─── usage.job_duration ────────────────────────────────────────────────────
 
@@ -120,50 +121,51 @@ export const UsageToolCallPayloadStrictSchema = UsageToolCallPayloadSchema.super
  * Ref: outbox-contract.md §5.2
  */
 export const UsageJobDurationPayloadSchema = UsageOriginSchema.extend({
-  schema:           z.literal('usage.job_duration.v1'),
-  jobId:            SfidStringSchema,
-  toolRef:          z.string().regex(/^(builtin|ext|mcp):/).max(128),
-  toolName:         z.string().max(64),
-  totalDurationMs:  z.number().int().nonnegative(),
-  waitDurationMs:   z.number().int().nonnegative(),
-  execDurationMs:   z.number().int().nonnegative(),
-  attempts:         z.number().int().min(1),
-  finalStatus:      z.enum(['COMPLETED', 'FAILED', 'CANCELLED']),
-  errorCode:        z
+  attempts: z.number().int().min(1),
+  errorCode: z
     .string()
     .max(64)
-    .regex(/^[A-Z][A-Z0-9_]*$|^$/)
+    .regex(/^[A-Z][A-Z0-9_]*$|^$/u)
     .nullable()
     .optional(),
-  occurredTime:     z.number().int().nonnegative(),
-  extensions:       z.record(z.string(), z.unknown()).nullable().optional(),
+  execDurationMs: z.number().int().nonnegative(),
+  extensions: z.record(z.string(), z.unknown()).nullable().optional(),
+  finalStatus: z.enum(["COMPLETED", "FAILED", "CANCELLED"]),
+  jobId: SfidStringSchema,
+  occurredTime: z.number().int().nonnegative(),
+  schema: z.literal("usage.job_duration.v1"),
+  toolName: z.string().max(64),
+  toolRef: z
+    .string()
+    .regex(/^(builtin|ext|mcp):/u)
+    .max(128),
+  totalDurationMs: z.number().int().nonnegative(),
+  waitDurationMs: z.number().int().nonnegative(),
 });
 export type UsageJobDurationPayload = z.infer<typeof UsageJobDurationPayloadSchema>;
 
 /** Strict schema with cross-field rules (for emit-time validation). */
-export const UsageJobDurationPayloadStrictSchema = UsageJobDurationPayloadSchema.superRefine(
-  (data, ctx) => {
-    if (data.finalStatus === 'FAILED' && !data.errorCode) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'errorCode is required when finalStatus=FAILED',
-      });
-    }
-  },
-);
+export const UsageJobDurationPayloadStrictSchema = UsageJobDurationPayloadSchema.superRefine((data, ctx) => {
+  if (data.finalStatus === "FAILED" && !data.errorCode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "errorCode is required when finalStatus=FAILED",
+    });
+  }
+});
 
 // ─── grant.approve ─────────────────────────────────────────────────────────
 
 /** Non-usage outbox payload: grant approval event. */
 export const GrantApprovePayloadSchema = z.object({
-  schema:         z.literal('grant.approve.v1'),
-  grantId:        SfidStringSchema,
+  decision: z.enum(["APPROVED", "DENIED"]),
+  grantId: SfidStringSchema,
   grantRequestId: SfidStringSchema,
-  tenant:         z.number().int().min(1),
-  userId:         z.string().max(64).nullable(),
-  toolRef:        z.string().max(128),
-  decision:       z.enum(['APPROVED', 'DENIED']),
-  occurredTime:   z.number().int().nonnegative(),
+  occurredTime: z.number().int().nonnegative(),
+  schema: z.literal("grant.approve.v1"),
+  tenant: z.number().int().min(1),
+  toolRef: z.string().max(128),
+  userId: z.string().max(64).nullable(),
 });
 export type GrantApprovePayload = z.infer<typeof GrantApprovePayloadSchema>;
 
@@ -171,18 +173,18 @@ export type GrantApprovePayload = z.infer<typeof GrantApprovePayloadSchema>;
 
 /** Non-usage outbox payload: session end event. */
 export const SessionEndPayloadSchema = z.object({
-  schema:       z.literal('session.end.v1'),
-  sessionId:    SfidStringSchema,
-  tenant:       z.number().int().min(1),
-  userId:       z.string().max(64).nullable(),
-  reason:       z.enum(['USER_CLOSED', 'ADMIN_ARCHIVED', 'SYSTEM_TIMEOUT', 'ERROR']),
   occurredTime: z.number().int().nonnegative(),
+  reason: z.enum(["USER_CLOSED", "ADMIN_ARCHIVED", "SYSTEM_TIMEOUT", "ERROR"]),
+  schema: z.literal("session.end.v1"),
+  sessionId: SfidStringSchema,
+  tenant: z.number().int().min(1),
+  userId: z.string().max(64).nullable(),
 });
 export type SessionEndPayload = z.infer<typeof SessionEndPayloadSchema>;
 
 // ─── Discriminated union (all known outbox payload types) ─────────────────
 
-export const OutboxPayloadSchema = z.discriminatedUnion('schema', [
+export const OutboxPayloadSchema = z.discriminatedUnion("schema", [
   UsageLlmCallPayloadSchema,
   UsageToolCallPayloadSchema,
   UsageJobDurationPayloadSchema,

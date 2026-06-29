@@ -1,7 +1,8 @@
-import type { Pool, PoolConnection } from 'mysql2/promise';
-import type { AppendOutboxInput } from '@cube-ai/contracts';
-import { OutboxEventRowSchema, systemAuditFields } from '@cube-ai/contracts';
-import { OutboxSfidGenerator } from './sfid-generator';
+import { type Pool, type PoolConnection } from "mysql2/promise";
+
+import { type AppendOutboxInput, OutboxEventRowSchema, systemAuditFields } from "@cube-ai/contracts";
+
+import { OutboxSfidGenerator } from "./sfid-generator";
 
 /**
  * Opaque transaction context: must hold an open `mysql2` connection
@@ -10,7 +11,7 @@ import { OutboxSfidGenerator } from './sfid-generator';
  * ref: docs/technical-design/phase-1/P1-03-data-outbox.md §3.5
  */
 export interface TransactionContext {
-  readonly _brand: 'TransactionContext';
+  readonly _brand: "TransactionContext";
   readonly mysqlConnection: PoolConnection;
 }
 
@@ -24,7 +25,7 @@ export interface OutboxWriter {
 }
 
 /** DI token — Symbol.for('agentic.outbox.writer') */
-export const OUTBOX_WRITER_TOKEN = Symbol.for('agentic.outbox.writer');
+export const OUTBOX_WRITER_TOKEN = Symbol.for("agentic.outbox.writer");
 
 export interface OutboxWriterDeps {
   /** Defaults to bundled {@link OutboxSfidGenerator} when omitted (ADR-0014). */
@@ -42,16 +43,14 @@ export interface OutboxWriterDeps {
 export class NotImplementedError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'NotImplementedError';
+    this.name = "NotImplementedError";
   }
 }
 
-function extractBorrowedConnection(
-  tx: TransactionContext | null | undefined,
-): PoolConnection | null {
+function extractBorrowedConnection(tx: TransactionContext | null | undefined): PoolConnection | null {
   const raw = tx as unknown as { mysqlConnection?: PoolConnection | null } | null;
   const c = raw?.mysqlConnection;
-  if (c && typeof c.query === 'function') {
+  if (c && typeof c.query === "function") {
     return c;
   }
   return null;
@@ -76,7 +75,7 @@ export class OutboxWriterImpl implements OutboxWriter {
 
   /** 同 `append`，仅显式传入事务中的 `PoolConnection`（不写 BEGIN/COMMIT）。 */
   async appendInTx(conn: PoolConnection, row: AppendOutboxInput): Promise<void> {
-    await this.append({ _brand: 'TransactionContext', mysqlConnection: conn }, row);
+    await this.append({ _brand: "TransactionContext", mysqlConnection: conn }, row);
   }
 
   async append(tx: TransactionContext, row: AppendOutboxInput): Promise<void> {
@@ -89,7 +88,7 @@ export class OutboxWriterImpl implements OutboxWriter {
     const pool = this.pool;
     if (!pool) {
       throw new Error(
-        'OutboxWriterImpl.append: TransactionContext.mysqlConnection is required when no pool was configured (pass pool in OutboxWriterDeps for standalone writes)',
+        "OutboxWriterImpl.append: TransactionContext.mysqlConnection is required when no pool was configured (pass pool in OutboxWriterDeps for standalone writes)",
       );
     }
 
@@ -115,19 +114,16 @@ export class OutboxWriterImpl implements OutboxWriter {
       ...row,
       id,
       ...audit,
-      status: 'PENDING' as const,
-      attempts:     0,
-      lastError:    null,
-      publishTime:  null,
+      status: "PENDING" as const,
+      attempts: 0,
+      lastError: null,
+      publishTime: null,
       nextAttemptTime: null,
     };
 
     OutboxEventRowSchema.parse(partial);
 
-    const payloadJson =
-      typeof row.payloadJson === 'string'
-        ? row.payloadJson
-        : JSON.stringify(row.payloadJson);
+    const payloadJson = typeof row.payloadJson === "string" ? row.payloadJson : JSON.stringify(row.payloadJson);
 
     const sql = `
       INSERT INTO outbox_events (

@@ -7,10 +7,8 @@
  */
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import {
-  SDK_PUBLISH_PACKAGES,
-  type SdkPublishPackagePath,
-} from "./sdk-publish-manifest";
+
+import { SDK_PUBLISH_PACKAGES, type SdkPublishPackagePath } from "./sdk-publish-manifest";
 
 const BACKUP_ROOT = ".tmp/publish-manifest-backup";
 
@@ -31,9 +29,7 @@ function writeJson(path: string, value: JsonObject): void {
 }
 
 function asObject(value: unknown): JsonObject | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonObject)
-    : undefined;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : undefined;
 }
 
 function collectWorkspacePackageJsonPaths(root: string): string[] {
@@ -61,7 +57,9 @@ export function buildPublishResolveContext(root: string): PublishResolveContext 
   const rootCatalog = asObject(rootPkg.catalog);
   if (rootCatalog) {
     for (const [key, value] of Object.entries(rootCatalog)) {
-      if (typeof value === "string") catalog.set(key, value);
+      if (typeof value === "string") {
+        catalog.set(key, value);
+      }
     }
   }
 
@@ -69,9 +67,13 @@ export function buildPublishResolveContext(root: string): PublishResolveContext 
   if (nestedCatalogs) {
     for (const group of Object.values(nestedCatalogs)) {
       const entries = asObject(group);
-      if (!entries) continue;
+      if (!entries) {
+        continue;
+      }
       for (const [key, value] of Object.entries(entries)) {
-        if (typeof value === "string") catalog.set(key, value);
+        if (typeof value === "string") {
+          catalog.set(key, value);
+        }
       }
     }
   }
@@ -85,15 +87,13 @@ export function buildPublishResolveContext(root: string): PublishResolveContext 
     }
   }
 
-  return { root, workspaceVersions, catalog };
+  return { catalog, root, workspaceVersions };
 }
 
-function resolveDependencyVersion(
-  depName: string,
-  spec: unknown,
-  ctx: PublishResolveContext,
-): string | undefined {
-  if (typeof spec !== "string") return undefined;
+function resolveDependencyVersion(depName: string, spec: unknown, ctx: PublishResolveContext): string | undefined {
+  if (typeof spec !== "string") {
+    return undefined;
+  }
 
   if (spec.startsWith("workspace:")) {
     const version = ctx.workspaceVersions.get(depName);
@@ -115,13 +115,11 @@ function resolveDependencyVersion(
   return spec;
 }
 
-function resolveDependencyBlock(
-  block: unknown,
-  ctx: PublishResolveContext,
-  label: string,
-): JsonObject | undefined {
+function resolveDependencyBlock(block: unknown, ctx: PublishResolveContext, label: string): JsonObject | undefined {
   const deps = asObject(block);
-  if (!deps) return undefined;
+  if (!deps) {
+    return undefined;
+  }
 
   const resolved: JsonObject = {};
   for (const [depName, spec] of Object.entries(deps)) {
@@ -136,7 +134,9 @@ function resolveDependencyBlock(
 
 export function mergePublishConfig(pkg: JsonObject): JsonObject {
   const publishConfig = asObject(pkg.publishConfig);
-  if (!publishConfig) return { ...pkg };
+  if (!publishConfig) {
+    return { ...pkg };
+  }
 
   const merged: JsonObject = { ...pkg };
   for (const field of ["main", "types", "module", "browser", "exports"] as const) {
@@ -147,32 +147,30 @@ export function mergePublishConfig(pkg: JsonObject): JsonObject {
   return merged;
 }
 
-export function preparePackageJsonForPublish(
-  pkgJson: JsonObject,
-  ctx: PublishResolveContext,
-): JsonObject {
+export function preparePackageJsonForPublish(pkgJson: JsonObject, ctx: PublishResolveContext): JsonObject {
   const merged = mergePublishConfig(pkgJson);
   const result: JsonObject = { ...merged };
 
   const dependencies = resolveDependencyBlock(merged.dependencies, ctx, "dependencies");
-  if (dependencies) result.dependencies = dependencies;
-  else delete result.dependencies;
+  if (dependencies) {
+    result.dependencies = dependencies;
+  } else {
+    delete result.dependencies;
+  }
 
-  const peerDependencies = resolveDependencyBlock(
-    merged.peerDependencies,
-    ctx,
-    "peerDependencies",
-  );
-  if (peerDependencies) result.peerDependencies = peerDependencies;
-  else delete result.peerDependencies;
+  const peerDependencies = resolveDependencyBlock(merged.peerDependencies, ctx, "peerDependencies");
+  if (peerDependencies) {
+    result.peerDependencies = peerDependencies;
+  } else {
+    delete result.peerDependencies;
+  }
 
-  const optionalDependencies = resolveDependencyBlock(
-    merged.optionalDependencies,
-    ctx,
-    "optionalDependencies",
-  );
-  if (optionalDependencies) result.optionalDependencies = optionalDependencies;
-  else delete result.optionalDependencies;
+  const optionalDependencies = resolveDependencyBlock(merged.optionalDependencies, ctx, "optionalDependencies");
+  if (optionalDependencies) {
+    result.optionalDependencies = optionalDependencies;
+  } else {
+    delete result.optionalDependencies;
+  }
 
   delete result.devDependencies;
   delete result.publishConfig;
@@ -197,7 +195,9 @@ function applyPackage(root: string, relPkgPath: SdkPublishPackagePath, ctx: Publ
 
 function restorePackage(root: string, relPkgPath: string): boolean {
   const backup = backupPath(root, relPkgPath);
-  if (!existsSync(backup)) return false;
+  if (!existsSync(backup)) {
+    return false;
+  }
   const pkgJsonPath = join(root, relPkgPath, "package.json");
   writeFileSync(pkgJsonPath, readFileSync(backup, "utf8"), "utf8");
   rmSync(backup, { force: true });
@@ -217,7 +217,7 @@ export function restoreAllSdkPackages(root: string = process.cwd()): void {
   }
   const backupRoot = join(root, BACKUP_ROOT);
   if (existsSync(backupRoot)) {
-    rmSync(backupRoot, { recursive: true, force: true });
+    rmSync(backupRoot, { force: true, recursive: true });
   }
 }
 
@@ -227,11 +227,17 @@ export interface PreparedManifestValidationResult {
 }
 
 function collectPathStrings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(collectPathStrings);
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectPathStrings(entry));
+  }
   const obj = asObject(value);
-  if (!obj) return [];
-  return Object.values(obj).flatMap(collectPathStrings);
+  if (!obj) {
+    return [];
+  }
+  return Object.values(obj).flatMap((entry) => collectPathStrings(entry));
 }
 
 export function validatePreparedManifest(pkgJson: JsonObject): PreparedManifestValidationResult {
@@ -248,9 +254,13 @@ export function validatePreparedManifest(pkgJson: JsonObject): PreparedManifestV
   const depBlocks = ["dependencies", "peerDependencies", "optionalDependencies"] as const;
   for (const block of depBlocks) {
     const deps = asObject(pkgJson[block]);
-    if (!deps) continue;
+    if (!deps) {
+      continue;
+    }
     for (const [dep, spec] of Object.entries(deps)) {
-      if (typeof spec !== "string") continue;
+      if (typeof spec !== "string") {
+        continue;
+      }
       if (spec.startsWith("workspace:") || spec.includes("catalog:")) {
         errors.push(`${name} ${block}.${dep} still has workspace/catalog spec: ${spec}`);
       }
@@ -264,8 +274,7 @@ export function validatePreparedManifest(pkgJson: JsonObject): PreparedManifestV
   ].filter((path): path is string => Boolean(path));
 
   for (const path of pathStrings) {
-    const pointsToSrc =
-      path.includes("/src/") || (path.endsWith(".ts") && !path.endsWith(".d.ts"));
+    const pointsToSrc = path.includes("/src/") || (path.endsWith(".ts") && !path.endsWith(".d.ts"));
     if (pointsToSrc) {
       errors.push(`${name} entry still points to source: ${path}`);
     }
@@ -274,7 +283,7 @@ export function validatePreparedManifest(pkgJson: JsonObject): PreparedManifestV
     }
   }
 
-  return { ok: errors.length === 0, errors };
+  return { errors, ok: errors.length === 0 };
 }
 
 function parseCliArgs(argv: string[]): { command: string; pkgPath?: string } {
@@ -284,35 +293,52 @@ function parseCliArgs(argv: string[]): { command: string; pkgPath?: string } {
   return { command: argv[0], pkgPath: argv[1] };
 }
 
+function runCommand(root: string, command: string): void {
+  if (command === "apply-all") {
+    applyAllSdkPackages(root);
+    console.log("[prepare-publish] applied manifest rewrite for SDK packages");
+    return;
+  }
+  if (command === "restore-all") {
+    restoreAllSdkPackages(root);
+    console.log("[prepare-publish] restored original package.json files");
+    return;
+  }
+  if (command === "validate-all") {
+    validateAllSdkPackages(root);
+    console.log("[prepare-publish] prepared manifests OK");
+    return;
+  }
+  throw new Error(`unknown command: ${command}`);
+}
+
+function validateAllSdkPackages(root: string): void {
+  const ctx = buildPublishResolveContext(root);
+  const errors: string[] = [];
+  for (const relPkgPath of SDK_PUBLISH_PACKAGES) {
+    const original = readJson(join(root, relPkgPath, "package.json"));
+    const prepared = preparePackageJsonForPublish(original, ctx);
+    const result = validatePreparedManifest(prepared);
+    if (!result.ok) {
+      errors.push(...result.errors);
+    }
+  }
+  if (errors.length === 0) {
+    return;
+  }
+  console.error("[prepare-publish] validation failed:");
+  for (const error of errors) {
+    console.error(`  - ${error}`);
+  }
+  process.exit(1);
+}
+
 if (import.meta.main) {
   const root = process.cwd();
   const { command } = parseCliArgs(Bun.argv.slice(2));
 
   try {
-    if (command === "apply-all") {
-      applyAllSdkPackages(root);
-      console.log("[prepare-publish] applied manifest rewrite for SDK packages");
-    } else if (command === "restore-all") {
-      restoreAllSdkPackages(root);
-      console.log("[prepare-publish] restored original package.json files");
-    } else if (command === "validate-all") {
-      const ctx = buildPublishResolveContext(root);
-      const errors: string[] = [];
-      for (const relPkgPath of SDK_PUBLISH_PACKAGES) {
-        const original = readJson(join(root, relPkgPath, "package.json"));
-        const prepared = preparePackageJsonForPublish(original, ctx);
-        const result = validatePreparedManifest(prepared);
-        if (!result.ok) errors.push(...result.errors);
-      }
-      if (errors.length > 0) {
-        console.error("[prepare-publish] validation failed:");
-        for (const error of errors) console.error(`  - ${error}`);
-        process.exit(1);
-      }
-      console.log("[prepare-publish] prepared manifests OK");
-    } else {
-      throw new Error(`unknown command: ${command}`);
-    }
+    runCommand(root, command);
   } catch (error) {
     console.error(`[prepare-publish] ${(error as Error).message}`);
     process.exit(1);
