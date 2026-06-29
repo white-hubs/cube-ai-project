@@ -21,5 +21,5 @@ export {
   type JobQueueName,
   JobPrincipalSnapshotSchema,
   type JobPrincipalSnapshot,
-} from './job';
-export * from './job-result';
+} from "./job";
+export * from "./job-result";

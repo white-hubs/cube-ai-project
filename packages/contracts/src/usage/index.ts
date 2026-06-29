@@ -1,1 +1,1 @@
-export * from './event-row';
+export * from "./event-row";

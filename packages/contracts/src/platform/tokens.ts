@@ -11,26 +11,14 @@
  * ref: docs/technical-design/plans/2026-05-08-platform-adapters-ghcloud.md
  */
 
-export const AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN = Symbol.for(
-  'agentic.adapter.platform.flowInvoker',
-);
+export const AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN = Symbol.for("agentic.adapter.platform.flowInvoker");
 
-export const AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN = Symbol.for(
-  'agentic.adapter.platform.flowCatalog',
-);
+export const AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN = Symbol.for("agentic.adapter.platform.flowCatalog");
 
-export const AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN = Symbol.for(
-  'agentic.adapter.platform.knowledgeQuery',
-);
+export const AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN = Symbol.for("agentic.adapter.platform.knowledgeQuery");
 
-export const AGENTIC_PLATFORM_LLM_CATALOG_TOKEN = Symbol.for(
-  'agentic.adapter.platform.llmCatalog',
-);
+export const AGENTIC_PLATFORM_LLM_CATALOG_TOKEN = Symbol.for("agentic.adapter.platform.llmCatalog");
 
-export const AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN = Symbol.for(
-  'agentic.adapter.platform.llmProvider',
-);
+export const AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN = Symbol.for("agentic.adapter.platform.llmProvider");
 
-export const LLM_PROVIDER_ICON_STORE_TOKEN = Symbol.for(
-  'agentic.adapter.platform.llmProviderIconStore',
-);
+export const LLM_PROVIDER_ICON_STORE_TOKEN = Symbol.for("agentic.adapter.platform.llmProviderIconStore");

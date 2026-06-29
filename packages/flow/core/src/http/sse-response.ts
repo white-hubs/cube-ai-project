@@ -13,19 +13,21 @@ export function createSseResponse(
   init?: { status?: number; headers?: Record<string, string> },
 ): Response {
   const headers = new Headers({
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "Content-Type": "text/event-stream; charset=utf-8",
     /** 反向代理（如 nginx）下减少缓冲，便于流式到达客户端 */
-    'X-Accel-Buffering': 'no',
-  })
+    "X-Accel-Buffering": "no",
+  });
   if (init?.headers) {
     for (const [k, v] of Object.entries(init.headers)) {
-      if (v) headers.set(k, v)
+      if (v) {
+        headers.set(k, v);
+      }
     }
   }
   return new Response(stream, {
-    status: init?.status ?? 200,
     headers,
-  })
+    status: init?.status ?? 200,
+  });
 }

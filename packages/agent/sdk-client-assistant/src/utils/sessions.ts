@@ -2,22 +2,16 @@
  * Session list helpers (UI 决策；Q12 用户明确要求进 SDK utils)。
  * Ported from ghcloud `assistant-chat.utils.ts`.
  */
-import type {
-  AssistantSessionSummary,
-  GroupedSessions,
-} from '../types';
+import type { AssistantSessionSummary, GroupedSessions } from "../types";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function groupSessionsByDate(
-  sessions: AssistantSessionSummary[],
-  now: number = Date.now(),
-): GroupedSessions {
+export function groupSessionsByDate(sessions: AssistantSessionSummary[], now: number = Date.now()): GroupedSessions {
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   const todayStart = startOfToday.getTime();
   const yesterdayStart = todayStart - DAY_MS;
-  const groups: GroupedSessions = { today: [], yesterday: [], earlier: [] };
+  const groups: GroupedSessions = { earlier: [], today: [], yesterday: [] };
   for (const session of sessions) {
     if (session.updatedAt >= todayStart) {
       groups.today.push(session);
@@ -32,12 +26,11 @@ export function groupSessionsByDate(
   return groups;
 }
 
-export function filterSessionsByKeyword(
-  sessions: AssistantSessionSummary[],
-  keyword: string,
-): AssistantSessionSummary[] {
+export function filterSessionsByKeyword(sessions: AssistantSessionSummary[], keyword: string): AssistantSessionSummary[] {
   const normalized = keyword.trim().toLowerCase();
-  if (!normalized) return sessions;
+  if (!normalized) {
+    return sessions;
+  }
   return sessions.filter((s) => s.title.toLowerCase().includes(normalized));
 }
 
@@ -46,8 +39,14 @@ export function filterSessionsByKeyword(
  * 可被 `ProvideAssistantOptions.isPlaceholderTitle` 覆盖。
  */
 export function isPlaceholderSessionTitle(title: string): boolean {
-  if (title === '') return true;
-  if (/^新会话/.test(title)) return true;
-  if (/^未命名/.test(title)) return true;
+  if (title === "") {
+    return true;
+  }
+  if (title.startsWith("新会话")) {
+    return true;
+  }
+  if (title.startsWith("未命名")) {
+    return true;
+  }
   return false;
 }

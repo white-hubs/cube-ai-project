@@ -1,38 +1,30 @@
-import type { Application } from '@dangao/bun-server';
-import { ExceptionFilterRegistry } from '@dangao/bun-server';
-import { EngineAssembler } from './assembler/engine-assembler';
-import { agenticEngineExceptionFilter } from './infra/errors/agentic-engine-exception.filter';
-import { DescriptorLoader } from './bc/descriptor/descriptor-loader';
-import { DescriptorRegistryService } from './bc/descriptor/descriptor-registry.service';
-import { McpToolRegistrationWorker } from './bc/tools/mcp-tool-registration.worker';
-import { DescriptorMcpModule } from './bc/descriptor-mcp/descriptor-mcp.module';
-import { buildManagementToolDescriptors } from './bc/tools/handlers/descriptor-ops';
-import {
-  traceIdMiddleware,
-  createErrorResponseMiddleware,
-} from './infra/errors';
-import { oauth2IntrospectionMiddleware } from './bc/auth/oauth2-introspection.middleware';
-import { MetricsRegistry } from './infra/observability/metrics-registry';
-import { LoggerFactory } from './infra/observability/logger.factory';
-import { createHttpMetricsMiddleware } from './infra/observability/http-metrics.middleware';
-import { NacosSecretsLoader } from './infra/secrets/nacos-secrets.loader';
-import { TenantContextService } from './infra/tenant-guard/tenant-context.service';
-import { createTenantContextMiddleware } from './infra/tenant-guard/tenant-context.middleware';
-import { createVersionNegotiationMiddleware } from './infra/api/version-negotiation.middleware';
-import { RedisIdempotencyStore } from './infra/idempotency/redis-idempotency.store';
-import { createIdempotencyMiddleware } from './infra/idempotency/idempotency.middleware';
-import { RedisRateLimiter } from './infra/rate-limit/redis-rate-limiter';
-import { createRateLimitMiddleware } from './infra/rate-limit/rate-limit.middleware';
-import { registerLifecycleHooks } from './infra/lifecycle/lifecycle-registrations';
+import type { Application } from "@dangao/bun-server";
+import { ExceptionFilterRegistry } from "@dangao/bun-server";
+
+import { EngineAssembler } from "./assembler/engine-assembler";
+import { oauth2IntrospectionMiddleware } from "./bc/auth/oauth2-introspection.middleware";
+import { DescriptorMcpModule } from "./bc/descriptor-mcp/descriptor-mcp.module";
+import { DescriptorLoader } from "./bc/descriptor/descriptor-loader";
+import { DescriptorRegistryService } from "./bc/descriptor/descriptor-registry.service";
+import { buildManagementToolDescriptors } from "./bc/tools/handlers/descriptor-ops";
+import { McpToolRegistrationWorker } from "./bc/tools/mcp-tool-registration.worker";
+import { createVersionNegotiationMiddleware } from "./infra/api/version-negotiation.middleware";
+import { traceIdMiddleware, createErrorResponseMiddleware } from "./infra/errors";
+import { agenticEngineExceptionFilter } from "./infra/errors/agentic-engine-exception.filter";
+import { createNoisePathMiddleware } from "./infra/http/noise-path.middleware";
+import { createIdempotencyMiddleware } from "./infra/idempotency/idempotency.middleware";
+import { RedisIdempotencyStore } from "./infra/idempotency/redis-idempotency.store";
+import { registerLifecycleHooks } from "./infra/lifecycle/lifecycle-registrations";
+import { createHttpMetricsMiddleware } from "./infra/observability/http-metrics.middleware";
+import { LoggerFactory } from "./infra/observability/logger.factory";
+import { MetricsRegistry } from "./infra/observability/metrics-registry";
+import { createRateLimitMiddleware } from "./infra/rate-limit/rate-limit.middleware";
+import { RedisRateLimiter } from "./infra/rate-limit/redis-rate-limiter";
+import { NacosSecretsLoader } from "./infra/secrets/nacos-secrets.loader";
+import { createTenantContextMiddleware } from "./infra/tenant-guard/tenant-context.middleware";
+import { TenantContextService } from "./infra/tenant-guard/tenant-context.service";
 
 type DiContainer = { resolve: (token: unknown) => unknown };
-
-/** Compose `VAR=` injects ""; treat as unset so tachu capability routes stay valid. */
-function resolveNonEmptyEnv(raw: string | undefined, fallback: string): string {
-  if (raw === undefined) return fallback;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : fallback;
-}
 
 /** Empty compose env must not collapse token-bucket to capacity/refill 0 (always 429). */
 function parsePositiveRateLimitEnv(raw: string | undefined, fallback: number): number {
@@ -58,11 +50,7 @@ function registerManagementToolDescriptors(container: DiContainer): void {
     try {
       registry.register(descriptor);
     } catch (e) {
-      console.warn(
-        `[bootstrap] skip management descriptor ${descriptor.name}: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
+      console.warn(`[bootstrap] skip management descriptor ${descriptor.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
@@ -79,11 +67,7 @@ function triggerMcpToolRegistration(container: DiContainer, reason: string): voi
   const worker = resolveMcpRegistrationWorker(container);
   if (!worker) return;
   worker.runOnce().catch((e) => {
-    console.warn(
-      `[bootstrap] MCP descriptor registration failed reason=${reason}: ${
-        e instanceof Error ? e.message : String(e)
-      }`,
-    );
+    console.warn(`[bootstrap] MCP descriptor registration failed reason=${reason}: ${e instanceof Error ? e.message : String(e)}`);
   });
 }
 
@@ -92,13 +76,9 @@ function startMcpToolRegistrationWorker(container: DiContainer): void {
   if (!worker) return;
   try {
     worker.start();
-    console.info('[bootstrap] MCP descriptor registration worker started');
+    console.info("[bootstrap] MCP descriptor registration worker started");
   } catch (e) {
-    console.warn(
-      `[bootstrap] MCP descriptor registration worker start failed: ${
-        e instanceof Error ? e.message : String(e)
-      }`,
-    );
+    console.warn(`[bootstrap] MCP descriptor registration worker start failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -112,19 +92,9 @@ export interface BootstrapOptions {
   hostname?: string;
 }
 
-export async function bootstrap(
-  options: BootstrapOptions = {},
-): Promise<Application> {
-  const port =
-    options.port ??
-    Number(
-      Bun.env.AGENTIC_ENGINE_PORT ?? process.env.AGENTIC_ENGINE_PORT ?? 3000,
-    );
-  const hostname =
-    options.hostname ??
-    Bun.env.AGENTIC_ENGINE_HOSTNAME ??
-    process.env.AGENTIC_ENGINE_HOSTNAME ??
-    '0.0.0.0';
+export async function bootstrap(options: BootstrapOptions = {}): Promise<Application> {
+  const port = options.port ?? Number(Bun.env.AGENTIC_ENGINE_PORT ?? process.env.AGENTIC_ENGINE_PORT ?? 3000);
+  const hostname = options.hostname ?? Bun.env.AGENTIC_ENGINE_HOSTNAME ?? process.env.AGENTIC_ENGINE_HOSTNAME ?? "0.0.0.0";
 
   const assembler = new EngineAssembler({ port, hostname });
   const app = assembler.assemble();
@@ -135,25 +105,21 @@ export async function bootstrap(
   ExceptionFilterRegistry.getInstance().register(agenticEngineExceptionFilter);
 
   // P3-01: Nacos secrets fail-fast before any HTTP serving.
-  const secretsLoader = container.resolve(
-    NacosSecretsLoader,
-  ) as NacosSecretsLoader;
+  const secretsLoader = container.resolve(NacosSecretsLoader) as NacosSecretsLoader;
   await secretsLoader.load();
 
   // P3-11: Descriptor loader (Nacos + local dir) — register tools before requests.
-  const descriptorLoader = container.resolve(
-    DescriptorLoader,
-  ) as DescriptorLoader;
+  const descriptorLoader = container.resolve(DescriptorLoader) as DescriptorLoader;
   await descriptorLoader.start();
   registerManagementToolDescriptors(container);
-  descriptorLoader.reloadEvents.addEventListener('descriptor.reload', () => {
+  descriptorLoader.reloadEvents.addEventListener("descriptor.reload", () => {
     registerManagementToolDescriptors(container);
-    triggerMcpToolRegistration(container, 'descriptor.reload');
+    triggerMcpToolRegistration(container, "descriptor.reload");
   });
 
   const metricsRegistry = container.resolve(MetricsRegistry) as MetricsRegistry;
   const loggerFactory = container.resolve(LoggerFactory) as LoggerFactory;
-  const errLog = loggerFactory.getLogger('agentic.engine.server.http.errors');
+  const errLog = loggerFactory.getLogger("agentic.engine.server.http.errors");
 
   // Middleware chain (ADR-0019 fixed order + Phase-4 derivatives):
   //   1.   traceId             — outermost; must run before everything else (P1-02)
@@ -192,6 +158,7 @@ export async function bootstrap(
   //      docs/technical-design/phase-4/T11-version-compat-matrix.md
   //      docs/technical-design/phase-4/T13-idempotency-rate-limit.md (TBD)
   app.use(traceIdMiddleware);
+  app.use(createNoisePathMiddleware());
   app.use(createVersionNegotiationMiddleware());
   app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(oauth2IntrospectionMiddleware);
@@ -201,13 +168,11 @@ export async function bootstrap(
   app.use(createTenantContextMiddleware(tenantCtx));
   const rateLimiter = container.resolve(RedisRateLimiter) as RedisRateLimiter;
   const rateLimitCapacity = parsePositiveRateLimitEnv(
-    Bun.env.AGENTIC_ENGINE_RATE_LIMIT_CAPACITY ??
-      process.env.AGENTIC_ENGINE_RATE_LIMIT_CAPACITY,
+    Bun.env.AGENTIC_ENGINE_RATE_LIMIT_CAPACITY ?? process.env.AGENTIC_ENGINE_RATE_LIMIT_CAPACITY,
     100,
   );
   const rateLimitRefill = parsePositiveRateLimitEnv(
-    Bun.env.AGENTIC_ENGINE_RATE_LIMIT_REFILL_PER_SECOND ??
-      process.env.AGENTIC_ENGINE_RATE_LIMIT_REFILL_PER_SECOND,
+    Bun.env.AGENTIC_ENGINE_RATE_LIMIT_REFILL_PER_SECOND ?? process.env.AGENTIC_ENGINE_RATE_LIMIT_REFILL_PER_SECOND,
     10,
   );
   app.use(

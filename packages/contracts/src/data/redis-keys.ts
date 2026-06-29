@@ -16,18 +16,16 @@
  */
 
 /** The mandatory root prefix for ALL engine Redis keys. */
-export const REDIS_KEY_ROOT = 'agentic:engine' as const;
+export const REDIS_KEY_ROOT = "agentic:engine" as const;
 
 // ─── Auth domain ───────────────────────────────────────────────────────────
 
 export const RedisKeys = {
   /** `agentic:engine:auth:introspect:{sha256}` — Token introspection cache (60s TTL) */
-  authIntrospect: (sha256: string) =>
-    `${REDIS_KEY_ROOT}:auth:introspect:${sha256}`,
+  authIntrospect: (sha256: string) => `${REDIS_KEY_ROOT}:auth:introspect:${sha256}`,
 
   /** `agentic:engine:auth:introspect:fail:{sha256}` — Negative introspection cache (10s TTL) */
-  authIntrospectFail: (sha256: string) =>
-    `${REDIS_KEY_ROOT}:auth:introspect:fail:${sha256}`,
+  authIntrospectFail: (sha256: string) => `${REDIS_KEY_ROOT}:auth:introspect:fail:${sha256}`,
 
   /** `agentic:engine:auth:jwks:v1` — JWKS cache (6h TTL) */
   authJwks: () => `${REDIS_KEY_ROOT}:auth:jwks:v1`,
@@ -39,20 +37,16 @@ export const RedisKeys = {
   // ─── AuthZ domain ──────────────────────────────────────────────────────
 
   /** `agentic:engine:authz:grant:{tenant}:{grantId}` — Grant L2 cache (event-driven expiry) */
-  authzGrant: (tenant: number, grantId: string) =>
-    `${REDIS_KEY_ROOT}:authz:grant:${tenant}:${grantId}`,
+  authzGrant: (tenant: number, grantId: string) => `${REDIS_KEY_ROOT}:authz:grant:${tenant}:${grantId}`,
 
   /** `agentic:engine:authz:grants:session:{sessionId}` — G-C session-scoped grants */
-  authzGrantsSession: (sessionId: string) =>
-    `${REDIS_KEY_ROOT}:authz:grants:session:${sessionId}`,
+  authzGrantsSession: (sessionId: string) => `${REDIS_KEY_ROOT}:authz:grants:session:${sessionId}`,
 
   /** `agentic:engine:authz:grants:user:{tenant}:{userId}` — G-B user grant L2 cache */
-  authzGrantsUser: (tenant: number, userId: string) =>
-    `${REDIS_KEY_ROOT}:authz:grants:user:${tenant}:${userId}`,
+  authzGrantsUser: (tenant: number, userId: string) => `${REDIS_KEY_ROOT}:authz:grants:user:${tenant}:${userId}`,
 
   /** `agentic:engine:authz:grants:admin:{tenant}` — G-A L2 cache */
-  authzGrantsAdmin: (tenant: number) =>
-    `${REDIS_KEY_ROOT}:authz:grants:admin:${tenant}`,
+  authzGrantsAdmin: (tenant: number) => `${REDIS_KEY_ROOT}:authz:grants:admin:${tenant}`,
 
   /**
    * L2: single active grant for (tenant, user, tool) — Phase 3 hot path.
@@ -62,8 +56,7 @@ export const RedisKeys = {
     `${REDIS_KEY_ROOT}:authz:grant:${tenant}:${userId}:${encodeURIComponent(toolName)}`,
 
   /** Redis-only pending grant request — grant-lifecycle.md §2.2 */
-  authzGrantRequest: (grantRequestId: string) =>
-    `${REDIS_KEY_ROOT}:authz:grantReq:${grantRequestId}`,
+  authzGrantRequest: (grantRequestId: string) => `${REDIS_KEY_ROOT}:authz:grantReq:${grantRequestId}`,
 
   // ─── Session domain ────────────────────────────────────────────────────
 
@@ -71,44 +64,35 @@ export const RedisKeys = {
    * `agentic:engine:session:turn:lock:{sessionId}` — Turn distributed lock (30s TTL + 10s renewal)
    * Value: `{ turnId, ownerNodeId, acquireTime, deadlineTime }`
    */
-  sessionTurnLock: (sessionId: string) =>
-    `${REDIS_KEY_ROOT}:session:turn:lock:${sessionId}`,
+  sessionTurnLock: (sessionId: string) => `${REDIS_KEY_ROOT}:session:turn:lock:${sessionId}`,
 
   /** `agentic:engine:session:sse:buffer:{turnId}` — SSE replay buffer (120s TTL, 200 entries LTRIM) */
-  sessionSseBuffer: (turnId: string) =>
-    `${REDIS_KEY_ROOT}:session:sse:buffer:${turnId}`,
+  sessionSseBuffer: (turnId: string) => `${REDIS_KEY_ROOT}:session:sse:buffer:${turnId}`,
 
   /** `agentic:engine:session:sse:conn:{turnId}` — SSE active connection marker (15s TTL + 5s renewal) */
-  sessionSseConn: (turnId: string) =>
-    `${REDIS_KEY_ROOT}:session:sse:conn:${turnId}`,
+  sessionSseConn: (turnId: string) => `${REDIS_KEY_ROOT}:session:sse:conn:${turnId}`,
 
   /** `agentic:engine:session:idempotency:{tenant}:{idempotencyKey}` — Turn idempotency (24h TTL) */
-  sessionIdempotency: (tenant: number, idempotencyKey: string) =>
-    `${REDIS_KEY_ROOT}:session:idempotency:${tenant}:${idempotencyKey}`,
+  sessionIdempotency: (tenant: number, idempotencyKey: string) => `${REDIS_KEY_ROOT}:session:idempotency:${tenant}:${idempotencyKey}`,
 
   /** `agentic:engine:session:abort:{turnId}` — Abort broadcast key (60s TTL + explicit DEL) */
-  sessionAbort: (turnId: string) =>
-    `${REDIS_KEY_ROOT}:session:abort:${turnId}`,
+  sessionAbort: (turnId: string) => `${REDIS_KEY_ROOT}:session:abort:${turnId}`,
 
   /** `agentic:engine:session:lifecycle:{sessionId}` — Session lifecycle hash (7d TTL) */
-  sessionLifecycle: (sessionId: string) =>
-    `${REDIS_KEY_ROOT}:session:lifecycle:${sessionId}`,
+  sessionLifecycle: (sessionId: string) => `${REDIS_KEY_ROOT}:session:lifecycle:${sessionId}`,
 
   // ─── ACK domain ────────────────────────────────────────────────────────
 
   /** `agentic:engine:ack:tool:{toolCallId}` — Tool ack waiter (60s TTL) */
-  ackTool: (toolCallId: string) =>
-    `${REDIS_KEY_ROOT}:ack:tool:${toolCallId}`,
+  ackTool: (toolCallId: string) => `${REDIS_KEY_ROOT}:ack:tool:${toolCallId}`,
 
   /** `agentic:engine:ack:grant:{grantRequestId}` — Grant consent ack waiter (60s TTL) */
-  ackGrant: (grantRequestId: string) =>
-    `${REDIS_KEY_ROOT}:ack:grant:${grantRequestId}`,
+  ackGrant: (grantRequestId: string) => `${REDIS_KEY_ROOT}:ack:grant:${grantRequestId}`,
 
   // ─── Outbox domain ─────────────────────────────────────────────────────
 
   /** `agentic:engine:outbox:relay:cursor:{channel}` — Relay scan cursor (permanent) */
-  outboxRelayCursor: (channel: string) =>
-    `${REDIS_KEY_ROOT}:outbox:relay:cursor:${channel}`,
+  outboxRelayCursor: (channel: string) => `${REDIS_KEY_ROOT}:outbox:relay:cursor:${channel}`,
 
   /** `agentic:engine:outbox:relay:leader` — Relay leader lock (30s TTL + renewal) */
   outboxRelayLeader: () => `${REDIS_KEY_ROOT}:outbox:relay:leader`,

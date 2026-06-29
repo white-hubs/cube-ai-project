@@ -1,100 +1,90 @@
-import { describe, expect, test } from 'bun:test'
-import { HttpException } from '@dangao/bun-server'
-import type { CubeFlowGraph, CubeFlowNode } from '../contracts/cube-flow'
-import { CUBE_FLOW_SCHEMA_VERSION } from '../contracts/cube-flow'
-import {
-  isChatInputLfKey,
-  isLlmLfKey,
-  lfKeyFromCubeType,
-  resolveLinearExecutionChain,
-} from './linear-chain'
+import { HttpException } from "@dangao/bun-server";
+import { describe, expect, test } from "bun:test";
 
-function node(partial: Partial<CubeFlowNode> & Pick<CubeFlowNode, 'id' | 'cubeType'>): CubeFlowNode {
+import { CUBE_FLOW_SCHEMA_VERSION, type CubeFlowGraph, type CubeFlowNode } from "../contracts/cube-flow";
+import { isChatInputLfKey, isLlmLfKey, lfKeyFromCubeType, resolveLinearExecutionChain } from "./linear-chain";
+
+function node(partial: Partial<CubeFlowNode> & Pick<CubeFlowNode, "id" | "cubeType">): CubeFlowNode {
   return {
+    config: {},
+    height: 1,
     lfNodeId: partial.id,
+    width: 1,
     x: 0,
     y: 0,
-    width: 1,
-    height: 1,
-    config: {},
     ...partial,
-  }
+  };
 }
 
-function graph(nodes: CubeFlowNode[], edges: CubeFlowGraph['edges']): CubeFlowGraph {
-  return { schemaVersion: CUBE_FLOW_SCHEMA_VERSION, nodes, edges }
+function graph(nodes: CubeFlowNode[], edges: CubeFlowGraph["edges"]): CubeFlowGraph {
+  return { edges, nodes, schemaVersion: CUBE_FLOW_SCHEMA_VERSION };
 }
 
-describe('linear-chain', () => {
-  test('lfKeyFromCubeType strips cube.lf.', () => {
-    expect(lfKeyFromCubeType('cube.lf.ChatInput')).toBe('ChatInput')
-    expect(lfKeyFromCubeType('X')).toBe('X')
-  })
+describe("linear-chain", () => {
+  test("lfKeyFromCubeType strips cube.lf.", () => {
+    expect(lfKeyFromCubeType("cube.lf.ChatInput")).toBe("ChatInput");
+    expect(lfKeyFromCubeType("X")).toBe("X");
+  });
 
-  test('isChatInputLfKey and isLlmLfKey', () => {
-    expect(isChatInputLfKey('ChatInput')).toBe(true)
-    expect(isLlmLfKey('OpenAIModel')).toBe(true)
-    expect(isLlmLfKey('FooLanguageModelBar')).toBe(true)
-  })
+  test("isChatInputLfKey and isLlmLfKey", () => {
+    expect(isChatInputLfKey("ChatInput")).toBe(true);
+    expect(isLlmLfKey("OpenAIModel")).toBe(true);
+    expect(isLlmLfKey("FooLanguageModelBar")).toBe(true);
+  });
 
-  test('resolveLinearExecutionChain single path', () => {
+  test("resolveLinearExecutionChain single path", () => {
     const g = graph(
-      [node({ id: 'a', cubeType: 'cube.lf.ChatInput' }), node({ id: 'b', cubeType: 'cube.lf.OpenAIModel' })],
+      [node({ cubeType: "cube.lf.ChatInput", id: "a" }), node({ cubeType: "cube.lf.OpenAIModel", id: "b" })],
       [
         {
-          id: 'e1',
-          source: 'a',
-          target: 'b',
-          sourcePort: 'o:x',
-          targetPort: 'i:y',
+          id: "e1",
+          source: "a",
+          sourcePort: "o:x",
+          target: "b",
+          targetPort: "i:y",
         },
       ],
-    )
-    const chain = resolveLinearExecutionChain(g)
-    expect(chain.map((n) => n.id)).toEqual(['a', 'b'])
-  })
+    );
+    const chain = resolveLinearExecutionChain(g);
+    expect(chain.map((n) => n.id)).toEqual(["a", "b"]);
+  });
 
-  test('reject zero or multiple sources', () => {
-    const two = graph(
-      [node({ id: 'a', cubeType: 'x' }), node({ id: 'b', cubeType: 'y' })],
-      [],
-    )
-    expect(() => resolveLinearExecutionChain(two)).toThrow(HttpException)
+  test("reject zero or multiple sources", () => {
+    const two = graph([node({ cubeType: "x", id: "a" }), node({ cubeType: "y", id: "b" })], []);
+    expect(() => resolveLinearExecutionChain(two)).toThrow(HttpException);
 
     const merged = graph(
-      [node({ id: 'a', cubeType: 'x' }), node({ id: 'b', cubeType: 'y' }), node({ id: 'c', cubeType: 'z' })],
+      [node({ cubeType: "x", id: "a" }), node({ cubeType: "y", id: "b" }), node({ cubeType: "z", id: "c" })],
       [
-        { id: '1', source: 'a', target: 'c', sourcePort: 'o', targetPort: 'i' },
-        { id: '2', source: 'b', target: 'c', sourcePort: 'o', targetPort: 'i' },
+        { id: "1", source: "a", sourcePort: "o", target: "c", targetPort: "i" },
+        { id: "2", source: "b", sourcePort: "o", target: "c", targetPort: "i" },
       ],
-    )
-    expect(() => resolveLinearExecutionChain(merged)).toThrow(HttpException)
-  })
+    );
+    expect(() => resolveLinearExecutionChain(merged)).toThrow(HttpException);
+  });
 
-  test('reject branch and cycle', () => {
+  test("reject branch and cycle", () => {
     const branch = graph(
-      [node({ id: 'a', cubeType: 'x' }), node({ id: 'b', cubeType: 'y' }), node({ id: 'c', cubeType: 'z' })],
+      [node({ cubeType: "x", id: "a" }), node({ cubeType: "y", id: "b" }), node({ cubeType: "z", id: "c" })],
       [
-        { id: '1', source: 'a', target: 'b', sourcePort: 'o', targetPort: 'i' },
-        { id: '2', source: 'a', target: 'c', sourcePort: 'o', targetPort: 'i' },
+        { id: "1", source: "a", sourcePort: "o", target: "b", targetPort: "i" },
+        { id: "2", source: "a", sourcePort: "o", target: "c", targetPort: "i" },
       ],
-    )
-    expect(() => resolveLinearExecutionChain(branch)).toThrow(HttpException)
+    );
+    expect(() => resolveLinearExecutionChain(branch)).toThrow(HttpException);
 
     const cycle = graph(
-      [node({ id: 'a', cubeType: 'x' }), node({ id: 'b', cubeType: 'y' })],
+      [node({ cubeType: "x", id: "a" }), node({ cubeType: "y", id: "b" })],
       [
-        { id: '1', source: 'a', target: 'b', sourcePort: 'o', targetPort: 'i' },
-        { id: '2', source: 'b', target: 'a', sourcePort: 'o', targetPort: 'i' },
+        { id: "1", source: "a", sourcePort: "o", target: "b", targetPort: "i" },
+        { id: "2", source: "b", sourcePort: "o", target: "a", targetPort: "i" },
       ],
-    )
-    expect(() => resolveLinearExecutionChain(cycle)).toThrow(HttpException)
-  })
+    );
+    expect(() => resolveLinearExecutionChain(cycle)).toThrow(HttpException);
+  });
 
-  test('invalid edge target', () => {
-    const g = graph([node({ id: 'a', cubeType: 'x' })], [
-      { id: '1', source: 'a', target: 'missing', sourcePort: 'o', targetPort: 'i' },
-    ])
-    expect(() => resolveLinearExecutionChain(g)).toThrow(HttpException)
-  })
-})
+  test("invalid edge target", () => {
+    const g = graph([node({ cubeType: "x", id: "a" })], [{ id: "1", source: "a", sourcePort: "o", target: "missing", targetPort: "i" }]);
+    expect(() => resolveLinearExecutionChain(g)).toThrow(HttpException);
+  });
+});

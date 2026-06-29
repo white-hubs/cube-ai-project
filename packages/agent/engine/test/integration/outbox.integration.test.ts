@@ -24,11 +24,9 @@
  *   - docs/technical-design/phase-2-review.md §8.1
  */
 
-import { describe, test, expect } from 'bun:test';
-import {
-  OutboxEventRowSchema,
-  type AppendOutboxInput,
-} from '@cube-ai/contracts';
+import { describe, expect, test } from "bun:test";
+
+import { type AppendOutboxInput, OutboxEventRowSchema } from "@cube-ai/contracts";
 
 // ---------------------------------------------------------------------------
 // Helpers (stubs — replace with real DB client in Phase 2)
@@ -44,19 +42,15 @@ import {
  * since none of the tests below actually reach it (they're `test.skip`).
  */
 async function getConnection(): Promise<never> {
-  return Promise.reject(
-    new Error(
-      'outbox.integration.test.ts is a Phase-1 placeholder; use outbox.testcontainers.test.ts instead',
-    ),
-  );
+  throw new Error("outbox.integration.test.ts is a Phase-1 placeholder; use outbox.testcontainers.test.ts instead");
 }
 
 // ---------------------------------------------------------------------------
 // Suites
 // ---------------------------------------------------------------------------
 
-describe('[integration] outbox_events table', () => {
-  test.skip('DDL creates outbox_events table with all required columns', async () => {
+describe("[integration] outbox_events table", () => {
+  test.skip("DDL creates outbox_events table with all required columns", async () => {
     const db = await getConnection();
     // Phase 2: run migration, then verify INFORMATION_SCHEMA.COLUMNS
     // const columns = await db('information_schema.COLUMNS').where({ TABLE_NAME: 'outbox_events' });
@@ -67,28 +61,28 @@ describe('[integration] outbox_events table', () => {
     expect(db).toBeDefined();
   });
 
-  test.skip('INSERT a valid outbox row and SELECT it back', async () => {
+  test.skip("INSERT a valid outbox row and SELECT it back", async () => {
     const db = await getConnection();
 
     const input: AppendOutboxInput = {
-      tenant:      1001,
-      channel:     'usage_bus',
-      eventType:   'usage.job_duration',
+      channel: "usage_bus",
+      eventType: "usage.job_duration",
       payloadJson: {
-        schema:          'usage.job_duration.v1',
-        tenant:          1001,
-        jobId:           '1820345678900000000',
-        toolRef:         'builtin:platform.flow.invoke',
-        toolName:        'platform.flow.invoke',
+        attempts: 1,
+        execDurationMs: 900,
+        finalStatus: "COMPLETED",
+        jobId: "1820345678900000000",
+        occurredTime: Date.now(),
+        schema: "usage.job_duration.v1",
+        tenant: 1001,
+        toolName: "platform.flow.invoke",
+        toolRef: "builtin:platform.flow.invoke",
         totalDurationMs: 1000,
-        waitDurationMs:  100,
-        execDurationMs:  900,
-        attempts:        1,
-        finalStatus:     'COMPLETED',
-        occurredTime:    Date.now(),
+        waitDurationMs: 100,
       },
-      target:       null,
       scheduleTime: Date.now(),
+      target: null,
+      tenant: 1001,
     };
 
     // Phase 2: call real OutboxWriterImpl.append with a real TX
@@ -102,23 +96,23 @@ describe('[integration] outbox_events table', () => {
     void db;
   });
 
-  test.skip('soft-delete sets deleted = epoch ms (non-zero)', async () => {
+  test.skip("soft-delete sets deleted = epoch ms (non-zero)", async () => {
     const db = await getConnection();
     // Phase 2: INSERT row, then soft-delete it, then verify deleted != 0
     expect(db).toBeDefined();
   });
 });
 
-describe('[integration] session table', () => {
-  test.skip('INSERT a session row and retrieve it via SessionRepository', async () => {
+describe("[integration] session table", () => {
+  test.skip("INSERT a session row and retrieve it via SessionRepository", async () => {
     const db = await getConnection();
     // Phase 2: wire SessionRepositoryImpl with real knex/drizzle
     expect(db).toBeDefined();
   });
 });
 
-describe('[integration] usage_events table', () => {
-  test.skip('INSERT three usage event types and verify eventType values', async () => {
+describe("[integration] usage_events table", () => {
+  test.skip("INSERT three usage event types and verify eventType values", async () => {
     const db = await getConnection();
     // Phase 2: batch insert usage.llm_call, usage.tool_call, usage.job_duration rows
     expect(db).toBeDefined();

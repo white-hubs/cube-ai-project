@@ -1,60 +1,61 @@
-import { describe, expect, it } from 'bun:test';
-import { createImageProviderFromRuntimeConfig } from './catalog-image-provider';
+import { describe, expect, it } from "bun:test";
 
-describe('createImageProviderFromRuntimeConfig', () => {
-  it('routes dashscope_text2image to the dashscope provider', () => {
+import { createImageProviderFromRuntimeConfig } from "./catalog-image-provider";
+
+describe("createImageProviderFromRuntimeConfig", () => {
+  it("routes dashscope_text2image to the dashscope provider", () => {
     const p = createImageProviderFromRuntimeConfig({
-      modelCode: 'wan2.2-t2i',
-      displayName: 'wan',
-      endpointType: 'dashscope_text2image',
-      apiBaseUrl: 'https://dashscope.aliyuncs.com',
-      apiKey: 'k',
-      modelTypes: ['image_generation'],
+      apiBaseUrl: "https://dashscope.aliyuncs.com",
+      apiKey: "k",
+      displayName: "wan",
+      endpointType: "dashscope_text2image",
       isFree: false,
-      providerCode: 'dashscope',
+      modelCode: "wan2.2-t2i",
+      modelTypes: ["image_generation"],
+      providerCode: "dashscope",
     });
-    expect(p.id).toBe('dashscope-text2image');
+    expect(p.id).toBe("dashscope-text2image");
   });
 
-  it('routes geekai nano-banana to the geekai provider', () => {
+  it("routes geekai nano-banana to the geekai provider", () => {
     const p = createImageProviderFromRuntimeConfig({
-      modelCode: 'nano-banana',
-      displayName: 'nb',
-      endpointType: 'geekai',
-      apiBaseUrl: 'https://geekai.co',
-      apiKey: 'k',
-      modelTypes: ['image_generation'],
+      apiBaseUrl: "https://geekai.co",
+      apiKey: "k",
+      displayName: "nb",
+      endpointType: "geekai",
       isFree: false,
-      providerCode: 'geekai',
+      modelCode: "nano-banana",
+      modelTypes: ["image_generation"],
+      providerCode: "geekai",
     });
-    expect(p.id).toBe('geekai-nano-banana');
+    expect(p.id).toBe("geekai-nano-banana");
   });
 
-  it('routes openai_image + geekai host nano-banana to geekai provider', () => {
+  it("routes openai_image + geekai host nano-banana to geekai provider", () => {
     const p = createImageProviderFromRuntimeConfig({
-      modelCode: 'nano-banana',
-      displayName: 'nb',
-      endpointType: 'openai_image',
-      apiBaseUrl: 'https://geekai.co/v1',
-      apiKey: 'k',
-      modelTypes: ['image_generation'],
+      apiBaseUrl: "https://geekai.co/v1",
+      apiKey: "k",
+      displayName: "nb",
+      endpointType: "openai_image",
       isFree: false,
-      providerCode: 'geekai',
+      modelCode: "nano-banana",
+      modelTypes: ["image_generation"],
+      providerCode: "geekai",
     });
-    expect(p.id).toBe('geekai-nano-banana');
+    expect(p.id).toBe("geekai-nano-banana");
   });
 
-  it('throws on unsupported endpointType for image', () => {
+  it("throws on unsupported endpointType for image", () => {
     expect(() =>
       createImageProviderFromRuntimeConfig({
-        modelCode: 'some-model',
-        displayName: 'test',
-        endpointType: 'openai',
-        apiBaseUrl: 'https://api.openai.com/v1',
-        apiKey: 'k',
-        modelTypes: ['image_generation'],
+        apiBaseUrl: "https://api.openai.com/v1",
+        apiKey: "k",
+        displayName: "test",
+        endpointType: "openai",
         isFree: false,
-        providerCode: 'openai',
+        modelCode: "some-model",
+        modelTypes: ["image_generation"],
+        providerCode: "openai",
       }),
     ).toThrow();
   });

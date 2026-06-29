@@ -1,12 +1,8 @@
 #!/usr/bin/env bun
 import { existsSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
-import {
-  SDK_MIRRORED_DOCS,
-  SDK_PUBLISH_PACKAGES,
-  SDK_PUBLISH_REGISTRY,
-  type SdkPublishPackagePath,
-} from "./sdk-publish-manifest";
+
+import { SDK_MIRRORED_DOCS, SDK_PUBLISH_PACKAGES, SDK_PUBLISH_REGISTRY, type SdkPublishPackagePath } from "./sdk-publish-manifest";
 
 export interface ReleaseArtifactValidationOptions {
   root?: string;
@@ -31,59 +27,51 @@ function asString(value: unknown): string | undefined {
 }
 
 function asObject(value: unknown): JsonObject | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonObject)
-    : undefined;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : undefined;
 }
 
 function collectPathStrings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(collectPathStrings);
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectPathStrings(entry));
+  }
   const obj = asObject(value);
-  if (!obj) return [];
-  return Object.values(obj).flatMap(collectPathStrings);
+  if (!obj) {
+    return [];
+  }
+  return Object.values(obj).flatMap((entry) => collectPathStrings(entry));
 }
 
 function normalizePackageRelativePath(path: string): string {
-  return normalize(path.replace(/^\.\//, ""));
+  return normalize(path.replace(/^\.\//u, ""));
 }
 
-function validateFileExists(
-  errors: string[],
-  pkgRoot: string,
-  path: string,
-  label: string,
-): void {
+function validateFileExists(errors: string[], pkgRoot: string, path: string, label: string): void {
   if (!existsSync(join(pkgRoot, path))) {
     errors.push(`${label} missing: ${path}`);
   }
 }
 
 /** bun build drops implementations when index.ts uses named re-exports without `from`. */
-const EMPTY_SHELL_EXPORT_RE = /^export\s*\{[^}]+\}\s*;?\s*$/;
+const EMPTY_SHELL_EXPORT_RE = /^export\s*\{[^}]+\}\s*;?\s*$/u;
 
-export function validateSdkDistBundle(
-  errors: string[],
-  pkgName: string,
-  pkgRoot: string,
-  mainPath: string,
-): void {
+export function validateSdkDistBundle(errors: string[], pkgName: string, pkgRoot: string, mainPath: string): void {
   const abs = join(pkgRoot, mainPath);
-  if (!existsSync(abs)) return;
+  if (!existsSync(abs)) {
+    return;
+  }
 
   const content = readFileSync(abs, "utf8");
   const trimmed = content.trim();
   if (EMPTY_SHELL_EXPORT_RE.test(trimmed)) {
-    errors.push(
-      `${pkgName} ${mainPath} is an empty re-export shell (missing bundled implementation)`,
-    );
+    errors.push(`${pkgName} ${mainPath} is an empty re-export shell (missing bundled implementation)`);
     return;
   }
   const bytes = Buffer.byteLength(content, "utf8");
   if (bytes <= 500) {
-    errors.push(
-      `${pkgName} ${mainPath} is only ${bytes} bytes — expected bundled implementation`,
-    );
+    errors.push(`${pkgName} ${mainPath} is only ${bytes} bytes — expected bundled implementation`);
   }
 }
 
@@ -91,9 +79,7 @@ function validateSdkPackage(
   root: string,
   relPath: SdkPublishPackagePath,
   expectedVersion: string | undefined,
-  opts: Required<
-    Pick<ReleaseArtifactValidationOptions, "requireBuiltArtifacts" | "requireMirroredDocs">
-  >,
+  opts: Required<Pick<ReleaseArtifactValidationOptions, "requireBuiltArtifacts" | "requireMirroredDocs">>,
   errors: string[],
 ): string | undefined {
   const pkgRoot = join(root, relPath);
@@ -101,11 +87,15 @@ function validateSdkPackage(
   const name = asString(json.name) ?? relPath;
   const version = asString(json.version);
 
-  if (!version) errors.push(`${name} has no package version`);
+  if (!version) {
+    errors.push(`${name} has no package version`);
+  }
   if (expectedVersion && version && version !== expectedVersion) {
     errors.push(`${name} version ${version} does not match lockstep ${expectedVersion}`);
   }
-  if (json.private === true) errors.push(`${name} must not be private`);
+  if (json.private === true) {
+    errors.push(`${name} must not be private`);
+  }
 
   const publishConfig = asObject(json.publishConfig);
   if (!publishConfig) {
@@ -115,9 +105,7 @@ function validateSdkPackage(
     if (!registry) {
       errors.push(`${name} publishConfig.registry is required`);
     } else if (registry !== SDK_PUBLISH_REGISTRY) {
-      errors.push(
-        `${name} publishConfig.registry must be ${SDK_PUBLISH_REGISTRY} (got ${registry})`,
-      );
+      errors.push(`${name} publishConfig.registry must be ${SDK_PUBLISH_REGISTRY} (got ${registry})`);
     }
     if (!asString(publishConfig.access)) {
       errors.push(`${name} publishConfig.access is required`);
@@ -130,11 +118,9 @@ function validateSdkPackage(
   }
 
   const publishExports = asObject(publishConfig?.exports);
-  const declaredPaths = [
-    asString(publishConfig?.main),
-    asString(publishConfig?.types),
-    ...collectPathStrings(publishExports),
-  ].filter((path): path is string => Boolean(path));
+  const declaredPaths = [asString(publishConfig?.main), asString(publishConfig?.types), ...collectPathStrings(publishExports)].filter(
+    (path): path is string => Boolean(path),
+  );
 
   if (declaredPaths.length === 0) {
     errors.push(`${name} publishConfig must declare main/types/exports artifacts`);
@@ -159,9 +145,7 @@ function validateSdkPackage(
   return version;
 }
 
-export function validateReleaseArtifacts(
-  options: ReleaseArtifactValidationOptions = {},
-): ReleaseArtifactValidationResult {
+export function validateReleaseArtifacts(options: ReleaseArtifactValidationOptions = {}): ReleaseArtifactValidationResult {
   const root = options.root ?? process.cwd();
   const requireBuiltArtifacts = options.requireBuiltArtifacts ?? false;
   const requireMirroredDocs = options.requireMirroredDocs ?? true;
@@ -169,17 +153,10 @@ export function validateReleaseArtifacts(
 
   let version: string | undefined;
   for (const relPath of SDK_PUBLISH_PACKAGES) {
-    version =
-      validateSdkPackage(
-        root,
-        relPath,
-        version,
-        { requireBuiltArtifacts, requireMirroredDocs },
-        errors,
-      ) ?? version;
+    version = validateSdkPackage(root, relPath, version, { requireBuiltArtifacts, requireMirroredDocs }, errors) ?? version;
   }
 
-  return { ok: errors.length === 0, version, errors };
+  return { errors, ok: errors.length === 0, version };
 }
 
 function parseCliArgs(argv: string[]): ReleaseArtifactValidationOptions {
@@ -205,7 +182,9 @@ if (import.meta.main) {
     const result = validateReleaseArtifacts(parseCliArgs(Bun.argv.slice(2)));
     if (!result.ok) {
       console.error("[release-artifacts] validation failed:");
-      for (const error of result.errors) console.error(`  - ${error}`);
+      for (const error of result.errors) {
+        console.error(`  - ${error}`);
+      }
       process.exit(1);
     }
     console.log(`[release-artifacts] ok${result.version ? ` (${result.version})` : ""}`);

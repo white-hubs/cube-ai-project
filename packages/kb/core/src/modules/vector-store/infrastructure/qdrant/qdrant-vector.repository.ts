@@ -1,15 +1,17 @@
-import { Inject, Injectable } from '@dangao/bun-server';
+import { Inject, Injectable } from "@dangao/bun-server";
+
+import { currentTenantId, isGlobalAccessEnabled } from "@cube-ai/tenant-context";
 import {
   QdrantClient,
   type QdrantClientLike,
   QdrantCollectionService,
-  QdrantVectorIndex,
-  buildStableQdrantPointId,
   type QdrantFilter,
+  QdrantVectorIndex,
   type SparseVector,
-} from '@cube-ai/vector-qdrant';
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context';
-import { APP_CONFIG_TOKEN, type AppConfig } from '@/config/app.config';
+  buildStableQdrantPointId,
+} from "@cube-ai/vector-qdrant";
+
+import { APP_CONFIG_TOKEN, type AppConfig } from "@/config/app.config";
 
 export interface QdrantPointPayload extends Record<string, unknown> {
   documentId: string;
@@ -79,33 +81,33 @@ export class QdrantVectorRepository {
   }
 
   private getScopedTenantIdForFilter(): string | null {
-    if (isGlobalAccessEnabled()) return null;
+    if (isGlobalAccessEnabled()) {
+      return null;
+    }
     return currentTenantId();
   }
 
-  private buildSearchFilter(
-    params: QdrantVectorRepositorySearchParams,
-  ): QdrantFilter | undefined {
+  private buildSearchFilter(params: QdrantVectorRepositorySearchParams): QdrantFilter | undefined {
     const scopedTenantId = this.getScopedTenantIdForFilter();
-    const should: Array<{ key: string; match: { value: string | number } }> = [];
+    const should: { key: string; match: { value: string | number } }[] = [];
     if (params.documentId !== undefined) {
       const documentId = String(params.documentId).trim();
-      should.push({ key: 'documentId', match: { value: documentId } });
+      should.push({ key: "documentId", match: { value: documentId } });
       if (/^\d+$/u.test(documentId)) {
-        should.push({ key: 'documentId', match: { value: Number(documentId) } });
+        should.push({ key: "documentId", match: { value: Number(documentId) } });
       }
     }
     for (const documentId of params.documentIds ?? []) {
       const normalized = String(documentId).trim();
-      should.push({ key: 'documentId', match: { value: normalized } });
+      should.push({ key: "documentId", match: { value: normalized } });
       if (/^\d+$/u.test(normalized)) {
-        should.push({ key: 'documentId', match: { value: Number(normalized) } });
+        should.push({ key: "documentId", match: { value: Number(normalized) } });
       }
     }
 
-    const must: Array<{ key: string; match: { value: string } }> = [];
+    const must: { key: string; match: { value: string } }[] = [];
     if (scopedTenantId !== null) {
-      must.push({ key: 'tenantId', match: { value: scopedTenantId } });
+      must.push({ key: "tenantId", match: { value: scopedTenantId } });
     }
 
     if (must.length === 0 && should.length === 0) {
@@ -124,14 +126,14 @@ export class QdrantVectorRepository {
 
   private buildDeleteFilter(documentId: string): QdrantFilter {
     const scopedTenantId = this.getScopedTenantIdForFilter();
-    const must: Array<{ key: string; match: { value: string } }> = [
+    const must: { key: string; match: { value: string } }[] = [
       {
-        key: 'documentId',
+        key: "documentId",
         match: { value: documentId },
       },
     ];
     if (scopedTenantId !== null) {
-      must.push({ key: 'tenantId', match: { value: scopedTenantId } });
+      must.push({ key: "tenantId", match: { value: scopedTenantId } });
     }
     return { must };
   }
@@ -153,8 +155,8 @@ export class QdrantVectorRepository {
       this.config.qdrantCollectionName,
       points.map((point) => ({
         id: point.id,
-        vectors: point.vectors,
         payload: { ...point.payload, tenantId: scopedTenantId } as Record<string, unknown>,
+        vectors: point.vectors,
       })),
     );
   }
@@ -164,23 +166,20 @@ export class QdrantVectorRepository {
     const hits = await this.vectorIndex.query({
       collectionName: this.config.qdrantCollectionName,
       dense: params.denseVector,
+      filter: this.buildSearchFilter(params),
+      fusion: "rrf",
+      scoreThreshold: params.scoreThreshold,
       sparse: params.sparseVector,
       topK: params.topK,
-      filter: this.buildSearchFilter(params),
-      fusion: 'rrf',
-      scoreThreshold: params.scoreThreshold,
     });
     return hits.map((item) => ({
       id: item.id,
-      score: item.score,
       payload: item.payload as QdrantPointPayload,
+      score: item.score,
     }));
   }
 
   public async deleteByDocument(documentId: string): Promise<void> {
-    await this.vectorIndex.delete(
-      this.config.qdrantCollectionName,
-      this.buildDeleteFilter(documentId),
-    );
+    await this.vectorIndex.delete(this.config.qdrantCollectionName, this.buildDeleteFilter(documentId));
   }
 }

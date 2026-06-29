@@ -1,32 +1,31 @@
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { createPool } from "mysql2/promise";
+
+import { type AppendOutboxInput, type OutboxEventRow } from "@cube-ai/contracts";
+import {
+  type MysqlOnlyStack,
+  applyMinimalMysqlSchema,
+  registerProcessShutdown,
+  resolveShouldRunTestcontainers,
+  startMysqlOnly,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
+import { type OutboxDispatcherI } from "../../src/dispatcher";
+import { OutboxRelayService, OutboxWriterImpl, type TransactionContext } from "../../src/index";
+import { type LeaderElection } from "../../src/leader-election";
+
 /**
  * Outbox 写入 + Relay 派发 — MySQL Testcontainers（含 outbox_events DDL）。
  *
  *   USE_TESTCONTAINERS=1 bun test …/outbox-flow.testcontainers.test.ts
  *   bun run test:containers
  */
-import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
-import { createPool } from 'mysql2/promise';
-import {
-  applyMinimalMysqlSchema,
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startMysqlOnly,
-  stopTrackedTestcontainersIfAny,
-  type MysqlOnlyStack,
-} from '@cube-ai/test-infra';
-import type { AppendOutboxInput, OutboxEventRow } from '@cube-ai/contracts';
-import type { OutboxDispatcherI } from '../../src/dispatcher';
-import type { LeaderElection } from '../../src/leader-election';
-import {
-  OutboxWriterImpl,
-  OutboxRelayService,
-  type TransactionContext,
-} from '../../src/index';
 
 const fakeLeader = {
+  isLeader: () => true,
   start: async () => {},
   stop: async () => {},
-  isLeader: () => true,
 } as unknown as LeaderElection;
 
 const noopDispatcher: OutboxDispatcherI = { dispatch: async () => {} };
@@ -49,7 +48,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('outbox flow [testcontainers]', () => {
+(run ? describe : describe.skip)("outbox flow [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startMysqlOnly();
     try {
@@ -69,40 +68,40 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('INSERT outbox PENDING → relayOnce → dispatcher → status PUBLISHED', async () => {
+  test("INSERT outbox PENDING → relayOnce → dispatcher → status PUBLISHED", async () => {
     const s = stackHolder.current!;
     const pool = createPool({
-      uri: s.mysqlUrl,
+      bigNumberStrings: true,
       connectionLimit: 4,
       supportBigNumbers: true,
-      bigNumberStrings: true,
+      uri: s.mysqlUrl,
     });
 
     const writer = new OutboxWriterImpl({
-      nextSfid: () => '1234567890123456789',
+      nextSfid: () => "1234567890123456789",
     });
 
     const rowInput: AppendOutboxInput = {
-      tenant: 1001,
-      channel: 'usage_bus',
-      eventType: 'usage.job_duration',
+      channel: "usage_bus",
+      eventType: "usage.job_duration",
       payloadJson: {
-        schema: 'usage.job_duration.v1',
-        jobId: '1',
+        jobId: "1",
+        schema: "usage.job_duration.v1",
         tenant: 1001,
       },
-      target: null,
       /** 避免容器 MySQL NOW(3) 与宿主机 epoch 边界导致「尚未到期」选不中 */
       scheduleTime: Date.now() - 3_600_000,
+      target: null,
+      tenant: 1001,
     };
 
     const conn = await pool.getConnection();
-    let eventId = '';
+    let eventId = "";
     try {
       await conn.beginTransaction();
 
       const tx: TransactionContext = {
-        _brand: 'TransactionContext',
+        _brand: "TransactionContext",
         mysqlConnection: conn,
       };
 
@@ -112,8 +111,8 @@ if (run) {
         `SELECT CAST(id AS CHAR) AS id FROM outbox_events WHERE tenant=? ORDER BY create_time DESC LIMIT 1`,
         [1001],
       );
-      eventId = pick?.id ?? '';
-      expect(eventId).toMatch(/^\d{19}$/);
+      eventId = pick?.id ?? "";
+      expect(eventId).toMatch(/^\d{19}$/u);
 
       await conn.commit();
     } catch (e) {
@@ -125,10 +124,10 @@ if (run) {
 
     const dispatched: string[] = [];
     const relay = new OutboxRelayService(fakeLeader, noopDispatcher, {
-      mysqlPool: pool,
       batchSize: 10,
-      pollIntervalMs: 200,
       isRelayLeader: () => true,
+      mysqlPool: pool,
+      pollIntervalMs: 200,
     });
 
     await relay.start({
@@ -142,11 +141,8 @@ if (run) {
 
     expect(dispatched).toContain(eventId);
 
-    const [rows] = await pool.query<{ status: string }[]>(
-      `SELECT status FROM outbox_events WHERE id = ?`,
-      [eventId],
-    );
-    expect(rows[0]?.status).toBe('PUBLISHED');
+    const [rows] = await pool.query<{ status: string }[]>(`SELECT status FROM outbox_events WHERE id = ?`, [eventId]);
+    expect(rows[0]?.status).toBe("PUBLISHED");
 
     await pool.end();
   });

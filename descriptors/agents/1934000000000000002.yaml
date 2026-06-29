@@ -15,7 +15,7 @@
 #
 # ref: docs/technical-design/plans/2026-05-12-engine-ghcloud-chat-loop-handoff.zh.md §4
 kind: agent
-name: '1934000000000000002'
+name: "1934000000000000002"
 version: 0.1.0
 displayName: 孪生智能体
 description: 面向数字孪生与复杂推演场景（dev 占位，仅本机联调使用）

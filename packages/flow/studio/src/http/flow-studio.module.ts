@@ -1,52 +1,50 @@
-import { Injectable, Module, type Container, type OnModuleInit } from '@dangao/bun-server'
-import { loadAppConfig } from '@cube-ai/ai-center/platform/server-base'
+import { type Container, Injectable, Module, type OnModuleInit } from "@dangao/bun-server";
+
+import { loadAppConfig } from "@cube-ai/ai-center/platform/server-base";
 import {
   CustomComponentTemplatesService,
   FlowCrudService,
   FlowFilesService,
   FlowLangflowSyncService,
   FlowsService,
-} from '@cube-ai/flow-core'
-import {
-  TenantLlmModelRepository,
-  TenantLlmProviderRepository,
-  type CatalogMysqlPool,
-} from '@cube-ai/llm-core'
-import { CATALOG_MYSQL_POOL_TOKEN } from '@cube-ai/llm-core/http/admin'
-import { LLM_HTTP_TENANT_RESOLVER_TOKEN, type LlmHttpTenantResolver } from '@cube-ai/llm-core/http/tenant'
-import { FlowComponentService } from '../compile/flow-component.service'
+} from "@cube-ai/flow-core";
+import { type CatalogMysqlPool, TenantLlmModelRepository, TenantLlmProviderRepository } from "@cube-ai/llm-core";
+import { CATALOG_MYSQL_POOL_TOKEN } from "@cube-ai/llm-core/http/admin";
+import { LLM_HTTP_TENANT_RESOLVER_TOKEN, type LlmHttpTenantResolver } from "@cube-ai/llm-core/http/tenant";
+
+import { FlowComponentService } from "../compile/flow-component.service";
 import {
   FlowStudioComponentRepository,
   FlowStudioFlowRepository,
   FlowStudioReleaseRepository,
   FlowStudioResourceRefRepository,
+  type StudioRepositories,
   applyFlowStudioMysqlSchema,
   getStudioQueryService,
   initStudioRepositories,
   peekStudioRepositories,
-  type StudioRepositories,
-} from '../db'
-import { FlowEngineBridge } from '../engine/flow-engine.bridge'
-import { FlowService } from '../flow.service'
-import { FlowStudioController } from './flow-studio.controller'
+} from "../db";
+import { FlowEngineBridge } from "../engine/flow-engine.bridge";
+import { FlowService } from "../flow.service";
+import { FlowStudioController } from "./flow-studio.controller";
 
-const appConfig = await loadAppConfig()
+const appConfig = await loadAppConfig();
 
 @Injectable()
 class StudioRepositoriesBootstrap implements OnModuleInit {
   public async onModuleInit(): Promise<void> {
-    const db = await getStudioQueryService(appConfig)
-    await applyFlowStudioMysqlSchema((sql) => db.query(sql))
-    await initStudioRepositories(appConfig)
+    const db = await getStudioQueryService(appConfig);
+    await applyFlowStudioMysqlSchema((sql) => db.query(sql));
+    await initStudioRepositories(appConfig);
   }
 }
 
 function requireStudioRepositories(): StudioRepositories {
-  const repos = peekStudioRepositories()
+  const repos = peekStudioRepositories();
   if (!repos) {
-    throw new Error('Flow studio repositories are not initialized yet')
+    throw new Error("Flow studio repositories are not initialized yet");
   }
-  return repos
+  return repos;
 }
 
 /** Lazily proxies method calls to the (async-initialized) singleton repository instance. */
@@ -56,24 +54,22 @@ function createRepositoryProxy<T extends object>(getter: () => T): T {
     {
       get(_target, propKey) {
         return (...args: unknown[]) => {
-          const repo = getter()
-          const candidate = Reflect.get(repo as object, propKey)
-          if (typeof candidate !== 'function') return candidate
-          return Reflect.apply(candidate as (...fnArgs: unknown[]) => unknown, repo, args)
-        }
+          const repo = getter();
+          const candidate = Reflect.get(repo as object, propKey);
+          if (typeof candidate !== "function") {
+            return candidate;
+          }
+          return Reflect.apply(candidate as (...fnArgs: unknown[]) => unknown, repo, args);
+        };
       },
     },
-  ) as T
+  ) as T;
 }
 
-const flowRepoProxy = createRepositoryProxy<FlowStudioFlowRepository>(() => requireStudioRepositories().flowRepo)
-const resourceRefRepoProxy = createRepositoryProxy<FlowStudioResourceRefRepository>(
-  () => requireStudioRepositories().resourceRefRepo,
-)
-const componentRepoProxy = createRepositoryProxy<FlowStudioComponentRepository>(
-  () => requireStudioRepositories().componentRepo,
-)
-const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() => requireStudioRepositories().releaseRepo)
+const flowRepoProxy = createRepositoryProxy<FlowStudioFlowRepository>(() => requireStudioRepositories().flowRepo);
+const resourceRefRepoProxy = createRepositoryProxy<FlowStudioResourceRefRepository>(() => requireStudioRepositories().resourceRefRepo);
+const componentRepoProxy = createRepositoryProxy<FlowStudioComponentRepository>(() => requireStudioRepositories().componentRepo);
+const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() => requireStudioRepositories().releaseRepo);
 
 /**
  * flow-studio HTTP 域模块（编辑器投影层）。
@@ -88,6 +84,7 @@ const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() =
  */
 @Module({
   controllers: [FlowStudioController],
+  exports: [FlowService],
   providers: [
     StudioRepositoriesBootstrap,
     { provide: FlowStudioFlowRepository, useValue: flowRepoProxy },
@@ -107,16 +104,16 @@ const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() =
           c.resolve(FlowLangflowSyncService) as FlowLangflowSyncService,
           c.resolve(FlowFilesService) as FlowFilesService,
           c.resolve(CustomComponentTemplatesService) as CustomComponentTemplatesService,
-          appConfig.selfBaseUrl ?? '',
+          appConfig.selfBaseUrl ?? "",
           appConfig.builtinSystemApiKey,
         ),
     },
     {
       provide: FlowService,
       useFactory: (c: Container) => {
-        const pool = c.resolve(CATALOG_MYSQL_POOL_TOKEN) as CatalogMysqlPool
-        const resolveTenant = c.resolve(LLM_HTTP_TENANT_RESOLVER_TOKEN) as LlmHttpTenantResolver
-        const getTenant = (): number => resolveTenant()
+        const pool = c.resolve(CATALOG_MYSQL_POOL_TOKEN) as CatalogMysqlPool;
+        const resolveTenant = c.resolve(LLM_HTTP_TENANT_RESOLVER_TOKEN) as LlmHttpTenantResolver;
+        const getTenant = (): number => resolveTenant();
         return new FlowService(
           c.resolve(FlowStudioFlowRepository) as FlowStudioFlowRepository,
           c.resolve(FlowStudioResourceRefRepository) as FlowStudioResourceRefRepository,
@@ -125,10 +122,9 @@ const releaseRepoProxy = createRepositoryProxy<FlowStudioReleaseRepository>(() =
           new TenantLlmModelRepository(pool, getTenant),
           new TenantLlmProviderRepository(pool, getTenant),
           c.resolve(FlowEngineBridge) as FlowEngineBridge,
-        )
+        );
       },
     },
   ],
-  exports: [FlowService],
 })
 export class FlowStudioHttpModule {}

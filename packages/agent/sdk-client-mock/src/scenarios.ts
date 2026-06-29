@@ -1,8 +1,4 @@
-import {
-  SseEventSchema,
-  type SseEvent,
-  type ErrorResponse,
-} from '@cube-ai/contracts';
+import { type ErrorResponse, type SseEvent, SseEventSchema } from "@cube-ai/contracts";
 
 /**
  * Deterministic scenarios the mock can replay.
@@ -18,13 +14,11 @@ export interface MockScenario {
 }
 
 // ─── Shared mock SFID values ──────────────────────────────────────────────────
-const MOCK_TURN_ID    = '1000000000000000001';
-const MOCK_MSG_ID     = '1000000000000000002';
-const MOCK_GRANT_ID   = '1000000000000000003';
-const MOCK_TOOL_CALL  = 'tcall_mock_001';
+const MOCK_TURN_ID = "1000000000000000001";
+const MOCK_MSG_ID = "1000000000000000002";
+const MOCK_GRANT_ID = "1000000000000000003";
+const MOCK_TOOL_CALL = "tcall_mock_001";
 const NOW = Date.now();
-
-function makeId(n: string): string { return n; }
 
 /** Validate and parse a raw event object into SseEvent (throws on schema violation). */
 function ev(raw: unknown): SseEvent {
@@ -38,16 +32,23 @@ function ev(raw: unknown): SseEvent {
  * Tests happy-path streaming flow.
  */
 export const TURN_STREAMING: MockScenario = {
-  name: 'turn_streaming',
+  name: "turn_streaming",
   stream: [
-    ev({ schema: 'turn-started-v1',      turnId: MOCK_TURN_ID, turnNo: 1, startTime: NOW, userMessageId: MOCK_MSG_ID }),
-    ev({ schema: 'message-delta-v1',     turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 1, delta: { type: 'text', text: 'Hello' } }),
-    ev({ schema: 'message-delta-v1',     turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 2, delta: { type: 'text', text: ', ' } }),
-    ev({ schema: 'message-delta-v1',     turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 3, delta: { type: 'text', text: 'world' } }),
-    ev({ schema: 'message-delta-v1',     turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 4, delta: { type: 'text', text: '!' } }),
-    ev({ schema: 'message-delta-v1',     turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 5, delta: { type: 'text', text: ' Done.' } }),
-    ev({ schema: 'message-completed-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID }),
-    ev({ schema: 'turn-completed-v1',    turnId: MOCK_TURN_ID, finalMessageId: MOCK_MSG_ID, tokenUsage: { input: 10, output: 15, total: 25 }, durationMs: 300, endTime: NOW + 300 }),
+    ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
+    ev({ delta: { text: "Hello", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 1, turnId: MOCK_TURN_ID }),
+    ev({ delta: { text: ", ", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 2, turnId: MOCK_TURN_ID }),
+    ev({ delta: { text: "world", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 3, turnId: MOCK_TURN_ID }),
+    ev({ delta: { text: "!", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 4, turnId: MOCK_TURN_ID }),
+    ev({ delta: { text: " Done.", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 5, turnId: MOCK_TURN_ID }),
+    ev({ messageId: MOCK_MSG_ID, schema: "message-completed-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      durationMs: 300,
+      endTime: NOW + 300,
+      finalMessageId: MOCK_MSG_ID,
+      schema: "turn-completed-v1",
+      tokenUsage: { input: 10, output: 15, total: 25 },
+      turnId: MOCK_TURN_ID,
+    }),
   ],
 };
 
@@ -58,14 +59,42 @@ export const TURN_STREAMING: MockScenario = {
  * Tests consent flow.
  */
 export const GRANT_REQUESTED: MockScenario = {
-  name: 'grant_requested',
+  name: "grant_requested",
   stream: [
-    ev({ schema: 'turn-started-v1',    turnId: MOCK_TURN_ID, turnNo: 1, startTime: NOW, userMessageId: MOCK_MSG_ID }),
-    ev({ schema: 'message-delta-v1',   turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 1, delta: { type: 'text', text: 'I need permission to access the database.' } }),
-    ev({ schema: 'grant-request-v1',   turnId: MOCK_TURN_ID, grantRequestId: MOCK_GRANT_ID, toolName: 'platform.db.query', reason: 'Query user data', argsPreview: { table: 'users' }, scopeHint: 'PERSISTENT', expiresTime: NOW + 60_000 }),
-    ev({ schema: 'message-delta-v1',   turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 2, delta: { type: 'text', text: 'Thanks, proceeding with the query...' } }),
-    ev({ schema: 'message-completed-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID }),
-    ev({ schema: 'turn-completed-v1',  turnId: MOCK_TURN_ID, finalMessageId: MOCK_MSG_ID, tokenUsage: { input: 20, output: 30, total: 50 }, durationMs: 500, endTime: NOW + 500 }),
+    ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
+    ev({
+      delta: { text: "I need permission to access the database.", type: "text" },
+      messageId: MOCK_MSG_ID,
+      schema: "message-delta-v1",
+      seqInTurn: 1,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      argsPreview: { table: "users" },
+      expiresTime: NOW + 60_000,
+      grantRequestId: MOCK_GRANT_ID,
+      reason: "Query user data",
+      schema: "grant-request-v1",
+      scopeHint: "PERSISTENT",
+      toolName: "platform.db.query",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      delta: { text: "Thanks, proceeding with the query...", type: "text" },
+      messageId: MOCK_MSG_ID,
+      schema: "message-delta-v1",
+      seqInTurn: 2,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({ messageId: MOCK_MSG_ID, schema: "message-completed-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      durationMs: 500,
+      endTime: NOW + 500,
+      finalMessageId: MOCK_MSG_ID,
+      schema: "turn-completed-v1",
+      tokenUsage: { input: 20, output: 30, total: 50 },
+      turnId: MOCK_TURN_ID,
+    }),
   ],
 };
 
@@ -76,14 +105,45 @@ export const GRANT_REQUESTED: MockScenario = {
  * Tests tool approval with consent flow.
  */
 export const TOOL_APPROVAL: MockScenario = {
-  name: 'tool_approval',
+  name: "tool_approval",
   stream: [
-    ev({ schema: 'turn-started-v1',         turnId: MOCK_TURN_ID, turnNo: 1, startTime: NOW, userMessageId: MOCK_MSG_ID }),
-    ev({ schema: 'tool-call-started-v1',    turnId: MOCK_TURN_ID, toolCallId: MOCK_TOOL_CALL, toolName: 'admin.user.delete', args: { userId: '42' }, meta: { execution: 'REMOTE', consent: 'EACH_CALL' } }),
-    ev({ schema: 'grant-request-v1',        turnId: MOCK_TURN_ID, grantRequestId: MOCK_GRANT_ID, toolName: 'admin.user.delete', reason: 'Delete user account', argsPreview: { userId: '42' }, scopeHint: 'ONCE', expiresTime: NOW + 60_000 }),
-    ev({ schema: 'tool-call-completed-v1',  turnId: MOCK_TURN_ID, toolCallId: MOCK_TOOL_CALL, toolName: 'admin.user.delete', durationMs: 200, ok: true, output: { deleted: true } }),
-    ev({ schema: 'message-completed-v1',    turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID }),
-    ev({ schema: 'turn-completed-v1',       turnId: MOCK_TURN_ID, finalMessageId: MOCK_MSG_ID, tokenUsage: { input: 15, output: 20, total: 35 }, durationMs: 400, endTime: NOW + 400 }),
+    ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
+    ev({
+      args: { userId: "42" },
+      meta: { consent: "EACH_CALL", execution: "REMOTE" },
+      schema: "tool-call-started-v1",
+      toolCallId: MOCK_TOOL_CALL,
+      toolName: "admin.user.delete",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      argsPreview: { userId: "42" },
+      expiresTime: NOW + 60_000,
+      grantRequestId: MOCK_GRANT_ID,
+      reason: "Delete user account",
+      schema: "grant-request-v1",
+      scopeHint: "ONCE",
+      toolName: "admin.user.delete",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      durationMs: 200,
+      ok: true,
+      output: { deleted: true },
+      schema: "tool-call-completed-v1",
+      toolCallId: MOCK_TOOL_CALL,
+      toolName: "admin.user.delete",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({ messageId: MOCK_MSG_ID, schema: "message-completed-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      durationMs: 400,
+      endTime: NOW + 400,
+      finalMessageId: MOCK_MSG_ID,
+      schema: "turn-completed-v1",
+      tokenUsage: { input: 15, output: 20, total: 35 },
+      turnId: MOCK_TURN_ID,
+    }),
   ],
 };
 
@@ -105,54 +165,138 @@ export const TOOL_APPROVAL: MockScenario = {
  *   9. reasoning-step-v1 (phase=execution END)
  *  10. message-completed / turn-completed
  */
-const MOCK_PHASE_SESSION_STEP_ID = '1000000000000000010';
-const MOCK_PHASE_EXEC_STEP_ID    = '1000000000000000011';
-const MOCK_MODEL_REASONING_STEP_ID = '1000000000000000012';
+const MOCK_PHASE_SESSION_STEP_ID = "1000000000000000010";
+const MOCK_PHASE_EXEC_STEP_ID = "1000000000000000011";
+const MOCK_MODEL_REASONING_STEP_ID = "1000000000000000012";
 
 export const REASONING_STREAMING: MockScenario = {
-  name: 'reasoning_streaming',
+  name: "reasoning_streaming",
   stream: [
-    ev({ schema: 'turn-started-v1', turnId: MOCK_TURN_ID, turnNo: 1, startTime: NOW, userMessageId: MOCK_MSG_ID }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_PHASE_SESSION_STEP_ID, kind: 'phase', event: 'START', label: '会话准备', phase: 'session', time: NOW + 5 }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_PHASE_SESSION_STEP_ID, kind: 'phase', event: 'END',   label: '会话准备', phase: 'session', ok: true, time: NOW + 10 }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_PHASE_EXEC_STEP_ID, kind: 'phase', event: 'START', label: '执行中', phase: 'execution', time: NOW + 20 }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_MODEL_REASONING_STEP_ID, parentStepId: MOCK_PHASE_EXEC_STEP_ID, kind: 'model-reasoning', event: 'START', label: '模型思考', time: NOW + 30 }),
-    ev({ schema: 'reasoning-delta-v1', turnId: MOCK_TURN_ID, stepId: MOCK_MODEL_REASONING_STEP_ID, seqInStep: 1, text: '让我先理解用户的目标…', source: 'model' }),
-    ev({ schema: 'reasoning-delta-v1', turnId: MOCK_TURN_ID, stepId: MOCK_MODEL_REASONING_STEP_ID, seqInStep: 2, text: '看起来需要列举三个要点。', source: 'model' }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_MODEL_REASONING_STEP_ID, parentStepId: MOCK_PHASE_EXEC_STEP_ID, kind: 'model-reasoning', event: 'END', label: '模型思考', ok: true, time: NOW + 80 }),
-    ev({ schema: 'message-delta-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 1, delta: { type: 'text', text: '答：第一，' } }),
-    ev({ schema: 'message-delta-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 2, delta: { type: 'text', text: '第二，' } }),
-    ev({ schema: 'message-delta-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID, seqInTurn: 3, delta: { type: 'text', text: '第三。' } }),
-    ev({ schema: 'reasoning-step-v1', turnId: MOCK_TURN_ID, stepId: MOCK_PHASE_EXEC_STEP_ID, kind: 'phase', event: 'END', label: '执行中', phase: 'execution', ok: true, time: NOW + 120 }),
-    ev({ schema: 'message-completed-v1', turnId: MOCK_TURN_ID, messageId: MOCK_MSG_ID }),
-    ev({ schema: 'turn-completed-v1', turnId: MOCK_TURN_ID, finalMessageId: MOCK_MSG_ID, tokenUsage: { input: 12, output: 18, total: 30 }, durationMs: 130, endTime: NOW + 130 }),
+    ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
+    ev({
+      event: "START",
+      kind: "phase",
+      label: "会话准备",
+      phase: "session",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_PHASE_SESSION_STEP_ID,
+      time: NOW + 5,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "END",
+      kind: "phase",
+      label: "会话准备",
+      ok: true,
+      phase: "session",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_PHASE_SESSION_STEP_ID,
+      time: NOW + 10,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "START",
+      kind: "phase",
+      label: "执行中",
+      phase: "execution",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_PHASE_EXEC_STEP_ID,
+      time: NOW + 20,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "START",
+      kind: "model-reasoning",
+      label: "模型思考",
+      parentStepId: MOCK_PHASE_EXEC_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_MODEL_REASONING_STEP_ID,
+      time: NOW + 30,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      schema: "reasoning-delta-v1",
+      seqInStep: 1,
+      source: "model",
+      stepId: MOCK_MODEL_REASONING_STEP_ID,
+      text: "让我先理解用户的目标…",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      schema: "reasoning-delta-v1",
+      seqInStep: 2,
+      source: "model",
+      stepId: MOCK_MODEL_REASONING_STEP_ID,
+      text: "看起来需要列举三个要点。",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "END",
+      kind: "model-reasoning",
+      label: "模型思考",
+      ok: true,
+      parentStepId: MOCK_PHASE_EXEC_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_MODEL_REASONING_STEP_ID,
+      time: NOW + 80,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      delta: { text: "答：第一，", type: "text" },
+      messageId: MOCK_MSG_ID,
+      schema: "message-delta-v1",
+      seqInTurn: 1,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({ delta: { text: "第二，", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 2, turnId: MOCK_TURN_ID }),
+    ev({ delta: { text: "第三。", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 3, turnId: MOCK_TURN_ID }),
+    ev({
+      event: "END",
+      kind: "phase",
+      label: "执行中",
+      ok: true,
+      phase: "execution",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_PHASE_EXEC_STEP_ID,
+      time: NOW + 120,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({ messageId: MOCK_MSG_ID, schema: "message-completed-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      durationMs: 130,
+      endTime: NOW + 130,
+      finalMessageId: MOCK_MSG_ID,
+      schema: "turn-completed-v1",
+      tokenUsage: { input: 12, output: 18, total: 30 },
+      turnId: MOCK_TURN_ID,
+    }),
   ],
 };
 
 // ─── Health scenarios (legacy) ────────────────────────────────────────────────
 
-export const HEALTH_UP: MockScenario = { name: 'health.up' };
+export const HEALTH_UP: MockScenario = { name: "health.up" };
 
 export const HEALTH_DEGRADED: MockScenario = {
-  name: 'health.degraded',
   error: {
-    status:    502,
-    code:      'UPSTREAM_LLM_UNAVAILABLE',
-    message:   'Upstream dependency degraded',
-    details:   null,
+    code: "UPSTREAM_LLM_UNAVAILABLE",
+    details: null,
+    message: "Upstream dependency degraded",
+    status: 502,
     timestamp: 0,
   },
+  name: "health.degraded",
 };
 
 // ─── Scenario registry ────────────────────────────────────────────────────────
 
 export const SCENARIOS: Record<string, MockScenario> = {
-  health_up:           HEALTH_UP,
-  health_degraded:     HEALTH_DEGRADED,
-  turn_streaming:      TURN_STREAMING,
-  grant_requested:     GRANT_REQUESTED,
-  tool_approval:       TOOL_APPROVAL,
+  grant_requested: GRANT_REQUESTED,
+  health_degraded: HEALTH_DEGRADED,
+  health_up: HEALTH_UP,
   reasoning_streaming: REASONING_STREAMING,
+  tool_approval: TOOL_APPROVAL,
+  turn_streaming: TURN_STREAMING,
 };
 
 export type ScenarioName = keyof typeof SCENARIOS;

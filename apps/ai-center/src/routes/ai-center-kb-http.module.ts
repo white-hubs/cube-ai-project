@@ -1,18 +1,8 @@
-import {
-  DATABASE_SERVICE_TOKEN,
-  DatabaseService,
-  Global,
-  LoggerModule,
-  Module,
-  type Container,
-} from '@dangao/bun-server';
-import {
-  AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN,
-  EMBEDDING_PORT_TOKEN,
-  type LlmProviderPort,
-} from '@cube-ai/contracts/platform';
-import { LlmProviderModule } from '@cube-ai/agent-engine/adapters/platform';
-import { LlmProviderEmbeddingPort } from '@cube-ai/embedding';
+import { type Container, DATABASE_SERVICE_TOKEN, DatabaseService, Global, LoggerModule, Module } from "@dangao/bun-server";
+
+import { LlmProviderModule } from "@cube-ai/agent-engine/adapters/platform";
+import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN, EMBEDDING_PORT_TOKEN, type LlmProviderPort } from "@cube-ai/contracts/platform";
+import { LlmProviderEmbeddingPort } from "@cube-ai/embedding";
 import {
   AiKbModule,
   APP_CONFIG_TOKEN as KB_APP_CONFIG_TOKEN,
@@ -20,21 +10,16 @@ import {
   PLATFORM_KB_SOURCE_PORT_TOKEN,
   createKbMysqlDatabaseServiceFromEnv,
   loadAppConfigSync as loadKbAppConfigSync,
-} from '@cube-ai/kb-core';
-import { Cube2PlatformKbSourcePort } from '../platform/cube2-platform-kb-source.port';
+} from "@cube-ai/kb-core";
 
-function resolveKbEmbeddingModel(
-  kbConfig: ReturnType<typeof loadKbAppConfigSync>,
-): string {
-  return (
-    Bun.env.KB_EMBEDDING_MODEL?.trim() ||
-    process.env.KB_EMBEDDING_MODEL?.trim() ||
-    kbConfig.embeddingModel
-  );
+import { Cube2PlatformKbSourcePort } from "../platform/cube2-platform-kb-source.port";
+
+function resolveKbEmbeddingModel(kbConfig: ReturnType<typeof loadKbAppConfigSync>): string {
+  return Bun.env.KB_EMBEDDING_MODEL?.trim() || process.env.KB_EMBEDDING_MODEL?.trim() || kbConfig.embeddingModel;
 }
 
 function resolveKbEmbeddingTenant(): number {
-  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? '1';
+  const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? "1";
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : 1;
 }
@@ -42,6 +27,7 @@ function resolveKbEmbeddingTenant(): number {
 /** Full kb HTTP surface for `/kb/*` domain prefix (AiKbModule + ORM bootstrap). */
 @Global()
 @Module({
+  exports: [DATABASE_SERVICE_TOKEN, DatabaseService, KB_APP_CONFIG_TOKEN, EMBEDDING_PORT_TOKEN, PLATFORM_KB_SOURCE_PORT_TOKEN],
   imports: [LlmProviderModule, LoggerModule.forRoot(), AiKbModule],
   providers: [
     {
@@ -74,6 +60,5 @@ function resolveKbEmbeddingTenant(): number {
       useFactory: () => new Cube2PlatformKbSourcePort(),
     },
   ],
-  exports: [DATABASE_SERVICE_TOKEN, DatabaseService, KB_APP_CONFIG_TOKEN, EMBEDDING_PORT_TOKEN, PLATFORM_KB_SOURCE_PORT_TOKEN],
 })
 export class AiCenterKbHttpModule {}

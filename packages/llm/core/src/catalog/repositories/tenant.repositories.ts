@@ -1,23 +1,14 @@
-import {
-  type CatalogMysqlPool,
-  exec,
-  queryRows,
-  SYSTEM_AUDIT,
-  sqlParams,
-} from './catalog-mysql-pool';
-import type { TenantModelRow, TenantProviderRow } from './row-types';
+import { type CatalogMysqlPool, SYSTEM_AUDIT, exec, queryRows, sqlParams } from "./catalog-mysql-pool";
+import type { TenantModelRow, TenantProviderRow } from "./row-types";
 
-export type TenantProviderInsert = Omit<TenantProviderRow, 'tenant'>;
-export type TenantModelInsert = Omit<TenantModelRow, 'tenant'>;
+export type TenantProviderInsert = Omit<TenantProviderRow, "tenant">;
+export type TenantModelInsert = Omit<TenantModelRow, "tenant">;
 
 type TenantResolver = () => number;
 
-function buildInsert(
-  table: string,
-  payload: Record<string, unknown>,
-): { sql: string; values: unknown[] } {
+function buildInsert(table: string, payload: Record<string, unknown>): { sql: string; values: unknown[] } {
   const keys = Object.keys(payload);
-  const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
+  const sql = `INSERT INTO ${table} (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`;
   return { sql, values: sqlParams(keys.map((k) => payload[k])) };
 }
 
@@ -58,18 +49,18 @@ export class TenantLlmProviderRepository {
     const now = new Date();
     const payload: Record<string, unknown> = {
       ...row,
-      tenant: this.getTenant(),
-      deleted: '0',
       create_by: SYSTEM_AUDIT.by,
+      create_time: now,
       creator_id: SYSTEM_AUDIT.id,
       creator_type: SYSTEM_AUDIT.type,
-      create_time: now,
+      deleted: "0",
+      tenant: this.getTenant(),
       update_by: SYSTEM_AUDIT.by,
+      update_time: now,
       updater_id: SYSTEM_AUDIT.id,
       updater_type: SYSTEM_AUDIT.type,
-      update_time: now,
     };
-    const { sql, values } = buildInsert('ai_application_tenant_llm_provider', payload);
+    const { sql, values } = buildInsert("ai_application_tenant_llm_provider", payload);
     await exec(this.pool, sql, values);
   }
 
@@ -78,15 +69,17 @@ export class TenantLlmProviderRepository {
     const data: Record<string, unknown> = {
       ...patch,
       update_by: SYSTEM_AUDIT.by,
+      update_time: new Date(),
       updater_id: SYSTEM_AUDIT.id,
       updater_type: SYSTEM_AUDIT.type,
-      update_time: new Date(),
     };
     delete data.id;
     delete data.tenant;
     const keys = Object.keys(data).filter((k) => data[k] !== undefined);
-    if (keys.length === 0) return;
-    const sql = `UPDATE ai_application_tenant_llm_provider SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND tenant = ? AND (deleted IS NULL OR deleted = 0)`;
+    if (keys.length === 0) {
+      return;
+    }
+    const sql = `UPDATE ai_application_tenant_llm_provider SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ? AND tenant = ? AND (deleted IS NULL OR deleted = 0)`;
     await exec(this.pool, sql, [...sqlParams(keys.map((k) => data[k])), id, tenant]);
   }
 
@@ -146,18 +139,18 @@ export class TenantLlmModelRepository {
     const now = new Date();
     const payload: Record<string, unknown> = {
       ...row,
-      tenant: this.getTenant(),
-      deleted: '0',
       create_by: SYSTEM_AUDIT.by,
+      create_time: now,
       creator_id: SYSTEM_AUDIT.id,
       creator_type: SYSTEM_AUDIT.type,
-      create_time: now,
+      deleted: "0",
+      tenant: this.getTenant(),
       update_by: SYSTEM_AUDIT.by,
+      update_time: now,
       updater_id: SYSTEM_AUDIT.id,
       updater_type: SYSTEM_AUDIT.type,
-      update_time: now,
     };
-    const { sql, values } = buildInsert('ai_application_tenant_llm_model', payload);
+    const { sql, values } = buildInsert("ai_application_tenant_llm_model", payload);
     await exec(this.pool, sql, values);
   }
 
@@ -166,15 +159,17 @@ export class TenantLlmModelRepository {
     const data: Record<string, unknown> = {
       ...patch,
       update_by: SYSTEM_AUDIT.by,
+      update_time: new Date(),
       updater_id: SYSTEM_AUDIT.id,
       updater_type: SYSTEM_AUDIT.type,
-      update_time: new Date(),
     };
     delete data.id;
     delete data.tenant;
     const keys = Object.keys(data).filter((k) => data[k] !== undefined);
-    if (keys.length === 0) return;
-    const sql = `UPDATE ai_application_tenant_llm_model SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND tenant = ? AND (deleted IS NULL OR deleted = 0)`;
+    if (keys.length === 0) {
+      return;
+    }
+    const sql = `UPDATE ai_application_tenant_llm_model SET ${keys.map((k) => `${k} = ?`).join(", ")} WHERE id = ? AND tenant = ? AND (deleted IS NULL OR deleted = 0)`;
     await exec(this.pool, sql, [...sqlParams(keys.map((k) => data[k])), id, tenant]);
   }
 

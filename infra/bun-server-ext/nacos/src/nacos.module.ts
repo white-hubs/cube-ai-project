@@ -1,11 +1,11 @@
-import { Module } from '@dangao/bun-server';
-import { NacosConfigObserverService } from './observer.service';
+import { Module } from "@dangao/bun-server";
 
-export const NACOS_CONFIG_OBSERVER_TOKEN = Symbol.for(
-  '@cube-ai/bun-server-ext-nacos:ConfigObserver',
-);
+import { NacosConfigObserverService } from "./observer.service";
+
+export const NACOS_CONFIG_OBSERVER_TOKEN = Symbol.for("@cube-ai/bun-server-ext-nacos:ConfigObserver");
 
 @Module({
+  exports: [NacosConfigObserverService, NACOS_CONFIG_OBSERVER_TOKEN],
   providers: [
     NacosConfigObserverService,
     {
@@ -13,6 +13,5 @@ export const NACOS_CONFIG_OBSERVER_TOKEN = Symbol.for(
       useClass: NacosConfigObserverService,
     },
   ],
-  exports: [NacosConfigObserverService, NACOS_CONFIG_OBSERVER_TOKEN],
 })
 export class NacosExtModule {}

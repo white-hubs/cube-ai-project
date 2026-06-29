@@ -10,47 +10,45 @@
  * If CUBE2_INTERNAL_INVOKE_SECRET_KEY is set, the feign_inner_invoke header is injected.
  */
 
-import { createClient } from '@connectrpc/connect'
-import { createGrpcTransport } from '@connectrpc/connect-node'
+import { createClient } from "@connectrpc/connect";
+import { createGrpcTransport } from "@connectrpc/connect-node";
 
-import { KnowledgeBaseService } from './grpc-gen/guhecloud/cube/apps/content/management/grpc/v1/knowledge_base_pb'
-import { createCube2GrpcAuthInterceptor } from './cube2-grpc-auth'
-import { resolveCube2GrpcBaseUrl } from './cube2-grpc-endpoint'
+import { createCube2GrpcAuthInterceptor } from "./cube2-grpc-auth";
+import { resolveCube2GrpcBaseUrl } from "./cube2-grpc-endpoint";
+import { KnowledgeBaseService } from "./grpc-gen/guhecloud/cube/apps/content/management/grpc/v1/knowledge_base_pb";
 
 async function resolveContentServiceBaseUrl(): Promise<string> {
   return resolveCube2GrpcBaseUrl({
-    directEnvKey: 'CUBE2_CONTENT_SERVICE_BASE_URL',
-    serviceNameEnvKey: 'CUBE2_CONTENT_SERVICE_NAME',
-    serviceGroupEnvKey: 'CUBE2_CONTENT_SERVICE_GROUP',
-    defaultServiceNames: ['contentManagement', 'content'],
-    clientLabel: 'cube2-content-client',
-  })
+    clientLabel: "cube2-content-client",
+    defaultServiceNames: ["contentManagement", "content"],
+    directEnvKey: "CUBE2_CONTENT_SERVICE_BASE_URL",
+    serviceGroupEnvKey: "CUBE2_CONTENT_SERVICE_GROUP",
+    serviceNameEnvKey: "CUBE2_CONTENT_SERVICE_NAME",
+  });
 }
 
 function buildTransport(baseUrl: string) {
   return createGrpcTransport({
     baseUrl,
     interceptors: [createCube2GrpcAuthInterceptor()],
-  })
+  });
 }
 
-let knowledgeBaseClientPromise: Promise<ReturnType<typeof createClient<typeof KnowledgeBaseService>>> | null = null
+let knowledgeBaseClientPromise: Promise<ReturnType<typeof createClient<typeof KnowledgeBaseService>>> | null = null;
 
-export function getKnowledgeBaseClient(): Promise<
-  ReturnType<typeof createClient<typeof KnowledgeBaseService>>
-> {
+export function getKnowledgeBaseClient(): Promise<ReturnType<typeof createClient<typeof KnowledgeBaseService>>> {
   if (!knowledgeBaseClientPromise) {
     knowledgeBaseClientPromise = resolveContentServiceBaseUrl()
       .then((baseUrl) => buildTransport(baseUrl))
       .then((transport) => createClient(KnowledgeBaseService, transport))
       .catch((err: unknown) => {
-        knowledgeBaseClientPromise = null
-        throw err
-      })
+        knowledgeBaseClientPromise = null;
+        throw err;
+      });
   }
-  return knowledgeBaseClientPromise
+  return knowledgeBaseClientPromise;
 }
 
-export type Cube2ContentClients = {
-  getKnowledgeBaseClient: typeof getKnowledgeBaseClient
+export interface Cube2ContentClients {
+  getKnowledgeBaseClient: typeof getKnowledgeBaseClient;
 }

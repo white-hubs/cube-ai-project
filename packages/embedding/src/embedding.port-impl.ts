@@ -1,10 +1,4 @@
-import type {
-  EmbeddingContext,
-  EmbeddingPort,
-  EmbeddingPurpose,
-  EmbeddingVector,
-  LlmProviderPort,
-} from '@cube-ai/contracts';
+import type { EmbeddingContext, EmbeddingPort, EmbeddingPurpose, EmbeddingVector, LlmProviderPort } from "@cube-ai/contracts";
 
 export interface LlmProviderEmbeddingPortConfig {
   provider: LlmProviderPort;
@@ -25,7 +19,7 @@ export class LlmProviderEmbeddingPort implements EmbeddingPort {
 
   async embed(
     input: string[],
-    purpose: EmbeddingPurpose = 'document',
+    purpose: EmbeddingPurpose = "document",
     contexts: EmbeddingContext[] = [],
     signal?: AbortSignal,
   ): Promise<EmbeddingVector[]> {
@@ -33,18 +27,17 @@ export class LlmProviderEmbeddingPort implements EmbeddingPort {
       return [];
     }
 
-    const modelCode =
-      this.config.resolveModelCode?.()?.trim() || this.config.modelCode;
+    const modelCode = this.config.resolveModelCode?.()?.trim() || this.config.modelCode;
 
     const rows = await this.config.provider.embed(
       {
-        tenant: this.config.tenant,
-        modelCode,
-        input,
-        purpose,
         contexts: contexts.map((ctx) => ({
           retrievalProfile: ctx.retrievalProfile,
         })),
+        input,
+        modelCode,
+        purpose,
+        tenant: this.config.tenant,
       },
       signal,
     );

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import {
   buildPublishResolveContext,
   mergePublishConfig,
@@ -11,12 +12,12 @@ describe("prepare-sdk-package-for-publish", () => {
 
   test("mergePublishConfig applies dist entrypoints", () => {
     const merged = mergePublishConfig({
-      main: "./src/index.ts",
       exports: { ".": { import: "./src/index.ts" } },
+      main: "./src/index.ts",
       publishConfig: {
+        exports: { ".": { import: "./dist/index.js", types: "./dist/index.d.ts" } },
         main: "./dist/index.js",
         types: "./dist/index.d.ts",
-        exports: { ".": { import: "./dist/index.js", types: "./dist/index.d.ts" } },
       },
     });
     expect(merged.main).toBe("./dist/index.js");
@@ -28,18 +29,18 @@ describe("prepare-sdk-package-for-publish", () => {
   test("preparePackageJsonForPublish resolves workspace and catalog deps", () => {
     const prepared = preparePackageJsonForPublish(
       {
-        name: "@cube-ai/agent-sdk-client",
-        main: "./src/index.ts",
         dependencies: {
           "@cube-ai/contracts": "workspace:*",
           zod: "catalog:",
         },
-        peerDependencies: { vue: "catalog:" },
         devDependencies: { typescript: "catalog:" },
+        main: "./src/index.ts",
+        name: "@cube-ai/agent-sdk-client",
+        peerDependencies: { vue: "catalog:" },
         publishConfig: {
+          exports: { ".": { import: "./dist/index.js", types: "./dist/index.d.ts" } },
           main: "./dist/index.js",
           types: "./dist/index.d.ts",
-          exports: { ".": { import: "./dist/index.js", types: "./dist/index.d.ts" } },
         },
       },
       ctx,
@@ -59,9 +60,9 @@ describe("prepare-sdk-package-for-publish", () => {
 
   test("validatePreparedManifest rejects src entrypoints", () => {
     const validation = validatePreparedManifest({
-      name: "@cube-ai/test",
-      main: "./src/index.ts",
       exports: { ".": { import: "./src/index.ts" } },
+      main: "./src/index.ts",
+      name: "@cube-ai/test",
     });
     expect(validation.ok).toBe(false);
     expect(validation.errors.length).toBeGreaterThan(0);

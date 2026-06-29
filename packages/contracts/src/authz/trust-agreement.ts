@@ -4,7 +4,7 @@
  * Ref: docs/detailed-design/04-auth-and-authz/trust-agreement.md
  *      docs/detailed-design/04-auth-and-authz/mock-obo.md §2
  */
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Three trust agreement types as defined in trust-agreement.md.
@@ -13,11 +13,11 @@ import { z } from 'zod';
  */
 export const TrustAgreementTypeSchema = z.enum([
   /** Engine trusts itself (internal JWKS) */
-  'self_agent',
+  "self_agent",
   /** Engine trusts another org's agent (same platform OUAA) */
-  'org_agent',
+  "org_agent",
   /** Engine trusts a cross-tenant agent (separate OUAA or federation) */
-  'cross_tenant_agent',
+  "cross_tenant_agent",
 ]);
 export type TrustAgreementType = z.infer<typeof TrustAgreementTypeSchema>;
 
@@ -26,20 +26,20 @@ export type TrustAgreementType = z.infer<typeof TrustAgreementTypeSchema>;
  * ref: trust-agreement.md §3 + §7 downstream checklist
  */
 export const TrustAgreementSchema = z.object({
-  id: z.string(),
-  type: TrustAgreementTypeSchema,
-  /** client_id on the platform */
-  clientId: z.string(),
   /** Audience aliases this downstream accepts */
   acceptedAudienceAliases: z.array(z.string()),
+  active: z.boolean().default(true),
   /** OAuth2 scopes this downstream accepts */
   allowedScopes: z.array(z.string()),
-  /** JWKS URI to verify tokens from this party */
-  jwksUri: z.string().url(),
+  /** client_id on the platform */
+  clientId: z.string(),
+  createTime: z.number(),
   /** Human-readable description */
   description: z.string().optional(),
-  active: z.boolean().default(true),
-  createTime: z.number(),
+  id: z.string(),
+  /** JWKS URI to verify tokens from this party */
+  jwksUri: z.string().url(),
+  type: TrustAgreementTypeSchema,
   updateTime: z.number(),
 });
 
@@ -50,15 +50,15 @@ export type TrustAgreement = z.infer<typeof TrustAgreementSchema>;
  * ref: mock-obo.md §2.2 Signing keys
  */
 export const MockOboKeyMetaSchema = z.object({
-  /** kid e.g. "agentic-engine-mock-obo-v1" */
-  kid: z.string(),
-  algorithm: z.literal('RS256'),
-  /** PEM PKCS#8 private key ref — resolved from Nacos secrets at runtime */
-  privateKeyRef: z.string(),
+  algorithm: z.literal("RS256"),
   /** Whether this is the current active signing key */
   current: z.boolean(),
+  /** kid e.g. "agentic-engine-mock-obo-v1" */
+  kid: z.string(),
   /** Rotation eligibility — keys older than maxTtlSeconds may be pruned */
   maxTtlSeconds: z.number().int().positive().default(7776000),
+  /** PEM PKCS#8 private key ref — resolved from Nacos secrets at runtime */
+  privateKeyRef: z.string(),
 });
 
 export type MockOboKeyMeta = z.infer<typeof MockOboKeyMetaSchema>;

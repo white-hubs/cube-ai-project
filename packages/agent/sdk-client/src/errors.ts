@@ -1,4 +1,4 @@
-import { ErrorResponseSchema, type ErrorResponse } from '@cube-ai/contracts';
+import { type ErrorResponse, ErrorResponseSchema } from "@cube-ai/contracts";
 
 /**
  * Client-side error wrapping the 5-field engine error envelope.
@@ -6,17 +6,19 @@ import { ErrorResponseSchema, type ErrorResponse } from '@cube-ai/contracts';
  */
 export class AgenticClientError extends Error {
   constructor(
-    public readonly code:       string | null,
+    public readonly code: string | null,
     public readonly httpStatus: number | null,
     message: string,
-    public readonly details:    unknown,
-    public readonly traceId:    string | null,
-    public readonly timestamp:  number,
+    public readonly details: unknown,
+    public readonly traceId: string | null,
+    public readonly timestamp: number,
     cause?: Error,
   ) {
     super(message);
-    this.name = 'AgenticClientError';
-    if (cause) this.cause = cause;
+    this.name = "AgenticClientError";
+    if (cause) {
+      this.cause = cause;
+    }
   }
 
   /**
@@ -27,8 +29,7 @@ export class AgenticClientError extends Error {
    *   2. 其它 → `AgenticClientError`
    */
   static async fromResponse(response: Response): Promise<AgenticClientError> {
-    const traceId =
-      response.headers.get('x-trace-id') ?? response.headers.get('X-Trace-Id');
+    const traceId = response.headers.get("x-trace-id") ?? response.headers.get("X-Trace-Id");
     let body: unknown = null;
     try {
       body = await response.json();
@@ -39,63 +40,32 @@ export class AgenticClientError extends Error {
     if (parsed.success) {
       const b: ErrorResponse = parsed.data;
       const detailsTraceId =
-        b.details && typeof b.details === 'object' && 'traceId' in b.details
+        b.details && typeof b.details === "object" && "traceId" in b.details
           ? String((b.details as Record<string, unknown>).traceId)
           : null;
       const resolvedTraceId = traceId ?? detailsTraceId;
       if (isSessionBusySignal(response.status, b.code, b.message)) {
-        return new SessionBusyError(
-          b.code,
-          b.status,
-          b.message,
-          b.details,
-          resolvedTraceId,
-          b.timestamp,
-        );
+        return new SessionBusyError(b.code, b.status, b.message, b.details, resolvedTraceId, b.timestamp);
       }
-      return new AgenticClientError(
-        b.code,
-        b.status,
-        b.message,
-        b.details,
-        resolvedTraceId,
-        b.timestamp,
-      );
+      return new AgenticClientError(b.code, b.status, b.message, b.details, resolvedTraceId, b.timestamp);
     }
     if (isSessionBusySignal(response.status, null, response.statusText)) {
-      return new SessionBusyError(
-        null,
-        response.status,
-        response.statusText || 'session busy',
-        null,
-        traceId,
-        Date.now(),
-      );
+      return new SessionBusyError(null, response.status, response.statusText || "session busy", null, traceId, Date.now());
     }
-    return new AgenticClientError(
-      null,
-      response.status,
-      response.statusText || 'Unknown error',
-      null,
-      traceId,
-      Date.now(),
-    );
+    return new AgenticClientError(null, response.status, response.statusText || "Unknown error", null, traceId, Date.now());
   }
 }
 
-function isSessionBusySignal(
-  httpStatus: number,
-  code: string | null,
-  message: string | null,
-): boolean {
-  if (httpStatus !== 409) return false;
-  if (
-    code === 'RESOURCE_CONFLICT_TURN_RUNNING' ||
-    code === 'RESOURCE_CONFLICT_SESSION_BUSY'
-  ) {
+function isSessionBusySignal(httpStatus: number, code: string | null, message: string | null): boolean {
+  if (httpStatus !== 409) {
+    return false;
+  }
+  if (code === "RESOURCE_CONFLICT_TURN_RUNNING" || code === "RESOURCE_CONFLICT_SESSION_BUSY") {
     return true;
   }
-  if (message && /already has a running turn/i.test(message)) return true;
+  if (message && /already has a running turn/iu.test(message)) {
+    return true;
+  }
   return false;
 }
 
@@ -115,19 +85,12 @@ export class SessionBusyError extends AgenticClientError {
     cause?: Error,
   ) {
     super(code, httpStatus, message, details, traceId, timestamp, cause);
-    this.name = 'SessionBusyError';
+    this.name = "SessionBusyError";
   }
 
   /** Pure-local 预检快速构造（不发请求）。 */
-  static local(message = 'another turn is in flight'): SessionBusyError {
-    return new SessionBusyError(
-      'RESOURCE_CONFLICT_SESSION_BUSY',
-      409,
-      message,
-      null,
-      null,
-      Date.now(),
-    );
+  static local(message = "another turn is in flight"): SessionBusyError {
+    return new SessionBusyError("RESOURCE_CONFLICT_SESSION_BUSY", 409, message, null, null, Date.now());
   }
 }
 
@@ -146,7 +109,7 @@ export class StartTurnFailedError extends AgenticClientError {
     cause?: Error,
   ) {
     super(code, httpStatus, message, details, traceId, timestamp, cause);
-    this.name = 'StartTurnFailedError';
+    this.name = "StartTurnFailedError";
   }
 }
 
@@ -156,20 +119,9 @@ export class StartTurnFailedError extends AgenticClientError {
  * 与 `StartTurnFailedError` 同源信号：前者代表"消息没发出去"，后者代表"消息发出去但流断了"。
  */
 export class StreamDisconnectedError extends AgenticClientError {
-  constructor(
-    message = 'SSE stream disconnected',
-    cause?: Error,
-  ) {
-    super(
-      'CLIENT_NETWORK_STREAM_DISCONNECTED',
-      null,
-      message,
-      null,
-      null,
-      Date.now(),
-      cause,
-    );
-    this.name = 'StreamDisconnectedError';
+  constructor(message = "SSE stream disconnected", cause?: Error) {
+    super("CLIENT_NETWORK_STREAM_DISCONNECTED", null, message, null, null, Date.now(), cause);
+    this.name = "StreamDisconnectedError";
   }
 }
 
@@ -180,6 +132,6 @@ export class StreamDisconnectedError extends AgenticClientError {
 export class StoreDisposedError extends Error {
   constructor(method: string) {
     super(`AssistantStore.${method}() called after dispose()`);
-    this.name = 'StoreDisposedError';
+    this.name = "StoreDisposedError";
   }
 }

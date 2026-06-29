@@ -1,11 +1,8 @@
-import {
-  ToolAckSubmitRequestSchema,
-  PublicToolDescriptorSchema,
-  type PublicToolDescriptor,
-} from '@cube-ai/contracts';
-import { z } from 'zod';
-import type { AgenticClient } from './client';
-import type { AgenticClientConfig } from './client';
+import { z } from "zod";
+
+import { type PublicToolDescriptor, PublicToolDescriptorSchema, ToolAckSubmitRequestSchema } from "@cube-ai/contracts";
+
+import { type AgenticClient, type AgenticClientConfig } from "./client";
 
 const DescriptorsListResponseSchema = z.union([
   z.object({ items: z.array(PublicToolDescriptorSchema) }),
@@ -31,11 +28,11 @@ export class ToolAcksApi {
     toolCallId: string,
     result: { ok: true; output: unknown } | { ok: false; error: { code: string; message: string; retryable?: boolean } },
   ): Promise<void> {
-    const validated = ToolAckSubmitRequestSchema.parse({ toolCallId, result });
+    const validated = ToolAckSubmitRequestSchema.parse({ result, toolCallId });
     await this.client.requestJson({
-      method: 'POST',
-      path:   `/sessions/${sessionId}/turns/${turnId}/tool-acks`,
-      body:   validated,
+      body: validated,
+      method: "POST",
+      path: `/sessions/${sessionId}/turns/${turnId}/tool-acks`,
     });
   }
 }
@@ -49,14 +46,16 @@ export class DescriptorsApi {
     private readonly client: AgenticClient,
   ) {}
 
-  async list(opts?: { kind?: 'TOOL'; enabledOnly?: boolean }): Promise<PublicToolDescriptor[]> {
+  async list(opts?: { kind?: "TOOL"; enabledOnly?: boolean }): Promise<PublicToolDescriptor[]> {
     const query: Record<string, string | undefined> = {
-      kind: opts?.kind ?? 'TOOL',
+      kind: opts?.kind ?? "TOOL",
     };
-    if (opts?.enabledOnly === true) query.enabledOnly = 'true';
+    if (opts?.enabledOnly === true) {
+      query.enabledOnly = "true";
+    }
     const raw = await this.client.requestJson<unknown>({
-      method: 'GET',
-      path:   '/descriptors',
+      method: "GET",
+      path: "/descriptors",
       query,
     });
     const parsed = DescriptorsListResponseSchema.parse(raw);
@@ -76,7 +75,7 @@ export class ToolsApi {
 
   async list(opts?: { enabledOnly?: boolean }): Promise<PublicToolDescriptor[]> {
     return this.client.descriptors.list({
-      kind: 'TOOL',
+      kind: "TOOL",
       ...(opts?.enabledOnly !== undefined ? { enabledOnly: opts.enabledOnly } : {}),
     });
   }
@@ -85,9 +84,9 @@ export class ToolsApi {
   async invoke(name: string, args: Record<string, unknown>): Promise<unknown> {
     const seg = encodeURIComponent(name);
     return this.client.requestJson<unknown>({
-      method: 'POST',
-      path:   `/tools/${seg}/invoke`,
-      body:   args,
+      body: args,
+      method: "POST",
+      path: `/tools/${seg}/invoke`,
     });
   }
 }

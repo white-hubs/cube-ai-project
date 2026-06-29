@@ -1,1 +1,1 @@
-export * from './safety-policy';
+export * from "./safety-policy";

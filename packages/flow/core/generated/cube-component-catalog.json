@@ -8,1537 +8,1155 @@
       "lfComponentKey": "FAISS",
       "category": "FAISS",
       "displayName": "FAISS",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.AddContentToPage",
       "lfComponentKey": "AddContentToPage",
       "category": "Notion",
       "displayName": "Add Content to Page ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionDatabaseProperties",
       "lfComponentKey": "NotionDatabaseProperties",
       "category": "Notion",
       "displayName": "List Database Properties ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionListPages",
       "lfComponentKey": "NotionListPages",
       "category": "Notion",
       "displayName": "List Pages ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionPageContent",
       "lfComponentKey": "NotionPageContent",
       "category": "Notion",
       "displayName": "Page Content Viewer ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionPageCreator",
       "lfComponentKey": "NotionPageCreator",
       "category": "Notion",
       "displayName": "Create Page ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionPageUpdate",
       "lfComponentKey": "NotionPageUpdate",
       "category": "Notion",
       "displayName": "Update Page Property ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionSearch",
       "lfComponentKey": "NotionSearch",
       "category": "Notion",
       "displayName": "Search ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.NotionUserList",
       "lfComponentKey": "NotionUserList",
       "category": "Notion",
       "displayName": "List Users ",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.AgentQL",
       "lfComponentKey": "AgentQL",
       "category": "agentql",
       "displayName": "Extract Web Data",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.AIMLEmbeddings",
       "lfComponentKey": "AIMLEmbeddings",
       "category": "aiml",
       "displayName": "AI/ML API Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.AIMLModel",
       "lfComponentKey": "AIMLModel",
       "category": "aiml",
       "displayName": "AI/ML API",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.ALTK Agent",
       "lfComponentKey": "ALTK Agent",
       "category": "altk",
       "displayName": "ALTK Agent",
-      "outputNames": [
-        "response"
-      ]
+      "outputNames": ["response"]
     },
     {
       "cubeType": "cube.lf.AmazonBedrockConverseModel",
       "lfComponentKey": "AmazonBedrockConverseModel",
       "category": "amazon",
       "displayName": "Amazon Bedrock Converse",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.AmazonBedrockEmbeddings",
       "lfComponentKey": "AmazonBedrockEmbeddings",
       "category": "amazon",
       "displayName": "Amazon Bedrock Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.AmazonBedrockModel",
       "lfComponentKey": "AmazonBedrockModel",
       "category": "amazon",
       "displayName": "Amazon Bedrock",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.s3bucketuploader",
       "lfComponentKey": "s3bucketuploader",
       "category": "amazon",
       "displayName": "S3 Bucket Uploader",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.AnthropicModel",
       "lfComponentKey": "AnthropicModel",
       "category": "anthropic",
       "displayName": "Anthropic",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.ApifyActors",
       "lfComponentKey": "ApifyActors",
       "category": "apify",
       "displayName": "Apify Actors",
-      "outputNames": [
-        "output",
-        "tool"
-      ]
+      "outputNames": ["output", "tool"]
     },
     {
       "cubeType": "cube.lf.ArXivComponent",
       "lfComponentKey": "ArXivComponent",
       "category": "arxiv",
       "displayName": "arXiv",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.AssemblyAIGetSubtitles",
       "lfComponentKey": "AssemblyAIGetSubtitles",
       "category": "assemblyai",
       "displayName": "AssemblyAI Get Subtitles",
-      "outputNames": [
-        "subtitles"
-      ]
+      "outputNames": ["subtitles"]
     },
     {
       "cubeType": "cube.lf.AssemblyAILeMUR",
       "lfComponentKey": "AssemblyAILeMUR",
       "category": "assemblyai",
       "displayName": "AssemblyAI LeMUR",
-      "outputNames": [
-        "lemur_response"
-      ]
+      "outputNames": ["lemur_response"]
     },
     {
       "cubeType": "cube.lf.AssemblyAIListTranscripts",
       "lfComponentKey": "AssemblyAIListTranscripts",
       "category": "assemblyai",
       "displayName": "AssemblyAI List Transcripts",
-      "outputNames": [
-        "transcript_list"
-      ]
+      "outputNames": ["transcript_list"]
     },
     {
       "cubeType": "cube.lf.AssemblyAITranscriptionJobCreator",
       "lfComponentKey": "AssemblyAITranscriptionJobCreator",
       "category": "assemblyai",
       "displayName": "AssemblyAI Start Transcript",
-      "outputNames": [
-        "transcript_id"
-      ]
+      "outputNames": ["transcript_id"]
     },
     {
       "cubeType": "cube.lf.AssemblyAITranscriptionJobPoller",
       "lfComponentKey": "AssemblyAITranscriptionJobPoller",
       "category": "assemblyai",
       "displayName": "AssemblyAI Poll Transcript",
-      "outputNames": [
-        "transcription_result"
-      ]
+      "outputNames": ["transcription_result"]
     },
     {
       "cubeType": "cube.lf.AzureOpenAIEmbeddings",
       "lfComponentKey": "AzureOpenAIEmbeddings",
       "category": "azure",
       "displayName": "Azure OpenAI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.AzureOpenAIModel",
       "lfComponentKey": "AzureOpenAIModel",
       "category": "azure",
       "displayName": "Azure OpenAI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.BaiduQianfanChatModel",
       "lfComponentKey": "BaiduQianfanChatModel",
       "category": "baidu",
       "displayName": "Qianfan",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.BingSearchAPI",
       "lfComponentKey": "BingSearchAPI",
       "category": "bing",
       "displayName": "Bing Search API",
-      "outputNames": [
-        "dataframe",
-        "tool"
-      ]
+      "outputNames": ["dataframe", "tool"]
     },
     {
       "cubeType": "cube.lf.Cassandra",
       "lfComponentKey": "Cassandra",
       "category": "cassandra",
       "displayName": "Cassandra",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CassandraChatMemory",
       "lfComponentKey": "CassandraChatMemory",
       "category": "cassandra",
       "displayName": "Cassandra Chat Memory",
-      "outputNames": [
-        "memory"
-      ]
+      "outputNames": ["memory"]
     },
     {
       "cubeType": "cube.lf.CassandraGraph",
       "lfComponentKey": "CassandraGraph",
       "category": "cassandra",
       "displayName": "Cassandra Graph",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.Chroma",
       "lfComponentKey": "Chroma",
       "category": "chroma",
       "displayName": "Chroma DB",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CleanlabEvaluator",
       "lfComponentKey": "CleanlabEvaluator",
       "category": "cleanlab",
       "displayName": "Cleanlab Evaluator",
-      "outputNames": [
-        "response_passthrough",
-        "score",
-        "explanation"
-      ]
+      "outputNames": ["response_passthrough", "score", "explanation"]
     },
     {
       "cubeType": "cube.lf.CleanlabRAGEvaluator",
       "lfComponentKey": "CleanlabRAGEvaluator",
       "category": "cleanlab",
       "displayName": "Cleanlab RAG Evaluator",
-      "outputNames": [
-        "response_passthrough",
-        "trust_score",
-        "trust_explanation",
-        "other_scores",
-        "evaluation_summary"
-      ]
+      "outputNames": ["response_passthrough", "trust_score", "trust_explanation", "other_scores", "evaluation_summary"]
     },
     {
       "cubeType": "cube.lf.CleanlabRemediator",
       "lfComponentKey": "CleanlabRemediator",
       "category": "cleanlab",
       "displayName": "Cleanlab Remediator",
-      "outputNames": [
-        "remediated_response"
-      ]
+      "outputNames": ["remediated_response"]
     },
     {
       "cubeType": "cube.lf.Clickhouse",
       "lfComponentKey": "Clickhouse",
       "category": "clickhouse",
       "displayName": "ClickHouse",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CloudflareWorkersAIEmbeddings",
       "lfComponentKey": "CloudflareWorkersAIEmbeddings",
       "category": "cloudflare",
       "displayName": "Cloudflare Workers AI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.CohereEmbeddings",
       "lfComponentKey": "CohereEmbeddings",
       "category": "cohere",
       "displayName": "Cohere Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.CohereModel",
       "lfComponentKey": "CohereModel",
       "category": "cohere",
       "displayName": "Cohere Language Models",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.CohereRerank",
       "lfComponentKey": "CohereRerank",
       "category": "cohere",
       "displayName": "Cohere Rerank",
-      "outputNames": [
-        "reranked_documents"
-      ]
+      "outputNames": ["reranked_documents"]
     },
     {
       "cubeType": "cube.lf.CometAPIModel",
       "lfComponentKey": "CometAPIModel",
       "category": "cometapi",
       "displayName": "CometAPI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.ComposioAPI",
       "lfComponentKey": "ComposioAPI",
       "category": "composio",
       "displayName": "Composio Tools",
-      "outputNames": [
-        "tools"
-      ]
+      "outputNames": ["tools"]
     },
     {
       "cubeType": "cube.lf.ComposioAgentQLAPIComponent",
       "lfComponentKey": "ComposioAgentQLAPIComponent",
       "category": "composio",
       "displayName": "AgentQL",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioAgiledAPIComponent",
       "lfComponentKey": "ComposioAgiledAPIComponent",
       "category": "composio",
       "displayName": "Agiled",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioAirtableAPIComponent",
       "lfComponentKey": "ComposioAirtableAPIComponent",
       "category": "composio",
       "displayName": "Airtable",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioApolloAPIComponent",
       "lfComponentKey": "ComposioApolloAPIComponent",
       "category": "composio",
       "displayName": "Apollo",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioAsanaAPIComponent",
       "lfComponentKey": "ComposioAsanaAPIComponent",
       "category": "composio",
       "displayName": "Asana",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioAttioAPIComponent",
       "lfComponentKey": "ComposioAttioAPIComponent",
       "category": "composio",
       "displayName": "Attio",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioBitbucketAPIComponent",
       "lfComponentKey": "ComposioBitbucketAPIComponent",
       "category": "composio",
       "displayName": "Bitbucket",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioBolnaAPIComponent",
       "lfComponentKey": "ComposioBolnaAPIComponent",
       "category": "composio",
       "displayName": "Bolna",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioBrightdataAPIComponent",
       "lfComponentKey": "ComposioBrightdataAPIComponent",
       "category": "composio",
       "displayName": "Brightdata",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioCalendlyAPIComponent",
       "lfComponentKey": "ComposioCalendlyAPIComponent",
       "category": "composio",
       "displayName": "Calendly",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioCanvaAPIComponent",
       "lfComponentKey": "ComposioCanvaAPIComponent",
       "category": "composio",
       "displayName": "Canva",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioCanvasAPIComponent",
       "lfComponentKey": "ComposioCanvasAPIComponent",
       "category": "composio",
       "displayName": "Canvas",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioCodaAPIComponent",
       "lfComponentKey": "ComposioCodaAPIComponent",
       "category": "composio",
       "displayName": "Coda",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioContentfulAPIComponent",
       "lfComponentKey": "ComposioContentfulAPIComponent",
       "category": "composio",
       "displayName": "Contentful",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioDigicertAPIComponent",
       "lfComponentKey": "ComposioDigicertAPIComponent",
       "category": "composio",
       "displayName": "Digicert",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioDiscordAPIComponent",
       "lfComponentKey": "ComposioDiscordAPIComponent",
       "category": "composio",
       "displayName": "Discord",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioDropboxAPIComponent",
       "lfComponentKey": "ComposioDropboxAPIComponent",
       "category": "composio",
       "displayName": "Dropbox",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioElevenLabsAPIComponent",
       "lfComponentKey": "ComposioElevenLabsAPIComponent",
       "category": "composio",
       "displayName": "ElevenLabs",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioExaAPIComponent",
       "lfComponentKey": "ComposioExaAPIComponent",
       "category": "composio",
       "displayName": "Exa",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFigmaAPIComponent",
       "lfComponentKey": "ComposioFigmaAPIComponent",
       "category": "composio",
       "displayName": "Figma",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFinageAPIComponent",
       "lfComponentKey": "ComposioFinageAPIComponent",
       "category": "composio",
       "displayName": "Finage",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFirecrawlAPIComponent",
       "lfComponentKey": "ComposioFirecrawlAPIComponent",
       "category": "composio",
       "displayName": "Firecrawl",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFirefliesAPIComponent",
       "lfComponentKey": "ComposioFirefliesAPIComponent",
       "category": "composio",
       "displayName": "Fireflies",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFixerAPIComponent",
       "lfComponentKey": "ComposioFixerAPIComponent",
       "category": "composio",
       "displayName": "Fixer",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFlexisignAPIComponent",
       "lfComponentKey": "ComposioFlexisignAPIComponent",
       "category": "composio",
       "displayName": "Flexisign",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioFreshdeskAPIComponent",
       "lfComponentKey": "ComposioFreshdeskAPIComponent",
       "category": "composio",
       "displayName": "Freshdesk",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGitHubAPIComponent",
       "lfComponentKey": "ComposioGitHubAPIComponent",
       "category": "composio",
       "displayName": "GitHub",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGmailAPIComponent",
       "lfComponentKey": "ComposioGmailAPIComponent",
       "category": "composio",
       "displayName": "Gmail",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleBigQueryAPIComponent",
       "lfComponentKey": "ComposioGoogleBigQueryAPIComponent",
       "category": "composio",
       "displayName": "GoogleBigQuery",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleCalendarAPIComponent",
       "lfComponentKey": "ComposioGoogleCalendarAPIComponent",
       "category": "composio",
       "displayName": "GoogleCalendar",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleDocsAPIComponent",
       "lfComponentKey": "ComposioGoogleDocsAPIComponent",
       "category": "composio",
       "displayName": "GoogleDocs",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleSheetsAPIComponent",
       "lfComponentKey": "ComposioGoogleSheetsAPIComponent",
       "category": "composio",
       "displayName": "GoogleSheets",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleTasksAPIComponent",
       "lfComponentKey": "ComposioGoogleTasksAPIComponent",
       "category": "composio",
       "displayName": "GoogleTasks",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGoogleclassroomAPIComponent",
       "lfComponentKey": "ComposioGoogleclassroomAPIComponent",
       "category": "composio",
       "displayName": "Google Classroom",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioGooglemeetAPIComponent",
       "lfComponentKey": "ComposioGooglemeetAPIComponent",
       "category": "composio",
       "displayName": "GoogleMeet",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioHeygenAPIComponent",
       "lfComponentKey": "ComposioHeygenAPIComponent",
       "category": "composio",
       "displayName": "Heygen",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioInstagramAPIComponent",
       "lfComponentKey": "ComposioInstagramAPIComponent",
       "category": "composio",
       "displayName": "Instagram",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioJiraAPIComponent",
       "lfComponentKey": "ComposioJiraAPIComponent",
       "category": "composio",
       "displayName": "Jira",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioJotformAPIComponent",
       "lfComponentKey": "ComposioJotformAPIComponent",
       "category": "composio",
       "displayName": "Jotform",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioKlaviyoAPIComponent",
       "lfComponentKey": "ComposioKlaviyoAPIComponent",
       "category": "composio",
       "displayName": "Klaviyo",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioLinearAPIComponent",
       "lfComponentKey": "ComposioLinearAPIComponent",
       "category": "composio",
       "displayName": "Linear",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioListennotesAPIComponent",
       "lfComponentKey": "ComposioListennotesAPIComponent",
       "category": "composio",
       "displayName": "Listennotes",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioMem0APIComponent",
       "lfComponentKey": "ComposioMem0APIComponent",
       "category": "composio",
       "displayName": "Mem0",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioMiroAPIComponent",
       "lfComponentKey": "ComposioMiroAPIComponent",
       "category": "composio",
       "displayName": "Miro",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioMissiveAPIComponent",
       "lfComponentKey": "ComposioMissiveAPIComponent",
       "category": "composio",
       "displayName": "Missive",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioNotionAPIComponent",
       "lfComponentKey": "ComposioNotionAPIComponent",
       "category": "composio",
       "displayName": "Notion",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioOneDriveAPIComponent",
       "lfComponentKey": "ComposioOneDriveAPIComponent",
       "category": "composio",
       "displayName": "OneDrive",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioOutlookAPIComponent",
       "lfComponentKey": "ComposioOutlookAPIComponent",
       "category": "composio",
       "displayName": "Outlook",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioPandadocAPIComponent",
       "lfComponentKey": "ComposioPandadocAPIComponent",
       "category": "composio",
       "displayName": "Pandadoc",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioPeopleDataLabsAPIComponent",
       "lfComponentKey": "ComposioPeopleDataLabsAPIComponent",
       "category": "composio",
       "displayName": "PeopleDataLabs",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioPerplexityAIAPIComponent",
       "lfComponentKey": "ComposioPerplexityAIAPIComponent",
       "category": "composio",
       "displayName": "PerplexityAI",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioRedditAPIComponent",
       "lfComponentKey": "ComposioRedditAPIComponent",
       "category": "composio",
       "displayName": "Reddit",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioSerpAPIComponent",
       "lfComponentKey": "ComposioSerpAPIComponent",
       "category": "composio",
       "displayName": "SerpAPI",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioSlackAPIComponent",
       "lfComponentKey": "ComposioSlackAPIComponent",
       "category": "composio",
       "displayName": "Slack",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioSlackbotAPIComponent",
       "lfComponentKey": "ComposioSlackbotAPIComponent",
       "category": "composio",
       "displayName": "Slackbot",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioSnowflakeAPIComponent",
       "lfComponentKey": "ComposioSnowflakeAPIComponent",
       "category": "composio",
       "displayName": "Snowflake",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioSupabaseAPIComponent",
       "lfComponentKey": "ComposioSupabaseAPIComponent",
       "category": "composio",
       "displayName": "Supabase",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioTavilyAPIComponent",
       "lfComponentKey": "ComposioTavilyAPIComponent",
       "category": "composio",
       "displayName": "Tavily",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioTimelinesAIAPIComponent",
       "lfComponentKey": "ComposioTimelinesAIAPIComponent",
       "category": "composio",
       "displayName": "TimelinesAI",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioTodoistAPIComponent",
       "lfComponentKey": "ComposioTodoistAPIComponent",
       "category": "composio",
       "displayName": "Todoist",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioWrikeAPIComponent",
       "lfComponentKey": "ComposioWrikeAPIComponent",
       "category": "composio",
       "displayName": "Wrike",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.ComposioYoutubeAPIComponent",
       "lfComponentKey": "ComposioYoutubeAPIComponent",
       "category": "composio",
       "displayName": "YouTube",
-      "outputNames": [
-        "dataFrame"
-      ]
+      "outputNames": ["dataFrame"]
     },
     {
       "cubeType": "cube.lf.Confluence",
       "lfComponentKey": "Confluence",
       "category": "confluence",
       "displayName": "Confluence",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.Couchbase",
       "lfComponentKey": "Couchbase",
       "category": "couchbase",
       "displayName": "Couchbase",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CrewAIAgentComponent",
       "lfComponentKey": "CrewAIAgentComponent",
       "category": "crewai",
       "displayName": "CrewAI Agent",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.HierarchicalCrewComponent",
       "lfComponentKey": "HierarchicalCrewComponent",
       "category": "crewai",
       "displayName": "Hierarchical Crew",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.HierarchicalTaskComponent",
       "lfComponentKey": "HierarchicalTaskComponent",
       "category": "crewai",
       "displayName": "Hierarchical Task",
-      "outputNames": [
-        "task_output"
-      ]
+      "outputNames": ["task_output"]
     },
     {
       "cubeType": "cube.lf.SequentialCrewComponent",
       "lfComponentKey": "SequentialCrewComponent",
       "category": "crewai",
       "displayName": "Sequential Crew",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.SequentialTaskAgentComponent",
       "lfComponentKey": "SequentialTaskAgentComponent",
       "category": "crewai",
       "displayName": "Sequential Task Agent",
-      "outputNames": [
-        "task_output"
-      ]
+      "outputNames": ["task_output"]
     },
     {
       "cubeType": "cube.lf.SequentialTaskComponent",
       "lfComponentKey": "SequentialTaskComponent",
       "category": "crewai",
       "displayName": "Sequential Task",
-      "outputNames": [
-        "task_output"
-      ]
+      "outputNames": ["task_output"]
     },
     {
       "cubeType": "cube.lf.Cuga",
       "lfComponentKey": "Cuga",
       "category": "cuga",
       "displayName": "Cuga",
-      "outputNames": [
-        "response"
-      ]
+      "outputNames": ["response"]
     },
     {
       "cubeType": "cube.lf.CustomComponent",
       "lfComponentKey": "CustomComponent",
       "category": "custom_component",
       "displayName": "Custom Component",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.APIRequest",
       "lfComponentKey": "APIRequest",
       "category": "data_source",
       "displayName": "API Request",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.CSVtoData",
       "lfComponentKey": "CSVtoData",
       "category": "data_source",
       "displayName": "Load CSV",
-      "outputNames": [
-        "data_list"
-      ]
+      "outputNames": ["data_list"]
     },
     {
       "cubeType": "cube.lf.JSONtoData",
       "lfComponentKey": "JSONtoData",
       "category": "data_source",
       "displayName": "Load JSON",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.MockDataGenerator",
       "lfComponentKey": "MockDataGenerator",
       "category": "data_source",
       "displayName": "Mock Data",
-      "outputNames": [
-        "dataframe_output",
-        "message_output",
-        "data_output"
-      ]
+      "outputNames": ["dataframe_output", "message_output", "data_output"]
     },
     {
       "cubeType": "cube.lf.NewsSearch",
       "lfComponentKey": "NewsSearch",
       "category": "data_source",
       "displayName": "News Search",
-      "outputNames": [
-        "articles"
-      ]
+      "outputNames": ["articles"]
     },
     {
       "cubeType": "cube.lf.RSSReaderSimple",
       "lfComponentKey": "RSSReaderSimple",
       "category": "data_source",
       "displayName": "RSS Reader",
-      "outputNames": [
-        "articles"
-      ]
+      "outputNames": ["articles"]
     },
     {
       "cubeType": "cube.lf.SQLComponent",
       "lfComponentKey": "SQLComponent",
       "category": "data_source",
       "displayName": "SQL Database",
-      "outputNames": [
-        "run_sql_query"
-      ]
+      "outputNames": ["run_sql_query"]
     },
     {
       "cubeType": "cube.lf.URLComponent",
       "lfComponentKey": "URLComponent",
       "category": "data_source",
       "displayName": "URL",
-      "outputNames": [
-        "page_results",
-        "raw_results"
-      ]
+      "outputNames": ["page_results", "raw_results"]
     },
     {
       "cubeType": "cube.lf.UnifiedWebSearch",
       "lfComponentKey": "UnifiedWebSearch",
       "category": "data_source",
       "displayName": "Web Search",
-      "outputNames": [
-        "results"
-      ]
+      "outputNames": ["results"]
     },
     {
       "cubeType": "cube.lf.AssistantsCreateAssistant",
       "lfComponentKey": "AssistantsCreateAssistant",
       "category": "datastax",
       "displayName": "Create Assistant",
-      "outputNames": [
-        "assistant_id"
-      ]
+      "outputNames": ["assistant_id"]
     },
     {
       "cubeType": "cube.lf.AssistantsCreateThread",
       "lfComponentKey": "AssistantsCreateThread",
       "category": "datastax",
       "displayName": "Create Assistant Thread",
-      "outputNames": [
-        "thread_id"
-      ]
+      "outputNames": ["thread_id"]
     },
     {
       "cubeType": "cube.lf.AssistantsGetAssistantName",
       "lfComponentKey": "AssistantsGetAssistantName",
       "category": "datastax",
       "displayName": "Get Assistant name",
-      "outputNames": [
-        "assistant_name"
-      ]
+      "outputNames": ["assistant_name"]
     },
     {
       "cubeType": "cube.lf.AssistantsListAssistants",
       "lfComponentKey": "AssistantsListAssistants",
       "category": "datastax",
       "displayName": "List Assistants",
-      "outputNames": [
-        "assistants"
-      ]
+      "outputNames": ["assistants"]
     },
     {
       "cubeType": "cube.lf.AssistantsRun",
       "lfComponentKey": "AssistantsRun",
       "category": "datastax",
       "displayName": "Run Assistant",
-      "outputNames": [
-        "assistant_response"
-      ]
+      "outputNames": ["assistant_response"]
     },
     {
       "cubeType": "cube.lf.Astra Assistant Agent",
       "lfComponentKey": "Astra Assistant Agent",
       "category": "datastax",
       "displayName": "Astra Assistant Agent",
-      "outputNames": [
-        "assistant_response",
-        "tool_output",
-        "output_thread_id",
-        "output_assistant_id",
-        "output_vs_id"
-      ]
+      "outputNames": ["assistant_response", "tool_output", "output_thread_id", "output_assistant_id", "output_vs_id"]
     },
     {
       "cubeType": "cube.lf.AstraDB",
       "lfComponentKey": "AstraDB",
       "category": "datastax",
       "displayName": "Astra DB",
-      "outputNames": [
-        "search_results",
-        "dataframe",
-        "vectorstoreconnection"
-      ]
+      "outputNames": ["search_results", "dataframe", "vectorstoreconnection"]
     },
     {
       "cubeType": "cube.lf.AstraDBCQLToolComponent",
       "lfComponentKey": "AstraDBCQLToolComponent",
       "category": "datastax",
       "displayName": "Astra DB CQL",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.AstraDBChatMemory",
       "lfComponentKey": "AstraDBChatMemory",
       "category": "datastax",
       "displayName": "Astra DB Chat Memory",
-      "outputNames": [
-        "memory"
-      ]
+      "outputNames": ["memory"]
     },
     {
       "cubeType": "cube.lf.AstraDBGraph",
       "lfComponentKey": "AstraDBGraph",
       "category": "datastax",
       "displayName": "Astra DB Graph",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.AstraDBTool",
       "lfComponentKey": "AstraDBTool",
       "category": "datastax",
       "displayName": "Astra DB Tool",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.AstraVectorize",
       "lfComponentKey": "AstraVectorize",
       "category": "datastax",
       "displayName": "Astra Vectorize",
-      "outputNames": [
-        "config"
-      ]
+      "outputNames": ["config"]
     },
     {
       "cubeType": "cube.lf.Dotenv",
       "lfComponentKey": "Dotenv",
       "category": "datastax",
       "displayName": "Dotenv",
-      "outputNames": [
-        "env_set"
-      ]
+      "outputNames": ["env_set"]
     },
     {
       "cubeType": "cube.lf.GetEnvVar",
       "lfComponentKey": "GetEnvVar",
       "category": "datastax",
       "displayName": "Get Environment Variable",
-      "outputNames": [
-        "env_var_value"
-      ]
+      "outputNames": ["env_var_value"]
     },
     {
       "cubeType": "cube.lf.GraphRAG",
       "lfComponentKey": "GraphRAG",
       "category": "datastax",
       "displayName": "Graph RAG",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.HCD",
       "lfComponentKey": "HCD",
       "category": "datastax",
       "displayName": "Hyper-Converged Database",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.DeepSeekModelComponent",
       "lfComponentKey": "DeepSeekModelComponent",
       "category": "deepseek",
       "displayName": "DeepSeek",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.ChunkDoclingDocument",
       "lfComponentKey": "ChunkDoclingDocument",
       "category": "docling",
       "displayName": "Chunk DoclingDocument",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.DoclingInline",
       "lfComponentKey": "DoclingInline",
       "category": "docling",
       "displayName": "Docling",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.DoclingRemote",
       "lfComponentKey": "DoclingRemote",
       "category": "docling",
       "displayName": "Docling Serve",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.ExportDoclingDocument",
       "lfComponentKey": "ExportDoclingDocument",
       "category": "docling",
       "displayName": "Export DoclingDocument",
-      "outputNames": [
-        "data",
-        "dataframe"
-      ]
+      "outputNames": ["data", "dataframe"]
     },
     {
       "cubeType": "cube.lf.DuckDuckGoSearchComponent",
       "lfComponentKey": "DuckDuckGoSearchComponent",
       "category": "duckduckgo",
       "displayName": "DuckDuckGo Search",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.Elasticsearch",
       "lfComponentKey": "Elasticsearch",
       "category": "elastic",
       "displayName": "Elasticsearch",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.OpenSearchVectorStoreComponent",
       "lfComponentKey": "OpenSearchVectorStoreComponent",
       "category": "elastic",
       "displayName": "OpenSearch",
-      "outputNames": [
-        "search_results",
-        "dataframe",
-        "vectorstoreconnection"
-      ]
+      "outputNames": ["search_results", "dataframe", "vectorstoreconnection"]
     },
     {
       "cubeType": "cube.lf.EmbeddingSimilarityComponent",
       "lfComponentKey": "EmbeddingSimilarityComponent",
       "category": "embeddings",
       "displayName": "Embedding Similarity",
-      "outputNames": [
-        "similarity_data"
-      ]
+      "outputNames": ["similarity_data"]
     },
     {
       "cubeType": "cube.lf.TextEmbedderComponent",
       "lfComponentKey": "TextEmbedderComponent",
       "category": "embeddings",
       "displayName": "Text Embedder",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.ExaSearch",
       "lfComponentKey": "ExaSearch",
       "category": "exa",
       "displayName": "Exa Search",
-      "outputNames": [
-        "tools"
-      ]
+      "outputNames": ["tools"]
     },
     {
       "cubeType": "cube.lf.Directory",
       "lfComponentKey": "Directory",
       "category": "files_and_knowledge",
       "displayName": "Directory",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.File",
       "lfComponentKey": "File",
       "category": "files_and_knowledge",
       "displayName": "Read File",
-      "outputNames": [
-        "message"
-      ]
+      "outputNames": ["message"]
     },
     {
       "cubeType": "cube.lf.SaveToFile",
       "lfComponentKey": "SaveToFile",
       "category": "files_and_knowledge",
       "displayName": "Write File",
-      "outputNames": [
-        "message"
-      ]
+      "outputNames": ["message"]
     },
     {
       "cubeType": "cube.lf.FirecrawlCrawlApi",
       "lfComponentKey": "FirecrawlCrawlApi",
       "category": "firecrawl",
       "displayName": "Firecrawl Crawl API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.FirecrawlExtractApi",
       "lfComponentKey": "FirecrawlExtractApi",
       "category": "firecrawl",
       "displayName": "Firecrawl Extract API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.FirecrawlMapApi",
       "lfComponentKey": "FirecrawlMapApi",
       "category": "firecrawl",
       "displayName": "Firecrawl Map API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.FirecrawlScrapeApi",
       "lfComponentKey": "FirecrawlScrapeApi",
       "category": "firecrawl",
       "displayName": "Firecrawl Scrape API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.ConditionalRouter",
       "lfComponentKey": "ConditionalRouter",
       "category": "flow_controls",
       "displayName": "If-Else",
-      "outputNames": [
-        "true_result",
-        "false_result"
-      ]
+      "outputNames": ["true_result", "false_result"]
     },
     {
       "cubeType": "cube.lf.DataConditionalRouter",
       "lfComponentKey": "DataConditionalRouter",
       "category": "flow_controls",
       "displayName": "Condition",
-      "outputNames": [
-        "true_output",
-        "false_output"
-      ]
+      "outputNames": ["true_output", "false_output"]
     },
     {
       "cubeType": "cube.lf.FlowTool",
       "lfComponentKey": "FlowTool",
       "category": "flow_controls",
       "displayName": "Flow as Tool",
-      "outputNames": [
-        "api_build_tool"
-      ]
+      "outputNames": ["api_build_tool"]
     },
     {
       "cubeType": "cube.lf.Listen",
       "lfComponentKey": "Listen",
       "category": "flow_controls",
       "displayName": "Listen",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.LoopComponent",
       "lfComponentKey": "LoopComponent",
       "category": "flow_controls",
       "displayName": "Loop",
-      "outputNames": [
-        "item",
-        "done"
-      ]
+      "outputNames": ["item", "done"]
     },
     {
       "cubeType": "cube.lf.Notify",
       "lfComponentKey": "Notify",
       "category": "flow_controls",
       "displayName": "Notify",
-      "outputNames": [
-        "result"
-      ]
+      "outputNames": ["result"]
     },
     {
       "cubeType": "cube.lf.Pass",
       "lfComponentKey": "Pass",
       "category": "flow_controls",
       "displayName": "Pass",
-      "outputNames": [
-        "output_message"
-      ]
+      "outputNames": ["output_message"]
     },
     {
       "cubeType": "cube.lf.RunFlow",
@@ -1552,630 +1170,469 @@
       "lfComponentKey": "SubFlow",
       "category": "flow_controls",
       "displayName": "Sub Flow",
-      "outputNames": [
-        "flow_outputs"
-      ]
+      "outputNames": ["flow_outputs"]
     },
     {
       "cubeType": "cube.lf.GitExtractorComponent",
       "lfComponentKey": "GitExtractorComponent",
       "category": "git",
       "displayName": "GitExtractor",
-      "outputNames": [
-        "text_based_file_contents",
-        "directory_structure",
-        "repository_info",
-        "statistics",
-        "files_content"
-      ]
+      "outputNames": ["text_based_file_contents", "directory_structure", "repository_info", "statistics", "files_content"]
     },
     {
       "cubeType": "cube.lf.GitLoaderComponent",
       "lfComponentKey": "GitLoaderComponent",
       "category": "git",
       "displayName": "Git",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.GleanSearchAPIComponent",
       "lfComponentKey": "GleanSearchAPIComponent",
       "category": "glean",
       "displayName": "Glean Search API",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.BigQueryExecutor",
       "lfComponentKey": "BigQueryExecutor",
       "category": "google",
       "displayName": "BigQuery",
-      "outputNames": [
-        "query_results"
-      ]
+      "outputNames": ["query_results"]
     },
     {
       "cubeType": "cube.lf.GmailLoaderComponent",
       "lfComponentKey": "GmailLoaderComponent",
       "category": "google",
       "displayName": "Gmail Loader",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.Google Generative AI Embeddings",
       "lfComponentKey": "Google Generative AI Embeddings",
       "category": "google",
       "displayName": "Google Generative AI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.GoogleDriveComponent",
       "lfComponentKey": "GoogleDriveComponent",
       "category": "google",
       "displayName": "Google Drive Loader",
-      "outputNames": [
-        "docs"
-      ]
+      "outputNames": ["docs"]
     },
     {
       "cubeType": "cube.lf.GoogleDriveSearchComponent",
       "lfComponentKey": "GoogleDriveSearchComponent",
       "category": "google",
       "displayName": "Google Drive Search",
-      "outputNames": [
-        "doc_urls",
-        "doc_ids",
-        "doc_titles",
-        "Data"
-      ]
+      "outputNames": ["doc_urls", "doc_ids", "doc_titles", "Data"]
     },
     {
       "cubeType": "cube.lf.GoogleGenerativeAIModel",
       "lfComponentKey": "GoogleGenerativeAIModel",
       "category": "google",
       "displayName": "Google Generative AI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.GoogleOAuthToken",
       "lfComponentKey": "GoogleOAuthToken",
       "category": "google",
       "displayName": "Google OAuth Token",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.GoogleSearchAPICore",
       "lfComponentKey": "GoogleSearchAPICore",
       "category": "google",
       "displayName": "Google Search API",
-      "outputNames": [
-        "results"
-      ]
+      "outputNames": ["results"]
     },
     {
       "cubeType": "cube.lf.GoogleSerperAPICore",
       "lfComponentKey": "GoogleSerperAPICore",
       "category": "google",
       "displayName": "Google Serper API",
-      "outputNames": [
-        "results"
-      ]
+      "outputNames": ["results"]
     },
     {
       "cubeType": "cube.lf.GroqModel",
       "lfComponentKey": "GroqModel",
       "category": "groq",
       "displayName": "Groq",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.HomeAssistantControl",
       "lfComponentKey": "HomeAssistantControl",
       "category": "homeassistant",
       "displayName": "Home Assistant Control",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.ListHomeAssistantStates",
       "lfComponentKey": "ListHomeAssistantStates",
       "category": "homeassistant",
       "displayName": "List Home Assistant States",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.HuggingFaceInferenceAPIEmbeddings",
       "lfComponentKey": "HuggingFaceInferenceAPIEmbeddings",
       "category": "huggingface",
       "displayName": "Hugging Face Embeddings Inference",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.HuggingFaceModel",
       "lfComponentKey": "HuggingFaceModel",
       "category": "huggingface",
       "displayName": "Hugging Face",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.IBMwatsonxModel",
       "lfComponentKey": "IBMwatsonxModel",
       "category": "ibm",
       "displayName": "IBM watsonx.ai",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.WatsonxEmbeddingsComponent",
       "lfComponentKey": "WatsonxEmbeddingsComponent",
       "category": "ibm",
       "displayName": "IBM watsonx.ai Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.Combinatorial Reasoner",
       "lfComponentKey": "Combinatorial Reasoner",
       "category": "icosacomputing",
       "displayName": "Combinatorial Reasoner",
-      "outputNames": [
-        "optimized_prompt",
-        "reasons"
-      ]
+      "outputNames": ["optimized_prompt", "reasons"]
     },
     {
       "cubeType": "cube.lf.ChatInput",
       "lfComponentKey": "ChatInput",
       "category": "input_output",
       "displayName": "Chat Input",
-      "outputNames": [
-        "message"
-      ]
+      "outputNames": ["message"]
     },
     {
       "cubeType": "cube.lf.ChatOutput",
       "lfComponentKey": "ChatOutput",
       "category": "input_output",
       "displayName": "Chat Output",
-      "outputNames": [
-        "message"
-      ]
+      "outputNames": ["message"]
     },
     {
       "cubeType": "cube.lf.TextInput",
       "lfComponentKey": "TextInput",
       "category": "input_output",
       "displayName": "Text Input",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.TextOutput",
       "lfComponentKey": "TextOutput",
       "category": "input_output",
       "displayName": "Text Output",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.Webhook",
       "lfComponentKey": "Webhook",
       "category": "input_output",
       "displayName": "Webhook",
-      "outputNames": [
-        "output_data"
-      ]
+      "outputNames": ["output_data"]
     },
     {
       "cubeType": "cube.lf.JigsawStackAIScraper",
       "lfComponentKey": "JigsawStackAIScraper",
       "category": "jigsawstack",
       "displayName": "AI Scraper",
-      "outputNames": [
-        "scrape_results"
-      ]
+      "outputNames": ["scrape_results"]
     },
     {
       "cubeType": "cube.lf.JigsawStackAISearch",
       "lfComponentKey": "JigsawStackAISearch",
       "category": "jigsawstack",
       "displayName": "AI Web Search",
-      "outputNames": [
-        "search_results",
-        "content_text"
-      ]
+      "outputNames": ["search_results", "content_text"]
     },
     {
       "cubeType": "cube.lf.JigsawStackFileRead",
       "lfComponentKey": "JigsawStackFileRead",
       "category": "jigsawstack",
       "displayName": "File Read",
-      "outputNames": [
-        "file_path"
-      ]
+      "outputNames": ["file_path"]
     },
     {
       "cubeType": "cube.lf.JigsawStackFileUpload",
       "lfComponentKey": "JigsawStackFileUpload",
       "category": "jigsawstack",
       "displayName": "File Upload",
-      "outputNames": [
-        "file_upload_result"
-      ]
+      "outputNames": ["file_upload_result"]
     },
     {
       "cubeType": "cube.lf.JigsawStackImageGeneration",
       "lfComponentKey": "JigsawStackImageGeneration",
       "category": "jigsawstack",
       "displayName": "Image Generation",
-      "outputNames": [
-        "image_generation_results"
-      ]
+      "outputNames": ["image_generation_results"]
     },
     {
       "cubeType": "cube.lf.JigsawStackNSFW",
       "lfComponentKey": "JigsawStackNSFW",
       "category": "jigsawstack",
       "displayName": "NSFW Detection",
-      "outputNames": [
-        "nsfw_result"
-      ]
+      "outputNames": ["nsfw_result"]
     },
     {
       "cubeType": "cube.lf.JigsawStackObjectDetection",
       "lfComponentKey": "JigsawStackObjectDetection",
       "category": "jigsawstack",
       "displayName": "Object Detection",
-      "outputNames": [
-        "object_detection_results"
-      ]
+      "outputNames": ["object_detection_results"]
     },
     {
       "cubeType": "cube.lf.JigsawStackSentiment",
       "lfComponentKey": "JigsawStackSentiment",
       "category": "jigsawstack",
       "displayName": "Sentiment Analysis",
-      "outputNames": [
-        "sentiment_data",
-        "sentiment_text"
-      ]
+      "outputNames": ["sentiment_data", "sentiment_text"]
     },
     {
       "cubeType": "cube.lf.JigsawStackTextToSQL",
       "lfComponentKey": "JigsawStackTextToSQL",
       "category": "jigsawstack",
       "displayName": "Text to SQL",
-      "outputNames": [
-        "sql_query"
-      ]
+      "outputNames": ["sql_query"]
     },
     {
       "cubeType": "cube.lf.JigsawStackTextTranslate",
       "lfComponentKey": "JigsawStackTextTranslate",
       "category": "jigsawstack",
       "displayName": "Text Translate",
-      "outputNames": [
-        "translation_results"
-      ]
+      "outputNames": ["translation_results"]
     },
     {
       "cubeType": "cube.lf.JigsawStackVOCR",
       "lfComponentKey": "JigsawStackVOCR",
       "category": "jigsawstack",
       "displayName": "VOCR",
-      "outputNames": [
-        "vocr_results"
-      ]
+      "outputNames": ["vocr_results"]
     },
     {
       "cubeType": "cube.lf.CSVAgent",
       "lfComponentKey": "CSVAgent",
       "category": "langchain_utilities",
       "displayName": "CSV Agent",
-      "outputNames": [
-        "response",
-        "agent"
-      ]
+      "outputNames": ["response", "agent"]
     },
     {
       "cubeType": "cube.lf.CharacterTextSplitter",
       "lfComponentKey": "CharacterTextSplitter",
       "category": "langchain_utilities",
       "displayName": "Character Text Splitter",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.ConversationChain",
       "lfComponentKey": "ConversationChain",
       "category": "langchain_utilities",
       "displayName": "ConversationChain",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.HtmlLinkExtractor",
       "lfComponentKey": "HtmlLinkExtractor",
       "category": "langchain_utilities",
       "displayName": "HTML Link Extractor",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.JsonAgent",
       "lfComponentKey": "JsonAgent",
       "category": "langchain_utilities",
       "displayName": "JsonAgent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.LLMCheckerChain",
       "lfComponentKey": "LLMCheckerChain",
       "category": "langchain_utilities",
       "displayName": "LLMCheckerChain",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.LLMMathChain",
       "lfComponentKey": "LLMMathChain",
       "category": "langchain_utilities",
       "displayName": "LLMMathChain",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.LangChain Hub Prompt",
       "lfComponentKey": "LangChain Hub Prompt",
       "category": "langchain_utilities",
       "displayName": "Prompt Hub",
-      "outputNames": [
-        "prompt"
-      ]
+      "outputNames": ["prompt"]
     },
     {
       "cubeType": "cube.lf.LangChainFakeEmbeddings",
       "lfComponentKey": "LangChainFakeEmbeddings",
       "category": "langchain_utilities",
       "displayName": "Fake Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.LanguageRecursiveTextSplitter",
       "lfComponentKey": "LanguageRecursiveTextSplitter",
       "category": "langchain_utilities",
       "displayName": "Language Recursive Text Splitter",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.NaturalLanguageTextSplitter",
       "lfComponentKey": "NaturalLanguageTextSplitter",
       "category": "langchain_utilities",
       "displayName": "Natural Language Text Splitter",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.OpenAIToolsAgent",
       "lfComponentKey": "OpenAIToolsAgent",
       "category": "langchain_utilities",
       "displayName": "OpenAI Tools Agent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.OpenAPIAgent",
       "lfComponentKey": "OpenAPIAgent",
       "category": "langchain_utilities",
       "displayName": "OpenAPI Agent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.RecursiveCharacterTextSplitter",
       "lfComponentKey": "RecursiveCharacterTextSplitter",
       "category": "langchain_utilities",
       "displayName": "Recursive Character Text Splitter",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.RetrievalQA",
       "lfComponentKey": "RetrievalQA",
       "category": "langchain_utilities",
       "displayName": "Retrieval QA",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.RunnableExecutor",
       "lfComponentKey": "RunnableExecutor",
       "category": "langchain_utilities",
       "displayName": "Runnable Executor",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.SQLAgent",
       "lfComponentKey": "SQLAgent",
       "category": "langchain_utilities",
       "displayName": "SQLAgent",
-      "outputNames": [
-        "response",
-        "agent"
-      ]
+      "outputNames": ["response", "agent"]
     },
     {
       "cubeType": "cube.lf.SQLDatabase",
       "lfComponentKey": "SQLDatabase",
       "category": "langchain_utilities",
       "displayName": "SQLDatabase",
-      "outputNames": [
-        "SQLDatabase"
-      ]
+      "outputNames": ["SQLDatabase"]
     },
     {
       "cubeType": "cube.lf.SQLGenerator",
       "lfComponentKey": "SQLGenerator",
       "category": "langchain_utilities",
       "displayName": "Natural Language to SQL",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.SelfQueryRetriever",
       "lfComponentKey": "SelfQueryRetriever",
       "category": "langchain_utilities",
       "displayName": "Self Query Retriever",
-      "outputNames": [
-        "documents"
-      ]
+      "outputNames": ["documents"]
     },
     {
       "cubeType": "cube.lf.SemanticTextSplitter",
       "lfComponentKey": "SemanticTextSplitter",
       "category": "langchain_utilities",
       "displayName": "Semantic Text Splitter",
-      "outputNames": [
-        "chunks"
-      ]
+      "outputNames": ["chunks"]
     },
     {
       "cubeType": "cube.lf.SpiderTool",
       "lfComponentKey": "SpiderTool",
       "category": "langchain_utilities",
       "displayName": "Spider Web Crawler & Scraper",
-      "outputNames": [
-        "content"
-      ]
+      "outputNames": ["content"]
     },
     {
       "cubeType": "cube.lf.ToolCallingAgent",
       "lfComponentKey": "ToolCallingAgent",
       "category": "langchain_utilities",
       "displayName": "Tool Calling Agent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.VectorStoreInfo",
       "lfComponentKey": "VectorStoreInfo",
       "category": "langchain_utilities",
       "displayName": "VectorStoreInfo",
-      "outputNames": [
-        "info"
-      ]
+      "outputNames": ["info"]
     },
     {
       "cubeType": "cube.lf.VectorStoreRouterAgent",
       "lfComponentKey": "VectorStoreRouterAgent",
       "category": "langchain_utilities",
       "displayName": "VectorStoreRouterAgent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.XMLAgent",
       "lfComponentKey": "XMLAgent",
       "category": "langchain_utilities",
       "displayName": "XML Agent",
-      "outputNames": [
-        "agent",
-        "response"
-      ]
+      "outputNames": ["agent", "response"]
     },
     {
       "cubeType": "cube.lf.LangWatchEvaluator",
       "lfComponentKey": "LangWatchEvaluator",
       "category": "langwatch",
       "displayName": "LangWatch Evaluator",
-      "outputNames": [
-        "evaluation_result"
-      ]
+      "outputNames": ["evaluation_result"]
     },
     {
       "cubeType": "cube.lf.BatchRunComponent",
       "lfComponentKey": "BatchRunComponent",
       "category": "llm_operations",
       "displayName": "Batch Run",
-      "outputNames": [
-        "batch_results"
-      ]
+      "outputNames": ["batch_results"]
     },
     {
       "cubeType": "cube.lf.LLMSelectorComponent",
       "lfComponentKey": "LLMSelectorComponent",
       "category": "llm_operations",
       "displayName": "LLM Selector",
-      "outputNames": [
-        "output",
-        "selected_model_info",
-        "routing_decision"
-      ]
+      "outputNames": ["output", "selected_model_info", "routing_decision"]
     },
     {
       "cubeType": "cube.lf.Smart Transform",
       "lfComponentKey": "Smart Transform",
       "category": "llm_operations",
       "displayName": "Smart Transform",
-      "outputNames": [
-        "data_output",
-        "dataframe_output"
-      ]
+      "outputNames": ["data_output", "dataframe_output"]
     },
     {
       "cubeType": "cube.lf.SmartRouter",
@@ -2189,1087 +1646,805 @@
       "lfComponentKey": "StructuredOutput",
       "category": "llm_operations",
       "displayName": "Structured Output",
-      "outputNames": [
-        "structured_output",
-        "dataframe_output"
-      ]
+      "outputNames": ["structured_output", "dataframe_output"]
     },
     {
       "cubeType": "cube.lf.LMStudioEmbeddingsComponent",
       "lfComponentKey": "LMStudioEmbeddingsComponent",
       "category": "lmstudio",
       "displayName": "LM Studio Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.LMStudioModel",
       "lfComponentKey": "LMStudioModel",
       "category": "lmstudio",
       "displayName": "LM Studio",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.Maritalk",
       "lfComponentKey": "Maritalk",
       "category": "maritalk",
       "displayName": "MariTalk",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.mem0_chat_memory",
       "lfComponentKey": "mem0_chat_memory",
       "category": "mem0",
       "displayName": "Mem0 Chat Memory",
-      "outputNames": [
-        "memory",
-        "search_results"
-      ]
+      "outputNames": ["memory", "search_results"]
     },
     {
       "cubeType": "cube.lf.Milvus",
       "lfComponentKey": "Milvus",
       "category": "milvus",
       "displayName": "Milvus",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.MistalAIEmbeddings",
       "lfComponentKey": "MistalAIEmbeddings",
       "category": "mistral",
       "displayName": "MistralAI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.MistralModel",
       "lfComponentKey": "MistralModel",
       "category": "mistral",
       "displayName": "MistralAI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.Agent",
       "lfComponentKey": "Agent",
       "category": "models_and_agents",
       "displayName": "Agent",
-      "outputNames": [
-        "response"
-      ]
+      "outputNames": ["response"]
     },
     {
       "cubeType": "cube.lf.EmbeddingModel",
       "lfComponentKey": "EmbeddingModel",
       "category": "models_and_agents",
       "displayName": "Embedding Model",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.LanguageModelComponent",
       "lfComponentKey": "LanguageModelComponent",
       "category": "models_and_agents",
       "displayName": "Language Model",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.MCPTools",
       "lfComponentKey": "MCPTools",
       "category": "models_and_agents",
       "displayName": "MCP Tools",
-      "outputNames": [
-        "response"
-      ]
+      "outputNames": ["response"]
     },
     {
       "cubeType": "cube.lf.Memory",
       "lfComponentKey": "Memory",
       "category": "models_and_agents",
       "displayName": "Message History",
-      "outputNames": [
-        "messages_text",
-        "dataframe"
-      ]
+      "outputNames": ["messages_text", "dataframe"]
     },
     {
       "cubeType": "cube.lf.Prompt Template",
       "lfComponentKey": "Prompt Template",
       "category": "models_and_agents",
       "displayName": "Prompt Template",
-      "outputNames": [
-        "prompt"
-      ]
+      "outputNames": ["prompt"]
     },
     {
       "cubeType": "cube.lf.MongoDBAtlasVector",
       "lfComponentKey": "MongoDBAtlasVector",
       "category": "mongodb",
       "displayName": "MongoDB Atlas",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.needle",
       "lfComponentKey": "needle",
       "category": "needle",
       "displayName": "Needle Retriever",
-      "outputNames": [
-        "result"
-      ]
+      "outputNames": ["result"]
     },
     {
       "cubeType": "cube.lf.NotDiamond",
       "lfComponentKey": "NotDiamond",
       "category": "notdiamond",
       "displayName": "Not Diamond Router",
-      "outputNames": [
-        "output",
-        "selected_model"
-      ]
+      "outputNames": ["output", "selected_model"]
     },
     {
       "cubeType": "cube.lf.NovitaModel",
       "lfComponentKey": "NovitaModel",
       "category": "novita",
       "displayName": "Novita AI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.NVIDIAEmbeddingsComponent",
       "lfComponentKey": "NVIDIAEmbeddingsComponent",
       "category": "nvidia",
       "displayName": "NVIDIA Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.NVIDIAModelComponent",
       "lfComponentKey": "NVIDIAModelComponent",
       "category": "nvidia",
       "displayName": "NVIDIA",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.NvidiaIngestComponent",
       "lfComponentKey": "NvidiaIngestComponent",
       "category": "nvidia",
       "displayName": "NVIDIA Retriever Extraction",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.NvidiaRerankComponent",
       "lfComponentKey": "NvidiaRerankComponent",
       "category": "nvidia",
       "displayName": "NVIDIA Rerank",
-      "outputNames": [
-        "reranked_documents"
-      ]
+      "outputNames": ["reranked_documents"]
     },
     {
       "cubeType": "cube.lf.NvidiaSystemAssistComponent",
       "lfComponentKey": "NvidiaSystemAssistComponent",
       "category": "nvidia",
       "displayName": "NVIDIA System-Assist",
-      "outputNames": [
-        "response"
-      ]
+      "outputNames": ["response"]
     },
     {
       "cubeType": "cube.lf.OlivyaComponent",
       "lfComponentKey": "OlivyaComponent",
       "category": "olivya",
       "displayName": "Place Call",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.OllamaEmbeddings",
       "lfComponentKey": "OllamaEmbeddings",
       "category": "ollama",
       "displayName": "Ollama Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.OllamaModel",
       "lfComponentKey": "OllamaModel",
       "category": "ollama",
       "displayName": "Ollama",
-      "outputNames": [
-        "text_output",
-        "model_output",
-        "data_output",
-        "dataframe_output"
-      ]
+      "outputNames": ["text_output", "model_output", "data_output", "dataframe_output"]
     },
     {
       "cubeType": "cube.lf.OpenAIEmbeddings",
       "lfComponentKey": "OpenAIEmbeddings",
       "category": "openai",
       "displayName": "OpenAI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.OpenAIModel",
       "lfComponentKey": "OpenAIModel",
       "category": "openai",
       "displayName": "OpenAI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.OpenRouterComponent",
       "lfComponentKey": "OpenRouterComponent",
       "category": "openrouter",
       "displayName": "OpenRouter",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.PerplexityModel",
       "lfComponentKey": "PerplexityModel",
       "category": "perplexity",
       "displayName": "Perplexity",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.pgvector",
       "lfComponentKey": "pgvector",
       "category": "pgvector",
       "displayName": "PGVector",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.Pinecone",
       "lfComponentKey": "Pinecone",
       "category": "pinecone",
       "displayName": "Pinecone",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.AlterMetadata",
       "lfComponentKey": "AlterMetadata",
       "category": "processing",
       "displayName": "Alter Metadata",
-      "outputNames": [
-        "data",
-        "dataframe"
-      ]
+      "outputNames": ["data", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CombineText",
       "lfComponentKey": "CombineText",
       "category": "processing",
       "displayName": "Combine Text",
-      "outputNames": [
-        "combined_text"
-      ]
+      "outputNames": ["combined_text"]
     },
     {
       "cubeType": "cube.lf.CreateData",
       "lfComponentKey": "CreateData",
       "category": "processing",
       "displayName": "Create Data",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.CreateList",
       "lfComponentKey": "CreateList",
       "category": "processing",
       "displayName": "Create List",
-      "outputNames": [
-        "list",
-        "dataframe"
-      ]
+      "outputNames": ["list", "dataframe"]
     },
     {
       "cubeType": "cube.lf.DataFrameOperations",
       "lfComponentKey": "DataFrameOperations",
       "category": "processing",
       "displayName": "DataFrame Operations",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.DataOperations",
       "lfComponentKey": "DataOperations",
       "category": "processing",
       "displayName": "Data Operations",
-      "outputNames": [
-        "data_output"
-      ]
+      "outputNames": ["data_output"]
     },
     {
       "cubeType": "cube.lf.DataToDataFrame",
       "lfComponentKey": "DataToDataFrame",
       "category": "processing",
       "displayName": "Data → DataFrame",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.DynamicCreateData",
       "lfComponentKey": "DynamicCreateData",
       "category": "processing",
       "displayName": "Dynamic Create Data",
-      "outputNames": [
-        "form_data",
-        "message"
-      ]
+      "outputNames": ["form_data", "message"]
     },
     {
       "cubeType": "cube.lf.ExtractaKey",
       "lfComponentKey": "ExtractaKey",
       "category": "processing",
       "displayName": "Extract Key",
-      "outputNames": [
-        "extracted_data"
-      ]
+      "outputNames": ["extracted_data"]
     },
     {
       "cubeType": "cube.lf.FilterData",
       "lfComponentKey": "FilterData",
       "category": "processing",
       "displayName": "Filter Data",
-      "outputNames": [
-        "filtered_data"
-      ]
+      "outputNames": ["filtered_data"]
     },
     {
       "cubeType": "cube.lf.FilterDataValues",
       "lfComponentKey": "FilterDataValues",
       "category": "processing",
       "displayName": "Filter Values",
-      "outputNames": [
-        "filtered_data"
-      ]
+      "outputNames": ["filtered_data"]
     },
     {
       "cubeType": "cube.lf.JSONCleaner",
       "lfComponentKey": "JSONCleaner",
       "category": "processing",
       "displayName": "JSON Cleaner",
-      "outputNames": [
-        "output"
-      ]
+      "outputNames": ["output"]
     },
     {
       "cubeType": "cube.lf.MergeDataComponent",
       "lfComponentKey": "MergeDataComponent",
       "category": "processing",
       "displayName": "Combine Data",
-      "outputNames": [
-        "combined_data"
-      ]
+      "outputNames": ["combined_data"]
     },
     {
       "cubeType": "cube.lf.MessagetoData",
       "lfComponentKey": "MessagetoData",
       "category": "processing",
       "displayName": "Message to Data",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.OutputParser",
       "lfComponentKey": "OutputParser",
       "category": "processing",
       "displayName": "Output Parser",
-      "outputNames": [
-        "format_instructions",
-        "output_parser"
-      ]
+      "outputNames": ["format_instructions", "output_parser"]
     },
     {
       "cubeType": "cube.lf.ParseData",
       "lfComponentKey": "ParseData",
       "category": "processing",
       "displayName": "Data to Message",
-      "outputNames": [
-        "text",
-        "data_list"
-      ]
+      "outputNames": ["text", "data_list"]
     },
     {
       "cubeType": "cube.lf.ParseDataFrame",
       "lfComponentKey": "ParseDataFrame",
       "category": "processing",
       "displayName": "Parse DataFrame",
-      "outputNames": [
-        "text"
-      ]
+      "outputNames": ["text"]
     },
     {
       "cubeType": "cube.lf.ParseJSONData",
       "lfComponentKey": "ParseJSONData",
       "category": "processing",
       "displayName": "Parse JSON",
-      "outputNames": [
-        "filtered_data"
-      ]
+      "outputNames": ["filtered_data"]
     },
     {
       "cubeType": "cube.lf.ParserComponent",
       "lfComponentKey": "ParserComponent",
       "category": "processing",
       "displayName": "Parser",
-      "outputNames": [
-        "parsed_text"
-      ]
+      "outputNames": ["parsed_text"]
     },
     {
       "cubeType": "cube.lf.RegexExtractorComponent",
       "lfComponentKey": "RegexExtractorComponent",
       "category": "processing",
       "displayName": "Regex Extractor",
-      "outputNames": [
-        "data",
-        "text"
-      ]
+      "outputNames": ["data", "text"]
     },
     {
       "cubeType": "cube.lf.SelectData",
       "lfComponentKey": "SelectData",
       "category": "processing",
       "displayName": "Select Data",
-      "outputNames": [
-        "selected_data"
-      ]
+      "outputNames": ["selected_data"]
     },
     {
       "cubeType": "cube.lf.SplitText",
       "lfComponentKey": "SplitText",
       "category": "processing",
       "displayName": "Split Text",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.StoreMessage",
       "lfComponentKey": "StoreMessage",
       "category": "processing",
       "displayName": "Message Store",
-      "outputNames": [
-        "stored_messages"
-      ]
+      "outputNames": ["stored_messages"]
     },
     {
       "cubeType": "cube.lf.TypeConverterComponent",
       "lfComponentKey": "TypeConverterComponent",
       "category": "processing",
       "displayName": "Type Convert",
-      "outputNames": [
-        "message_output"
-      ]
+      "outputNames": ["message_output"]
     },
     {
       "cubeType": "cube.lf.UpdateData",
       "lfComponentKey": "UpdateData",
       "category": "processing",
       "displayName": "Update Data",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.PythonFunction",
       "lfComponentKey": "PythonFunction",
       "category": "prototypes",
       "displayName": "Python Function",
-      "outputNames": [
-        "function_output",
-        "function_output_data",
-        "function_output_str"
-      ]
+      "outputNames": ["function_output", "function_output_data", "function_output_str"]
     },
     {
       "cubeType": "cube.lf.QdrantVectorStoreComponent",
       "lfComponentKey": "QdrantVectorStoreComponent",
       "category": "qdrant",
       "displayName": "Qdrant",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.Redis",
       "lfComponentKey": "Redis",
       "category": "redis",
       "displayName": "Redis",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.RedisChatMemory",
       "lfComponentKey": "RedisChatMemory",
       "category": "redis",
       "displayName": "Redis Chat Memory",
-      "outputNames": [
-        "memory"
-      ]
+      "outputNames": ["memory"]
     },
     {
       "cubeType": "cube.lf.SambaNovaModel",
       "lfComponentKey": "SambaNovaModel",
       "category": "sambanova",
       "displayName": "SambaNova",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.ScrapeGraphMarkdownifyApi",
       "lfComponentKey": "ScrapeGraphMarkdownifyApi",
       "category": "scrapegraph",
       "displayName": "ScrapeGraph Markdownify API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.ScrapeGraphSearchApi",
       "lfComponentKey": "ScrapeGraphSearchApi",
       "category": "scrapegraph",
       "displayName": "ScrapeGraph Search API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.ScrapeGraphSmartScraperApi",
       "lfComponentKey": "ScrapeGraphSmartScraperApi",
       "category": "scrapegraph",
       "displayName": "ScrapeGraph Smart Scraper API",
-      "outputNames": [
-        "data"
-      ]
+      "outputNames": ["data"]
     },
     {
       "cubeType": "cube.lf.SearchComponent",
       "lfComponentKey": "SearchComponent",
       "category": "searchapi",
       "displayName": "SearchApi",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.Serp",
       "lfComponentKey": "Serp",
       "category": "serpapi",
       "displayName": "Serp Search API",
-      "outputNames": [
-        "data",
-        "text"
-      ]
+      "outputNames": ["data", "text"]
     },
     {
       "cubeType": "cube.lf.SupabaseVectorStore",
       "lfComponentKey": "SupabaseVectorStore",
       "category": "supabase",
       "displayName": "Supabase",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.TavilyExtractComponent",
       "lfComponentKey": "TavilyExtractComponent",
       "category": "tavily",
       "displayName": "Tavily Extract API",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.TavilySearchComponent",
       "lfComponentKey": "TavilySearchComponent",
       "category": "tavily",
       "displayName": "Tavily Search API",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.CalculatorTool",
       "lfComponentKey": "CalculatorTool",
       "category": "tools",
       "displayName": "Calculator",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.GoogleSearchAPI",
       "lfComponentKey": "GoogleSearchAPI",
       "category": "tools",
       "displayName": "Google Search API [DEPRECATED]",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.GoogleSerperAPI",
       "lfComponentKey": "GoogleSerperAPI",
       "category": "tools",
       "displayName": "Google Serper API [DEPRECATED]",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.PythonCodeStructuredTool",
       "lfComponentKey": "PythonCodeStructuredTool",
       "category": "tools",
       "displayName": "Python Code Structured",
-      "outputNames": [
-        "result_tool"
-      ]
+      "outputNames": ["result_tool"]
     },
     {
       "cubeType": "cube.lf.PythonREPLTool",
       "lfComponentKey": "PythonREPLTool",
       "category": "tools",
       "displayName": "Python REPL",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.SearXNGTool",
       "lfComponentKey": "SearXNGTool",
       "category": "tools",
       "displayName": "SearXNG Search",
-      "outputNames": [
-        "result_tool"
-      ]
+      "outputNames": ["result_tool"]
     },
     {
       "cubeType": "cube.lf.SearchAPI",
       "lfComponentKey": "SearchAPI",
       "category": "tools",
       "displayName": "Search API",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.SerpAPI",
       "lfComponentKey": "SerpAPI",
       "category": "tools",
       "displayName": "Serp Search API",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.TavilyAISearch",
       "lfComponentKey": "TavilyAISearch",
       "category": "tools",
       "displayName": "Tavily Search API",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.WikidataAPI",
       "lfComponentKey": "WikidataAPI",
       "category": "tools",
       "displayName": "Wikidata API",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.WikipediaAPI",
       "lfComponentKey": "WikipediaAPI",
       "category": "tools",
       "displayName": "Wikipedia API",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.YahooFinanceTool",
       "lfComponentKey": "YahooFinanceTool",
       "category": "tools",
       "displayName": "Yahoo! Finance",
-      "outputNames": [
-        "api_run_model",
-        "api_build_tool"
-      ]
+      "outputNames": ["api_run_model", "api_build_tool"]
     },
     {
       "cubeType": "cube.lf.ConvertAstraToTwelveLabs",
       "lfComponentKey": "ConvertAstraToTwelveLabs",
       "category": "twelvelabs",
       "displayName": "Convert Astra DB to Pegasus Input",
-      "outputNames": [
-        "index_id",
-        "video_id"
-      ]
+      "outputNames": ["index_id", "video_id"]
     },
     {
       "cubeType": "cube.lf.SplitVideo",
       "lfComponentKey": "SplitVideo",
       "category": "twelvelabs",
       "displayName": "Split Video",
-      "outputNames": [
-        "clips"
-      ]
+      "outputNames": ["clips"]
     },
     {
       "cubeType": "cube.lf.TwelveLabsPegasus",
       "lfComponentKey": "TwelveLabsPegasus",
       "category": "twelvelabs",
       "displayName": "TwelveLabs Pegasus",
-      "outputNames": [
-        "response",
-        "processed_video_id"
-      ]
+      "outputNames": ["response", "processed_video_id"]
     },
     {
       "cubeType": "cube.lf.TwelveLabsPegasusIndexVideo",
       "lfComponentKey": "TwelveLabsPegasusIndexVideo",
       "category": "twelvelabs",
       "displayName": "TwelveLabs Pegasus Index Video",
-      "outputNames": [
-        "indexed_data"
-      ]
+      "outputNames": ["indexed_data"]
     },
     {
       "cubeType": "cube.lf.TwelveLabsTextEmbeddings",
       "lfComponentKey": "TwelveLabsTextEmbeddings",
       "category": "twelvelabs",
       "displayName": "TwelveLabs Text Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.TwelveLabsVideoEmbeddings",
       "lfComponentKey": "TwelveLabsVideoEmbeddings",
       "category": "twelvelabs",
       "displayName": "TwelveLabs Video Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.VideoFile",
       "lfComponentKey": "VideoFile",
       "category": "twelvelabs",
       "displayName": "Video File",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.Unstructured",
       "lfComponentKey": "Unstructured",
       "category": "unstructured",
       "displayName": "Unstructured API",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.Upstash",
       "lfComponentKey": "Upstash",
       "category": "upstash",
       "displayName": "Upstash",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.CalculatorComponent",
       "lfComponentKey": "CalculatorComponent",
       "category": "utilities",
       "displayName": "Calculator",
-      "outputNames": [
-        "result"
-      ]
+      "outputNames": ["result"]
     },
     {
       "cubeType": "cube.lf.CurrentDate",
       "lfComponentKey": "CurrentDate",
       "category": "utilities",
       "displayName": "Current Date",
-      "outputNames": [
-        "current_date"
-      ]
+      "outputNames": ["current_date"]
     },
     {
       "cubeType": "cube.lf.IDGenerator",
       "lfComponentKey": "IDGenerator",
       "category": "utilities",
       "displayName": "ID Generator",
-      "outputNames": [
-        "id"
-      ]
+      "outputNames": ["id"]
     },
     {
       "cubeType": "cube.lf.PythonREPLComponent",
       "lfComponentKey": "PythonREPLComponent",
       "category": "utilities",
       "displayName": "Python Interpreter",
-      "outputNames": [
-        "results"
-      ]
+      "outputNames": ["results"]
     },
     {
       "cubeType": "cube.lf.Vectara",
       "lfComponentKey": "Vectara",
       "category": "vectara",
       "displayName": "Vectara",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.VectaraRAG",
       "lfComponentKey": "VectaraRAG",
       "category": "vectara",
       "displayName": "Vectara RAG",
-      "outputNames": [
-        "answer"
-      ]
+      "outputNames": ["answer"]
     },
     {
       "cubeType": "cube.lf.LocalDB",
       "lfComponentKey": "LocalDB",
       "category": "vectorstores",
       "displayName": "Local DB",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.VertexAIEmbeddings",
       "lfComponentKey": "VertexAIEmbeddings",
       "category": "vertexai",
       "displayName": "Vertex AI Embeddings",
-      "outputNames": [
-        "embeddings"
-      ]
+      "outputNames": ["embeddings"]
     },
     {
       "cubeType": "cube.lf.VertexAiModel",
       "lfComponentKey": "VertexAiModel",
       "category": "vertexai",
       "displayName": "Vertex AI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.VLMRunTranscription",
       "lfComponentKey": "VLMRunTranscription",
       "category": "vlmrun",
       "displayName": "VLM Run Transcription",
-      "outputNames": [
-        "result"
-      ]
+      "outputNames": ["result"]
     },
     {
       "cubeType": "cube.lf.Weaviate",
       "lfComponentKey": "Weaviate",
       "category": "weaviate",
       "displayName": "Weaviate",
-      "outputNames": [
-        "search_results",
-        "dataframe"
-      ]
+      "outputNames": ["search_results", "dataframe"]
     },
     {
       "cubeType": "cube.lf.WikidataComponent",
       "lfComponentKey": "WikidataComponent",
       "category": "wikipedia",
       "displayName": "Wikidata",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.WikipediaComponent",
       "lfComponentKey": "WikipediaComponent",
       "category": "wikipedia",
       "displayName": "Wikipedia",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.WolframAlphaAPI",
       "lfComponentKey": "WolframAlphaAPI",
       "category": "wolframalpha",
       "displayName": "WolframAlpha API",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.xAIModel",
       "lfComponentKey": "xAIModel",
       "category": "xai",
       "displayName": "xAI",
-      "outputNames": [
-        "text_output",
-        "model_output"
-      ]
+      "outputNames": ["text_output", "model_output"]
     },
     {
       "cubeType": "cube.lf.YfinanceComponent",
       "lfComponentKey": "YfinanceComponent",
       "category": "yahoosearch",
       "displayName": "Yahoo! Finance",
-      "outputNames": [
-        "dataframe"
-      ]
+      "outputNames": ["dataframe"]
     },
     {
       "cubeType": "cube.lf.YouTubeChannelComponent",
       "lfComponentKey": "YouTubeChannelComponent",
       "category": "youtube",
       "displayName": "YouTube Channel",
-      "outputNames": [
-        "channel_df"
-      ]
+      "outputNames": ["channel_df"]
     },
     {
       "cubeType": "cube.lf.YouTubeCommentsComponent",
       "lfComponentKey": "YouTubeCommentsComponent",
       "category": "youtube",
       "displayName": "YouTube Comments",
-      "outputNames": [
-        "comments"
-      ]
+      "outputNames": ["comments"]
     },
     {
       "cubeType": "cube.lf.YouTubePlaylistComponent",
       "lfComponentKey": "YouTubePlaylistComponent",
       "category": "youtube",
       "displayName": "YouTube Playlist",
-      "outputNames": [
-        "video_urls"
-      ]
+      "outputNames": ["video_urls"]
     },
     {
       "cubeType": "cube.lf.YouTubeSearchComponent",
       "lfComponentKey": "YouTubeSearchComponent",
       "category": "youtube",
       "displayName": "YouTube Search",
-      "outputNames": [
-        "results"
-      ]
+      "outputNames": ["results"]
     },
     {
       "cubeType": "cube.lf.YouTubeTranscripts",
       "lfComponentKey": "YouTubeTranscripts",
       "category": "youtube",
       "displayName": "YouTube Transcripts",
-      "outputNames": [
-        "dataframe",
-        "message",
-        "data_output"
-      ]
+      "outputNames": ["dataframe", "message", "data_output"]
     },
     {
       "cubeType": "cube.lf.YouTubeTrendingComponent",
       "lfComponentKey": "YouTubeTrendingComponent",
       "category": "youtube",
       "displayName": "YouTube Trending",
-      "outputNames": [
-        "trending_videos"
-      ]
+      "outputNames": ["trending_videos"]
     },
     {
       "cubeType": "cube.lf.YouTubeVideoDetailsComponent",
       "lfComponentKey": "YouTubeVideoDetailsComponent",
       "category": "youtube",
       "displayName": "YouTube Video Details",
-      "outputNames": [
-        "video_data"
-      ]
+      "outputNames": ["video_data"]
     },
     {
       "cubeType": "cube.lf.ZepChatMemory",
       "lfComponentKey": "ZepChatMemory",
       "category": "zep",
       "displayName": "Zep Chat Memory",
-      "outputNames": [
-        "memory"
-      ]
+      "outputNames": ["memory"]
     }
   ]
 }

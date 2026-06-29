@@ -1,3 +1,33 @@
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { createPool } from "mysql2/promise";
+
+import {
+  type MysqlOnlyStack,
+  registerProcessShutdown,
+  resolveShouldRunTestcontainers,
+  startMysqlOnly,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
+import { LlmCatalogProvisioningService } from "./admin/llm-catalog-provisioning.service";
+import { LlmCatalogService } from "./admin/llm-catalog.service";
+import { LocalProviderIconStore } from "./admin/local-provider-icon-store";
+import { ModelMetadataInferenceService } from "./admin/model-metadata-inference.service";
+import { LlmTypeAdapterService } from "./connectivity/llm-type-adapter.service";
+import { MysqlLlmCatalogPort } from "./mysql-catalog.store";
+import {
+  AUTHORITATIVE_SYSTEM_CATALOG_SEED,
+  type CatalogMysqlPool,
+  type SystemCatalogSeed,
+  SystemLlmModelMatchRuleRepository,
+  SystemLlmModelRepository,
+  SystemLlmProviderRepository,
+  SystemLlmProviderTypeRepository,
+  TenantLlmModelRepository,
+  TenantLlmProviderRepository,
+  upsertSystemCatalogMysql,
+} from "./repositories";
+
 /**
  * LLM Catalog 真实 MySQL 端到端 — Testcontainers。
  *
@@ -7,35 +37,6 @@
  *   USE_TESTCONTAINERS=1 bun test …/llm-catalog.testcontainers.test.ts
  *   bun run test:containers
  */
-import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
-import { createPool } from 'mysql2/promise';
-import {
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startMysqlOnly,
-  stopTrackedTestcontainersIfAny,
-  type MysqlOnlyStack,
-} from '@cube-ai/test-infra';
-import {
-  AUTHORITATIVE_SYSTEM_CATALOG_SEED,
-  upsertSystemCatalogMysql,
-  type CatalogMysqlPool,
-  type SystemCatalogSeed,
-} from './repositories';
-import { LlmCatalogService } from './admin/llm-catalog.service';
-import { LlmCatalogProvisioningService } from './admin/llm-catalog-provisioning.service';
-import { ModelMetadataInferenceService } from './admin/model-metadata-inference.service';
-import { LocalProviderIconStore } from './admin/local-provider-icon-store';
-import { LlmTypeAdapterService } from './connectivity/llm-type-adapter.service';
-import {
-  SystemLlmModelMatchRuleRepository,
-  SystemLlmModelRepository,
-  SystemLlmProviderRepository,
-  SystemLlmProviderTypeRepository,
-  TenantLlmModelRepository,
-  TenantLlmProviderRepository,
-} from './repositories';
-import { MysqlLlmCatalogPort } from './mysql-catalog.store';
 
 const TENANT = 4242;
 const HOOK_MS = 1_800_000;
@@ -49,23 +50,23 @@ function requireProvider<T extends { providerCode: string }>(providers: T[], pro
 
 /** 刚启动的 MySQL 容器初始化期会断开首批连接；与 test-infra 同策略重试。 */
 function isTransientMysqlErr(e: unknown): boolean {
-  const code = typeof e === 'object' && e && 'code' in e ? String((e as { code: unknown }).code) : '';
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
   const msg = e instanceof Error ? e.message : String(e);
   return (
-    code === 'PROTOCOL_CONNECTION_LOST' ||
-    code === 'ECONNREFUSED' ||
-    code === 'ETIMEDOUT' ||
-    msg.includes('PROTOCOL_CONNECTION_LOST') ||
-    msg.includes('ECONNREFUSED')
+    code === "PROTOCOL_CONNECTION_LOST" ||
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT" ||
+    msg.includes("PROTOCOL_CONNECTION_LOST") ||
+    msg.includes("ECONNREFUSED")
   );
 }
 
 function makePool(mysqlUrl: string): CatalogMysqlPool {
   return createPool({
-    uri: mysqlUrl,
+    bigNumberStrings: true,
     connectionLimit: 4,
     supportBigNumbers: true,
-    bigNumberStrings: true,
+    uri: mysqlUrl,
   }) as unknown as CatalogMysqlPool;
 }
 
@@ -83,7 +84,9 @@ async function seedWithRetry(mysqlUrl: string, seed: SystemCatalogSeed): Promise
       return;
     } catch (e) {
       await endPool(pool).catch(() => {});
-      if (!isTransientMysqlErr(e) || attempt === maxAttempts) throw e;
+      if (!isTransientMysqlErr(e) || attempt === maxAttempts) {
+        throw e;
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
   }
@@ -135,7 +138,7 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
   );
 }
 
-(run ? describe : describe.skip)('LLM Catalog [testcontainers] — 真实 MySQL 列式闭环', () => {
+(run ? describe : describe.skip)("LLM Catalog [testcontainers] — 真实 MySQL 列式闭环", () => {
   beforeAll(async () => {
     const s = await startMysqlOnly();
     try {
@@ -156,38 +159,38 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('消费面 MysqlLlmCatalogPort 首访空租户也会自动 provisioning', async () => {
+  test("消费面 MysqlLlmCatalogPort 首访空租户也会自动 provisioning", async () => {
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const port = new MysqlLlmCatalogPort(pool);
     const freshTenant = TENANT + 99;
 
     const summaries = await port.listProviders(freshTenant, new AbortController().signal);
     expect(summaries.length).toBe(SYSTEM_PROVIDER_COUNT);
-    expect(summaries.some((provider) => provider.providerCode === 'openai-official')).toBe(true);
+    expect(summaries.some((provider) => provider.providerCode === "openai-official")).toBe(true);
 
     await endPool(pool);
   });
 
-  test('首访 provisioning 自动同步内置供应商 + 模型副本', async () => {
+  test("首访 provisioning 自动同步内置供应商 + 模型副本", async () => {
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const service = buildService(pool, () => TENANT);
 
     const providers = await service.listProviders();
     expect(providers.length).toBe(SYSTEM_PROVIDER_COUNT);
-    const builtin = requireProvider(providers, 'openai-official');
-    expect(builtin.providerCode).toBe('openai-official');
-    expect(builtin.typeCode).toBe('openai');
+    const builtin = requireProvider(providers, "openai-official");
+    expect(builtin.providerCode).toBe("openai-official");
+    expect(builtin.typeCode).toBe("openai");
     expect(builtin.isCustom).toBe(false);
     expect(builtin.enabled).toBe(false);
     expect(builtin.systemProviderId).not.toBeNull();
 
     const groups = await service.listModelsGrouped(builtin.id);
     const allModels = groups.flatMap((g) => g.items);
-    const gpt4o = allModels.find((m) => m.modelCode === 'gpt-4o');
+    const gpt4o = allModels.find((m) => m.modelCode === "gpt-4o");
     expect(gpt4o).toBeDefined();
     expect(gpt4o?.systemModelId).not.toBeNull();
     expect(gpt4o?.supportsTest).toBe(true);
-    expect(gpt4o?.modelTypes).toContain('reasoning');
+    expect(gpt4o?.modelTypes).toContain("reasoning");
 
     // 幂等：再次首访不重复 provisioning。
     const providersAgain = await service.listProviders();
@@ -196,74 +199,74 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
     await endPool(pool);
   });
 
-  test('配置凭据 + 启用后，运行期 MysqlLlmCatalogPort 读回真实 runtime 配置', async () => {
+  test("配置凭据 + 启用后，运行期 MysqlLlmCatalogPort 读回真实 runtime 配置", async () => {
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const service = buildService(pool, () => TENANT);
 
-    const builtin = requireProvider(await service.listProviders(), 'openai-official');
+    const builtin = requireProvider(await service.listProviders(), "openai-official");
     const updated = await service.updateProviderSettings(builtin.id, {
-      apiKey: 'sk-live-abcdef123456',
-      apiBaseUrl: 'https://api.openai.com/v1',
+      apiBaseUrl: "https://api.openai.com/v1",
+      apiKey: "sk-live-abcdef123456",
       enabled: true,
     });
     expect(updated.enabled).toBe(true);
     // 管理面读回脱敏。
-    expect(updated.apiKey).toContain('****');
+    expect(updated.apiKey).toContain("****");
 
     const signal = new AbortController().signal;
     const port = new MysqlLlmCatalogPort(pool);
 
     const summaries = await port.listProviders(TENANT, signal);
-    const portProvider = summaries.find((p) => p.providerCode === 'openai-official');
+    const portProvider = summaries.find((p) => p.providerCode === "openai-official");
     expect(portProvider?.enabled).toBe(true);
-    expect(portProvider?.apiBaseUrl).toBe('https://api.openai.com/v1');
+    expect(portProvider?.apiBaseUrl).toBe("https://api.openai.com/v1");
 
-    const runtime = await port.resolveModelRuntime(TENANT, 'gpt-4o', signal);
+    const runtime = await port.resolveModelRuntime(TENANT, "gpt-4o", signal);
     expect(runtime).not.toBeNull();
-    expect(runtime?.endpointType).toBe('openai');
-    expect(runtime?.apiBaseUrl).toBe('https://api.openai.com/v1');
+    expect(runtime?.endpointType).toBe("openai");
+    expect(runtime?.apiBaseUrl).toBe("https://api.openai.com/v1");
     // 运行期返回真实未脱敏密钥（供 provider 实际调用）。
-    expect(runtime?.apiKey).toBe('sk-live-abcdef123456');
-    expect(runtime?.providerCode).toBe('openai-official');
-    expect(runtime?.modelTypes).toContain('reasoning');
+    expect(runtime?.apiKey).toBe("sk-live-abcdef123456");
+    expect(runtime?.providerCode).toBe("openai-official");
+    expect(runtime?.modelTypes).toContain("reasoning");
 
     await endPool(pool);
   });
 
-  test('自定义供应商 + 模型全 CRUD（含逻辑删除）', async () => {
+  test("自定义供应商 + 模型全 CRUD（含逻辑删除）", async () => {
     const pool = makePool(stackHolder.current!.mysqlUrl);
     const service = buildService(pool, () => TENANT);
 
     // 先建供应商（暂不配地址，避免 createModel 触发真实远程拉取）。
     const created = await service.createProvider({
-      providerCode: 'my-openai-compat',
-      typeCode: 'openai',
-      name: '我的兼容网关',
-      remark: 'e2e custom',
+      name: "我的兼容网关",
+      providerCode: "my-openai-compat",
+      remark: "e2e custom",
+      typeCode: "openai",
     });
     expect(created.isCustom).toBe(true);
 
     const model = await service.createModel(created.id, {
-      modelCode: 'local-x',
-      displayName: 'Local X',
-      endpointType: 'openai',
-      modelTypes: ['reasoning'],
+      displayName: "Local X",
+      endpointType: "openai",
+      modelCode: "local-x",
+      modelTypes: ["reasoning"],
     });
-    expect(model.modelCode).toBe('local-x');
+    expect(model.modelCode).toBe("local-x");
 
     const groups = await service.listModelsGrouped(created.id);
-    expect(groups.flatMap((g) => g.items).some((m) => m.modelCode === 'local-x')).toBe(true);
+    expect(groups.flatMap((g) => g.items).some((m) => m.modelCode === "local-x")).toBe(true);
 
     // 配置凭据 + 启用，运行期才可解析其模型。
     await service.updateProviderSettings(created.id, {
-      apiKey: 'sk-custom-9999',
-      apiBaseUrl: 'https://gw.example.com/v1',
+      apiBaseUrl: "https://gw.example.com/v1",
+      apiKey: "sk-custom-9999",
       enabled: true,
     });
     const port = new MysqlLlmCatalogPort(pool);
-    const runtime = await port.resolveModelRuntime(TENANT, 'local-x', new AbortController().signal);
-    expect(runtime?.providerCode).toBe('my-openai-compat');
-    expect(runtime?.apiBaseUrl).toBe('https://gw.example.com/v1');
+    const runtime = await port.resolveModelRuntime(TENANT, "local-x", new AbortController().signal);
+    expect(runtime?.providerCode).toBe("my-openai-compat");
+    expect(runtime?.apiBaseUrl).toBe("https://gw.example.com/v1");
 
     // 列表此时应有内置 + 自定义两个供应商。
     const before = await service.listProviders();
@@ -274,10 +277,10 @@ function buildService(pool: CatalogMysqlPool, getTenant: () => number): LlmCatal
 
     const after = await service.listProviders();
     expect(after.length).toBe(SYSTEM_PROVIDER_COUNT);
-    expect(after.some((provider) => provider.providerCode === 'openai-official')).toBe(true);
+    expect(after.some((provider) => provider.providerCode === "openai-official")).toBe(true);
 
     // 逻辑删除后运行期不再解析。
-    const gone = await port.resolveModelRuntime(TENANT, 'local-x', new AbortController().signal);
+    const gone = await port.resolveModelRuntime(TENANT, "local-x", new AbortController().signal);
     expect(gone).toBeNull();
 
     await endPool(pool);

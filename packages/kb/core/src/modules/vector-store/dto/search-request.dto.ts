@@ -1,5 +1,5 @@
 export interface SearchRequestDto {
-  query: string
-  topK?: number
-  documentId?: string
+  query: string;
+  topK?: number;
+  documentId?: string;
 }

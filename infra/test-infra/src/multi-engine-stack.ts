@@ -19,20 +19,14 @@
  *   reading after subsequent waves.
  */
 
-import {
-  startEngineIntegrationProcess,
-  type EngineIntegrationProcess,
-} from './engine-subprocess';
-import { getFreePort } from './free-port';
-import { startMysqlRedis, startMysqlRedisQdrant } from './stack';
-import type { MysqlRedisQdrantStack, MysqlRedisStack } from './stack';
-import { testInfraLog } from './log';
+import { type EngineIntegrationProcess, startEngineIntegrationProcess } from "./engine-subprocess";
+import { getFreePort } from "./free-port";
+import { testInfraLog } from "./log";
+import { type MysqlRedisQdrantStack, type MysqlRedisStack, startMysqlRedis, startMysqlRedisQdrant } from "./stack";
 
 export interface MultiEngineStack {
   /** Started engine subprocesses; each carries a unique `instanceId`. */
-  readonly engines: ReadonlyArray<
-    EngineIntegrationProcess & { readonly instanceId: string }
-  >;
+  readonly engines: readonly (EngineIntegrationProcess & { readonly instanceId: string })[];
   readonly mysqlUrl: string;
   readonly redisUrl: string;
   readonly qdrantUrl?: string;
@@ -87,21 +81,15 @@ export interface StartMultiEngineStackOptions {
  * Failure during partial start triggers cleanup (stop already-spawned
  * engines + shared stack) before re-throwing.
  */
-export async function startMultiEngineStack(
-  opts: StartMultiEngineStackOptions,
-): Promise<MultiEngineStack> {
+export async function startMultiEngineStack(opts: StartMultiEngineStackOptions): Promise<MultiEngineStack> {
   if (opts.replicas < 1) {
-    throw new Error(
-      `startMultiEngineStack: replicas must be >= 1, got ${opts.replicas}`,
-    );
+    throw new Error(`startMultiEngineStack: replicas must be >= 1, got ${opts.replicas}`);
   }
 
-  const sharedStack: MysqlRedisQdrantStack | MysqlRedisStack = opts.withQdrant
-    ? await startMysqlRedisQdrant()
-    : await startMysqlRedis();
+  const sharedStack: MysqlRedisQdrantStack | MysqlRedisStack = opts.withQdrant ? await startMysqlRedisQdrant() : await startMysqlRedis();
 
   if (opts.applyMinimalSchema !== false) {
-    const { applyMinimalMysqlSchema } = await import('./apply-schema');
+    const { applyMinimalMysqlSchema } = await import("./apply-schema");
     await applyMinimalMysqlSchema(sharedStack.mysqlUrl);
   }
 
@@ -109,53 +97,42 @@ export async function startMultiEngineStack(
   const forceRealLeader = opts.forceRealLeaderElection ?? true;
   const enableOutboxRelay = opts.enableOutboxRelay === true;
 
-  const engines: Array<
-    EngineIntegrationProcess & { instanceId: string }
-  > = [];
+  const engines: (EngineIntegrationProcess & { instanceId: string })[] = [];
 
   try {
     for (let i = 0; i < opts.replicas; i++) {
       const port = await getFreePort();
       const instanceId = `engine-test-${i}-${Date.now()}`;
-      testInfraLog(
-        `Starting engine replica ${i + 1}/${opts.replicas} (instanceId=${instanceId}, port=${port})…`,
-      );
+      testInfraLog(`Starting engine replica ${i + 1}/${opts.replicas} (instanceId=${instanceId}, port=${port})…`);
       const eng = await startEngineIntegrationProcess({
-        stack: sharedStack,
-        port,
-        repoRoot: opts.repoRoot,
-        readyTimeoutMs: opts.readyTimeoutMs,
         extraEnv: {
-          INSTANCE_ID: instanceId,
+          AGENTIC_ENGINE_ENABLE_JOB_WORKERS: enableWorkers ? "1" : "0",
           AGENTIC_ENGINE_INSTANCE_ID: instanceId,
-          AGENTIC_ENGINE_ENABLE_JOB_WORKERS: enableWorkers ? '1' : '0',
-          ...(enableOutboxRelay
-            ? { AGENTIC_ENGINE_ENABLE_OUTBOX_RELAY: '1' }
-            : {}),
-          ...(forceRealLeader
-            ? { AGENTIC_OUTBOX_LEADER_IN_TEST: '1' }
-            : {}),
-          ...(opts.extraEnv ?? {}),
+          INSTANCE_ID: instanceId,
+          ...(enableOutboxRelay ? { AGENTIC_ENGINE_ENABLE_OUTBOX_RELAY: "1" } : {}),
+          ...(forceRealLeader ? { AGENTIC_OUTBOX_LEADER_IN_TEST: "1" } : {}),
+          ...opts.extraEnv,
         },
+        port,
+        readyTimeoutMs: opts.readyTimeoutMs,
+        repoRoot: opts.repoRoot,
+        stack: sharedStack,
       });
       engines.push(Object.assign(eng, { instanceId }));
     }
-  } catch (e) {
-    await Promise.allSettled(engines.map((e) => e.stop()));
+  } catch (error) {
+    await Promise.allSettled(engines.map((engine) => engine.stop()));
     await sharedStack.stop().catch(() => {});
-    throw e;
+    throw error;
   }
 
-  const qdrantUrl =
-    'qdrantUrl' in sharedStack
-      ? (sharedStack as MysqlRedisQdrantStack).qdrantUrl
-      : undefined;
+  const qdrantUrl = "qdrantUrl" in sharedStack ? (sharedStack as MysqlRedisQdrantStack).qdrantUrl : undefined;
 
   return {
     engines,
     mysqlUrl: sharedStack.mysqlUrl,
-    redisUrl: sharedStack.redisUrl,
     qdrantUrl,
+    redisUrl: sharedStack.redisUrl,
     stop: async () => {
       await Promise.allSettled(engines.map((e) => e.stop().catch(() => {})));
       await sharedStack.stop().catch(() => {});

@@ -2,15 +2,16 @@
 // @generated from file guhecloud/cube/base/ai_application/flow/grpc/v1/flow_types.proto (package guhecloud.cube.base.ai_application.flow.v1, syntax proto3)
 /* eslint-disable */
 
+import type { Message } from "@bufbuild/protobuf";
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file guhecloud/cube/base/ai_application/flow/grpc/v1/flow_types.proto.
  */
-export const file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types: GenFile = /*@__PURE__*/
-  fileDesc("CkBndWhlY2xvdWQvY3ViZS9iYXNlL2FpX2FwcGxpY2F0aW9uL2Zsb3cvZ3JwYy92MS9mbG93X3R5cGVzLnByb3RvEipndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEingIKDlJ1bkZsb3dSZXF1ZXN0Eg8KB2Zsb3dfaWQYASABKAkSEgoFaW5wdXQYAiABKAlIAIgBARJcCgl2YXJpYWJsZXMYAyADKAsySS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuUnVuRmxvd1JlcXVlc3QuVmFyaWFibGVzRW50cnkSTQoGaW1hZ2VzGAQgAygLMj0uZ3VoZWNsb3VkLmN1YmUuYmFzZS5haV9hcHBsaWNhdGlvbi5mbG93LnYxLkZsb3dJbnB1dEltYWdlUmVmGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAFCCAoGX2lucHV0IokBCg9SdW5GbG93UmVzcG9uc2USFwoKc2Vzc2lvbl9pZBgBIAEoCUgAiAEBEhkKDG91dHB1dHNfanNvbhgCIAEoCUgBiAEBEhUKCHJhd19qc29uGAMgASgJSAKIAQFCDQoLX3Nlc3Npb25faWRCDwoNX291dHB1dHNfanNvbkILCglfcmF3X2pzb24idgoTRmxvd0ltYWdlVXBsb2FkUGFydBIPCgdjb250ZW50GAEgASgMEhUKCGZpbGVuYW1lGAIgASgJSACIAQESGQoMY29udGVudF90eXBlGAMgASgJSAGIAQFCCwoJX2ZpbGVuYW1lQg8KDV9jb250ZW50X3R5cGUieQoWVXBsb2FkRmxvd0ltYWdlUmVxdWVzdBIPCgdmbG93X2lkGAEgASgJEk4KBWltYWdlGAIgASgLMj8uZ3VoZWNsb3VkLmN1YmUuYmFzZS5haV9hcHBsaWNhdGlvbi5mbG93LnYxLkZsb3dJbWFnZVVwbG9hZFBhcnQipAIKEUZsb3dJbnB1dEltYWdlUmVmEg8KAmlkGAEgASgJSACIAQESEQoEbmFtZRgCIAEoCUgBiAEBEhYKCWZpbGVfcGF0aBgDIAEoCUgCiAEBEhAKA3VybBgEIAEoCUgDiAEBEhEKBG1pbWUYBSABKAlIBIgBARJTCgNleHQYBiADKAsyRi5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuRmxvd0lucHV0SW1hZ2VSZWYuRXh0RW50cnkaKgoIRXh0RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUIFCgNfaWRCBwoFX25hbWVCDAoKX2ZpbGVfcGF0aEIGCgRfdXJsQgcKBV9taW1lIrwBChdVcGxvYWRGbG93SW1hZ2VSZXNwb25zZRIUCgdmbG93X2lkGAEgASgJSACIAQESUQoFaW1hZ2UYAiABKAsyPS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuRmxvd0lucHV0SW1hZ2VSZWZIAYgBARIVCghyYXdfanNvbhgDIAEoCUgCiAEBQgoKCF9mbG93X2lkQggKBl9pbWFnZUILCglfcmF3X2pzb24iggEKElJ1bkZsb3dTdHJlYW1FdmVudBISCgVldmVudBgBIAEoCUgAiAEBEg8KAmlkGAIgASgJSAGIAQESEQoEZGF0YRgDIAEoCUgCiAEBEhEKBGRvbmUYBCABKAhIA4gBAUIICgZfZXZlbnRCBQoDX2lkQgcKBV9kYXRhQgcKBV9kb25lQkIKLmNvbS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjFCDkZsb3dUeXBlc1Byb3RvUAFiBnByb3RvMw");
+export const file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types: GenFile /*@__PURE__*/ = fileDesc(
+  "CkBndWhlY2xvdWQvY3ViZS9iYXNlL2FpX2FwcGxpY2F0aW9uL2Zsb3cvZ3JwYy92MS9mbG93X3R5cGVzLnByb3RvEipndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEingIKDlJ1bkZsb3dSZXF1ZXN0Eg8KB2Zsb3dfaWQYASABKAkSEgoFaW5wdXQYAiABKAlIAIgBARJcCgl2YXJpYWJsZXMYAyADKAsySS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuUnVuRmxvd1JlcXVlc3QuVmFyaWFibGVzRW50cnkSTQoGaW1hZ2VzGAQgAygLMj0uZ3VoZWNsb3VkLmN1YmUuYmFzZS5haV9hcHBsaWNhdGlvbi5mbG93LnYxLkZsb3dJbnB1dEltYWdlUmVmGjAKDlZhcmlhYmxlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAFCCAoGX2lucHV0IokBCg9SdW5GbG93UmVzcG9uc2USFwoKc2Vzc2lvbl9pZBgBIAEoCUgAiAEBEhkKDG91dHB1dHNfanNvbhgCIAEoCUgBiAEBEhUKCHJhd19qc29uGAMgASgJSAKIAQFCDQoLX3Nlc3Npb25faWRCDwoNX291dHB1dHNfanNvbkILCglfcmF3X2pzb24idgoTRmxvd0ltYWdlVXBsb2FkUGFydBIPCgdjb250ZW50GAEgASgMEhUKCGZpbGVuYW1lGAIgASgJSACIAQESGQoMY29udGVudF90eXBlGAMgASgJSAGIAQFCCwoJX2ZpbGVuYW1lQg8KDV9jb250ZW50X3R5cGUieQoWVXBsb2FkRmxvd0ltYWdlUmVxdWVzdBIPCgdmbG93X2lkGAEgASgJEk4KBWltYWdlGAIgASgLMj8uZ3VoZWNsb3VkLmN1YmUuYmFzZS5haV9hcHBsaWNhdGlvbi5mbG93LnYxLkZsb3dJbWFnZVVwbG9hZFBhcnQipAIKEUZsb3dJbnB1dEltYWdlUmVmEg8KAmlkGAEgASgJSACIAQESEQoEbmFtZRgCIAEoCUgBiAEBEhYKCWZpbGVfcGF0aBgDIAEoCUgCiAEBEhAKA3VybBgEIAEoCUgDiAEBEhEKBG1pbWUYBSABKAlIBIgBARJTCgNleHQYBiADKAsyRi5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuRmxvd0lucHV0SW1hZ2VSZWYuRXh0RW50cnkaKgoIRXh0RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4AUIFCgNfaWRCBwoFX25hbWVCDAoKX2ZpbGVfcGF0aEIGCgRfdXJsQgcKBV9taW1lIrwBChdVcGxvYWRGbG93SW1hZ2VSZXNwb25zZRIUCgdmbG93X2lkGAEgASgJSACIAQESUQoFaW1hZ2UYAiABKAsyPS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjEuRmxvd0lucHV0SW1hZ2VSZWZIAYgBARIVCghyYXdfanNvbhgDIAEoCUgCiAEBQgoKCF9mbG93X2lkQggKBl9pbWFnZUILCglfcmF3X2pzb24iggEKElJ1bkZsb3dTdHJlYW1FdmVudBISCgVldmVudBgBIAEoCUgAiAEBEg8KAmlkGAIgASgJSAGIAQESEQoEZGF0YRgDIAEoCUgCiAEBEhEKBGRvbmUYBCABKAhIA4gBAUIICgZfZXZlbnRCBQoDX2lkQgcKBV9kYXRhQgcKBV9kb25lQkIKLmNvbS5ndWhlY2xvdWQuY3ViZS5iYXNlLmFpX2FwcGxpY2F0aW9uLmZsb3cudjFCDkZsb3dUeXBlc1Byb3RvUAFiBnByb3RvMw",
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest
@@ -41,8 +42,10 @@ export type RunFlowRequest = Message<"guhecloud.cube.base.ai_application.flow.v1
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.RunFlowRequest.
  * Use `create(RunFlowRequestSchema)` to create a new message.
  */
-export const RunFlowRequestSchema: GenMessage<RunFlowRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 0);
+export const RunFlowRequestSchema: GenMessage<RunFlowRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  0,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.RunFlowResponse
@@ -68,8 +71,10 @@ export type RunFlowResponse = Message<"guhecloud.cube.base.ai_application.flow.v
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.RunFlowResponse.
  * Use `create(RunFlowResponseSchema)` to create a new message.
  */
-export const RunFlowResponseSchema: GenMessage<RunFlowResponse> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 1);
+export const RunFlowResponseSchema: GenMessage<RunFlowResponse> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  1,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.FlowImageUploadPart
@@ -95,8 +100,10 @@ export type FlowImageUploadPart = Message<"guhecloud.cube.base.ai_application.fl
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.FlowImageUploadPart.
  * Use `create(FlowImageUploadPartSchema)` to create a new message.
  */
-export const FlowImageUploadPartSchema: GenMessage<FlowImageUploadPart> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 2);
+export const FlowImageUploadPartSchema: GenMessage<FlowImageUploadPart> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  2,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageRequest
@@ -117,8 +124,10 @@ export type UploadFlowImageRequest = Message<"guhecloud.cube.base.ai_application
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageRequest.
  * Use `create(UploadFlowImageRequestSchema)` to create a new message.
  */
-export const UploadFlowImageRequestSchema: GenMessage<UploadFlowImageRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 3);
+export const UploadFlowImageRequestSchema: GenMessage<UploadFlowImageRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  3,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.FlowInputImageRef
@@ -159,8 +168,10 @@ export type FlowInputImageRef = Message<"guhecloud.cube.base.ai_application.flow
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.FlowInputImageRef.
  * Use `create(FlowInputImageRefSchema)` to create a new message.
  */
-export const FlowInputImageRefSchema: GenMessage<FlowInputImageRef> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 4);
+export const FlowInputImageRefSchema: GenMessage<FlowInputImageRef> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  4,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageResponse
@@ -186,8 +197,10 @@ export type UploadFlowImageResponse = Message<"guhecloud.cube.base.ai_applicatio
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.UploadFlowImageResponse.
  * Use `create(UploadFlowImageResponseSchema)` to create a new message.
  */
-export const UploadFlowImageResponseSchema: GenMessage<UploadFlowImageResponse> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 5);
+export const UploadFlowImageResponseSchema: GenMessage<UploadFlowImageResponse> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  5,
+);
 
 /**
  * @generated from message guhecloud.cube.base.ai_application.flow.v1.RunFlowStreamEvent
@@ -218,6 +231,7 @@ export type RunFlowStreamEvent = Message<"guhecloud.cube.base.ai_application.flo
  * Describes the message guhecloud.cube.base.ai_application.flow.v1.RunFlowStreamEvent.
  * Use `create(RunFlowStreamEventSchema)` to create a new message.
  */
-export const RunFlowStreamEventSchema: GenMessage<RunFlowStreamEvent> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types, 6);
-
+export const RunFlowStreamEventSchema: GenMessage<RunFlowStreamEvent> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_ai_application_flow_grpc_v1_flow_types,
+  6,
+);

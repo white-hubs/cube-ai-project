@@ -1,3 +1,26 @@
+import {
+  type App,
+  type InjectionKey,
+  type Ref,
+  getCurrentInstance,
+  inject,
+  onScopeDispose,
+  provide,
+  readonly,
+  ref,
+  shallowReactive,
+} from "vue";
+
+import {
+  type AssistantState,
+  type AssistantStore,
+  type AssistantStoreOptions,
+  type LlmOption,
+  type ReasoningStore,
+  createAssistantStore,
+  createIndexedDbReasoningStore,
+} from "@cube-ai/agent-sdk-client-assistant";
+
 /**
  * `provideAssistant` — Vue 应用层入口（ADR-0008 §D6）。
  *
@@ -17,32 +40,9 @@
  *
  * 单例 scope：`InjectionKey`；同一应用 root 只允许一次 `provideAssistant`。
  */
-import {
-  getCurrentInstance,
-  inject,
-  onScopeDispose,
-  provide,
-  readonly,
-  ref,
-  shallowReactive,
-  type App,
-  type InjectionKey,
-  type Ref,
-} from 'vue';
-import type {
-  AssistantStore,
-  AssistantStoreOptions,
-  AssistantState,
-  LlmOption,
-  ReasoningStore,
-} from '@cube-ai/agent-sdk-client-assistant';
-import {
-  createAssistantStore,
-  createIndexedDbReasoningStore,
-} from '@cube-ai/agent-sdk-client-assistant';
-
 /** 缺省 IDB 库名（与 ghcloud 原 `assistant-reasoning-idb` 兼容；可被业务覆盖）。 */
-export const DEFAULT_ASSISTANT_REASONING_DB_NAME = 'cube-ai-assistant-reasoning';
+
+export const DEFAULT_ASSISTANT_REASONING_DB_NAME = "cube-ai-assistant-reasoning";
 
 /**
  * 浏览器环境兜底：业务没传 `reasoningStore` 时自动用 IDB（dbName 见
@@ -50,7 +50,9 @@ export const DEFAULT_ASSISTANT_REASONING_DB_NAME = 'cube-ai-assistant-reasoning'
  * `indexedDB` 全局 → 返回 `undefined`，由 `AssistantStore` 走 memory 兜底。
  */
 function resolveDefaultReasoningStore(): ReasoningStore | undefined {
-  if (typeof indexedDB === 'undefined') return undefined;
+  if (typeof indexedDB === "undefined") {
+    return undefined;
+  }
   return createIndexedDbReasoningStore({
     dbName: DEFAULT_ASSISTANT_REASONING_DB_NAME,
   });
@@ -68,9 +70,7 @@ export interface AssistantInstance {
   loadingSessions: Ref<boolean>;
 }
 
-export const ASSISTANT_INSTANCE_KEY: InjectionKey<AssistantInstance> = Symbol(
-  '@cube-ai/agent-sdk-client-vue/AssistantInstance',
-);
+export const ASSISTANT_INSTANCE_KEY: InjectionKey<AssistantInstance> = Symbol("@cube-ai/agent-sdk-client-vue/AssistantInstance");
 
 export interface ProvideAssistantOptions extends AssistantStoreOptions {
   /** 业务侧主动注入 `listModels` 时，`provideAssistant` 自动 fetch 一次。 */
@@ -81,9 +81,7 @@ export interface ProvideAssistantOptions extends AssistantStoreOptions {
  * 在当前 Vue 组件 scope 内创建并 provide 单例 AssistantInstance。
  * 组件 scope dispose 时自动 dispose store。
  */
-export function provideAssistant(
-  opts: ProvideAssistantOptions,
-): AssistantInstance {
+export function provideAssistant(opts: ProvideAssistantOptions): AssistantInstance {
   const instance = buildInstance(opts);
   provide(ASSISTANT_INSTANCE_KEY, instance);
   onScopeDispose(() => {
@@ -96,10 +94,7 @@ export function provideAssistant(
  * 在 `app.use(VueRouter)` 一类 plugin 中提供（用 `app.provide`）。
  * 不绑定 scope；调用方负责在合适生命周期手动 `dispose`。
  */
-export function installAssistant(
-  app: App,
-  opts: ProvideAssistantOptions,
-): AssistantInstance {
+export function installAssistant(app: App, opts: ProvideAssistantOptions): AssistantInstance {
   const instance = buildInstance(opts);
   app.provide(ASSISTANT_INSTANCE_KEY, instance);
   return instance;
@@ -108,8 +103,7 @@ export function installAssistant(
 function buildInstance(opts: ProvideAssistantOptions): AssistantInstance {
   // 浏览器环境 + 业务没传 reasoningStore → 自动接 IDB；
   // 这样刷新后 `refreshMessages` bulkGet 才能回填历史 reasoning。
-  const reasoningStore =
-    opts.reasoningStore ?? resolveDefaultReasoningStore();
+  const reasoningStore = opts.reasoningStore ?? resolveDefaultReasoningStore();
   const store = createAssistantStore({
     ...opts,
     ...(reasoningStore ? { reasoningStore } : {}),
@@ -144,11 +138,11 @@ function buildInstance(opts: ProvideAssistantOptions): AssistantInstance {
   }
 
   return {
-    store,
-    state: readonly(state) as Readonly<AssistantState>,
-    models: readonly(models) as Readonly<Ref<LlmOption[]>>,
     loadingModels,
     loadingSessions,
+    models: readonly(models) as Readonly<Ref<LlmOption[]>>,
+    state: readonly(state) as Readonly<AssistantState>,
+    store,
   };
 }
 
@@ -164,19 +158,21 @@ function buildInstance(opts: ProvideAssistantOptions): AssistantInstance {
 export function useAssistant(): AssistantInstance {
   const self = getCurrentInstance();
   if (self) {
-    const provides = (self as unknown as {
-      provides?: Record<string | symbol, unknown>;
-    }).provides;
-    const own = provides
-      ? (provides[ASSISTANT_INSTANCE_KEY as unknown as symbol] as AssistantInstance | undefined)
-      : undefined;
-    if (own) return own;
+    const provides = (
+      self as unknown as {
+        provides?: Record<string | symbol, unknown>;
+      }
+    ).provides;
+    const own = provides ? (provides[ASSISTANT_INSTANCE_KEY as unknown as symbol] as AssistantInstance | undefined) : undefined;
+    if (own) {
+      return own;
+    }
   }
   // 显式传 `null` 默认值，避免 Vue 在 fallback-到-self 路径时打印
   // "[Vue warn]: injection ... not found." 噪音。
   const fromParent = inject<AssistantInstance | null>(ASSISTANT_INSTANCE_KEY, null);
-  if (fromParent) return fromParent;
-  throw new Error(
-    '[sdk-vue] useAssistant() called before provideAssistant() in this app scope',
-  );
+  if (fromParent) {
+    return fromParent;
+  }
+  throw new Error("[sdk-vue] useAssistant() called before provideAssistant() in this app scope");
 }

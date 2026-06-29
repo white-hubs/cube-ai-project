@@ -1,8 +1,15 @@
+type MergeSources<T> = (T extends unknown ? (value: T) => void : never) extends (value: infer R) => void ? R : never;
+
+function mergeObject<T extends object, S extends readonly object[]>(target: T, ...sources: S): T & MergeSources<S[number]> {
+  const clone = { ...target } as T & MergeSources<S[number]>;
+  return Object.assign(clone, ...sources);
+}
+
 /**
  * Reasoning reducer (@cube-ai/contracts SSE wire schema / ADR-0008 §D5.4) + UI helpers.
  * Ported from ghcloud `assistant-chat.utils.ts`.
  */
-import type { ReasoningPhase, ReasoningStep, ReasoningTree } from '../types';
+import type { ReasoningPhase, ReasoningStep, ReasoningTree } from "../types";
 
 export function createEmptyReasoningTree(): ReasoningTree {
   return { steps: [] };
@@ -15,13 +22,11 @@ export interface NormalizedReasoningEvent {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 }
 
 function hasOwn(obj: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 }
 
 function makeToolStepId(toolCallId: string): string {
@@ -35,148 +40,129 @@ function makeToolStepId(toolCallId: string): string {
  *   - delta      → append text to matching step
  * Pure function — never mutate input; always return a new tree.
  */
-export function reduceReasoningEvent(
-  tree: ReasoningTree | undefined,
-  event: NormalizedReasoningEvent,
-): ReasoningTree {
+export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: NormalizedReasoningEvent): ReasoningTree {
   const base: ReasoningTree = tree ?? createEmptyReasoningTree();
   const data = event.data;
 
-  if (event.event === 'reasoning-step-v1') {
-    const stepId = typeof data.stepId === 'string' ? data.stepId : '';
-    const kindRaw = typeof data.kind === 'string' ? data.kind : '';
-    const eventTag = typeof data.event === 'string' ? data.event : '';
-    if (
-      !stepId ||
-      (kindRaw !== 'phase' && kindRaw !== 'model-reasoning' && kindRaw !== 'tool-loop')
-    ) {
+  if (event.event === "reasoning-step-v1") {
+    const stepId = typeof data.stepId === "string" ? data.stepId : "";
+    const kindRaw = typeof data.kind === "string" ? data.kind : "";
+    const eventTag = typeof data.event === "string" ? data.event : "";
+    if (!stepId || (kindRaw !== "phase" && kindRaw !== "model-reasoning" && kindRaw !== "tool-loop")) {
       return base;
     }
-    const kind = kindRaw as 'phase' | 'model-reasoning' | 'tool-loop';
-    const time = typeof data.time === 'number' ? data.time : Date.now();
-    const label = typeof data.label === 'string' ? data.label : kind;
-    if (eventTag === 'START') {
+    const kind = kindRaw as "phase" | "model-reasoning" | "tool-loop";
+    const time = typeof data.time === "number" ? data.time : Date.now();
+    const label = typeof data.label === "string" ? data.label : kind;
+    if (eventTag === "START") {
       const existing = base.steps.find((s) => s.stepId === stepId);
-      if (existing) return base;
+      if (existing) {
+        return base;
+      }
       const next: ReasoningStep = {
-        stepId,
         kind,
         label,
         startTime: time,
-        text: '',
-        ...(typeof data.parentStepId === 'string' && data.parentStepId !== ''
-          ? { parentStepId: data.parentStepId }
-          : {}),
-        ...(typeof data.phase === 'string'
-          ? { phase: data.phase as ReasoningPhase }
-          : {}),
+        stepId,
+        text: "",
+        ...(typeof data.parentStepId === "string" && data.parentStepId !== "" ? { parentStepId: data.parentStepId } : {}),
+        ...(typeof data.phase === "string" ? { phase: data.phase as ReasoningPhase } : {}),
       };
       return { steps: [...base.steps, next] };
     }
-    if (eventTag === 'END') {
-      const ok = typeof data.ok === 'boolean' ? data.ok : true;
+    if (eventTag === "END") {
+      const ok = typeof data.ok === "boolean" ? data.ok : true;
       const errorRaw = data.error;
       const error =
-        errorRaw && typeof errorRaw === 'object' && !Array.isArray(errorRaw)
+        errorRaw && typeof errorRaw === "object" && !Array.isArray(errorRaw)
           ? {
-              code: String((errorRaw as Record<string, unknown>).code ?? ''),
-              message: String(
-                (errorRaw as Record<string, unknown>).message ?? '',
-              ),
+              code: String((errorRaw as Record<string, unknown>).code ?? ""),
+              message: String((errorRaw as Record<string, unknown>).message ?? ""),
             }
           : undefined;
       return {
-        steps: base.steps.map((s) =>
-          s.stepId === stepId
-            ? { ...s, ok, endTime: time, ...(error ? { error } : {}) }
-            : s,
-        ),
+        steps: base.steps.map((s) => (s.stepId === stepId ? { ...s, endTime: time, ok, ...(error ? { error } : {}) } : s)),
       };
     }
     return base;
   }
 
-  if (event.event === 'reasoning-delta-v1') {
-    const stepId = typeof data.stepId === 'string' ? data.stepId : '';
-    const text = typeof data.text === 'string' ? data.text : '';
-    if (!stepId || text.length === 0) return base;
+  if (event.event === "reasoning-delta-v1") {
+    const stepId = typeof data.stepId === "string" ? data.stepId : "";
+    const text = typeof data.text === "string" ? data.text : "";
+    if (!stepId || text.length === 0) {
+      return base;
+    }
     return {
-      steps: base.steps.map((s) =>
-        s.stepId === stepId ? { ...s, text: `${s.text}${text}` } : s,
-      ),
+      steps: base.steps.map((s) => (s.stepId === stepId ? { ...s, text: `${s.text}${text}` } : s)),
     };
   }
 
-  if (event.event === 'tool-call-started-v1') {
-    const toolCallId = typeof data.toolCallId === 'string' ? data.toolCallId : '';
-    if (!toolCallId) return base;
+  if (event.event === "tool-call-started-v1") {
+    const toolCallId = typeof data.toolCallId === "string" ? data.toolCallId : "";
+    if (!toolCallId) {
+      return base;
+    }
     const stepId = makeToolStepId(toolCallId);
-    if (base.steps.some((s) => s.stepId === stepId)) return base;
-    const toolName = typeof data.toolName === 'string' && data.toolName !== ''
-      ? data.toolName
-      : 'unknown';
-    const time = typeof data.time === 'number' ? data.time : Date.now();
+    if (base.steps.some((s) => s.stepId === stepId)) {
+      return base;
+    }
+    const toolName = typeof data.toolName === "string" && data.toolName !== "" ? data.toolName : "unknown";
+    const time = typeof data.time === "number" ? data.time : Date.now();
     const args = asRecord(data.args) ?? {};
     const meta = asRecord(data.meta);
     const next: ReasoningStep = {
-      stepId,
-      kind: 'tool-call',
+      args,
+      kind: "tool-call",
       label: `调用 ${toolName}`,
       startTime: time,
-      text: '',
+      stepId,
+      text: "",
       toolCallId,
       toolName,
-      args,
-      ...(typeof data.parentStepId === 'string' && data.parentStepId !== ''
-        ? { parentStepId: data.parentStepId }
-        : {}),
+      ...(typeof data.parentStepId === "string" && data.parentStepId !== "" ? { parentStepId: data.parentStepId } : {}),
       ...(meta ? { meta } : {}),
     };
     return { steps: [...base.steps, next] };
   }
 
-  if (event.event === 'tool-call-completed-v1') {
-    const toolCallId = typeof data.toolCallId === 'string' ? data.toolCallId : '';
-    if (!toolCallId) return base;
+  if (event.event === "tool-call-completed-v1") {
+    const toolCallId = typeof data.toolCallId === "string" ? data.toolCallId : "";
+    if (!toolCallId) {
+      return base;
+    }
     const stepId = makeToolStepId(toolCallId);
-    const toolName = typeof data.toolName === 'string' && data.toolName !== ''
-      ? data.toolName
-      : 'unknown';
-    const time = typeof data.time === 'number' ? data.time : Date.now();
+    const toolName = typeof data.toolName === "string" && data.toolName !== "" ? data.toolName : "unknown";
+    const time = typeof data.time === "number" ? data.time : Date.now();
     const durationMs =
-      typeof data.durationMs === 'number' && Number.isFinite(data.durationMs)
-        ? Math.max(0, Math.floor(data.durationMs))
-        : undefined;
-    const ok = typeof data.ok === 'boolean' ? data.ok : true;
+      typeof data.durationMs === "number" && Number.isFinite(data.durationMs) ? Math.max(0, Math.floor(data.durationMs)) : undefined;
+    const ok = typeof data.ok === "boolean" ? data.ok : true;
     const errorRaw = asRecord(data.error);
     const error = errorRaw
       ? {
-          code: String(errorRaw.code ?? ''),
-          message: String(errorRaw.message ?? ''),
+          code: String(errorRaw.code ?? ""),
+          message: String(errorRaw.message ?? ""),
         }
       : undefined;
-    const output = hasOwn(data, 'output') ? data.output : undefined;
-    const parentStepId =
-      typeof data.parentStepId === 'string' && data.parentStepId !== ''
-        ? data.parentStepId
-        : undefined;
+    const output = hasOwn(data, "output") ? data.output : undefined;
+    const parentStepId = typeof data.parentStepId === "string" && data.parentStepId !== "" ? data.parentStepId : undefined;
     const existing = base.steps.find((s) => s.stepId === stepId);
 
     if (!existing) {
-      const startTime = durationMs != null ? Math.max(0, time - durationMs) : time;
+      const startTime = durationMs !== null && durationMs !== undefined ? Math.max(0, time - durationMs) : time;
       const next: ReasoningStep = {
-        stepId,
-        kind: 'tool-call',
-        label: `调用 ${toolName}`,
-        startTime,
         endTime: time,
-        text: '',
+        kind: "tool-call",
+        label: `调用 ${toolName}`,
         ok,
+        startTime,
+        stepId,
+        text: "",
         toolCallId,
         toolName,
         ...(parentStepId ? { parentStepId } : {}),
-        ...(durationMs != null ? { durationMs } : {}),
-        ...(hasOwn(data, 'output') ? { output } : {}),
+        ...(durationMs !== null && durationMs !== undefined ? { durationMs } : {}),
+        ...(hasOwn(data, "output") ? { output } : {}),
         ...(error ? { error } : {}),
       };
       return { steps: [...base.steps, next] };
@@ -187,13 +173,13 @@ export function reduceReasoningEvent(
         s.stepId === stepId
           ? {
               ...s,
-              label: s.label || `调用 ${toolName}`,
-              toolName: s.toolName ?? toolName,
-              ok,
               endTime: time,
+              label: s.label || `调用 ${toolName}`,
+              ok,
+              toolName: s.toolName ?? toolName,
               ...(parentStepId && !s.parentStepId ? { parentStepId } : {}),
-              ...(durationMs != null ? { durationMs } : {}),
-              ...(hasOwn(data, 'output') ? { output } : {}),
+              ...(durationMs !== null && durationMs !== undefined ? { durationMs } : {}),
+              ...(hasOwn(data, "output") ? { output } : {}),
               ...(error ? { error } : {}),
             }
           : s,
@@ -215,11 +201,7 @@ export function forceCloseActiveReasoning(
 ): ReasoningTree {
   const base: ReasoningTree = tree ?? createEmptyReasoningTree();
   return {
-    steps: base.steps.map((s) =>
-      s.ok === undefined
-        ? { ...s, ok: false, error: reason, endTime }
-        : s,
-    ),
+    steps: base.steps.map((s) => (s.ok === undefined ? mergeObject({}, s, { endTime, error: reason, ok: false }) : s)),
   };
 }
 
@@ -228,8 +210,12 @@ export function forceCloseActiveReasoning(
  */
 export function formatReasoningElapsedMs(elapsedMs: number): string {
   const ms = Math.max(0, Math.floor(Number(elapsedMs)));
-  if (!Number.isFinite(ms)) return '0ms';
-  if (ms < 1000) return `${ms}ms`;
+  if (!Number.isFinite(ms)) {
+    return "0ms";
+  }
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
   const secTotal = ms / 1000;
   if (ms < 60_000) {
     if (secTotal < 10) {
@@ -249,22 +235,18 @@ export function formatReasoningElapsedMs(elapsedMs: number): string {
 }
 
 /** 是否非空可见。 */
-export function hasVisibleReasoning(
-  tree: ReasoningTree | undefined,
-): boolean {
-  return !!tree && tree.steps.length > 0;
+export function hasVisibleReasoning(tree: ReasoningTree | undefined): boolean {
+  return (tree?.steps.length ?? 0) > 0;
 }
 
 /**
  * 默认展开白名单：`planning / execution / output` phase + `model-reasoning` 始终默认 open。
  */
 export function shouldExpandReasoningStepByDefault(step: ReasoningStep): boolean {
-  if (step.kind === 'model-reasoning') return true;
-  if (
-    step.phase === 'planning' ||
-    step.phase === 'execution' ||
-    step.phase === 'output'
-  ) {
+  if (step.kind === "model-reasoning") {
+    return true;
+  }
+  if (step.phase === "planning" || step.phase === "execution" || step.phase === "output") {
     return true;
   }
   return false;

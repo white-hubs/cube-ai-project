@@ -11,11 +11,11 @@ ADR-0009 已定运行时拓扑：单进程 `ai-center` + compose 编排 **MySQL 
 
 迁移期却残留多条 **SQLite 旁路**，与 ghcloud / cube-ai 生产形态（MySQL）及 ADR-0009 拓扑不一致：
 
-| 领域 | 源仓权威 | 迁移期现状（2026-06-09 前） | 问题 |
-|---|---|---|---|
-| **llm-catalog** | MySQL `llm_catalog_*` | 曾 warm-load 独立 SQLite 文件 | 多数据源、无写回、与 ghcloud 不对齐 → **已改 MySQL 并删 `sqlite-catalog.store`** |
-| **flow** | MySQL（`02-flow.sql`） | `CUBE_LOCAL_DEV=1` 或 prebuilt 下 `@dangao/bun-server` 动态 `createRequire('mysql2/promise')` 失败时回退 SQLite | prebuilt/compose 不应走 SQLite；flow 已改 **静态 `mysql2/promise` 适配器** |
-| **kb** | MySQL（四表 ORM） | `KbDatabaseBootstrap` 执行 `KB_SQLITE_SCHEMA`；prebuilt compose 设 `KB_LOCAL_DEV=1` + 本地 `kb.sqlite` | **与 flow/engine/catalog 同栈分裂**；README 误将此描述为「合理例外」 |
+| 领域            | 源仓权威               | 迁移期现状（2026-06-09 前）                                                                                     | 问题                                                                             |
+| --------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **llm-catalog** | MySQL `llm_catalog_*`  | 曾 warm-load 独立 SQLite 文件                                                                                   | 多数据源、无写回、与 ghcloud 不对齐 → **已改 MySQL 并删 `sqlite-catalog.store`** |
+| **flow**        | MySQL（`02-flow.sql`） | `CUBE_LOCAL_DEV=1` 或 prebuilt 下 `@dangao/bun-server` 动态 `createRequire('mysql2/promise')` 失败时回退 SQLite | prebuilt/compose 不应走 SQLite；flow 已改 **静态 `mysql2/promise` 适配器**       |
+| **kb**          | MySQL（四表 ORM）      | `KbDatabaseBootstrap` 执行 `KB_SQLITE_SCHEMA`；prebuilt compose 设 `KB_LOCAL_DEV=1` + 本地 `kb.sqlite`          | **与 flow/engine/catalog 同栈分裂**；README 误将此描述为「合理例外」             |
 
 engine（agent-engine）与 llm-catalog **早已只认 MySQL**（`AGENTIC_ENGINE_MYSQL_URL` / `MYSQL_POOL_TOKEN` → 库 `cube_ai_center`）。flow 在 compose / prebuilt 下也已强制 MySQL。**kb 单独 SQLite 无架构依据**——仅是 bootstrap 尚未提供 MySQL DDL + 静态 mysql2 路径的过渡债。
 

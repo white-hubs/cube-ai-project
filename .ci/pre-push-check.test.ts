@@ -15,10 +15,14 @@ const tempRoots: string[] = [];
 const ZERO_SHA = "0".repeat(40);
 
 function fakePrePushGit(args: string[]) {
-  if (args.join(" ") === "rev-parse HEAD") return { exitCode: 0, stdout: "headsha\n", stderr: "" };
-  if (args.join(" ") === "merge-base main HEAD") return { exitCode: 0, stdout: "basesha\n", stderr: "" };
+  if (args.join(" ") === "rev-parse HEAD") {
+    return { exitCode: 0, stdout: "headsha\n", stderr: "" };
+  }
+  if (args.join(" ") === "merge-base main HEAD") {
+    return { exitCode: 0, stdout: "basesha\n", stderr: "" };
+  }
   if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-    return { exitCode: args[2] === "remote-ok" ? 0 : 1, stdout: "", stderr: "" };
+    return { exitCode: args[2] === "remote-ok" ? 0 : 1, stderr: "", stdout: "" };
   }
   throw new Error(`unexpected git args: ${args.join(" ")}`);
 }
@@ -36,7 +40,7 @@ function writeJson(path: string, value: unknown): void {
 
 afterEach(() => {
   for (const root of tempRoots.splice(0)) {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { force: true, recursive: true });
   }
 });
 
@@ -45,19 +49,24 @@ describe("commit gate", () => {
     expect(
       getCommitPolicyViolations([
         {
+          authorEmail: "yanquan@guhecloud.com",
           sha: "a1",
           subject: "feat(agent): add debug session preview",
-          authorEmail: "yanquan@guhecloud.com",
         },
         {
+          authorEmail: "dev.ops@guhecloud.com",
           sha: "b2",
           subject: "chore(agent, sdk): align package metadata",
-          authorEmail: "dev.ops@guhecloud.com",
         },
         {
+          authorEmail: "foo@guhecloud.com",
           sha: "c3",
           subject: "{feat(agent), hotfix(sdk)}: support console push gate",
-          authorEmail: "foo@guhecloud.com",
+        },
+        {
+          authorEmail: "danke@guhecloud.com",
+          sha: "d4",
+          subject: "Merge branch 'main' into danke/fix_lint",
         },
       ]),
     ).toEqual([]);
@@ -66,19 +75,19 @@ describe("commit gate", () => {
   test("rejects invalid commit title shapes and non-guhecloud author emails", () => {
     const violations = getCommitPolicyViolations([
       {
+        authorEmail: "yanquan@guhecloud.com",
         sha: "a1",
         subject: "merge(agent): unsupported type",
-        authorEmail: "yanquan@guhecloud.com",
       },
       {
+        authorEmail: "yanquan@guhecloud.com",
         sha: "b2",
         subject: "feat: missing scope",
-        authorEmail: "yanquan@guhecloud.com",
       },
       {
+        authorEmail: "yanquan@example.com",
         sha: "c3",
         subject: "feat(agent): valid title with wrong email",
-        authorEmail: "yanquan@example.com",
       },
     ]);
 
@@ -127,12 +136,12 @@ describe("pre-push pipeline", () => {
     const order: string[] = [];
 
     await runPrePushChecks({
+      branch: async () => order.push("branch"),
+      build: async () => order.push("build"),
+      commit: async () => order.push("commit"),
       deps: async () => order.push("deps"),
       fmt: async () => order.push("fmt"),
       lint: async () => order.push("lint"),
-      build: async () => order.push("build"),
-      commit: async () => order.push("commit"),
-      branch: async () => order.push("branch"),
     });
 
     expect(order).toEqual(["deps", "fmt", "lint", "build", "commit", "branch"]);
@@ -141,24 +150,24 @@ describe("pre-push pipeline", () => {
 
 describe("fmt gate", () => {
   test("creates an auto-format commit and aborts when oxfmt changes files", async () => {
-    const calls: Array<{ command: string; args: string[] }> = [];
+    const calls: { command: string; args: string[] }[] = [];
     const runner = async (command: string, args: string[]) => {
-      calls.push({ command, args });
+      calls.push({ args, command });
       if (command === "git" && args[0] === "status") {
-        return { exitCode: 0, stdout: " M packages/foo/src/index.ts\n", stderr: "" };
+        return { exitCode: 0, stderr: "", stdout: " M packages/foo/src/index.ts\n" };
       }
-      return { exitCode: 0, stdout: "", stderr: "" };
+      return { exitCode: 0, stderr: "", stdout: "" };
     };
 
-    await expect(runAutoFormatGate([{ status: "M", path: "packages/foo/src/index.ts" }], runner)).rejects.toThrow(
+    await expect(runAutoFormatGate([{ path: "packages/foo/src/index.ts", status: "M" }], runner)).rejects.toThrow(
       "auto-format commit created",
     );
 
     expect(calls).toEqual([
-      { command: "bunx", args: ["oxfmt", "--write", "packages/foo/src/index.ts"] },
-      { command: "git", args: ["status", "--porcelain", "--", "packages/foo/src/index.ts"] },
-      { command: "git", args: ["add", "--", "packages/foo/src/index.ts"] },
-      { command: "git", args: ["commit", "-m", "chore(fmt): auto-format"] },
+      { args: ["oxfmt", "--write", "packages/foo/src/index.ts"], command: "bunx" },
+      { args: ["status", "--porcelain", "--", "packages/foo/src/index.ts"], command: "git" },
+      { args: ["add", "--", "packages/foo/src/index.ts"], command: "git" },
+      { args: ["commit", "-m", "chore(fmt): auto-format"], command: "git" },
     ]);
   });
 });
@@ -168,24 +177,24 @@ describe("deps gate", () => {
     const root = createTempRepo();
     mkdirSync(join(root, "packages", "bad"), { recursive: true });
     writeJson(join(root, "package.json"), {
-      private: true,
-      workspaces: ["packages/*"],
       catalog: {
         zod: "4.4.3",
       },
+      private: true,
+      workspaces: ["packages/*"],
     });
     writeJson(join(root, "packages", "bad", "package.json"), {
-      name: "@cube-ai/bad",
       dependencies: {
         zod: "^4.4.3",
       },
+      name: "@cube-ai/bad",
     });
 
     await expect(getDependencyPolicyViolations(root)).resolves.toEqual([
       {
-        packageJsonPath: "packages/bad/package.json",
-        field: "dependencies",
         dependencyName: "zod",
+        field: "dependencies",
+        packageJsonPath: "packages/bad/package.json",
         version: "^4.4.3",
       },
     ]);
@@ -195,8 +204,6 @@ describe("deps gate", () => {
     const root = createTempRepo();
     mkdirSync(join(root, "apps", "ok"), { recursive: true });
     writeJson(join(root, "package.json"), {
-      private: true,
-      workspaces: ["apps/*"],
       catalog: {
         zod: "4.4.3",
       },
@@ -205,14 +212,16 @@ describe("deps gate", () => {
           vue: "3.5.35",
         },
       },
+      private: true,
+      workspaces: ["apps/*"],
     });
     writeJson(join(root, "apps", "ok", "package.json"), {
-      name: "@cube-ai/ok",
       dependencies: {
         "@cube-ai/contracts": "workspace:*",
-        zod: "catalog:",
         vue: "catalog:vue",
+        zod: "catalog:",
       },
+      name: "@cube-ai/ok",
     });
 
     await expect(getDependencyPolicyViolations(root)).resolves.toEqual([]);
@@ -221,27 +230,27 @@ describe("deps gate", () => {
   test("rejects root dependency literals and non-concrete catalog versions", async () => {
     const root = createTempRepo();
     writeJson(join(root, "package.json"), {
-      private: true,
-      workspaces: ["packages/*"],
       catalog: {
         zod: "^4.4.3",
       },
       devDependencies: {
         typescript: "6.0.3",
       },
+      private: true,
+      workspaces: ["packages/*"],
     });
 
     await expect(getDependencyPolicyViolations(root)).resolves.toEqual([
       {
-        packageJsonPath: "package.json",
-        field: "catalog",
         dependencyName: "zod",
+        field: "catalog",
+        packageJsonPath: "package.json",
         version: "^4.4.3",
       },
       {
-        packageJsonPath: "package.json",
-        field: "devDependencies",
         dependencyName: "typescript",
+        field: "devDependencies",
+        packageJsonPath: "package.json",
         version: "6.0.3",
       },
     ]);

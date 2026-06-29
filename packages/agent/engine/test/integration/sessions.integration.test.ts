@@ -1,3 +1,4 @@
+import { describe, expect, test } from "bun:test";
 /**
  * P3-04 Session REST — 真实流程断言（默认 `test.skip`，需 live engine + MySQL）。
  *
@@ -11,89 +12,92 @@
  *
  * 权威：P3-04-session-rest.md §6、shared-context §5.3
  */
-import { describe, test, expect } from 'bun:test';
-import { createPool, type RowDataPacket } from 'mysql2/promise';
+import { type RowDataPacket, createPool } from "mysql2/promise";
 
-const PORT = Number(process.env['TEST_PORT'] ?? 4004);
+const PORT = Number(process.env["TEST_PORT"] ?? 4004);
 const BASE = `http://127.0.0.1:${PORT}`;
 
-const SFID_RE = /^\d{19}$/;
+const SFID_RE = /^\d{19}$/u;
 
 /** mock Obo：与 `oauth2-introspection.middleware` mock 模式一致 */
 function mockHeaders(tenant: number, userId: string) {
   return {
-    'Content-Type':  'application/json',
-    'Authorization': 'Bearer test-token',
-    'x-mock-tenant-id': String(tenant),
-    'x-mock-user-id':    userId,
+    Authorization: "Bearer test-token",
+    "Content-Type": "application/json",
+    "x-mock-tenant-id": String(tenant),
+    "x-mock-user-id": userId,
   } as const;
 }
 
 function parsePayload(row: RowDataPacket & { payload_json?: unknown }): Record<string, unknown> {
-  const raw = row['payload_json'];
-  if (raw == null) return {};
-  if (typeof raw === 'object' && !Buffer.isBuffer(raw)) return raw as Record<string, unknown>;
-  const s = Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw);
+  const raw = row["payload_json"];
+  if (raw === null || raw === undefined) {
+    return {};
+  }
+  if (typeof raw === "object" && !Buffer.isBuffer(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  const s = Buffer.isBuffer(raw) ? raw.toString("utf8") : String(raw);
   return JSON.parse(s) as Record<string, unknown>;
 }
 
-describe('[integration] Session REST (P3-04)', () => {
-  test.skip('POST /sessions — 201，id 为 SFID；请求 JSON 不含 tenant（§API-4）', async () => {
+describe("[integration] Session REST (P3-04)", () => {
+  test.skip("POST /sessions — 201，id 为 SFID；请求 JSON 不含 tenant（§API-4）", async () => {
     const tenant = 91_001;
-    const body = { agentId: '18203000000000123', title: 'integration-create' };
-    expect(Object.hasOwn(body, 'tenant')).toBe(false);
+    const body = { agentId: "18203000000000123", title: "integration-create" };
+    expect(Object.hasOwn(body, "tenant")).toBe(false);
 
     const resp = await fetch(`${BASE}/sessions`, {
-      method:  'POST',
-      headers: mockHeaders(tenant, 'integ-user-a'),
-      body:    JSON.stringify(body),
+      body: JSON.stringify(body),
+      headers: mockHeaders(tenant, "integ-user-a"),
+      method: "POST",
     });
 
     expect(resp.status).toBe(201);
     const json = (await resp.json()) as Record<string, unknown>;
-    expect(typeof json['id']).toBe('string');
-    expect(SFID_RE.test(String(json['id']))).toBe(true);
-    expect(json).not.toHaveProperty('tenant');
+    expect(typeof json["id"]).toBe("string");
+    expect(SFID_RE.test(String(json["id"]))).toBe(true);
+    expect(json).not.toHaveProperty("tenant");
   });
 
-  test.skip('GET /sessions/:id — 非所属 tenant 返回 404（行级隔离）', async () => {
+  test.skip("GET /sessions/:id — 非所属 tenant 返回 404（行级隔离）", async () => {
     const tenantA = 91_002;
     const tenantB = 91_003;
-    const userA = 'integ-user-iso-a';
+    const userA = "integ-user-iso-a";
 
     const created = await fetch(`${BASE}/sessions`, {
-      method:  'POST',
+      body: JSON.stringify({ agentId: "18203000000000123" }),
       headers: mockHeaders(tenantA, userA),
-      body:    JSON.stringify({ agentId: '18203000000000123' }),
+      method: "POST",
     });
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as { id: string };
 
     const wrongTenant = await fetch(`${BASE}/sessions/${id}`, {
-      method:  'GET',
       headers: mockHeaders(tenantB, userA),
+      method: "GET",
     });
     expect(wrongTenant.status).toBe(404);
   });
 
-  test.skip('DELETE /sessions/:id — 204；outbox_events 可查到 session.deleted', async () => {
+  test.skip("DELETE /sessions/:id — 204；outbox_events 可查到 session.deleted", async () => {
     const tenant = 91_004;
-    const mysqlUrl = process.env['AGENTIC_ENGINE_MYSQL_URL'];
+    const mysqlUrl = process.env["AGENTIC_ENGINE_MYSQL_URL"];
     if (!mysqlUrl) {
-      throw new Error('AGENTIC_ENGINE_MYSQL_URL required to assert outbox row');
+      throw new Error("AGENTIC_ENGINE_MYSQL_URL required to assert outbox row");
     }
 
     const created = await fetch(`${BASE}/sessions`, {
-      method:  'POST',
-      headers: mockHeaders(tenant, 'integ-user-del'),
-      body:    JSON.stringify({ agentId: '18203000000000123' }),
+      body: JSON.stringify({ agentId: "18203000000000123" }),
+      headers: mockHeaders(tenant, "integ-user-del"),
+      method: "POST",
     });
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as { id: string };
 
     const del = await fetch(`${BASE}/sessions/${id}`, {
-      method:  'DELETE',
-      headers: mockHeaders(tenant, 'integ-user-del'),
+      headers: mockHeaders(tenant, "integ-user-del"),
+      method: "DELETE",
     });
     expect(del.status).toBe(204);
 
@@ -108,7 +112,7 @@ describe('[integration] Session REST (P3-04)', () => {
 
       const hit = rows.some((r) => {
         const p = parsePayload(r);
-        return p['sessionId'] === id || p['sessionId'] === String(id);
+        return p["sessionId"] === id || p["sessionId"] === String(id);
       });
       expect(hit).toBe(true);
     } finally {

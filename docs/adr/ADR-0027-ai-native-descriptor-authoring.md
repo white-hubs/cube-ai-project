@@ -54,6 +54,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-sdk
 与 `:fromDocument` 的 colon-suffix 对称。SSE 协议：**流 prose token**（prompt/instructions 的 delta）供人实时看，**末尾一个 `proposal` 事件**搭载完整结构化信封（§4）；流中途异常以 `error` 事件透出避免悬挂。
 
 实现为**两阶段真流式**（已落地）：
+
 - **Phase 1**：`LlmProviderPort.chatStream` 仅生成 prose 正文（plain text，无 JSON），逐 token `event: delta` 真流出——用户首字延迟 = 首 token 延迟，而非整体生成完。
 - **Phase 2**：`chat` 给定已草拟 prose + 候选清单，产出结构化 `{ suggestions, meta }`，再硬接地（§6）+ schema 校验，组装为终态 `proposal` 信封。
 - 非流式消费者（Tool Handler / MCP 门面，§7-8）走 `propose()`，内部 drain 同一 `proposeStream` 两阶段核取终态信封——**单核两形态**，行为一致。

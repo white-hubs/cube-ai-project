@@ -1,15 +1,19 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /** Bun 可执行文件：子进程 `spawn('bun')` 在 IDE/CI 下常不在 PATH，用当前 runtime。 */
 export function resolveBunExecutable(): string {
-  const fromEnv = process.env['BUN_TEST_EXECUTABLE']?.trim();
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  const fromEnv = process.env["BUN_TEST_EXECUTABLE"]?.trim();
+  if (fromEnv && existsSync(fromEnv)) {
+    return fromEnv;
+  }
 
-  const install = process.env['BUN_INSTALL']?.trim();
+  const install = process.env["BUN_INSTALL"]?.trim();
   if (install) {
-    const candidate = join(install, 'bin', 'bun');
-    if (existsSync(candidate)) return candidate;
+    const candidate = join(install, "bin", "bun");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   return process.execPath;
@@ -22,18 +26,22 @@ export function resolveBunExecutable(): string {
 export function findMonorepoRoot(startDir: string): string {
   let dir = startDir;
   for (let i = 0; i < 14; i++) {
-    const lock = join(dir, 'bun.lock');
-    const pkg = join(dir, 'package.json');
+    const lock = join(dir, "bun.lock");
+    const pkg = join(dir, "package.json");
     if (existsSync(lock) && existsSync(pkg)) {
       try {
-        const parsed = JSON.parse(readFileSync(pkg, 'utf8')) as { workspaces?: unknown };
-        if (parsed.workspaces) return dir;
+        const parsed = JSON.parse(readFileSync(pkg, "utf8")) as { workspaces?: unknown };
+        if (parsed.workspaces) {
+          return dir;
+        }
       } catch {
         /* continue walking */
       }
     }
     const parent = dirname(dir);
-    if (parent === dir) break;
+    if (parent === dir) {
+      break;
+    }
     dir = parent;
   }
   throw new Error(`[test-infra] monorepo root not found from ${startDir}`);
@@ -46,14 +54,11 @@ export function resolveMonorepoRootFromImporter(importerDir: string): string {
 
 /** 解析 agent-engine 包目录（含 `src/main.ts`）。 */
 export function resolveEnginePackageDir(repoRoot: string): string {
-  const candidates = [
-    join(repoRoot, 'packages', 'agent', 'engine'),
-    join(repoRoot, 'packages', 'engine'),
-  ];
+  const candidates = [join(repoRoot, "packages", "agent", "engine"), join(repoRoot, "packages", "engine")];
   for (const dir of candidates) {
-    if (existsSync(join(dir, 'src', 'main.ts'))) return dir;
+    if (existsSync(join(dir, "src", "main.ts"))) {
+      return dir;
+    }
   }
-  throw new Error(
-    `[test-infra] engine package not found under ${repoRoot} (tried packages/agent/engine, packages/engine)`,
-  );
+  throw new Error(`[test-infra] engine package not found under ${repoRoot} (tried packages/agent/engine, packages/engine)`);
 }

@@ -3,29 +3,28 @@
  *
  * Ref: `docs/technical-design/phase-1/P1-07-jobs.md` §3.3 / bullmq-protocol §5.3
  */
-import { JobQueueNameSchema } from '@cube-ai/contracts';
-import type {
-  OutboxEventRow as OutboxEventRowBase,
-} from './types';
+import { JobQueueNameSchema } from "@cube-ai/contracts";
+
+import type { OutboxEventRow as OutboxEventRowBase } from "./types";
 
 export type OutboxEventRow = OutboxEventRowBase;
 
 // ─── Channel enum (06-jobs/README.md §4.2) ─────────────────────────────────
 
 export const OUTBOX_CHANNELS = [
-  'bullmq_job',
-  'message_service',
-  'usage_bus',
-  'descriptor_reload',
-  'authz_invalidate',
-  'session_lifecycle',
+  "bullmq_job",
+  "message_service",
+  "usage_bus",
+  "descriptor_reload",
+  "authz_invalidate",
+  "session_lifecycle",
 ] as const;
 export type OutboxChannel = (typeof OUTBOX_CHANNELS)[number];
 
 export const REDIS_PUBSUB_CHANNELS: Record<string, string> = {
-  descriptor_reload:  'agentic:engine:pubsub:descriptor.reload',
-  authz_invalidate:   'agentic:engine:pubsub:grant.invalidate',
-  session_lifecycle:  'agentic:engine:pubsub:session.lifecycle',
+  authz_invalidate: "agentic:engine:pubsub:grant.invalidate",
+  descriptor_reload: "agentic:engine:pubsub:descriptor.reload",
+  session_lifecycle: "agentic:engine:pubsub:session.lifecycle",
 };
 
 // ─── Dispatcher interface ───────────────────────────────────────────────────
@@ -47,15 +46,15 @@ export interface BullMqEnqueuePort {
     opts: {
       jobId: string;
       attempts: number;
-      backoff: { type: 'exponential'; delay: number };
+      backoff: { type: "exponential"; delay: number };
     },
   ): Promise<void>;
 }
 
 // ─── Error codes (assertable) ─────────────────────────────────────────────────
 
-export const CODE_UNIMPLEMENTED_PHASE4 = 'UNIMPLEMENTED_PHASE4';
-export const CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL = 'INTERNAL_UNKNOWN_OUTBOX_CHANNEL';
+export const CODE_UNIMPLEMENTED_PHASE4 = "UNIMPLEMENTED_PHASE4";
+export const CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL = "INTERNAL_UNKNOWN_OUTBOX_CHANNEL";
 
 // ─── BullMq job dispatcher ────────────────────────────────────────────────────
 
@@ -68,18 +67,14 @@ export class BullMqJobDispatcher implements OutboxDispatcherI {
   constructor(private readonly enqueue: BullMqEnqueuePort) {}
 
   async dispatch(row: OutboxEventRow): Promise<void> {
-    if (row.channel !== 'bullmq_job') {
-      throw new Error(
-        `BullMqJobDispatcher: unexpected channel '${row.channel}' (expected 'bullmq_job')`,
-      );
+    if (row.channel !== "bullmq_job") {
+      throw new Error(`BullMqJobDispatcher: unexpected channel '${row.channel}' (expected 'bullmq_job')`);
     }
 
-    const payloadRaw = typeof row.payloadJson === 'string'
-      ? JSON.parse(row.payloadJson as string)
-      : row.payloadJson;
+    const payloadRaw = typeof row.payloadJson === "string" ? JSON.parse(row.payloadJson as string) : row.payloadJson;
 
     const payload = payloadRaw as Record<string, unknown>;
-    const jobId = typeof payload?.jobId === 'string' ? payload.jobId : undefined;
+    const jobId = typeof payload?.jobId === "string" ? payload.jobId : undefined;
     if (!jobId) {
       throw new Error(`BullMqJobDispatcher: missing jobId in outbox row ${row.id}`);
     }
@@ -90,21 +85,14 @@ export class BullMqJobDispatcher implements OutboxDispatcherI {
 
     const queueParse = JobQueueNameSchema.safeParse(row.target);
     if (!queueParse.success) {
-      throw new OutboxDispatchError(
-        `INVALID_JOB_QUEUE_NAME: target '${row.target}' is not a registered queue name`,
-        false,
-      );
+      throw new OutboxDispatchError(`INVALID_JOB_QUEUE_NAME: target '${row.target}' is not a registered queue name`, false);
     }
 
-    await this.enqueue.add(
-      row.target,
-      payload,
-      {
-        jobId,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1_000 },
-      },
-    );
+    await this.enqueue.add(row.target, payload, {
+      attempts: 3,
+      backoff: { delay: 1_000, type: "exponential" },
+      jobId,
+    });
   }
 }
 
@@ -115,19 +103,13 @@ export const BullMQDispatcher = BullMqJobDispatcher;
 
 export class KafkaDispatcher implements OutboxDispatcherI {
   async dispatch(row: OutboxEventRow): Promise<void> {
-    throw new OutboxDispatchError(
-      `${CODE_UNIMPLEMENTED_PHASE4}: KafkaDispatcher channel=${row.channel}`,
-      false,
-    );
+    throw new OutboxDispatchError(`${CODE_UNIMPLEMENTED_PHASE4}: KafkaDispatcher channel=${row.channel}`, false);
   }
 }
 
 export class WebhookDispatcher implements OutboxDispatcherI {
   async dispatch(row: OutboxEventRow): Promise<void> {
-    throw new OutboxDispatchError(
-      `NOT_IMPLEMENTED: WebhookDispatcher channel=${row.channel}`,
-      false,
-    );
+    throw new OutboxDispatchError(`NOT_IMPLEMENTED: WebhookDispatcher channel=${row.channel}`, false);
   }
 }
 
@@ -143,16 +125,10 @@ export class PubSubDispatcher implements OutboxDispatcherI {
   async dispatch(row: OutboxEventRow): Promise<void> {
     const redisChannel = REDIS_PUBSUB_CHANNELS[row.channel as string];
     if (!redisChannel) {
-      throw new OutboxDispatchError(
-        `OUTBOX_CHANNEL_NO_PUBSUB_MAPPING: ${row.channel}`,
-        false,
-      );
+      throw new OutboxDispatchError(`OUTBOX_CHANNEL_NO_PUBSUB_MAPPING: ${row.channel}`, false);
     }
 
-    const payload =
-      typeof row.payloadJson === 'string'
-        ? row.payloadJson
-        : JSON.stringify(row.payloadJson);
+    const payload = typeof row.payloadJson === "string" ? row.payloadJson : JSON.stringify(row.payloadJson);
 
     await this.pubsub.publish(redisChannel, payload);
   }
@@ -173,32 +149,23 @@ export class CompositeDispatcher implements OutboxDispatcherI {
   async dispatch(row: OutboxEventRow): Promise<void> {
     const ch = row.channel as string;
 
-    if (ch === 'bullmq_job') {
+    if (ch === "bullmq_job") {
       return this.bullmq.dispatch(row);
     }
 
-    if (ch === 'kafka_event') {
-      throw new OutboxDispatchError(
-        `${CODE_UNIMPLEMENTED_PHASE4}: kafka_event`,
-        false,
-      );
+    if (ch === "kafka_event") {
+      throw new OutboxDispatchError(`${CODE_UNIMPLEMENTED_PHASE4}: kafka_event`, false);
     }
 
-    if (this.pubsub && Object.prototype.hasOwnProperty.call(REDIS_PUBSUB_CHANNELS, ch)) {
+    if (this.pubsub && Object.hasOwn(REDIS_PUBSUB_CHANNELS, ch)) {
       return this.pubsub.dispatch(row);
     }
 
     if ((OUTBOX_CHANNELS as readonly string[]).includes(ch)) {
-      throw new OutboxDispatchError(
-        `OUTBOX_CHANNEL_NOT_IMPLEMENTED: ${ch}`,
-        false,
-      );
+      throw new OutboxDispatchError(`OUTBOX_CHANNEL_NOT_IMPLEMENTED: ${ch}`, false);
     }
 
-    throw new OutboxDispatchError(
-      `${CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL}: '${ch}'`,
-      false,
-    );
+    throw new OutboxDispatchError(`${CODE_INTERNAL_UNKNOWN_OUTBOX_CHANNEL}: '${ch}'`, false);
   }
 }
 
@@ -211,12 +178,12 @@ export class OutboxDispatchError extends Error {
     public readonly retryable: boolean,
   ) {
     super(message);
-    this.name = 'OutboxDispatchError';
+    this.name = "OutboxDispatchError";
   }
 }
 
 // ─── DI tokens ────────────────────────────────────────────────────────────────
 
-export const OUTBOX_DISPATCHER_TOKEN = Symbol.for('agentic.outbox.dispatcher');
-export const BULLMQ_ENQUEUE_TOKEN = Symbol.for('agentic.outbox.bullmqEnqueue');
-export const REDIS_PUBSUB_PORT_TOKEN = Symbol.for('agentic.outbox.redisPubSub');
+export const OUTBOX_DISPATCHER_TOKEN = Symbol.for("agentic.outbox.dispatcher");
+export const BULLMQ_ENQUEUE_TOKEN = Symbol.for("agentic.outbox.bullmqEnqueue");
+export const REDIS_PUBSUB_PORT_TOKEN = Symbol.for("agentic.outbox.redisPubSub");

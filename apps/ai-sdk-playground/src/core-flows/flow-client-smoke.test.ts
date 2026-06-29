@@ -1,26 +1,28 @@
 /**
  * Flow client smoke — ai-sdk-playground wires `@cube-ai/flow-sdk-client` to `/flow/run/:id`.
  */
-import { describe, expect, test } from 'bun:test';
-import { createFlowClient } from '@cube-ai/flow-sdk-client';
-import { sdkConfig } from '../config';
+import { describe, expect, test } from "bun:test";
 
-describe('ai-sdk-playground flow client smoke', () => {
-  test('createFlowClient.run() POST /flow/run/:flowId', async () => {
-    let capturedUrl = '';
+import { createFlowClient } from "@cube-ai/flow-sdk-client";
+
+import { sdkConfig } from "../config";
+
+describe("ai-sdk-playground flow client smoke", () => {
+  test("createFlowClient.run() POST /flow/run/:flowId", async () => {
+    let capturedUrl = "";
     const cfg = sdkConfig();
     const client = createFlowClient({
       baseUrl: cfg.baseUrl,
-      headers: cfg.headers,
       fetchImpl: (async (url, init) => {
-        capturedUrl = typeof url === 'string' ? url : url.toString();
-        expect(init?.method).toBe('POST');
-        return Response.json({ status: 'ok', raw: { mock: true } });
+        capturedUrl = typeof url === "string" ? url : url.toString();
+        expect(init?.method).toBe("POST");
+        return Response.json({ status: "ok", raw: { mock: true } });
       }) as typeof fetch,
+      headers: cfg.headers,
     });
 
-    const result = await client.run('flow-loop4', { input: 'hello' });
+    const result = await client.run("flow-loop4", { input: "hello" });
     expect(capturedUrl).toBe(`${cfg.baseUrl}/flow/run/flow-loop4`);
-    expect(result).toEqual({ status: 'ok', raw: { mock: true } });
+    expect(result).toEqual({ raw: { mock: true }, status: "ok" });
   });
 });

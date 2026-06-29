@@ -1,2 +1,2 @@
-export * from './token';
-export * from './dual-subject';
+export * from "./token";
+export * from "./dual-subject";

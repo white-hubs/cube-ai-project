@@ -1,9 +1,6 @@
-import {
-  GrantResponseRequestSchema,
-  type GrantResponseRequest,
-} from '@cube-ai/contracts';
-import type { AgenticClient } from './client';
-import type { AgenticClientConfig } from './client';
+import { type GrantResponseRequest, GrantResponseRequestSchema } from "@cube-ai/contracts";
+
+import { type AgenticClient, type AgenticClientConfig } from "./client";
 
 /**
  * Grants API methods.
@@ -18,31 +15,31 @@ export class GrantsApi {
   async respond(req: GrantResponseRequest): Promise<void> {
     const validated = GrantResponseRequestSchema.parse(req);
     await this.client.requestJson({
-      method: 'POST',
-      path:   '/grants/responses',
-      body:   validated,
+      body: validated,
+      method: "POST",
+      path: "/grants/responses",
     });
   }
 
   async approve(
     grantRequestId: string,
-    scopeChoice?: GrantResponseRequest['scopeChoice'],
-    extras?: Pick<GrantResponseRequest, 'rememberTtlSeconds' | 'note'>,
+    scopeChoice?: GrantResponseRequest["scopeChoice"],
+    extras?: Pick<GrantResponseRequest, "rememberTtlSeconds" | "note">,
   ): Promise<void> {
     return this.respond({
+      decision: "APPROVE",
       grantRequestId,
-      decision:       'APPROVE',
-      scopeChoice,
+      note: extras?.note,
       rememberTtlSeconds: extras?.rememberTtlSeconds,
-      note:               extras?.note,
+      scopeChoice,
     });
   }
 
   async deny(grantRequestId: string, reason?: string): Promise<void> {
     return this.respond({
+      decision: "DENY",
       grantRequestId,
-      decision: 'DENY',
-      note:     reason,
+      note: reason,
     });
   }
 }

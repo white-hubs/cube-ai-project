@@ -1,30 +1,27 @@
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { testInfraLog } from './log';
-import { findMonorepoRoot } from './repo-path';
-import { createMigrationRunner } from '@cube-ai/mysql-migration';
+import { join } from "node:path";
+
+import { createMigrationRunner } from "@cube-ai/mysql-migration";
+
+import { testInfraLog } from "./log";
+import { findMonorepoRoot } from "./repo-path";
 
 function isTransientMysqlConnectErr(e: unknown): boolean {
-  const code = typeof e === 'object' && e && 'code' in e ? String((e as { code: unknown }).code) : '';
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
   const msg = e instanceof Error ? e.message : String(e);
   return (
-    code === 'PROTOCOL_CONNECTION_LOST' ||
-    code === 'ECONNREFUSED' ||
-    code === 'ETIMEDOUT' ||
-    msg.includes('PROTOCOL_CONNECTION_LOST') ||
-    msg.includes('ECONNREFUSED')
+    code === "PROTOCOL_CONNECTION_LOST" ||
+    code === "ECONNREFUSED" ||
+    code === "ETIMEDOUT" ||
+    msg.includes("PROTOCOL_CONNECTION_LOST") ||
+    msg.includes("ECONNREFUSED")
   );
 }
 
 function repoRoot(): string {
-  return findMonorepoRoot(fileURLToPath(new URL('.', import.meta.url)));
+  return findMonorepoRoot(import.meta.dirname);
 }
 
-async function runMigrationsWithRetry(
-  mysqlUrl: string,
-  migrationsDir: string,
-  historyTable: string,
-): Promise<void> {
+async function runMigrationsWithRetry(mysqlUrl: string, migrationsDir: string, historyTable: string): Promise<void> {
   const maxAttempts = 30;
   const delayMs = 500;
   // MySQL testcontainers often accept TCP before the first session is stable.
@@ -32,11 +29,13 @@ async function runMigrationsWithRetry(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await createMigrationRunner({ mysqlUrl, migrationsDir, historyTable }).run();
+      await createMigrationRunner({ historyTable, migrationsDir, mysqlUrl }).run();
       testInfraLog(`Migrations applied: ${historyTable}.`);
       return;
     } catch (e) {
-      if (!isTransientMysqlConnectErr(e) || attempt === maxAttempts) throw e;
+      if (!isTransientMysqlConnectErr(e) || attempt === maxAttempts) {
+        throw e;
+      }
       testInfraLog(
         `${historyTable}: transient error (attempt ${attempt}/${maxAttempts}), retry in ${delayMs}ms — ${e instanceof Error ? e.message : String(e)}`,
       );
@@ -50,12 +49,8 @@ async function runMigrationsWithRetry(
  * 唯一权威 = `packages/agent/engine/migrations/`，与 `apps/ai-center/src/migrations.ts` 对齐。
  */
 export async function applyMinimalMysqlSchema(mysqlUrl: string): Promise<void> {
-  testInfraLog('Applying engine domain migrations (sessions/turns/jobs/grants/outbox…)…');
-  await runMigrationsWithRetry(
-    mysqlUrl,
-    join(repoRoot(), 'packages/agent/engine/migrations'),
-    'engine_schema_migrations',
-  );
+  testInfraLog("Applying engine domain migrations (sessions/turns/jobs/grants/outbox…)…");
+  await runMigrationsWithRetry(mysqlUrl, join(repoRoot(), "packages/agent/engine/migrations"), "engine_schema_migrations");
 }
 
 /**
@@ -75,10 +70,10 @@ export async function applyAiCenterDomainMysqlSchemas(mysqlUrl: string): Promise
 
   const root = repoRoot();
   const domainMigrations = [
-    { migrationsDir: join(root, 'packages/flow/core/migrations'),    historyTable: 'flow_schema_migrations' },
-    { migrationsDir: join(root, 'packages/llm/core/migrations'),     historyTable: 'llm_catalog_schema_migrations' },
-    { migrationsDir: join(root, 'packages/kb/core/migrations'),      historyTable: 'kb_schema_migrations' },
-    { migrationsDir: join(root, 'packages/flow/studio/migrations'),  historyTable: 'flow_studio_schema_migrations' },
+    { historyTable: "flow_schema_migrations", migrationsDir: join(root, "packages/flow/core/migrations") },
+    { historyTable: "llm_catalog_schema_migrations", migrationsDir: join(root, "packages/llm/core/migrations") },
+    { historyTable: "kb_schema_migrations", migrationsDir: join(root, "packages/kb/core/migrations") },
+    { historyTable: "flow_studio_schema_migrations", migrationsDir: join(root, "packages/flow/studio/migrations") },
   ];
 
   for (const domain of domainMigrations) {

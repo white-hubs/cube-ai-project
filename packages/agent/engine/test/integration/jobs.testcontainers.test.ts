@@ -1,20 +1,22 @@
+import { Queue, Worker } from "bullmq";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+
+import { BULLMQ_QUEUE_PREFIX } from "@cube-ai/agent-engine/adapters/backend";
+import {
+  type MysqlRedisStack,
+  applyMinimalMysqlSchema,
+  registerProcessShutdown,
+  resolveShouldRunTestcontainers,
+  startMysqlRedis,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
 /**
  * BullMQ Jobs smoke — MySQL + Redis Testcontainers（MySQL 仅占位 schema，核心验证队列）。
  *
  *   USE_TESTCONTAINERS=1 bun test packages/agent/engine/test/integration/jobs.testcontainers.test.ts
  *   bun run test:containers
  */
-import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
-import { Queue, Worker } from 'bullmq';
-import {
-  applyMinimalMysqlSchema,
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startMysqlRedis,
-  stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
-import { BULLMQ_QUEUE_PREFIX } from '@cube-ai/agent-engine/adapters/backend';
 
 const run = await resolveShouldRunTestcontainers();
 const stackHolder: { current: MysqlRedisStack | null } = { current: null };
@@ -34,7 +36,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('P3-09 jobs [testcontainers]', () => {
+(run ? describe : describe.skip)("P3-09 jobs [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startMysqlRedis();
     try {
@@ -54,27 +56,23 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('enqueue → Worker 处理 → job completed', async () => {
+  test("enqueue → Worker 处理 → job completed", async () => {
     const { redisUrl } = stackHolder.current!;
     const queueName = `${BULLMQ_QUEUE_PREFIX}tc-smoke-${Date.now()}`;
     const connection = { url: redisUrl };
 
     const queue = new Queue(queueName, { connection });
-    const worker = new Worker(
-      queueName,
-      async () => ({ done: true }),
-      { connection },
-    );
+    const worker = new Worker(queueName, async () => ({ done: true }), { connection });
 
-    const job = await queue.add('smoke', { n: 1 });
+    const job = await queue.add("smoke", { n: 1 });
     const deadline = Date.now() + 30_000;
     let state = await job.getState();
-    while (state !== 'completed' && Date.now() < deadline) {
+    while (state !== "completed" && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 80));
       state = await job.getState();
     }
 
-    expect(state).toBe('completed');
+    expect(state).toBe("completed");
 
     await worker.close();
     await queue.close();

@@ -1,10 +1,12 @@
-import { onMounted, ref, type Ref } from 'vue';
-import { AgenticClientError as AgenticError } from '@cube-ai/agent-sdk-client';
-import { useAgenticClient } from './use-agentic-client';
+import { type Ref, onMounted, ref } from "vue";
+
+import type { AgenticClientError as AgenticError } from "@cube-ai/agent-sdk-client";
+
+import { useAgenticClient } from "./use-agentic-client";
 
 export interface UseHealthState {
   loading: Ref<boolean>;
-  status: Ref<'UP' | 'DOWN' | 'UNKNOWN'>;
+  status: Ref<"UP" | "DOWN" | "UNKNOWN">;
   timestamp: Ref<number | null>;
   error: Ref<AgenticError | Error | null>;
   refresh: () => Promise<void>;
@@ -17,7 +19,7 @@ export interface UseHealthState {
 export function useHealthLive(): UseHealthState {
   const client = useAgenticClient();
   const loading = ref(false);
-  const status = ref<'UP' | 'DOWN' | 'UNKNOWN'>('UNKNOWN');
+  const status = ref<"UP" | "DOWN" | "UNKNOWN">("UNKNOWN");
   const timestamp = ref<number | null>(null);
   const error = ref<AgenticError | Error | null>(null);
 
@@ -26,11 +28,11 @@ export function useHealthLive(): UseHealthState {
     error.value = null;
     try {
       const body = await client.healthLive();
-      status.value = (body.status as 'UP' | 'DOWN') ?? 'UNKNOWN';
+      status.value = (body.status as "UP" | "DOWN") ?? "UNKNOWN";
       timestamp.value = body.timestamp;
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err));
-      status.value = 'DOWN';
+      status.value = "DOWN";
     } finally {
       loading.value = false;
     }
@@ -40,5 +42,5 @@ export function useHealthLive(): UseHealthState {
     void refresh();
   });
 
-  return { loading, status, timestamp, error, refresh };
+  return { error, loading, refresh, status, timestamp };
 }

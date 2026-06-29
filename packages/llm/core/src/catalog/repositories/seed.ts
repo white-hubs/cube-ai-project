@@ -1,18 +1,18 @@
-import { ensureCatalogTables, type CatalogMysqlPool } from './catalog-mysql-pool';
-import type { MatchRuleRow, SystemModelRow, SystemProviderRow, SystemTypeRow } from './row-types';
+import { type CatalogMysqlPool, ensureCatalogTables } from "./catalog-mysql-pool";
+import { type MatchRuleRow, type SystemModelRow, type SystemProviderRow, type SystemTypeRow } from "./row-types";
+import { AUTHORITATIVE_SYSTEM_CATALOG_SEED } from "./system-seed.data";
 import {
   SystemLlmModelMatchRuleRepository,
   SystemLlmModelRepository,
   SystemLlmProviderRepository,
   SystemLlmProviderTypeRepository,
-} from './system.repositories';
-import { AUTHORITATIVE_SYSTEM_CATALOG_SEED } from './system-seed.data';
+} from "./system.repositories";
 
 export { AUTHORITATIVE_SYSTEM_CATALOG_SEED };
 
 /** 系统目录种子（迁移工具/初始化用）。租户副本由首访 provisioning 自动生成。 */
 export interface SystemCatalogSeed {
-  types?: Array<Pick<SystemTypeRow, 'code' | 'display_name' | 'description' | 'sort_order' | 'enabled'>>;
+  types?: Pick<SystemTypeRow, "code" | "display_name" | "description" | "sort_order" | "enabled">[];
   providers?: SystemProviderRow[];
   models?: SystemModelRow[];
   matchRules?: MatchRuleRow[];
@@ -25,10 +25,18 @@ export async function upsertSystemCatalogMysql(pool: CatalogMysqlPool, seed: Sys
   const providerRepo = new SystemLlmProviderRepository(pool);
   const modelRepo = new SystemLlmModelRepository(pool);
   const ruleRepo = new SystemLlmModelMatchRuleRepository(pool);
-  for (const row of seed.types ?? []) await typeRepo.upsert(row);
-  for (const row of seed.providers ?? []) await providerRepo.upsert(row);
-  for (const row of seed.models ?? []) await modelRepo.upsert(row);
-  for (const row of seed.matchRules ?? []) await ruleRepo.upsert(row);
+  for (const row of seed.types ?? []) {
+    await typeRepo.upsert(row);
+  }
+  for (const row of seed.providers ?? []) {
+    await providerRepo.upsert(row);
+  }
+  for (const row of seed.models ?? []) {
+    await modelRepo.upsert(row);
+  }
+  for (const row of seed.matchRules ?? []) {
+    await ruleRepo.upsert(row);
+  }
 }
 
 /**

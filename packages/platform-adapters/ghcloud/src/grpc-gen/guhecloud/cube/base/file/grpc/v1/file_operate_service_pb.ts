@@ -2,17 +2,28 @@
 // @generated from file guhecloud/cube/base/file/grpc/v1/file_operate_service.proto (package guhecloud.cube.base.file.client.v1, syntax proto3)
 /* eslint-disable */
 
+import type { Message } from "@bufbuild/protobuf";
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { FileGenerateSchema, FileIdsQuerySchema, FileInduce, FileInduceSchema, FileUploadSchema, OptionalBoolSchema, OptionalFileVoSchema } from "./file_types_pb";
+
+import type {
+  FileGenerateSchema,
+  FileIdsQuerySchema,
+  FileInduce,
+  FileInduceSchema,
+  FileUploadSchema,
+  OptionalBoolSchema,
+  OptionalFileVoSchema,
+} from "./file_types_pb";
 import { file_guhecloud_cube_base_file_grpc_v1_file_types } from "./file_types_pb";
-import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file guhecloud/cube/base/file/grpc/v1/file_operate_service.proto.
  */
-export const file_guhecloud_cube_base_file_grpc_v1_file_operate_service: GenFile = /*@__PURE__*/
-  fileDesc("CjtndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX29wZXJhdGVfc2VydmljZS5wcm90bxIiZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MSJ5ChVGaWxlSW5kdWNlU2luZ2xlUXVlcnkSEgoKc2NlbmVfY29kZRgBIAEoCRIZCgxidXNpbmVzc19rZXkYAiABKANIAIgBARIUCgdmaWxlX2lkGAMgASgDSAGIAQFCDwoNX2J1c2luZXNzX2tleUIKCghfZmlsZV9pZCJXChZGaWxlSW5kdWNlQmF0Y2hSZXF1ZXN0Ej0KBWl0ZW1zGAEgAygLMi4uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlMvEGChJGaWxlT3BlcmF0ZVNlcnZpY2USeAoQR2V0VXBsb2FkRGV0YWlscxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUdlbmVyYXRlGjIuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEZpbGVWbxJ1Cg9VcGxvYWRUZW1wb3JhcnkSLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVVcGxvYWQaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEnMKDVVwbG9hZFN1c3RhaW4SLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVVcGxvYWQaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEn8KEEZpbGVJbmR1Y2VTaW5nbGUSOS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVJbmR1Y2VTaW5nbGVRdWVyeRowLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxCb29sEngKFEZpbGVJbmR1Y2VTaW5nbGVCb2R5Ei4uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlGjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wSfwoPRmlsZUluZHVjZUJhdGNoEjouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlQmF0Y2hSZXF1ZXN0GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wSeQoTUGh5c2ljYWxEZWxldGVCeUlkcxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUlkc1F1ZXJ5GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2xCQwomY29tLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjFCF0ZpbGVPcGVyYXRlU2VydmljZVByb3RvUAFiBnByb3RvMw", [file_guhecloud_cube_base_file_grpc_v1_file_types]);
+export const file_guhecloud_cube_base_file_grpc_v1_file_operate_service: GenFile /*@__PURE__*/ = fileDesc(
+  "CjtndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX29wZXJhdGVfc2VydmljZS5wcm90bxIiZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MSJ5ChVGaWxlSW5kdWNlU2luZ2xlUXVlcnkSEgoKc2NlbmVfY29kZRgBIAEoCRIZCgxidXNpbmVzc19rZXkYAiABKANIAIgBARIUCgdmaWxlX2lkGAMgASgDSAGIAQFCDwoNX2J1c2luZXNzX2tleUIKCghfZmlsZV9pZCJXChZGaWxlSW5kdWNlQmF0Y2hSZXF1ZXN0Ej0KBWl0ZW1zGAEgAygLMi4uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlMvEGChJGaWxlT3BlcmF0ZVNlcnZpY2USeAoQR2V0VXBsb2FkRGV0YWlscxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUdlbmVyYXRlGjIuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEZpbGVWbxJ1Cg9VcGxvYWRUZW1wb3JhcnkSLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVVcGxvYWQaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEnMKDVVwbG9hZFN1c3RhaW4SLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVVcGxvYWQaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEn8KEEZpbGVJbmR1Y2VTaW5nbGUSOS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVJbmR1Y2VTaW5nbGVRdWVyeRowLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxCb29sEngKFEZpbGVJbmR1Y2VTaW5nbGVCb2R5Ei4uZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlGjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wSfwoPRmlsZUluZHVjZUJhdGNoEjouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSW5kdWNlQmF0Y2hSZXF1ZXN0GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wSeQoTUGh5c2ljYWxEZWxldGVCeUlkcxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUlkc1F1ZXJ5GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2xCQwomY29tLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjFCF0ZpbGVPcGVyYXRlU2VydmljZVByb3RvUAFiBnByb3RvMw",
+  [file_guhecloud_cube_base_file_grpc_v1_file_types],
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileInduceSingleQuery
@@ -38,8 +49,10 @@ export type FileInduceSingleQuery = Message<"guhecloud.cube.base.file.client.v1.
  * Describes the message guhecloud.cube.base.file.client.v1.FileInduceSingleQuery.
  * Use `create(FileInduceSingleQuerySchema)` to create a new message.
  */
-export const FileInduceSingleQuerySchema: GenMessage<FileInduceSingleQuery> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_operate_service, 0);
+export const FileInduceSingleQuerySchema: GenMessage<FileInduceSingleQuery> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_operate_service,
+  0,
+);
 
 /**
  * @generated from message guhecloud.cube.base.file.client.v1.FileInduceBatchRequest
@@ -55,8 +68,10 @@ export type FileInduceBatchRequest = Message<"guhecloud.cube.base.file.client.v1
  * Describes the message guhecloud.cube.base.file.client.v1.FileInduceBatchRequest.
  * Use `create(FileInduceBatchRequestSchema)` to create a new message.
  */
-export const FileInduceBatchRequestSchema: GenMessage<FileInduceBatchRequest> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_base_file_grpc_v1_file_operate_service, 1);
+export const FileInduceBatchRequestSchema: GenMessage<FileInduceBatchRequest> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_base_file_grpc_v1_file_operate_service,
+  1,
+);
 
 /**
  * 对应 com.guhecloud.cube.base.file.client.FileOperateClient
@@ -71,7 +86,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileGenerateSchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.UploadTemporary
    */
@@ -79,7 +94,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileUploadSchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.UploadSustain
    */
@@ -87,7 +102,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileUploadSchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.FileInduceSingle
    */
@@ -95,7 +110,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileInduceSingleQuerySchema;
     output: typeof OptionalBoolSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.FileInduceSingleBody
    */
@@ -103,7 +118,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileInduceSchema;
     output: typeof OptionalBoolSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.FileInduceBatch
    */
@@ -111,7 +126,7 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileInduceBatchRequestSchema;
     output: typeof OptionalBoolSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileOperateService.PhysicalDeleteByIds
    */
@@ -119,7 +134,5 @@ export const FileOperateService: GenService<{
     methodKind: "unary";
     input: typeof FileIdsQuerySchema;
     output: typeof OptionalBoolSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_guhecloud_cube_base_file_grpc_v1_file_operate_service, 0);
-
+  };
+}> /*@__PURE__*/ = serviceDesc(file_guhecloud_cube_base_file_grpc_v1_file_operate_service, 0);

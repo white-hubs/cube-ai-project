@@ -1,24 +1,17 @@
-import {
-  DATABASE_SERVICE_TOKEN,
-  Inject,
-  Injectable,
-  type DatabaseService,
-  type OnModuleInit,
-} from '@dangao/bun-server';
-import { KB_MYSQL_SCHEMA } from './kb-mysql-schema';
+import { DATABASE_SERVICE_TOKEN, type DatabaseService, Inject, Injectable, type OnModuleInit } from "@dangao/bun-server";
+
+import { KB_MYSQL_SCHEMA } from "./kb-mysql-schema";
 
 function splitSqlStatements(schema: string): string[] {
   return schema
-    .split(';')
+    .split(";")
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
 }
 
 @Injectable()
 export class KbDatabaseBootstrap implements OnModuleInit {
-  public constructor(
-    @Inject(DATABASE_SERVICE_TOKEN) private readonly databaseService: DatabaseService,
-  ) {}
+  public constructor(@Inject(DATABASE_SERVICE_TOKEN) private readonly databaseService: DatabaseService) {}
 
   public async onModuleInit(): Promise<void> {
     await this.databaseService.initialize();

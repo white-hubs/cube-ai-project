@@ -1,23 +1,17 @@
-import { kbConsoleRequestJson, type KbConsoleConfig } from './http';
+import { type KbConsoleConfig, kbConsoleRequestJson } from "./http";
 
-async function kbConsoleRequestFormData<T>(
-  config: KbConsoleConfig,
-  method: string,
-  path: string,
-  formData: FormData,
-): Promise<T> {
-  const prefix = config.pathPrefix ?? '/kb/console';
-  const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
-  const extra =
-    typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
+async function kbConsoleRequestFormData<T>(config: KbConsoleConfig, method: string, path: string, formData: FormData): Promise<T> {
+  const prefix = config.pathPrefix ?? "/kb/console";
+  const url = `${config.baseUrl.replace(/\/$/u, "")}${prefix}${path}`;
+  const extra = typeof config.headers === "function" ? await config.headers() : (config.headers ?? {});
   const fetchImpl = config.fetchImpl ?? fetch;
   const res = await fetchImpl(url, {
-    method,
+    body: formData,
     headers: {
-      accept: 'application/json',
+      accept: "application/json",
       ...extra,
     },
-    body: formData,
+    method,
   });
   if (!res.ok) {
     throw new Error(`kb-sdk-console ${method} ${path}: HTTP ${res.status}`);
@@ -40,120 +34,61 @@ export class KbConsoleClient {
   constructor(private readonly config: KbConsoleConfig) {}
 
   listDocuments(params?: { directoryId?: string }): Promise<DocumentListResponse> {
-    const qs = params?.directoryId
-      ? `?directoryId=${encodeURIComponent(params.directoryId)}`
-      : '';
-    return kbConsoleRequestJson<DocumentListResponse>(this.config, 'GET', `/documents${qs}`);
+    const qs = params?.directoryId ? `?directoryId=${encodeURIComponent(params.directoryId)}` : "";
+    return kbConsoleRequestJson<DocumentListResponse>(this.config, "GET", `/documents${qs}`);
   }
 
   getDocument(documentId: string): Promise<DocumentListItem> {
-    return kbConsoleRequestJson<DocumentListItem>(
-      this.config,
-      'GET',
-      `/documents/${encodeURIComponent(documentId)}`,
-    );
+    return kbConsoleRequestJson<DocumentListItem>(this.config, "GET", `/documents/${encodeURIComponent(documentId)}`);
   }
 
   uploadDocument(formData: FormData): Promise<Record<string, unknown>> {
-    return kbConsoleRequestFormData<Record<string, unknown>>(
-      this.config,
-      'POST',
-      '/documents/upload',
-      formData,
-    );
+    return kbConsoleRequestFormData<Record<string, unknown>>(this.config, "POST", "/documents/upload", formData);
   }
 
   previewDocument(formData: FormData): Promise<Record<string, unknown>> {
-    return kbConsoleRequestFormData<Record<string, unknown>>(
-      this.config,
-      'POST',
-      '/documents/preview',
-      formData,
-    );
+    return kbConsoleRequestFormData<Record<string, unknown>>(this.config, "POST", "/documents/preview", formData);
   }
 
   previewDocumentById(documentId: string): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'POST',
-      `/documents/${encodeURIComponent(documentId)}/preview`,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "POST", `/documents/${encodeURIComponent(documentId)}/preview`);
   }
 
   getDocumentChunks(documentId: string): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'GET',
-      `/documents/${encodeURIComponent(documentId)}/chunks`,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "GET", `/documents/${encodeURIComponent(documentId)}/chunks`);
   }
 
-  updateDocumentChunk(
-    documentId: string,
-    chunkId: string,
-    body: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
+  updateDocumentChunk(documentId: string, chunkId: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
     return kbConsoleRequestJson<Record<string, unknown>>(
       this.config,
-      'PUT',
+      "PUT",
       `/documents/${encodeURIComponent(documentId)}/chunks/${encodeURIComponent(chunkId)}`,
       body,
     );
   }
 
   deleteDocument(documentId: string): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'DELETE',
-      `/documents/${encodeURIComponent(documentId)}`,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "DELETE", `/documents/${encodeURIComponent(documentId)}`);
   }
 
-  reindexDocument(
-    documentId: string,
-    body?: Record<string, unknown>,
-  ): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'POST',
-      `/documents/${encodeURIComponent(documentId)}/reindex`,
-      body,
-    );
+  reindexDocument(documentId: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "POST", `/documents/${encodeURIComponent(documentId)}/reindex`, body);
   }
 
   createDirectory(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'POST',
-      '/documents/directories',
-      body,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "POST", "/documents/directories", body);
   }
 
   listDirectories(body: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'POST',
-      '/documents/directories/list',
-      body,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "POST", "/documents/directories/list", body);
   }
 
   updateDirectory(id: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'PUT',
-      `/documents/directories/${encodeURIComponent(id)}`,
-      body,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "PUT", `/documents/directories/${encodeURIComponent(id)}`, body);
   }
 
   deleteDirectory(id: string): Promise<Record<string, unknown>> {
-    return kbConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'DELETE',
-      `/documents/directories/${encodeURIComponent(id)}`,
-    );
+    return kbConsoleRequestJson<Record<string, unknown>>(this.config, "DELETE", `/documents/directories/${encodeURIComponent(id)}`);
   }
 }
 

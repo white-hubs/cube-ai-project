@@ -1,103 +1,101 @@
-import {
-  BaseRepository,
-  DatabaseService,
-  Inject,
-  Injectable,
-  LOGGER_TOKEN,
-  Repository,
-  type Logger,
-} from '@dangao/bun-server'
-import { currentTenantId, isGlobalAccessEnabled } from '@cube-ai/tenant-context'
-import { resolveKbRecordId } from '@/infrastructure/kb-record-id'
-import { formatMysqlDateTimeShanghai } from '../../../common/mysql-datetime'
-import { ImportJobEntity } from './import-job.entity'
+import { BaseRepository, DatabaseService, Inject, Injectable, LOGGER_TOKEN, type Logger, Repository } from "@dangao/bun-server";
 
-@Repository('document_import_job', 'id')
+import { currentTenantId, isGlobalAccessEnabled } from "@cube-ai/tenant-context";
+
+import { formatMysqlDateTimeShanghai } from "../../../common/mysql-datetime";
+import { type ImportJobEntity } from "./import-job.entity";
+import { resolveKbRecordId } from "@/infrastructure/kb-record-id";
+
+@Repository("document_import_job", "id")
 @Injectable()
 export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
-  protected override tableName = 'document_import_job'
-  protected override primaryKey = 'id'
+  protected override tableName = "document_import_job";
+  protected override primaryKey = "id";
 
   public constructor(
     protected override readonly databaseService: DatabaseService,
     @Inject(LOGGER_TOKEN) private readonly logger: Logger,
   ) {
-    super(databaseService)
+    super(databaseService);
   }
 
   private getTenantId(): string | null {
-    if (isGlobalAccessEnabled()) return null
-    return currentTenantId()
+    if (isGlobalAccessEnabled()) {
+      return null;
+    }
+    return currentTenantId();
   }
 
   private scopeFilter(): { sql: string; params: unknown[] } {
-    const pid = this.getTenantId()
-    if (pid) return { sql: 'tenant_id = ?', params: [pid] }
-    return { sql: '', params: [] }
+    const pid = this.getTenantId();
+    if (pid) {
+      return { sql: "tenant_id = ?", params: [pid] };
+    }
+    return { params: [], sql: "" };
   }
 
   private getAuditInfo(): { by: string; id: string | null; type: string | null } {
-    return { by: 'system', id: null, type: null }
+    return { by: "system", id: null, type: null };
   }
 
   public async createJob(data: Partial<ImportJobEntity>): Promise<ImportJobEntity> {
-    const tenant_id = this.getTenantId()
-    const audit = this.getAuditInfo()
-    const now = formatMysqlDateTimeShanghai()
+    const tenant_id = this.getTenantId();
+    const audit = this.getAuditInfo();
+    const now = formatMysqlDateTimeShanghai();
 
     const payload: Partial<ImportJobEntity> = {
       ...data,
-      id: resolveKbRecordId(data.id),
-      tenant_id,
-      deleted: 0n,
       create_by: audit.by,
+      create_time: now as unknown as Date,
       creator_id: audit.id,
       creator_type: audit.type,
-      create_time: now as unknown as Date,
+      deleted: 0n,
+      id: resolveKbRecordId(data.id),
+      tenant_id,
       update_by: audit.by,
+      update_time: now as unknown as Date,
       updater_id: audit.id,
       updater_type: audit.type,
-      update_time: now as unknown as Date,
-    }
+    };
 
-    const keys = Object.keys(payload) as Array<keyof ImportJobEntity>
-    const values = keys.map((key) => payload[key])
-    const placeholders = keys.map(() => '?').join(', ')
-    const sql = `INSERT INTO ${this.tableName} (${keys.join(', ')}) VALUES (${placeholders})`
-    this.logger.info(`Creating import job for document: ${String(payload.document_id ?? '')}`)
-    await this.executeQuery(sql, values)
-    return (await this.findById(payload.id!)) as ImportJobEntity
+    const keys = Object.keys(payload) as (keyof ImportJobEntity)[];
+    const values = keys.map((key) => payload[key]);
+    const placeholders = keys.map(() => "?").join(", ");
+    const sql = `INSERT INTO ${this.tableName} (${keys.join(", ")}) VALUES (${placeholders})`;
+    this.logger.info(`Creating import job for document: ${String(payload.document_id ?? "")}`);
+    await this.executeQuery(sql, values);
+    return (await this.findById(payload.id!)) as ImportJobEntity;
   }
 
   public override async findById(id: string | number): Promise<ImportJobEntity | null> {
-    const sc = this.scopeFilter()
-    const params: unknown[] = [id, ...sc.params]
-    let sql = `SELECT * FROM ${this.tableName} WHERE ${this.primaryKey} = ? AND (deleted IS NULL OR deleted = 0)`
+    const sc = this.scopeFilter();
+    const params: unknown[] = [id, ...sc.params];
+    let sql = `SELECT * FROM ${this.tableName} WHERE ${this.primaryKey} = ? AND (deleted IS NULL OR deleted = 0)`;
     if (sc.sql) {
-      sql += ` AND ${sc.sql}`
+      sql += ` AND ${sc.sql}`;
     }
-    const result = await this.executeQuery<ImportJobEntity>(sql, params)
-    return Array.isArray(result) && result[0] ? (result[0] as ImportJobEntity) : null
+    const result = await this.executeQuery<ImportJobEntity>(sql, params);
+    return Array.isArray(result) && result[0] ? (result[0] as ImportJobEntity) : null;
   }
 
   public override async update(id: string | number, data: Partial<ImportJobEntity>): Promise<ImportJobEntity> {
-    const sc = this.scopeFilter()
-    const audit = this.getAuditInfo()
+    const sc = this.scopeFilter();
+    const audit = this.getAuditInfo();
     const patch: Partial<ImportJobEntity> = {
       ...data,
-      update_time: formatMysqlDateTimeShanghai() as unknown as Date,
       update_by: audit.by,
+      update_time: formatMysqlDateTimeShanghai() as unknown as Date,
       updater_id: audit.id,
       updater_type: audit.type,
-    }
-    const keys = Object.keys(patch)
-    const values = Object.values(patch)
-    const params: unknown[] = [...values, id, ...sc.params]
-    let sql = `UPDATE ${this.tableName} SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE ${this.primaryKey} = ? AND (deleted IS NULL OR deleted = 0)`
+    };
+    const keys = Object.keys(patch);
+    const values = Object.values(patch);
+    const params: unknown[] = [...values, id, ...sc.params];
+    let sql = `UPDATE ${this.tableName} SET ${keys.map((key) => `${key} = ?`).join(", ")} WHERE ${this.primaryKey} = ? AND (deleted IS NULL OR deleted = 0)`;
     if (sc.sql) {
-      sql += ` AND ${sc.sql}`
+      sql += ` AND ${sc.sql}`;
     }
-    await this.executeQuery(sql, params)
-    return (await this.findById(id)) as ImportJobEntity
+    await this.executeQuery(sql, params);
+    return (await this.findById(id)) as ImportJobEntity;
   }
 }

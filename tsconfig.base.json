@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -22,7 +22,7 @@
       "@cube-ai/ai-center/platform/server-shared": ["./apps/ai-center/src/platform/server-shared/src/index.ts"],
       "@cube-ai/ai-center/platform/server-shared/*": ["./apps/ai-center/src/platform/server-shared/src/*"],
       "@cube-ai/ai-center/platform/server-mock": ["./apps/ai-center/src/platform/server-mock/src/index.ts"],
-      "@cube-ai/ai-center/platform/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"],
+      "@cube-ai/ai-center/platform/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"]
     }
   }
 }

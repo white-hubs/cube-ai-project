@@ -1,16 +1,15 @@
-import 'reflect-metadata';
-import { afterEach, describe, expect, test } from 'bun:test';
-import { Controller, Global, Module, type Container, Test, type TestHttpClient } from '@dangao/bun-server';
-import { AGENTIC_PLATFORM_LLM_CATALOG_TOKEN } from '@cube-ai/contracts/platform';
-import { LlmCatalogHttpModule } from './llm-catalog-http.module';
-import { LlmProvidersController } from './llm-providers.controller';
-import {
-  createEnvFallbackTenantResolver,
-  LLM_HTTP_TENANT_RESOLVER_TOKEN,
-} from './request-tenant';
+import "reflect-metadata";
+import { type Container, Controller, Global, Module, Test, type TestHttpClient } from "@dangao/bun-server";
+import { afterEach, describe, expect, test } from "bun:test";
+
+import { AGENTIC_PLATFORM_LLM_CATALOG_TOKEN } from "@cube-ai/contracts/platform";
+
+import { LlmCatalogHttpModule } from "./llm-catalog-http.module";
+import { LlmProvidersController } from "./llm-providers.controller";
+import { LLM_HTTP_TENANT_RESOLVER_TOKEN, createEnvFallbackTenantResolver } from "./request-tenant";
 
 // 复刻 apps/ai-center 的 applyDomainPrefixMounts()：装配前把消费面 base 改写成 /llm/providers。
-Controller('/llm/providers')(LlmProvidersController as new (...args: never[]) => unknown);
+Controller("/llm/providers")(LlmProvidersController as new (...args: never[]) => unknown);
 
 /**
  * 复刻 apps/ai-center 的 AiCenterDomainHttpModule 装配形态：一个 @Global 模块
@@ -19,6 +18,7 @@ Controller('/llm/providers')(LlmProvidersController as new (...args: never[]) =>
  */
 @Global()
 @Module({
+  exports: [LLM_HTTP_TENANT_RESOLVER_TOKEN],
   imports: [LlmCatalogHttpModule],
   providers: [
     {
@@ -26,11 +26,10 @@ Controller('/llm/providers')(LlmProvidersController as new (...args: never[]) =>
       useFactory: (_c: Container) => createEnvFallbackTenantResolver(() => 58197260),
     },
   ],
-  exports: [LLM_HTTP_TENANT_RESOLVER_TOKEN],
 })
 class FakeDomainModule {}
 
-describe('LlmCatalogHttpModule 消费面装配', () => {
+describe("LlmCatalogHttpModule 消费面装配", () => {
   let client: TestHttpClient | undefined;
 
   afterEach(async () => {
@@ -38,7 +37,7 @@ describe('LlmCatalogHttpModule 消费面装配', () => {
     client = undefined;
   });
 
-  test('GET /llm/providers 能解析宿主 Global resolver 并返回列表（回归：this.resolve undefined → 500）', async () => {
+  test("GET /llm/providers 能解析宿主 Global resolver 并返回列表（回归：this.resolve undefined → 500）", async () => {
     const seenTenants: number[] = [];
     const moduleRef = await Test.createTestingModule({
       imports: [FakeDomainModule],
@@ -56,7 +55,7 @@ describe('LlmCatalogHttpModule 消费面装配', () => {
     }).compile();
 
     client = await moduleRef.createHttpClient();
-    const res = await client.get('/llm/providers');
+    const res = await client.get("/llm/providers");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ items: [] });

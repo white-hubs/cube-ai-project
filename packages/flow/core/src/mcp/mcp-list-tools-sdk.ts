@@ -1,44 +1,51 @@
-import { Client } from '@modelcontextprotocol/sdk/client'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { Client } from "@modelcontextprotocol/sdk/client";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
-export type McpListedTool = { name: string; description: string; inputSchema: unknown | null }
+export interface McpListedTool {
+  name: string;
+  description: string;
+  inputSchema: unknown | null;
+}
 
-function descriptionFromListedToolEntry(tool: {
-  description?: unknown
-  inputSchema?: unknown
-}): string {
-  const d = tool.description
-  if (typeof d === 'string' && d.trim()) return d.trim()
-  const sch = tool.inputSchema
-  if (sch != null && typeof sch === 'object' && !Array.isArray(sch)) {
-    const sd = (sch as Record<string, unknown>)['description']
-    if (typeof sd === 'string' && sd.trim()) return sd.trim()
+function descriptionFromListedToolEntry(tool: { description?: unknown; inputSchema?: unknown }): string {
+  const d = tool.description;
+  if (typeof d === "string" && d.trim()) {
+    return d.trim();
   }
-  return ''
+  const sch = tool.inputSchema;
+  if (sch !== null && sch !== undefined && typeof sch === "object" && !Array.isArray(sch)) {
+    const sd = (sch as Record<string, unknown>)["description"];
+    if (typeof sd === "string" && sd.trim()) {
+      return sd.trim();
+    }
+  }
+  return "";
 }
 
 export type McpListToolsSdkResult =
   | {
-      ok: true
-      toolNames: string[]
-      tools: McpListedTool[]
-      transport: 'streamable-http' | 'sse'
-      attemptedUrl: string
+      ok: true;
+      toolNames: string[];
+      tools: McpListedTool[];
+      transport: "streamable-http" | "sse";
+      attemptedUrl: string;
     }
-  | { ok: false; toolNames: []; tools: []; error: string; attemptedUrl: string }
+  | { ok: false; toolNames: []; tools: []; error: string; attemptedUrl: string };
 
 function requestInitForMcp(headers: Record<string, string>, timeoutMs: number): RequestInit {
-  const h = new Headers()
+  const h = new Headers();
   for (const [k, v] of Object.entries(headers)) {
-    if (v) h.set(k, v)
+    if (v) {
+      h.set(k, v);
+    }
   }
-  const ms = Math.min(Math.max(timeoutMs, 3000), 120_000)
+  const ms = Math.min(Math.max(timeoutMs, 3000), 120_000);
   return {
     headers: h,
     signal: AbortSignal.timeout(ms),
-  }
+  };
 }
 
 /**
@@ -48,18 +55,18 @@ function requestInitForMcp(headers: Record<string, string>, timeoutMs: number): 
 async function connectClientWithStreamableThenSse(
   baseUrl: URL,
   requestInit: RequestInit,
-): Promise<{ client: Client; transport: Transport; transportKind: 'streamable-http' | 'sse' }> {
-  const opts = { requestInit }
-  const primary = new Client({ name: 'cube-ai-flow', version: '1.0.0' })
+): Promise<{ client: Client; transport: Transport; transportKind: "streamable-http" | "sse" }> {
+  const opts = { requestInit };
+  const primary = new Client({ name: "cube-ai-flow", version: "1.0.0" });
   try {
-    const transport = new StreamableHTTPClientTransport(baseUrl, opts)
-    await primary.connect(transport)
-    return { client: primary, transport, transportKind: 'streamable-http' }
+    const transport = new StreamableHTTPClientTransport(baseUrl, opts);
+    await primary.connect(transport);
+    return { client: primary, transport, transportKind: "streamable-http" };
   } catch {
-    const fallback = new Client({ name: 'cube-ai-flow', version: '1.0.0' })
-    const transport = new SSEClientTransport(baseUrl, opts)
-    await fallback.connect(transport)
-    return { client: fallback, transport, transportKind: 'sse' }
+    const fallback = new Client({ name: "cube-ai-flow", version: "1.0.0" });
+    const transport = new SSEClientTransport(baseUrl, opts);
+    await fallback.connect(transport);
+    return { client: fallback, transport, transportKind: "sse" };
   }
 }
 
@@ -68,28 +75,32 @@ async function connectClientWithStreamableThenSse(
  * @internal 单测使用
  */
 export function mcpToolsCandidateUrls(primary: string): string[] {
-  const out: string[] = [primary]
+  const out: string[] = [primary];
   try {
-    const u = new URL(primary)
-    const path = (u.pathname.replace(/\/+$/, '') || '/').toLowerCase()
-    const isSsePath = path === '/sse' || path.endsWith('/sse')
+    const u = new URL(primary);
+    const path = (u.pathname.replace(/\/+$/u, "") || "/").toLowerCase();
+    const isSsePath = path === "/sse" || path.endsWith("/sse");
     const stripTrailingSse = (p: string): string => {
-      const x = p.replace(/\/+$/, '') || '/'
-      if (x.toLowerCase() === '/sse') return ''
-      if (x.toLowerCase().endsWith('/sse')) return x.slice(0, -4).replace(/\/+$/, '') || ''
-      return x.replace(/\/+$/, '') || ''
-    }
-    const basePath = stripTrailingSse(u.pathname)
-    const originBase = basePath ? `${u.origin}${basePath}` : u.origin
+      const x = p.replace(/\/+$/u, "") || "/";
+      if (x.toLowerCase() === "/sse") {
+        return "";
+      }
+      if (x.toLowerCase().endsWith("/sse")) {
+        return x.slice(0, -4).replace(/\/+$/u, "") || "";
+      }
+      return x.replace(/\/+$/u, "") || "";
+    };
+    const basePath = stripTrailingSse(u.pathname);
+    const originBase = basePath ? `${u.origin}${basePath}` : u.origin;
     if (isSsePath) {
-      out.push(`${originBase}/mcp`, `${originBase}/`, `${u.origin}/mcp`, `${u.origin}/`)
+      out.push(`${originBase}/mcp`, `${originBase}/`, `${u.origin}/mcp`, `${u.origin}/`);
     } else {
-      out.push(`${u.origin}/mcp`, `${originBase}/mcp`)
+      out.push(`${u.origin}/mcp`, `${originBase}/mcp`);
     }
   } catch {
     /* ignore */
   }
-  return [...new Set(out.map((x) => (x.replace(/\/+$/, '') || x).trim()))]
+  return [...new Set(out.map((x) => (x.replace(/\/+$/u, "") || x).trim()))];
 }
 
 /** 使用 MCP TypeScript SDK 连接并 `listTools`（含 initialize 协议握手） */
@@ -98,48 +109,47 @@ export async function listMcpToolNamesWithSdk(
   headers: Record<string, string>,
   timeoutMs: number,
 ): Promise<McpListToolsSdkResult> {
-  const candidates = mcpToolsCandidateUrls(primaryUrl.trim())
-  let lastErr = 'no candidates'
-  const perAttemptMs = Math.min(Math.max(timeoutMs, 3000), 120_000)
+  const candidates = mcpToolsCandidateUrls(primaryUrl.trim());
+  let lastErr = "no candidates";
+  const perAttemptMs = Math.min(Math.max(timeoutMs, 3000), 120_000);
 
   for (const urlStr of candidates) {
-    let baseUrl: URL
+    let baseUrl: URL;
     try {
-      baseUrl = new URL(urlStr)
+      baseUrl = new URL(urlStr);
     } catch {
-      continue
+      continue;
     }
 
-    let transport: Transport | undefined
+    let transport: Transport | undefined;
     try {
-      const requestInit = requestInitForMcp(headers, perAttemptMs)
-      const { client, transport: t, transportKind } = await connectClientWithStreamableThenSse(
-        baseUrl,
-        requestInit,
-      )
-      transport = t
-      const listed = await client.listTools()
-      const raw = listed.tools ?? []
-      const tools: McpListedTool[] = []
-      const toolNames: string[] = []
+      const requestInit = requestInitForMcp(headers, perAttemptMs);
+      const { client, transport: t, transportKind } = await connectClientWithStreamableThenSse(baseUrl, requestInit);
+      transport = t;
+      const listed = await client.listTools();
+      const raw = listed.tools ?? [];
+      const tools: McpListedTool[] = [];
+      const toolNames: string[] = [];
       for (const tool of raw) {
-        const n = tool?.name
-        if (typeof n !== 'string' || n.trim() === '') continue
-        const name = n.trim()
-        toolNames.push(name)
+        const n = tool?.name;
+        if (typeof n !== "string" || n.trim() === "") {
+          continue;
+        }
+        const name = n.trim();
+        toolNames.push(name);
         tools.push({
-          name,
           description: descriptionFromListedToolEntry(tool),
           inputSchema: tool.inputSchema ?? null,
-        })
+          name,
+        });
       }
-      return { ok: true, toolNames, tools, transport: transportKind, attemptedUrl: urlStr }
+      return { attemptedUrl: urlStr, ok: true, toolNames, tools, transport: transportKind };
     } catch (e) {
-      lastErr = e instanceof Error ? e.message : String(e)
+      lastErr = e instanceof Error ? e.message : String(e);
     } finally {
       if (transport) {
         try {
-          await transport.close()
+          await transport.close();
         } catch {
           /* ignore */
         }
@@ -148,10 +158,10 @@ export async function listMcpToolNamesWithSdk(
   }
 
   return {
+    attemptedUrl: candidates.at(-1) ?? primaryUrl,
+    error: lastErr.slice(0, 500),
     ok: false,
     toolNames: [],
     tools: [],
-    error: lastErr.slice(0, 500),
-    attemptedUrl: candidates[candidates.length - 1] ?? primaryUrl,
-  }
+  };
 }

@@ -1,5 +1,6 @@
-import { SseEventSchema, type SseEvent } from '@cube-ai/contracts';
-import { AgenticClientError } from './errors';
+import { type SseEvent, SseEventSchema } from "@cube-ai/contracts";
+
+import { AgenticClientError } from "./errors";
 
 export type SseEventHandler = (event: SseEvent) => void;
 export type SseErrorHandler = (error: Error) => void;
@@ -15,8 +16,8 @@ export class SseClient {
   private aborted = false;
 
   constructor(
-    private readonly maxReconnectAttempts: number = 5,
-    private readonly baseReconnectDelayMs: number = 500,
+    private readonly maxReconnectAttempts = 5,
+    private readonly baseReconnectDelayMs = 500,
     private readonly fetchImpl: typeof fetch = fetch.bind(globalThis),
   ) {}
 
@@ -37,14 +38,14 @@ export class SseClient {
   subscribe(
     url: string,
     opts: {
-      method:    'GET' | 'POST';
-      headers:   Record<string, string>;
-      body?:     string;
-      onEvent:   SseEventHandler;
-      onError?:  SseErrorHandler;
-      onClose?:  () => void;
+      method: "GET" | "POST";
+      headers: Record<string, string>;
+      body?: string;
+      onEvent: SseEventHandler;
+      onError?: SseErrorHandler;
+      onClose?: () => void;
       /** Optional external abort（与内部 controller 联动） */
-      signal?:   AbortSignal;
+      signal?: AbortSignal;
     },
   ): () => void {
     this.aborted = false;
@@ -52,23 +53,27 @@ export class SseClient {
     const abortCtl = new AbortController();
 
     const onAbortExt = () => abortCtl.abort();
-    opts.signal?.addEventListener('abort', onAbortExt);
+    opts.signal?.addEventListener("abort", onAbortExt);
 
-    const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
     const connect = async () => {
       while (!this.aborted) {
         const headers: Record<string, string> = { ...opts.headers };
-        if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
+        if (this.lastEventId) {
+          headers["Last-Event-ID"] = this.lastEventId;
+        }
 
         let naturalClose = false;
         try {
           const init: RequestInit = {
-            method:  opts.method,
-            headers: { ...headers, Accept: 'text/event-stream' },
-            signal:  abortCtl.signal,
+            headers: { ...headers, Accept: "text/event-stream" },
+            method: opts.method,
+            signal: abortCtl.signal,
           };
-          if (opts.body !== undefined) init.body = opts.body;
+          if (opts.body !== undefined) {
+            init.body = opts.body;
+          }
           const resp = await this.fetchImpl(url, init);
 
           if (!resp.ok) {
@@ -79,90 +84,113 @@ export class SseClient {
 
           await this.consumeStream(resp, opts.onEvent, opts.onError);
           naturalClose = true;
-        } catch (e: unknown) {
-          if (this.aborted || abortCtl.signal.aborted) break;
+        } catch {
+          if (this.aborted || abortCtl.signal.aborted) {
+            break;
+          }
         }
 
-        if (this.aborted) break;
-
-        this.retries++;
-        if (this.retries > this.maxReconnectAttempts) {
-          if (!naturalClose) opts.onError?.(new Error('SSE reconnect exhausted'));
+        if (this.aborted) {
           break;
         }
 
-        const backoff = Math.min(
-          this.baseReconnectDelayMs * Math.pow(2, this.retries - 1),
-          30_000,
-        ) + Math.random() * 300;
+        this.retries++;
+        if (this.retries > this.maxReconnectAttempts) {
+          if (!naturalClose) {
+            opts.onError?.(new Error("SSE reconnect exhausted"));
+          }
+          break;
+        }
+
+        const backoff = Math.min(this.baseReconnectDelayMs * 2 ** (this.retries - 1), 30_000) + Math.random() * 300;
         await delay(backoff);
       }
       opts.onClose?.();
     };
 
-    connect().catch(e => opts.onError?.(e as Error));
+    connect().catch((e) => opts.onError?.(e as Error));
 
     return () => {
-      opts.signal?.removeEventListener('abort', onAbortExt);
+      opts.signal?.removeEventListener("abort", onAbortExt);
       this.aborted = true;
       abortCtl.abort();
     };
   }
 
-  private async consumeStream(
-    resp: Response,
-    onEvent: SseEventHandler,
-    _onError?: SseErrorHandler,
-  ): Promise<void> {
-    if (!resp.body) return;
+  private async consumeStream(resp: Response, onEvent: SseEventHandler, _onError?: SseErrorHandler): Promise<void> {
+    if (!resp.body) {
+      return;
+    }
     const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = '';
+    let buffer = "";
     let currentId: string | undefined;
     let currentEvent: string | undefined;
     let dataLines: string[] = [];
 
     for (;;) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buffer += value;
       let idx: number;
-      while ((idx = buffer.indexOf('\n')) >= 0) {
-        const raw = buffer.slice(0, idx).replace(/\r$/, '');
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const raw = buffer.slice(0, idx).replace(/\r$/u, "");
         buffer = buffer.slice(idx + 1);
         if (raw.length === 0) {
-          // dispatch event
-          if (dataLines.length > 0) {
-            const rawData = dataLines.join('\n');
-            try {
-              const parsed = JSON.parse(rawData);
-              const result = SseEventSchema.safeParse(parsed);
-              if (result.success) {
-                if (currentId) this.lastEventId = currentId;
-                onEvent(result.data);
-              }
-              // Unknown schema → soft fail per contracts.md §5.3
-            } catch {
-              // malformed JSON → skip
-            }
-          }
+          this.dispatchDataLines(dataLines, currentId, onEvent);
           currentId = undefined;
           currentEvent = undefined;
           dataLines = [];
           continue;
         }
-        if (raw.startsWith(':')) continue; // keep-alive comment
-        const colon = raw.indexOf(':');
-        if (colon === -1) continue;
+        if (raw.startsWith(":")) {
+          continue;
+        } // keep-alive comment
+        const colon = raw.indexOf(":");
+        if (colon === -1) {
+          continue;
+        }
         const field = raw.slice(0, colon).trim();
-        const val   = raw.slice(colon + 1).replace(/^ /, '');
+        const val = raw.slice(colon + 1).replace(/^ /u, "");
         switch (field) {
-          case 'id':    currentId = val;    break;
-          case 'event': currentEvent = val; break;
-          case 'data':  dataLines.push(val); break;
-          default: break;
+          case "id": {
+            currentId = val;
+            break;
+          }
+          case "event": {
+            currentEvent = val;
+            break;
+          }
+          case "data": {
+            dataLines.push(val);
+            break;
+          }
+          default: {
+            break;
+          }
         }
       }
     }
     void currentEvent; // suppress unused-var lint
+  }
+
+  private dispatchDataLines(dataLines: readonly string[], currentId: string | undefined, onEvent: SseEventHandler): void {
+    if (dataLines.length === 0) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(dataLines.join("\n"));
+      const result = SseEventSchema.safeParse(parsed);
+      if (!result.success) {
+        return;
+      }
+      if (currentId) {
+        this.lastEventId = currentId;
+      }
+      onEvent(result.data);
+    } catch {
+      // malformed JSON → skip
+    }
   }
 }

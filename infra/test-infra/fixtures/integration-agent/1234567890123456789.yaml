@@ -1,5 +1,5 @@
 kind: agent
-name: '1234567890123456789'
+name: "1234567890123456789"
 description: shared testcontainers integration agent
 idempotent: false
 requiresApproval: false

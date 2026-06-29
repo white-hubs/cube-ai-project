@@ -5,25 +5,19 @@ export interface KbConsoleConfig {
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
 }
 
-export async function kbConsoleRequestJson<T>(
-  config: KbConsoleConfig,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  const prefix = config.pathPrefix ?? '/kb/console';
-  const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
-  const extra =
-    typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
+export async function kbConsoleRequestJson<T>(config: KbConsoleConfig, method: string, path: string, body?: unknown): Promise<T> {
+  const prefix = config.pathPrefix ?? "/kb/console";
+  const url = `${config.baseUrl.replace(/\/$/u, "")}${prefix}${path}`;
+  const extra = typeof config.headers === "function" ? await config.headers() : (config.headers ?? {});
   const fetchImpl = config.fetchImpl ?? fetch;
   const res = await fetchImpl(url, {
-    method,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     headers: {
-      accept: 'application/json',
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      accept: "application/json",
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
       ...extra,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    method,
   });
   if (!res.ok) {
     throw new Error(`kb-sdk-console ${method} ${path}: HTTP ${res.status}`);

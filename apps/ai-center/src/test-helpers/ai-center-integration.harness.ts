@@ -1,17 +1,15 @@
-import { setDefaultTimeout } from 'bun:test';
+import { setDefaultTimeout } from "bun:test";
+
 import {
+  type MysqlRedisStack,
   applyAiCenterDomainMysqlSchemas,
   registerProcessShutdown,
   resolveShouldRunTestcontainers,
   startMysqlRedis,
   stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
-import {
-  applyAiCenterIntegrationTestEnv,
-  restoreAiCenterTestEnv,
-  snapshotAiCenterTestEnv,
-} from './ai-center-test-env';
+} from "@cube-ai/test-infra";
+
+import { applyAiCenterIntegrationTestEnv, restoreAiCenterTestEnv, snapshotAiCenterTestEnv } from "./ai-center-test-env";
 
 export const shouldRunAiCenterIntegration = await resolveShouldRunTestcontainers();
 
@@ -42,9 +40,7 @@ export async function startAiCenterIntegrationStack(): Promise<{
   return { envSnapshot };
 }
 
-export async function stopAiCenterIntegrationStack(
-  envSnapshot: Record<string, string | undefined>,
-): Promise<void> {
+export async function stopAiCenterIntegrationStack(envSnapshot: Record<string, string | undefined>): Promise<void> {
   restoreAiCenterTestEnv(envSnapshot);
   if (stackHolder.current) {
     await stackHolder.current.stop().catch(() => {});

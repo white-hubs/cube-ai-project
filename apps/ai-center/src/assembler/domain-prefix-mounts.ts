@@ -1,51 +1,42 @@
-import 'reflect-metadata';
-import { Controller } from '@dangao/bun-server';
+import "reflect-metadata";
+import { Controller } from "@dangao/bun-server";
 
-// ── Agent consumption ────────────────────────────────────────────────────────
-import { SessionController } from '../../../../packages/agent/engine/src/bc/session/session.controller';
-import { JobsController } from '../../../../packages/agent/engine/src/bc/jobs/jobs.controller';
-import { GrantController } from '../../../../packages/agent/engine/src/bc/authz/grant.controller';
-import { LocalFileController } from '../../../../packages/agent/engine/src/bc/files/local-file.controller';
-import { DescriptorMcpController } from '../../../../packages/agent/engine/src/bc/descriptor-mcp/descriptor-mcp.controller';
-
-// ── Agent management ─────────────────────────────────────────────────────────
+import { GrantController } from "../../../../packages/agent/engine/src/bc/authz/grant.controller";
+import { DescriptorMcpController } from "../../../../packages/agent/engine/src/bc/descriptor-mcp/descriptor-mcp.controller";
 import {
   DescriptorManagementController,
   DescriptorManagementLegacyController,
-} from '../../../../packages/agent/engine/src/bc/descriptor/descriptor-management.controller';
-import {
-  LibraryController,
-  ListingController,
-} from '../../../../packages/agent/engine/src/bc/descriptor/listing.controller';
-import { MyShelfController } from '../../../../packages/agent/engine/src/bc/descriptor/shelf.controller';
-import { PluginCatalogController } from '../../../../packages/agent/engine/src/bc/descriptor/plugin-catalog.controller';
+} from "../../../../packages/agent/engine/src/bc/descriptor/descriptor-management.controller";
+import { LibraryController, ListingController } from "../../../../packages/agent/engine/src/bc/descriptor/listing.controller";
+import { PluginCatalogController } from "../../../../packages/agent/engine/src/bc/descriptor/plugin-catalog.controller";
+import { MyShelfController } from "../../../../packages/agent/engine/src/bc/descriptor/shelf.controller";
+import { LocalFileController } from "../../../../packages/agent/engine/src/bc/files/local-file.controller";
+import { JobsController } from "../../../../packages/agent/engine/src/bc/jobs/jobs.controller";
+import { SessionController } from "../../../../packages/agent/engine/src/bc/session/session.controller";
+import { ComponentsController } from "../../../../packages/flow/core/src/components/components.controller";
+import { CustomComponentTemplatesController } from "../../../../packages/flow/core/src/custom-component-templates/custom-component-templates.controller";
+import { FlowFilesController } from "../../../../packages/flow/core/src/flows/flow-files.controller";
+import { FlowMonitorController } from "../../../../packages/flow/core/src/flows/flow-monitor.controller";
+import { FlowsController } from "../../../../packages/flow/core/src/flows/flows.controller";
+import { McpToolsController } from "../../../../packages/flow/core/src/mcp/mcp-tools.controller";
+import { ExecutionMetricsController } from "../../../../packages/flow/core/src/observability/execution-metrics.controller";
+import { RunController } from "../../../../packages/flow/core/src/run/run.controller";
+import { WebhookController } from "../../../../packages/flow/core/src/webhook/webhook.controller";
+import { FlowStudioController } from "../../../../packages/flow/studio/src/http/flow-studio.controller";
+import { DocumentDirectoryController } from "../../../../packages/kb/core/src/modules/documents/controllers/document-directory.controller";
+import { DocumentController } from "../../../../packages/kb/core/src/modules/documents/controllers/document.controller";
+import { SearchController } from "../../../../packages/kb/core/src/modules/vector-store/controllers/search.controller";
+import { LlmCatalogAdminController } from "../../../../packages/llm/core/src/http/llm-catalog-admin.controller";
+import { LlmProvidersController } from "../../../../packages/llm/core/src/http/llm-providers.controller";
 
+// ── Agent consumption ────────────────────────────────────────────────────────
+// ── Agent management ─────────────────────────────────────────────────────────
 // ── LLM consumption ──────────────────────────────────────────────────────────
-import { LlmProvidersController } from '../../../../packages/llm/core/src/http/llm-providers.controller';
-
 // ── LLM management ───────────────────────────────────────────────────────────
-import { LlmCatalogAdminController } from '../../../../packages/llm/core/src/http/llm-catalog-admin.controller';
-
 // ── Flow consumption ─────────────────────────────────────────────────────────
-import { RunController } from '../../../../packages/flow/core/src/run/run.controller';
-import { WebhookController } from '../../../../packages/flow/core/src/webhook/webhook.controller';
-import { FlowFilesController } from '../../../../packages/flow/core/src/flows/flow-files.controller';
-
 // ── Flow management ──────────────────────────────────────────────────────────
-import { FlowsController } from '../../../../packages/flow/core/src/flows/flows.controller';
-import { FlowMonitorController } from '../../../../packages/flow/core/src/flows/flow-monitor.controller';
-import { FlowStudioController } from '../../../../packages/flow/studio/src/http/flow-studio.controller';
-import { ComponentsController } from '../../../../packages/flow/core/src/components/components.controller';
-import { McpToolsController } from '../../../../packages/flow/core/src/mcp/mcp-tools.controller';
-import { CustomComponentTemplatesController } from '../../../../packages/flow/core/src/custom-component-templates/custom-component-templates.controller';
-import { ExecutionMetricsController } from '../../../../packages/flow/core/src/observability/execution-metrics.controller';
-
 // ── KB consumption ───────────────────────────────────────────────────────────
-import { SearchController } from '../../../../packages/kb/core/src/modules/vector-store/controllers/search.controller';
-
 // ── KB management ────────────────────────────────────────────────────────────
-import { DocumentController } from '../../../../packages/kb/core/src/modules/documents/controllers/document.controller';
-import { DocumentDirectoryController } from '../../../../packages/kb/core/src/modules/documents/controllers/document-directory.controller';
 
 type AnyConstructor = abstract new (...args: never[]) => unknown;
 
@@ -67,46 +58,46 @@ interface DomainPrefixMount {
  */
 export const DOMAIN_PREFIX_MOUNTS: DomainPrefixMount[] = [
   // agent consumption
-  { controller: SessionController, base: '/agent/sessions' },
-  { controller: JobsController, base: '/agent/jobs' },
-  { controller: GrantController, base: '/agent/grants' },
-  { controller: LocalFileController, base: '/agent/files' },
-  { controller: DescriptorMcpController, base: '/agent/mcp/descriptor' },
+  { base: "/agent/sessions", controller: SessionController },
+  { base: "/agent/jobs", controller: JobsController },
+  { base: "/agent/grants", controller: GrantController },
+  { base: "/agent/files", controller: LocalFileController },
+  { base: "/agent/mcp/descriptor", controller: DescriptorMcpController },
 
   // agent management (canonical /agent/console/*; legacy /agent/{kind} for upstream callers)
-  { controller: DescriptorManagementController, base: '/agent/console' },
-  { controller: ListingController, base: '/agent/console' },
-  { controller: LibraryController, base: '/agent/console' },
-  { controller: MyShelfController, base: '/agent/console' },
-  { controller: PluginCatalogController, base: '/agent/console' },
-  { controller: DescriptorManagementLegacyController, base: '/agent' },
+  { base: "/agent/console", controller: DescriptorManagementController },
+  { base: "/agent/console", controller: ListingController },
+  { base: "/agent/console", controller: LibraryController },
+  { base: "/agent/console", controller: MyShelfController },
+  { base: "/agent/console", controller: PluginCatalogController },
+  { base: "/agent", controller: DescriptorManagementLegacyController },
 
   // llm consumption
-  { controller: LlmProvidersController, base: '/llm/providers' },
+  { base: "/llm/providers", controller: LlmProvidersController },
 
   // llm management
-  { controller: LlmCatalogAdminController, base: '/llm/console' },
+  { base: "/llm/console", controller: LlmCatalogAdminController },
 
   // flow consumption
-  { controller: RunController, base: '/flow/run' },
-  { controller: WebhookController, base: '/flow/webhook' },
-  { controller: FlowFilesController, base: '/flow' },
+  { base: "/flow/run", controller: RunController },
+  { base: "/flow/webhook", controller: WebhookController },
+  { base: "/flow", controller: FlowFilesController },
 
   // flow management
-  { controller: FlowsController, base: '/flow/console/flows' },
-  { controller: FlowMonitorController, base: '/flow/console/flows' },
-  { controller: FlowStudioController, base: '/flow/console/studio' },
-  { controller: ComponentsController, base: '/flow/console/components' },
-  { controller: McpToolsController, base: '/flow/console/mcp' },
-  { controller: CustomComponentTemplatesController, base: '/flow/console/custom-component-templates' },
-  { controller: ExecutionMetricsController, base: '/flow/console/execution' },
+  { base: "/flow/console/flows", controller: FlowsController },
+  { base: "/flow/console/flows", controller: FlowMonitorController },
+  { base: "/flow/console/studio", controller: FlowStudioController },
+  { base: "/flow/console/components", controller: ComponentsController },
+  { base: "/flow/console/mcp", controller: McpToolsController },
+  { base: "/flow/console/custom-component-templates", controller: CustomComponentTemplatesController },
+  { base: "/flow/console/execution", controller: ExecutionMetricsController },
 
   // kb consumption
-  { controller: SearchController, base: '/kb/search' },
+  { base: "/kb/search", controller: SearchController },
 
   // kb management
-  { controller: DocumentController, base: '/kb/console/documents' },
-  { controller: DocumentDirectoryController, base: '/kb/console/documents/directories' },
+  { base: "/kb/console/documents", controller: DocumentController },
+  { base: "/kb/console/documents/directories", controller: DocumentDirectoryController },
 ];
 
 /**

@@ -64,16 +64,16 @@
 
 ### 最终包清单（v6 权威）
 
-| 域 | 后端包 | client（消费面） | console（管理面） | 前门路由 |
-|---|---|---|---|---|
-| agent | `agent-engine` | `agent-sdk-client`（+`-vue`/`-assistant`/`-mock`） | `agent-sdk-console`（descriptor 管理，[ADR-0016](./ADR-0016-agent-console-and-descriptor-dual-authority.md)） | 消费 `/agent/*`（[ADR-0008 addendum](./ADR-0008-addendum-agent-consumption-face.md)）、管理 `/agent/console/*` |
-| llm | `llm-core`（provider 调用 + catalog 权威） | —（chat 走 agent） | `llm-sdk-console`（模型接入管理） | 消费 `/llm/providers`、管理 `/llm/console/*`、网关 `/v1/*` |
-| flow | `flow-core` | `flow-sdk-client`（执行） | `flow-sdk-console`（编辑器，按需） | `/flow/*` |
-| kb | `kb-core` | `kb-sdk-client`（检索） | `kb-sdk-console`（文档管理，按需） | `/kb/*` |
-| embedding | `embedding`（向量化·capability） | — | — | （内部能力，无独立前门路由） |
-| 共享内核 | `contracts` | — | — | — |
-| 平台适配 | `platform-adapter-ghcloud`（租户身份） | — | — | — |
-| 基础设施 | `bun-server-ext-{sse,outbox,nacos}` · `vector-qdrant`（Qdrant 驱动，kb/engine 直连） · `test-infra` | — | — | — |
+| 域        | 后端包                                                                                              | client（消费面）                                   | console（管理面）                                                                                             | 前门路由                                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| agent     | `agent-engine`                                                                                      | `agent-sdk-client`（+`-vue`/`-assistant`/`-mock`） | `agent-sdk-console`（descriptor 管理，[ADR-0016](./ADR-0016-agent-console-and-descriptor-dual-authority.md)） | 消费 `/agent/*`（[ADR-0008 addendum](./ADR-0008-addendum-agent-consumption-face.md)）、管理 `/agent/console/*` |
+| llm       | `llm-core`（provider 调用 + catalog 权威）                                                          | —（chat 走 agent）                                 | `llm-sdk-console`（模型接入管理）                                                                             | 消费 `/llm/providers`、管理 `/llm/console/*`、网关 `/v1/*`                                                     |
+| flow      | `flow-core`                                                                                         | `flow-sdk-client`（执行）                          | `flow-sdk-console`（编辑器，按需）                                                                            | `/flow/*`                                                                                                      |
+| kb        | `kb-core`                                                                                           | `kb-sdk-client`（检索）                            | `kb-sdk-console`（文档管理，按需）                                                                            | `/kb/*`                                                                                                        |
+| embedding | `embedding`（向量化·capability）                                                                    | —                                                  | —                                                                                                             | （内部能力，无独立前门路由）                                                                                   |
+| 共享内核  | `contracts`                                                                                         | —                                                  | —                                                                                                             | —                                                                                                              |
+| 平台适配  | `platform-adapter-ghcloud`（租户身份）                                                              | —                                                  | —                                                                                                             | —                                                                                                              |
+| 基础设施  | `bun-server-ext-{sse,outbox,nacos}` · `vector-qdrant`（Qdrant 驱动，kb/engine 直连） · `test-infra` | —                                                  | —                                                                                                             | —                                                                                                              |
 
 > 本表是 ADR-0002（包清单）、ADR-0003（llm 一核）、ADR-0008（SDK/路由）的命名收口；与 `docs/architecture/repo-layout-and-dependencies.md`（v6）的目录视图一一对应。
 >

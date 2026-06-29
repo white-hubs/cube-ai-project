@@ -1,5 +1,6 @@
-import type Redis from 'ioredis';
-import type { ReplayBufferEntry, ReplayBufferScope, ReplayBufferStore } from './types';
+import type Redis from "ioredis";
+
+import { type ReplayBufferEntry, type ReplayBufferScope, type ReplayBufferStore } from "./types";
 
 /** Redis LIST key: P3-06 §3.1 */
 export function replayRedisKey(scope: ReplayBufferScope): string {
@@ -13,11 +14,11 @@ function resolveReplayCapacity(capacity?: number): number {
     return Math.max(1, Math.floor(capacity));
   }
   const raw = process.env.AGENTIC_SSE_REPLAY_CAPACITY;
-  if (!raw) return DEFAULT_REPLAY_CAPACITY;
+  if (!raw) {
+    return DEFAULT_REPLAY_CAPACITY;
+  }
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.max(1, Math.floor(parsed))
-    : DEFAULT_REPLAY_CAPACITY;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.max(1, Math.floor(parsed)) : DEFAULT_REPLAY_CAPACITY;
 }
 
 /**
@@ -47,11 +48,7 @@ export class InMemoryReplayBufferStore implements ReplayBufferStore {
     this.buffers.set(key, buf);
   }
 
-  async since(
-    scope: ReplayBufferScope,
-    lastEventId: string | null,
-    turnId?: string,
-  ): Promise<ReplayBufferEntry[]> {
+  async since(scope: ReplayBufferScope, lastEventId: string | null, turnId?: string): Promise<ReplayBufferEntry[]> {
     const buf = this.buffers.get(this.k(scope)) ?? [];
     const sliced =
       lastEventId === null
@@ -60,9 +57,7 @@ export class InMemoryReplayBufferStore implements ReplayBufferStore {
             const idx = buf.findIndex((e) => e.eventId === lastEventId);
             return idx === -1 ? [...buf] : buf.slice(idx + 1);
           })();
-    return turnId !== undefined && turnId !== ''
-      ? filterByTurnId(sliced, turnId)
-      : sliced;
+    return turnId !== undefined && turnId !== "" ? filterByTurnId(sliced, turnId) : sliced;
   }
 
   async clear(scope: ReplayBufferScope): Promise<void> {
@@ -79,10 +74,7 @@ export class InMemoryReplayBufferStore implements ReplayBufferStore {
  * `{turnId}:{seq6}` event-id prefix (regulation §5.2). Returns a new
  * array (caller never mutates).
  */
-function filterByTurnId(
-  entries: ReplayBufferEntry[],
-  turnId: string,
-): ReplayBufferEntry[] {
+function filterByTurnId(entries: ReplayBufferEntry[], turnId: string): ReplayBufferEntry[] {
   const prefix = `${turnId}:`;
   return entries.filter((e) => e.eventId.startsWith(prefix));
 }
@@ -95,7 +87,10 @@ export class RedisReplayBufferStore implements ReplayBufferStore {
   private static readonly SESSION_CLOSE_TTL_SEC = 86_400;
   private readonly trimEnd: number;
 
-  constructor(private readonly redis: Redis, capacity?: number) {
+  constructor(
+    private readonly redis: Redis,
+    capacity?: number,
+  ) {
     this.trimEnd = resolveReplayCapacity(capacity) - 1;
   }
 
@@ -108,14 +103,10 @@ export class RedisReplayBufferStore implements ReplayBufferStore {
     await pipeline.exec();
   }
 
-  async since(
-    scope: ReplayBufferScope,
-    lastEventId: string | null,
-    turnId?: string,
-  ): Promise<ReplayBufferEntry[]> {
+  async since(scope: ReplayBufferScope, lastEventId: string | null, turnId?: string): Promise<ReplayBufferEntry[]> {
     const key = replayRedisKey(scope);
     const raw = await this.redis.lrange(key, 0, -1);
-    const chronological = [...raw].reverse().map((s) => JSON.parse(s) as ReplayBufferEntry);
+    const chronological = [...raw].toReversed().map((s) => JSON.parse(s) as ReplayBufferEntry);
 
     const sliced =
       lastEventId === null
@@ -124,9 +115,7 @@ export class RedisReplayBufferStore implements ReplayBufferStore {
             const idx = chronological.findIndex((e) => e.eventId === lastEventId);
             return idx === -1 ? [...chronological] : chronological.slice(idx + 1);
           })();
-    return turnId !== undefined && turnId !== ''
-      ? filterByTurnId(sliced, turnId)
-      : sliced;
+    return turnId !== undefined && turnId !== "" ? filterByTurnId(sliced, turnId) : sliced;
   }
 
   async clear(scope: ReplayBufferScope): Promise<void> {

@@ -1,120 +1,120 @@
-import { Column, Entity, PrimaryKey } from '@dangao/bun-server'
+import { Column, Entity, PrimaryKey } from "@dangao/bun-server";
 
-@Entity('document_chunk')
+@Entity("document_chunk")
 export class DocumentChunkEntity {
   @PrimaryKey()
-  id!: string
+  id!: string;
 
   @Column({ nullable: true })
-  tenant_id!: string | null
+  tenant_id!: string | null;
 
   @Column({ nullable: true })
-  deleted!: bigint | null
+  deleted!: bigint | null;
 
   @Column()
-  create_by!: string
+  create_by!: string;
 
   @Column({ nullable: true })
-  creator_id!: string | null
+  creator_id!: string | null;
 
   @Column({ nullable: true })
-  creator_type!: string | null
+  creator_type!: string | null;
 
   @Column()
-  create_time!: Date
+  create_time!: Date;
 
   @Column()
-  update_by!: string
+  update_by!: string;
 
   @Column({ nullable: true })
-  updater_id!: string | null
+  updater_id!: string | null;
 
   @Column({ nullable: true })
-  updater_type!: string | null
+  updater_type!: string | null;
 
   @Column()
-  update_time!: Date
+  update_time!: Date;
 
   @Column()
-  document_id!: string
+  document_id!: string;
 
   @Column()
-  file_name!: string
+  file_name!: string;
 
   @Column()
-  source_type!: string
+  source_type!: string;
 
   @Column()
-  chunk_id!: string
+  chunk_id!: string;
 
   @Column()
-  qdrant_point_id!: string
+  qdrant_point_id!: string;
 
   @Column()
-  chunk_index!: number
+  chunk_index!: number;
 
   @Column()
-  text_content!: string
+  text_content!: string;
 
   @Column()
-  embedding_text!: string
+  embedding_text!: string;
 
   @Column()
   /** 分段正文字符数（与 text_content 长度一致，便于列表展示与统计） */
-  char_count!: number
+  char_count!: number;
 
   @Column()
   /** 该分段被检索命中次数（按命中结果累加） */
-  recall_count!: number
+  recall_count!: number;
 
   @Column()
-  section_id!: string
+  section_id!: string;
 
   @Column()
-  heading_path!: string
+  heading_path!: string;
 
   @Column({ nullable: true })
-  page_no!: number | null
+  page_no!: number | null;
 
   @Column()
-  chunk_type!: string
+  chunk_type!: string;
 
   @Column()
-  order_in_section!: number
+  order_in_section!: number;
 
   @Column({ nullable: true })
-  caption_text!: string | null
+  caption_text!: string | null;
 
   @Column({ nullable: true })
-  picture_description!: string | null
+  picture_description!: string | null;
 
   @Column({ nullable: true })
-  sheet_name!: string | null
+  sheet_name!: string | null;
 
   @Column({ nullable: true })
-  table_id!: string | null
+  table_id!: string | null;
 
   @Column({ nullable: true })
-  row_start!: number | null
+  row_start!: number | null;
 
   @Column({ nullable: true })
-  row_end!: number | null
+  row_end!: number | null;
 
   @Column({ nullable: true })
-  headers_text!: string | null
+  headers_text!: string | null;
 
   @Column({ nullable: true })
-  keywords_text!: string | null
+  keywords_text!: string | null;
 
   @Column({ nullable: true })
-  start_time!: string | null
+  start_time!: string | null;
 
   @Column({ nullable: true })
-  end_time!: string | null
+  end_time!: string | null;
 
   @Column({ nullable: true })
-  cue_index!: number | null
+  cue_index!: number | null;
 
   @Column({ nullable: true })
-  property_namespace!: string | null
+  property_namespace!: string | null;
 }

@@ -4,33 +4,33 @@
  *
  * Ref: ADR-0008 §D4 / @cube-ai/contracts SSE wire schema
  */
-import type { ImageAttachment } from '@cube-ai/contracts';
+import type { ImageAttachment } from "@cube-ai/contracts";
 
 export type { ImageAttachment };
 
-export type AssistantRole = 'user' | 'assistant' | 'system' | 'tool';
+export type AssistantRole = "user" | "assistant" | "system" | "tool";
 
 /**
  * Engine 9 阶段（与 `@cube-ai/contracts` `reasoning-step-v1.phase` 对齐）。
  * 不直接 import contracts 的字面量类型以避免循环 / 包体积膨胀；保持本地拷贝。
  */
 export type ReasoningPhase =
-  | 'session'
-  | 'safety'
-  | 'intent'
-  | 'precheck'
-  | 'planning'
-  | 'graph-check'
-  | 'execution'
-  | 'validation'
-  | 'output';
+  | "session"
+  | "safety"
+  | "intent"
+  | "precheck"
+  | "planning"
+  | "graph-check"
+  | "execution"
+  | "validation"
+  | "output";
 
 /** 单个 reasoning step（服务端 reasoning step + SDK 合成的 tool-call step）。 */
 export interface ReasoningStep {
   stepId: string;
   /** 顶层 phase step 缺省；嵌套 model-reasoning / tool-loop / tool-call 子 step 必填。 */
   parentStepId?: string;
-  kind: 'phase' | 'model-reasoning' | 'tool-loop' | 'tool-call';
+  kind: "phase" | "model-reasoning" | "tool-loop" | "tool-call";
   label: string;
   phase?: ReasoningPhase;
   /** `kind === 'tool-call'` 时由 SDK 从 tool-call-* 事件合成。 */
@@ -85,7 +85,7 @@ export interface PersistedTokenUsage {
   cumulative: TokenUsageTriplet;
   items: TokenUsageSnapshot[];
   /** turn 终结时的状态；UI 据此显示「（已取消）/（异常）」徽标。 */
-  terminalKind: 'completed' | 'cancelled' | 'failed';
+  terminalKind: "completed" | "cancelled" | "failed";
 }
 
 export interface AssistantSessionSummary {
@@ -121,7 +121,7 @@ export interface PendingGrant {
   toolName?: string;
   reason?: string;
   argsPreview?: unknown;
-  scopeHint?: 'ONCE' | 'SESSION' | 'PERSISTENT';
+  scopeHint?: "ONCE" | "SESSION" | "PERSISTENT";
   expiresTime?: number;
   /** 原始 SSE event 数据（用于业务想用未归一化的字段）。 */
   raw: Record<string, unknown>;
@@ -131,7 +131,7 @@ export interface PendingGrant {
 export interface ToolEvent {
   id: string;
   toolName: string;
-  phase: 'started' | 'completed';
+  phase: "started" | "completed";
   startedAt: number;
   completedAt?: number;
   resultPreview?: unknown;
@@ -157,8 +157,8 @@ export interface TokenUsageSnapshot {
   usage: TokenUsageTriplet;
   cumulative: TokenUsageTriplet;
   attribution?: TokenUsageAttribution;
-  accuracy?: 'estimated' | 'final';
-  terminal?: 'cancelled' | 'failed' | 'disconnected';
+  accuracy?: "estimated" | "final";
+  terminal?: "cancelled" | "failed" | "disconnected";
   updatedAt: number;
 }
 
@@ -170,9 +170,4 @@ export interface TurnTokenUsage {
 }
 
 /** Turn 在 session 上的状态机（ADR-0008 §D5.1）。 */
-export type TurnStatus =
-  | 'idle'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type TurnStatus = "idle" | "running" | "completed" | "failed" | "cancelled";

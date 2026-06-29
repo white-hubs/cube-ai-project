@@ -5,8 +5,8 @@ import path from "node:path";
 
 import {
   NACOS_REGISTRATION_OPTIONS_TOKEN,
-  NacosServiceRegistrationService,
   type NacosRegistrationOptions,
+  NacosServiceRegistrationService,
 } from "@cube-ai/bun-server-ext-nacos";
 
 interface WiringFileConfig {
@@ -27,7 +27,7 @@ function normalizeNacosServerAddr(value: string): string {
   if (trimmed === "") {
     return "http://127.0.0.1:8848";
   }
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (/^https?:\/\//iu.test(trimmed)) {
     return trimmed;
   }
   return trimmed.includes(":") ? `http://${trimmed}` : `http://${trimmed}:8848`;
@@ -37,9 +37,11 @@ function getCliArg(name: string): string | undefined {
   const argv = process.argv.slice(2).map((value) => String(value ?? ""));
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (!arg) continue;
+    if (!arg) {
+      continue;
+    }
     if (arg.startsWith(`--${name}=`)) {
-      return arg.substring(name.length + 3);
+      return arg.slice(name.length + 3);
     }
     if (arg === `--${name}` && index + 1 < argv.length) {
       return argv[index + 1];
@@ -106,15 +108,15 @@ function resolveNacosConfig(): {
 } {
   const fileConfig = loadConfigFileSync();
   return {
+    nacosNamespace: getCliArg("nacos-namespace") ?? process.env.NACOS_NAMESPACE ?? fileConfig.nacosNamespace ?? "",
+    nacosPassword: getCliArg("nacos-password") ?? process.env.NACOS_PASSWORD ?? fileConfig.nacosPassword ?? undefined,
     nacosServerAddr:
       getCliArg("nacos-server-addr") ??
       process.env.NACOS_ADDRESS ??
       process.env.NACOS_SERVER_ADDR ??
       fileConfig.nacosServerAddr ??
       "localhost:8848",
-    nacosNamespace: getCliArg("nacos-namespace") ?? process.env.NACOS_NAMESPACE ?? fileConfig.nacosNamespace ?? "",
     nacosUsername: getCliArg("nacos-username") ?? process.env.NACOS_USERNAME ?? fileConfig.nacosUsername ?? undefined,
-    nacosPassword: getCliArg("nacos-password") ?? process.env.NACOS_PASSWORD ?? fileConfig.nacosPassword ?? undefined,
   };
 }
 
@@ -122,7 +124,7 @@ const nacosConfig = resolveNacosConfig();
 const nacosServerAddr = normalizeNacosServerAddr(nacosConfig.nacosServerAddr);
 
 function readPortSync(envKey: string, fallback: number): number {
-  const raw = getCliArg(envKey.toLowerCase().replace(/_/g, "-")) ?? process.env[envKey];
+  const raw = getCliArg(envKey.toLowerCase().replaceAll(/_/gu, "-")) ?? process.env[envKey];
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -179,28 +181,28 @@ export function resolveRegistrationOptions(): NacosRegistrationOptions {
   );
   const ip = resolveRegisterIp(fileConfig);
   return {
-    serviceName,
+    grpcPort,
     ip,
     port,
-    grpcPort,
     registerEnabled: isAiCenterNacosRegisterEnabled(),
+    serviceName,
   };
 }
 
 export function buildServiceRegistryModule(): typeof ServiceRegistryModule {
   return ServiceRegistryModule.forRoot({
-    provider: "nacos",
     autoRegister: false,
     nacos: {
       client: {
-        serverList: [nacosServerAddr],
         namespaceId: nacosConfig.nacosNamespace || undefined,
-        username: nacosConfig.nacosUsername,
         password: nacosConfig.nacosPassword,
+        serverList: [nacosServerAddr],
+        username: nacosConfig.nacosUsername,
       },
-      watchInterval: 5000,
       heartbeatInterval: 5000,
+      watchInterval: 5000,
     },
+    provider: "nacos",
   });
 }
 
@@ -210,8 +212,8 @@ export const nacosRegistrationProviders = [
 ];
 
 @Module({
+  exports: [NacosServiceRegistrationService],
   imports: [buildServiceRegistryModule()],
   providers: nacosRegistrationProviders,
-  exports: [NacosServiceRegistrationService],
 })
 export class AiCenterNacosRegistrationModule {}

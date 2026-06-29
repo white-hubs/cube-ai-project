@@ -2,19 +2,22 @@
 // @generated from file guhecloud/cube/apps/content/management/grpc/v1/knowledge_base.proto (package guhecloud.cube.apps.content.management.v1, syntax proto3)
 /* eslint-disable */
 
+import type { Message } from "@bufbuild/protobuf";
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { EmptySchema, Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_empty, file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
+
 import type { FileVo } from "../../../../../base/file/grpc/v1/file_types_pb";
 import { file_guhecloud_cube_base_file_grpc_v1_file_types } from "../../../../../base/file/grpc/v1/file_types_pb";
-import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file guhecloud/cube/apps/content/management/grpc/v1/knowledge_base.proto.
  */
-export const file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base: GenFile = /*@__PURE__*/
-  fileDesc("CkNndWhlY2xvdWQvY3ViZS9hcHBzL2NvbnRlbnQvbWFuYWdlbWVudC9ncnBjL3YxL2tub3dsZWRnZV9iYXNlLnByb3RvEilndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MSLcAQoSS25vd2xlZGdlQmFzZVF1ZXJ5Eg8KAmlkGAEgASgDSACIAQESEQoEbmFtZRgCIAEoCUgBiAEBEhQKB3R5cGVfaWQYAyABKANIAogBARIUCgdkZXB0X2lkGAQgASgDSAOIAQESFwoKcHJvZHVjdF9pZBgFIAEoA0gEiAEBEhMKC3BhZ2VfbnVtYmVyGAYgASgFEhEKCXBhZ2Vfc2l6ZRgHIAEoBUIFCgNfaWRCBwoFX25hbWVCCgoIX3R5cGVfaWRCCgoIX2RlcHRfaWRCDQoLX3Byb2R1Y3RfaWQiugEKFEtub3dsZWRnZUJhc2VDb21tYW5kEg8KAmlkGAEgASgDSACIAQESDAoEbmFtZRgCIAEoCRIPCgd0eXBlX2lkGAMgASgDEhQKB2RlcHRfaWQYBCABKANIAYgBARIXCgpwcm9kdWN0X2lkGAUgASgDSAKIAQESEAoIZmlsZV9pZHMYBiADKAMSDwoHaWRfbGlzdBgHIAMoA0IFCgNfaWRCCgoIX2RlcHRfaWRCDQoLX3Byb2R1Y3RfaWQi7AQKDUtub3dsZWRnZUJhc2USDwoCaWQYASABKANIAIgBARIRCgRuYW1lGAIgASgJSAGIAQESFAoHdHlwZV9pZBgDIAEoA0gCiAEBEhYKCXR5cGVfbmFtZRgEIAEoCUgDiAEBEhMKBmZvcm1hdBgFIAEoCUgEiAEBEhEKBHNpemUYBiABKAlIBYgBARIUCgdkZXB0X2lkGAcgASgDSAaIAQESFgoJZGVwdF9uYW1lGAggASgJSAeIAQESFgoJY3JlYXRlX2J5GAkgASgJSAiIAQESNAoLdXBkYXRlX3RpbWUYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSAmIAQESPQoJZmlsZV9saXN0GAsgAygLMiouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm8SFwoKcHJvZHVjdF9pZBgMIAEoA0gKiAEBEhkKDHByb2R1Y3RfbmFtZRgNIAEoCUgLiAEBEhoKDWFpX2xpYnJhcnlfaWQYDiABKAlIDIgBARIbCg5haV9kb2N1bWVudF9pZBgPIAEoCUgNiAEBQgUKA19pZEIHCgVfbmFtZUIKCghfdHlwZV9pZEIMCgpfdHlwZV9uYW1lQgkKB19mb3JtYXRCBwoFX3NpemVCCgoIX2RlcHRfaWRCDAoKX2RlcHRfbmFtZUIMCgpfY3JlYXRlX2J5Qg4KDF91cGRhdGVfdGltZUINCgtfcHJvZHVjdF9pZEIPCg1fcHJvZHVjdF9uYW1lQhAKDl9haV9saWJyYXJ5X2lkQhEKD19haV9kb2N1bWVudF9pZCJ8ChFLbm93bGVkZ2VCYXNlUGFnZRINCgV0b3RhbBgBIAEoAxINCgVwYWdlcxgCIAEoAxJJCgdyZWNvcmRzGAMgAygLMjguZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZSJ8Cg5Lbm93bGVkZ2VCYXRjaBIYCgtlcnJvcl9jb3VudBgBIAEoBUgAiAEBEhoKDXN1Y2Nlc3NfY291bnQYAiABKAVIAYgBARISCgplcnJvcl9saXN0GAMgAygJQg4KDF9lcnJvcl9jb3VudEIQCg5fc3VjY2Vzc19jb3VudCJPChVLZXlWYWx1ZVN0cmluZ0ludGVnZXISEAoDa2V5GAEgASgJSACIAQESEgoFdmFsdWUYAiABKAVIAYgBAUIGCgRfa2V5QggKBl92YWx1ZSKGAQoRS25vd2xlZGdlVHlwZVN0YXQSEgoFdG90YWwYASABKAVIAIgBARJTCglzdGF0X2xpc3QYAiADKAsyQC5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5LZXlWYWx1ZVN0cmluZ0ludGVnZXJCCAoGX3RvdGFsIikKD0tub3dsZWRnZUJhc2VJZBIPCgJpZBgBIAEoA0gAiAEBQgUKA19pZCI3ChNCYXRjaFJlbW92ZVJlc3BvbnNlEhQKB3N1Y2Nlc3MYASABKAhIAIgBAUIKCghfc3VjY2VzcyJrChlLbm93bGVkZ2VCYXNlQ29tbWFuZEJhdGNoEk4KBWl0ZW1zGAEgAygLMj8uZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUNvbW1hbmQyiAgKFEtub3dsZWRnZUJhc2VTZXJ2aWNlEpABChFQYWdlS25vd2xlZGdlQmFzZRI9Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VRdWVyeRo8Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VQYWdlEpEBChZHZXRLbm93bGVkZ2VCYXNlRGV0YWlsEj0uZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZVF1ZXJ5GjguZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZRKPAQoQQWRkS25vd2xlZGdlQmFzZRI/Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kGjouZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUlkEpABChFFZGl0S25vd2xlZGdlQmFzZRI/Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kGjouZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUlkEpsBChhSZW1vdmVLbm93bGVkZ2VCYXNlQmF0Y2gSPy5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5Lbm93bGVkZ2VCYXNlQ29tbWFuZBo+Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLkJhdGNoUmVtb3ZlUmVzcG9uc2USmAEKFUFkZEtub3dsZWRnZUJhc2VCYXRjaBJELmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kQmF0Y2gaOS5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5Lbm93bGVkZ2VCYXRjaBJrChNTdGF0S25vd2xlZGdlQnlUeXBlEhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5GjwuZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlVHlwZVN0YXRCTAotY29tLmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxQhlLbm93bGVkZ2VCYXNlU2VydmljZVByb3RvUAFiBnByb3RvMw", [file_google_protobuf_empty, file_google_protobuf_timestamp, file_guhecloud_cube_base_file_grpc_v1_file_types]);
+export const file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base: GenFile /*@__PURE__*/ = fileDesc(
+  "CkNndWhlY2xvdWQvY3ViZS9hcHBzL2NvbnRlbnQvbWFuYWdlbWVudC9ncnBjL3YxL2tub3dsZWRnZV9iYXNlLnByb3RvEilndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MSLcAQoSS25vd2xlZGdlQmFzZVF1ZXJ5Eg8KAmlkGAEgASgDSACIAQESEQoEbmFtZRgCIAEoCUgBiAEBEhQKB3R5cGVfaWQYAyABKANIAogBARIUCgdkZXB0X2lkGAQgASgDSAOIAQESFwoKcHJvZHVjdF9pZBgFIAEoA0gEiAEBEhMKC3BhZ2VfbnVtYmVyGAYgASgFEhEKCXBhZ2Vfc2l6ZRgHIAEoBUIFCgNfaWRCBwoFX25hbWVCCgoIX3R5cGVfaWRCCgoIX2RlcHRfaWRCDQoLX3Byb2R1Y3RfaWQiugEKFEtub3dsZWRnZUJhc2VDb21tYW5kEg8KAmlkGAEgASgDSACIAQESDAoEbmFtZRgCIAEoCRIPCgd0eXBlX2lkGAMgASgDEhQKB2RlcHRfaWQYBCABKANIAYgBARIXCgpwcm9kdWN0X2lkGAUgASgDSAKIAQESEAoIZmlsZV9pZHMYBiADKAMSDwoHaWRfbGlzdBgHIAMoA0IFCgNfaWRCCgoIX2RlcHRfaWRCDQoLX3Byb2R1Y3RfaWQi7AQKDUtub3dsZWRnZUJhc2USDwoCaWQYASABKANIAIgBARIRCgRuYW1lGAIgASgJSAGIAQESFAoHdHlwZV9pZBgDIAEoA0gCiAEBEhYKCXR5cGVfbmFtZRgEIAEoCUgDiAEBEhMKBmZvcm1hdBgFIAEoCUgEiAEBEhEKBHNpemUYBiABKAlIBYgBARIUCgdkZXB0X2lkGAcgASgDSAaIAQESFgoJZGVwdF9uYW1lGAggASgJSAeIAQESFgoJY3JlYXRlX2J5GAkgASgJSAiIAQESNAoLdXBkYXRlX3RpbWUYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSAmIAQESPQoJZmlsZV9saXN0GAsgAygLMiouZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlVm8SFwoKcHJvZHVjdF9pZBgMIAEoA0gKiAEBEhkKDHByb2R1Y3RfbmFtZRgNIAEoCUgLiAEBEhoKDWFpX2xpYnJhcnlfaWQYDiABKAlIDIgBARIbCg5haV9kb2N1bWVudF9pZBgPIAEoCUgNiAEBQgUKA19pZEIHCgVfbmFtZUIKCghfdHlwZV9pZEIMCgpfdHlwZV9uYW1lQgkKB19mb3JtYXRCBwoFX3NpemVCCgoIX2RlcHRfaWRCDAoKX2RlcHRfbmFtZUIMCgpfY3JlYXRlX2J5Qg4KDF91cGRhdGVfdGltZUINCgtfcHJvZHVjdF9pZEIPCg1fcHJvZHVjdF9uYW1lQhAKDl9haV9saWJyYXJ5X2lkQhEKD19haV9kb2N1bWVudF9pZCJ8ChFLbm93bGVkZ2VCYXNlUGFnZRINCgV0b3RhbBgBIAEoAxINCgVwYWdlcxgCIAEoAxJJCgdyZWNvcmRzGAMgAygLMjguZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZSJ8Cg5Lbm93bGVkZ2VCYXRjaBIYCgtlcnJvcl9jb3VudBgBIAEoBUgAiAEBEhoKDXN1Y2Nlc3NfY291bnQYAiABKAVIAYgBARISCgplcnJvcl9saXN0GAMgAygJQg4KDF9lcnJvcl9jb3VudEIQCg5fc3VjY2Vzc19jb3VudCJPChVLZXlWYWx1ZVN0cmluZ0ludGVnZXISEAoDa2V5GAEgASgJSACIAQESEgoFdmFsdWUYAiABKAVIAYgBAUIGCgRfa2V5QggKBl92YWx1ZSKGAQoRS25vd2xlZGdlVHlwZVN0YXQSEgoFdG90YWwYASABKAVIAIgBARJTCglzdGF0X2xpc3QYAiADKAsyQC5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5LZXlWYWx1ZVN0cmluZ0ludGVnZXJCCAoGX3RvdGFsIikKD0tub3dsZWRnZUJhc2VJZBIPCgJpZBgBIAEoA0gAiAEBQgUKA19pZCI3ChNCYXRjaFJlbW92ZVJlc3BvbnNlEhQKB3N1Y2Nlc3MYASABKAhIAIgBAUIKCghfc3VjY2VzcyJrChlLbm93bGVkZ2VCYXNlQ29tbWFuZEJhdGNoEk4KBWl0ZW1zGAEgAygLMj8uZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUNvbW1hbmQyiAgKFEtub3dsZWRnZUJhc2VTZXJ2aWNlEpABChFQYWdlS25vd2xlZGdlQmFzZRI9Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VRdWVyeRo8Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VQYWdlEpEBChZHZXRLbm93bGVkZ2VCYXNlRGV0YWlsEj0uZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZVF1ZXJ5GjguZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZRKPAQoQQWRkS25vd2xlZGdlQmFzZRI/Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kGjouZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUlkEpABChFFZGl0S25vd2xlZGdlQmFzZRI/Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kGjouZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlQmFzZUlkEpsBChhSZW1vdmVLbm93bGVkZ2VCYXNlQmF0Y2gSPy5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5Lbm93bGVkZ2VCYXNlQ29tbWFuZBo+Lmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLkJhdGNoUmVtb3ZlUmVzcG9uc2USmAEKFUFkZEtub3dsZWRnZUJhc2VCYXRjaBJELmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxLktub3dsZWRnZUJhc2VDb21tYW5kQmF0Y2gaOS5ndWhlY2xvdWQuY3ViZS5hcHBzLmNvbnRlbnQubWFuYWdlbWVudC52MS5Lbm93bGVkZ2VCYXRjaBJrChNTdGF0S25vd2xlZGdlQnlUeXBlEhYuZ29vZ2xlLnByb3RvYnVmLkVtcHR5GjwuZ3VoZWNsb3VkLmN1YmUuYXBwcy5jb250ZW50Lm1hbmFnZW1lbnQudjEuS25vd2xlZGdlVHlwZVN0YXRCTAotY29tLmd1aGVjbG91ZC5jdWJlLmFwcHMuY29udGVudC5tYW5hZ2VtZW50LnYxQhlLbm93bGVkZ2VCYXNlU2VydmljZVByb3RvUAFiBnByb3RvMw",
+  [file_google_protobuf_empty, file_google_protobuf_timestamp, file_guhecloud_cube_base_file_grpc_v1_file_types],
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBaseQuery
@@ -60,8 +63,10 @@ export type KnowledgeBaseQuery = Message<"guhecloud.cube.apps.content.management
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBaseQuery.
  * Use `create(KnowledgeBaseQuerySchema)` to create a new message.
  */
-export const KnowledgeBaseQuerySchema: GenMessage<KnowledgeBaseQuery> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 0);
+export const KnowledgeBaseQuerySchema: GenMessage<KnowledgeBaseQuery> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  0,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBaseCommand
@@ -107,8 +112,10 @@ export type KnowledgeBaseCommand = Message<"guhecloud.cube.apps.content.manageme
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBaseCommand.
  * Use `create(KnowledgeBaseCommandSchema)` to create a new message.
  */
-export const KnowledgeBaseCommandSchema: GenMessage<KnowledgeBaseCommand> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 1);
+export const KnowledgeBaseCommandSchema: GenMessage<KnowledgeBaseCommand> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  1,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBase
@@ -194,8 +201,10 @@ export type KnowledgeBase = Message<"guhecloud.cube.apps.content.management.v1.K
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBase.
  * Use `create(KnowledgeBaseSchema)` to create a new message.
  */
-export const KnowledgeBaseSchema: GenMessage<KnowledgeBase> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 2);
+export const KnowledgeBaseSchema: GenMessage<KnowledgeBase> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  2,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBasePage
@@ -221,8 +230,10 @@ export type KnowledgeBasePage = Message<"guhecloud.cube.apps.content.management.
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBasePage.
  * Use `create(KnowledgeBasePageSchema)` to create a new message.
  */
-export const KnowledgeBasePageSchema: GenMessage<KnowledgeBasePage> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 3);
+export const KnowledgeBasePageSchema: GenMessage<KnowledgeBasePage> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  3,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBatch
@@ -248,8 +259,10 @@ export type KnowledgeBatch = Message<"guhecloud.cube.apps.content.management.v1.
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBatch.
  * Use `create(KnowledgeBatchSchema)` to create a new message.
  */
-export const KnowledgeBatchSchema: GenMessage<KnowledgeBatch> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 4);
+export const KnowledgeBatchSchema: GenMessage<KnowledgeBatch> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  4,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KeyValueStringInteger
@@ -270,8 +283,10 @@ export type KeyValueStringInteger = Message<"guhecloud.cube.apps.content.managem
  * Describes the message guhecloud.cube.apps.content.management.v1.KeyValueStringInteger.
  * Use `create(KeyValueStringIntegerSchema)` to create a new message.
  */
-export const KeyValueStringIntegerSchema: GenMessage<KeyValueStringInteger> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 5);
+export const KeyValueStringIntegerSchema: GenMessage<KeyValueStringInteger> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  5,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeTypeStat
@@ -292,8 +307,10 @@ export type KnowledgeTypeStat = Message<"guhecloud.cube.apps.content.management.
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeTypeStat.
  * Use `create(KnowledgeTypeStatSchema)` to create a new message.
  */
-export const KnowledgeTypeStatSchema: GenMessage<KnowledgeTypeStat> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 6);
+export const KnowledgeTypeStatSchema: GenMessage<KnowledgeTypeStat> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  6,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBaseId
@@ -309,8 +326,10 @@ export type KnowledgeBaseId = Message<"guhecloud.cube.apps.content.management.v1
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBaseId.
  * Use `create(KnowledgeBaseIdSchema)` to create a new message.
  */
-export const KnowledgeBaseIdSchema: GenMessage<KnowledgeBaseId> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 7);
+export const KnowledgeBaseIdSchema: GenMessage<KnowledgeBaseId> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  7,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.BatchRemoveResponse
@@ -326,8 +345,10 @@ export type BatchRemoveResponse = Message<"guhecloud.cube.apps.content.managemen
  * Describes the message guhecloud.cube.apps.content.management.v1.BatchRemoveResponse.
  * Use `create(BatchRemoveResponseSchema)` to create a new message.
  */
-export const BatchRemoveResponseSchema: GenMessage<BatchRemoveResponse> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 8);
+export const BatchRemoveResponseSchema: GenMessage<BatchRemoveResponse> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  8,
+);
 
 /**
  * @generated from message guhecloud.cube.apps.content.management.v1.KnowledgeBaseCommandBatch
@@ -343,8 +364,10 @@ export type KnowledgeBaseCommandBatch = Message<"guhecloud.cube.apps.content.man
  * Describes the message guhecloud.cube.apps.content.management.v1.KnowledgeBaseCommandBatch.
  * Use `create(KnowledgeBaseCommandBatchSchema)` to create a new message.
  */
-export const KnowledgeBaseCommandBatchSchema: GenMessage<KnowledgeBaseCommandBatch> = /*@__PURE__*/
-  messageDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 9);
+export const KnowledgeBaseCommandBatchSchema: GenMessage<KnowledgeBaseCommandBatch> /*@__PURE__*/ = messageDesc(
+  file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base,
+  9,
+);
 
 /**
  * @generated from service guhecloud.cube.apps.content.management.v1.KnowledgeBaseService
@@ -357,7 +380,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseQuerySchema;
     output: typeof KnowledgeBasePageSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.GetKnowledgeBaseDetail
    */
@@ -365,7 +388,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseQuerySchema;
     output: typeof KnowledgeBaseSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.AddKnowledgeBase
    */
@@ -373,7 +396,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseCommandSchema;
     output: typeof KnowledgeBaseIdSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.EditKnowledgeBase
    */
@@ -381,7 +404,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseCommandSchema;
     output: typeof KnowledgeBaseIdSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.RemoveKnowledgeBaseBatch
    */
@@ -389,7 +412,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseCommandSchema;
     output: typeof BatchRemoveResponseSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.AddKnowledgeBaseBatch
    */
@@ -397,7 +420,7 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof KnowledgeBaseCommandBatchSchema;
     output: typeof KnowledgeBatchSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.apps.content.management.v1.KnowledgeBaseService.StatKnowledgeByType
    */
@@ -405,7 +428,5 @@ export const KnowledgeBaseService: GenService<{
     methodKind: "unary";
     input: typeof EmptySchema;
     output: typeof KnowledgeTypeStatSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 0);
-
+  };
+}> /*@__PURE__*/ = serviceDesc(file_guhecloud_cube_apps_content_management_grpc_v1_knowledge_base, 0);

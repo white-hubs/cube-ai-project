@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * API version negotiation constants and schemas.
@@ -11,14 +11,12 @@ import { z } from 'zod';
  * Format: `{major}.{minor}` (no `v` prefix).
  * Example: `"1.0"`, `"1.3"`.
  */
-export const AgenticVersionSchema = z
-  .string()
-  .regex(/^\d+\.\d+$/, 'Version must be in {major}.{minor} format, e.g. "1.0"');
+export const AgenticVersionSchema = z.string().regex(/^\d+\.\d+$/u, 'Version must be in {major}.{minor} format, e.g. "1.0"');
 
 export type AgenticVersion = z.infer<typeof AgenticVersionSchema>;
 
 /** The current engine API version exposed via `X-Agentic-Engine-Version` response header. */
-export const CURRENT_API_VERSION: AgenticVersion = '1.0';
+export const CURRENT_API_VERSION: AgenticVersion = "1.0";
 
 /**
  * Canonical HTTP header names for API versioning handshake.
@@ -34,7 +32,7 @@ export {
   HEADER_ENGINE_VERSION,
   HEADER_SDK_DEPRECATED,
   HEADER_SDK_MIN_SUPPORTED,
-} from '../versioning/header';
+} from "../versioning/header";
 
 /**
  * Negotiation result: whether the client SDK version is compatible with the
@@ -51,7 +49,10 @@ export interface VersionNegotiationResult {
  * Inclusive `[min, max]` window of accepted client versions.
  * Both bounds are `{major}.{minor}` AgenticVersion strings.
  */
-type VersionRange = { min: AgenticVersion; max: AgenticVersion };
+interface VersionRange {
+  min: AgenticVersion;
+  max: AgenticVersion;
+}
 
 /**
  * N=1 backward-compatibility matrix (engine version → accepted SDK range).
@@ -65,7 +66,7 @@ type VersionRange = { min: AgenticVersion; max: AgenticVersion };
  *      docs/technical-design/phase-4/T11-version-compat-matrix.md §1
  */
 const COMPATIBILITY_MATRIX: Record<AgenticVersion, VersionRange> = {
-  '1.0': { min: '1.0', max: '1.99' },
+  "1.0": { max: "1.99", min: "1.0" },
 };
 
 /**
@@ -74,22 +75,24 @@ const COMPATIBILITY_MATRIX: Record<AgenticVersion, VersionRange> = {
  * disables the deprecation warning for that engine version.
  */
 const DEPRECATED_BELOW: Record<AgenticVersion, AgenticVersion | null> = {
-  '1.0': null,
+  "1.0": null,
 };
 
 /** Lexicographic compare of two `{major}.{minor}` versions. */
 function compareVersion(a: AgenticVersion, b: AgenticVersion): -1 | 0 | 1 {
-  const [aMaj, aMin] = a.split('.').map(Number);
-  const [bMaj, bMin] = b.split('.').map(Number);
-  if (aMaj! !== bMaj!) return aMaj! < bMaj! ? -1 : 1;
-  if (aMin! !== bMin!) return aMin! < bMin! ? -1 : 1;
+  const [aMaj, aMin] = a.split(".").map(Number);
+  const [bMaj, bMin] = b.split(".").map(Number);
+  if (aMaj! !== bMaj!) {
+    return aMaj! < bMaj! ? -1 : 1;
+  }
+  if (aMin! !== bMin!) {
+    return aMin! < bMin! ? -1 : 1;
+  }
   return 0;
 }
 
 function isWithin(v: AgenticVersion, range: VersionRange): boolean {
-  return (
-    compareVersion(v, range.min) >= 0 && compareVersion(v, range.max) <= 0
-  );
+  return compareVersion(v, range.min) >= 0 && compareVersion(v, range.max) <= 0;
 }
 
 /**
@@ -104,9 +107,7 @@ function isWithin(v: AgenticVersion, range: VersionRange): boolean {
  * Engine version (1.0 today) and minimum supported version are always set
  * so middleware can echo them via response headers regardless of outcome.
  */
-export function negotiateVersion(
-  clientSdkVersion: string | null,
-): VersionNegotiationResult {
+export function negotiateVersion(clientSdkVersion: string | null): VersionNegotiationResult {
   const engine = CURRENT_API_VERSION;
   const range = COMPATIBILITY_MATRIX[engine];
   const minSupp = range?.min ?? engine;
@@ -134,10 +135,7 @@ export function negotiateVersion(
   const v = clientSdkVersion as AgenticVersion;
   const compatible = range ? isWithin(v, range) : false;
   const deprecatedBelow = DEPRECATED_BELOW[engine] ?? null;
-  const deprecated =
-    compatible &&
-    deprecatedBelow !== null &&
-    compareVersion(v, deprecatedBelow) < 0;
+  const deprecated = compatible && deprecatedBelow !== null && compareVersion(v, deprecatedBelow) < 0;
 
   return {
     compatible,

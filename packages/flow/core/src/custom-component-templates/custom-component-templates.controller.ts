@@ -9,15 +9,17 @@ import {
   DELETE,
   GET,
   Injectable,
-  Param,
   POST,
   PUT,
-} from '@dangao/bun-server'
-import { MockableEndpoint } from '@cube-ai/ai-center/platform/server-mock'
-import { CustomComponentTemplatesService } from './custom-component-templates.service'
+  Param,
+} from "@dangao/bun-server";
+
+import { MockableEndpoint } from "@cube-ai/ai-center/platform/server-mock";
+
+import { CustomComponentTemplatesService } from "./custom-component-templates.service";
 
 @Injectable()
-@Controller('/custom-component-templates')
+@Controller("/custom-component-templates")
 export class CustomComponentTemplatesController {
   constructor(private readonly templates: CustomComponentTemplatesService) {}
 
@@ -26,29 +28,29 @@ export class CustomComponentTemplatesController {
    *
    * @returns templates 模板数组
    */
-  @GET('/')
+  @GET("/")
   @ApiOperation({
-    summary: '模板列表',
-    description: '返回当前项目下已保存的自定义组件模板。',
-    operationId: 'listCustomComponentTemplates',
+    description: "返回当前项目下已保存的自定义组件模板。",
+    operationId: "listCustomComponentTemplates",
+    summary: "模板列表",
   })
   @ApiResponse({
-    status: 200,
-    description: '模板列表',
+    description: "模板列表",
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
         templates: {
-          type: 'array',
-          items: { type: 'object', additionalProperties: true },
-          description: '模板数据列表',
+          type: "array",
+          items: { type: "object", additionalProperties: true },
+          description: "模板数据列表",
         },
       },
     } as Record<string, unknown>,
+    status: 200,
   })
-  @MockableEndpoint('custom-component-templates.list')
+  @MockableEndpoint("custom-component-templates.list")
   list() {
-    return { templates: this.templates.list() }
+    return { templates: this.templates.list() };
   }
 
   /**
@@ -57,34 +59,36 @@ export class CustomComponentTemplatesController {
    * @param body.dsl 自定义组件 DSL（必填）
    * @returns 校验结果（是否通过与错误信息）
    */
-  @POST('/validate')
+  @POST("/validate")
   @ApiOperation({
-    summary: '校验模板 DSL',
-    description: '对自定义组件 DSL 做语法与结构校验，不落库。',
-    operationId: 'validateCustomComponentTemplateDsl',
+    description: "对自定义组件 DSL 做语法与结构校验，不落库。",
+    operationId: "validateCustomComponentTemplateDsl",
+    summary: "校验模板 DSL",
   })
   @ApiBody({
-    description: '校验参数',
+    description: "校验参数",
     required: true,
     schema: {
-      type: 'object',
       properties: {
-        dsl: { description: '自定义组件 DSL（任意 JSON）' },
+        dsl: { description: "自定义组件 DSL（任意 JSON）" },
       },
-      required: ['dsl'],
+      required: ["dsl"],
+      type: "object",
     },
   })
   @ApiResponse({
-    status: 200,
-    description: '校验结果',
+    description: "校验结果",
     schema: {
-      type: 'object',
+      type: "object",
     } as Record<string, unknown>,
+    status: 200,
   })
-  @MockableEndpoint('custom-component-templates.validate')
+  @MockableEndpoint("custom-component-templates.validate")
   validate(@Body() body: { dsl?: unknown }) {
-    if (body.dsl === undefined) throw new BadRequestException('dsl is required')
-    return this.templates.validateDsl(body.dsl)
+    if (body.dsl === undefined) {
+      throw new BadRequestException("dsl is required");
+    }
+    return this.templates.validateDsl(body.dsl);
   }
 
   /**
@@ -94,33 +98,35 @@ export class CustomComponentTemplatesController {
    * @param body.displayName 模板展示名（可选）
    * @returns 新建模板详情
    */
-  @POST('/')
+  @POST("/")
   @ApiOperation({
-    summary: '创建模板',
-    description: '创建并保存自定义组件模板。',
-    operationId: 'createCustomComponentTemplate',
+    description: "创建并保存自定义组件模板。",
+    operationId: "createCustomComponentTemplate",
+    summary: "创建模板",
   })
   @ApiBody({
-    description: '创建参数',
+    description: "创建参数",
     required: true,
     schema: {
-      type: 'object',
       properties: {
-        dsl: { description: '自定义组件 DSL（任意 JSON）' },
-        displayName: { type: 'string', description: '模板展示名' },
+        displayName: { description: "模板展示名", type: "string" },
+        dsl: { description: "自定义组件 DSL（任意 JSON）" },
       },
-      required: ['dsl'],
+      required: ["dsl"],
+      type: "object",
     },
   })
   @ApiResponse({
+    description: "创建结果",
+    schema: { type: "object" } as Record<string, unknown>,
     status: 200,
-    description: '创建结果',
-    schema: { type: 'object' } as Record<string, unknown>,
   })
-  @MockableEndpoint('custom-component-templates.create')
+  @MockableEndpoint("custom-component-templates.create")
   create(@Body() body: { dsl?: unknown; displayName?: string }) {
-    if (body.dsl === undefined) throw new BadRequestException('dsl is required')
-    return this.templates.create({ dsl: body.dsl, displayName: body.displayName })
+    if (body.dsl === undefined) {
+      throw new BadRequestException("dsl is required");
+    }
+    return this.templates.create({ displayName: body.displayName, dsl: body.dsl });
   }
 
   /**
@@ -129,30 +135,30 @@ export class CustomComponentTemplatesController {
    * @param id 模板主键
    * @returns 模板详情
    */
-  @GET('/:id')
+  @GET("/:id")
   @ApiOperation({
-    summary: '模板详情',
-    description: '按模板 id 查询模板详情。',
-    operationId: 'getCustomComponentTemplate',
+    description: "按模板 id 查询模板详情。",
+    operationId: "getCustomComponentTemplate",
+    summary: "模板详情",
   })
   @ApiResponse({
+    description: "模板详情",
+    schema: { type: "object" } as Record<string, unknown>,
     status: 200,
-    description: '模板详情',
-    schema: { type: 'object' } as Record<string, unknown>,
   })
-  @MockableEndpoint('custom-component-templates.get')
+  @MockableEndpoint("custom-component-templates.get")
   get(
-    @Param('id')
+    @Param("id")
     @ApiParam({
-      name: 'id',
-      in: 'path',
+      description: "模板主键",
+      in: "path",
+      name: "id",
       required: true,
-      description: '模板主键',
-      schema: { type: 'string' },
+      schema: { type: "string" },
     })
     id: string,
   ) {
-    return this.templates.get(id)
+    return this.templates.get(id);
   }
 
   /**
@@ -163,42 +169,42 @@ export class CustomComponentTemplatesController {
    * @param body.displayName 可选，更新后的展示名
    * @returns 更新后的模板详情
    */
-  @PUT('/:id')
+  @PUT("/:id")
   @ApiOperation({
-    summary: '更新模板',
-    description: '按 id 更新模板 DSL 或展示名。',
-    operationId: 'updateCustomComponentTemplate',
+    description: "按 id 更新模板 DSL 或展示名。",
+    operationId: "updateCustomComponentTemplate",
+    summary: "更新模板",
   })
   @ApiBody({
-    description: '更新参数',
+    description: "更新参数",
     required: true,
     schema: {
-      type: 'object',
       properties: {
-        dsl: { description: '可选，更新后的 DSL（任意 JSON）' },
-        displayName: { type: 'string', description: '可选，更新后的展示名' },
+        displayName: { description: "可选，更新后的展示名", type: "string" },
+        dsl: { description: "可选，更新后的 DSL（任意 JSON）" },
       },
+      type: "object",
     },
   })
   @ApiResponse({
+    description: "更新结果",
+    schema: { type: "object" } as Record<string, unknown>,
     status: 200,
-    description: '更新结果',
-    schema: { type: 'object' } as Record<string, unknown>,
   })
-  @MockableEndpoint('custom-component-templates.update')
+  @MockableEndpoint("custom-component-templates.update")
   update(
-    @Param('id')
+    @Param("id")
     @ApiParam({
-      name: 'id',
-      in: 'path',
+      description: "模板主键",
+      in: "path",
+      name: "id",
       required: true,
-      description: '模板主键',
-      schema: { type: 'string' },
+      schema: { type: "string" },
     })
     id: string,
     @Body() body: { dsl?: unknown; displayName?: string },
   ) {
-    return this.templates.update(id, body)
+    return this.templates.update(id, body);
   }
 
   /**
@@ -207,29 +213,29 @@ export class CustomComponentTemplatesController {
    * @param id 模板主键
    * @returns 删除结果
    */
-  @DELETE('/:id')
+  @DELETE("/:id")
   @ApiOperation({
-    summary: '删除模板',
-    description: '按 id 删除指定模板。',
-    operationId: 'removeCustomComponentTemplate',
+    description: "按 id 删除指定模板。",
+    operationId: "removeCustomComponentTemplate",
+    summary: "删除模板",
   })
   @ApiResponse({
+    description: "删除结果",
+    schema: { type: "object" } as Record<string, unknown>,
     status: 200,
-    description: '删除结果',
-    schema: { type: 'object' } as Record<string, unknown>,
   })
-  @MockableEndpoint('custom-component-templates.remove')
+  @MockableEndpoint("custom-component-templates.remove")
   remove(
-    @Param('id')
+    @Param("id")
     @ApiParam({
-      name: 'id',
-      in: 'path',
+      description: "模板主键",
+      in: "path",
+      name: "id",
       required: true,
-      description: '模板主键',
-      schema: { type: 'string' },
+      schema: { type: "string" },
     })
     id: string,
   ) {
-    return this.templates.remove(id)
+    return this.templates.remove(id);
   }
 }
