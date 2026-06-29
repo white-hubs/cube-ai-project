@@ -1,7 +1,8 @@
-import { z } from 'zod';
-import { SfidSchema } from '../common/ids';
-import { EpochMsSchema } from '../common/time';
-import { AuditFieldsSchema } from '../common/audit';
+import { z } from "zod";
+
+import { AuditFieldsSchema } from "../common/audit";
+import { SfidSchema } from "../common/ids";
+import { EpochMsSchema } from "../common/time";
 
 /**
  * Zod schema for the `usage_events` table row (hot table, 7-day retention).
@@ -36,41 +37,37 @@ import { AuditFieldsSchema } from '../common/audit';
  * Event types are lowercase dot-notation (regulation §5.2 exception).
  * outcome / finalStatus enums are SNAKE_CASE UPPERCASE (regulation §5.2).
  */
-export const UsageEventTypeSchema = z.enum([
-  'usage.llm_call',
-  'usage.tool_call',
-  'usage.job_duration',
-]);
+export const UsageEventTypeSchema = z.enum(["usage.llm_call", "usage.tool_call", "usage.job_duration"]);
 export type UsageEventType = z.infer<typeof UsageEventTypeSchema>;
 
-export const UsageOutcomeSchema = z.enum(['COMPLETED', 'FAILED', 'CANCELLED']);
+export const UsageOutcomeSchema = z.enum(["COMPLETED", "FAILED", "CANCELLED"]);
 export type UsageOutcome = z.infer<typeof UsageOutcomeSchema>;
 
 export const UsageEventRowSchema = AuditFieldsSchema.extend({
-  id:           SfidSchema,
-  eventType:    UsageEventTypeSchema,
+  id: SfidSchema,
+  eventType: UsageEventTypeSchema,
 
   // Traceability (SFID strings for BigInt ids, VARCHAR(64) for user/toolCallId)
-  userId:       z.string().max(64).nullable(),
-  sessionId:    SfidSchema.nullable(),
-  turnId:       SfidSchema.nullable(),
-  toolCallId:   z.string().max(64).nullable(),
-  jobId:        SfidSchema.nullable(),
+  userId: z.string().max(64).nullable(),
+  sessionId: SfidSchema.nullable(),
+  turnId: SfidSchema.nullable(),
+  toolCallId: z.string().max(64).nullable(),
+  jobId: SfidSchema.nullable(),
 
   // Common dimension
-  outcome:      UsageOutcomeSchema.nullable(),
+  outcome: UsageOutcomeSchema.nullable(),
 
   // Full payload (camelCase keys)
-  payloadJson:  z.unknown(),
+  payloadJson: z.unknown(),
 
   // Flattened query-optimization columns (nullable, filled per event_type)
-  durationMs:   z.number().int().nonnegative().nullable(),
-  inputTokens:  z.number().int().nonnegative().nullable(),
+  durationMs: z.number().int().nonnegative().nullable(),
+  inputTokens: z.number().int().nonnegative().nullable(),
   outputTokens: z.number().int().nonnegative().nullable(),
-  toolRef:      z.string().max(128).nullable(),
-  model:        z.string().max(64).nullable(),
-  provider:     z.string().max(32).nullable(),
-  errorCode:    z.string().max(64).nullable(),
+  toolRef: z.string().max(128).nullable(),
+  model: z.string().max(64).nullable(),
+  provider: z.string().max(32).nullable(),
+  errorCode: z.string().max(64).nullable(),
 
   // Business time (may differ from createTime by Bus lag)
   occurredTime: EpochMsSchema,
@@ -84,10 +81,10 @@ export type UsageEventRow = z.infer<typeof UsageEventRowSchema>;
  * Aligned with: 09-usage-events/outbox-contract.md §2.1
  */
 export const UsageEventSchema = z.object({
-  id:           SfidSchema,
-  eventType:    UsageEventTypeSchema,
-  /** Per-type payload — see outbox/payloads.ts for individual schemas. */
-  payload:      z.unknown(),
+  eventType: UsageEventTypeSchema,
+  id: SfidSchema,
   occurredTime: EpochMsSchema,
+  /** Per-type payload — see outbox/payloads.ts for individual schemas. */
+  payload: z.unknown(),
 });
 export type UsageEvent = z.infer<typeof UsageEventSchema>;

@@ -15,16 +15,15 @@
  *
  * Ref: design doc §8 / shared-context §4.4
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, expect, test } from "bun:test";
 
 // Assertions are written out; Redis/MySQL clients not yet wired (Q-M2-8).
 // requires live Redis + MySQL; enable after Q-M2-8 config ready by user
 
-describe('P1-07 Jobs Integration', () => {
-
+describe("P1-07 Jobs Integration", () => {
   // ── Leader Election ─────────────────────────────────────────────────────
 
-  test.skip('single instance acquires leader lock', async () => {
+  test.skip("single instance acquires leader lock", async () => {
     // Setup: live Redis at AGENTIC_ENGINE_REDIS_URL
     // Action: create LeaderElection + tryAcquire()
     // Assert: isLeader === true
@@ -32,7 +31,7 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true); // placeholder
   });
 
-  test.skip('two instances — only one is leader', async () => {
+  test.skip("two instances — only one is leader", async () => {
     // Setup: two LeaderElection instances with different instanceIds
     // Action: both call tryAcquire() concurrently
     // Assert: exactly one returns true, one returns false
@@ -40,14 +39,14 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true);
   });
 
-  test.skip('leader renews lease within TTL', async () => {
+  test.skip("leader renews lease within TTL", async () => {
     // Setup: leader acquired, wait 10s
     // Assert: key still exists (renewLease succeeded)
     // Assert: TTL refreshed to ~30s
     expect(true).toBe(true);
   });
 
-  test.skip('follower becomes leader after leader crashes', async () => {
+  test.skip("follower becomes leader after leader crashes", async () => {
     // Setup: leader1 acquired, wait for TTL expiry (30s)
     // Action: leader2 calls tryAcquire()
     // Assert: leader2.isLeader === true
@@ -56,7 +55,7 @@ describe('P1-07 Jobs Integration', () => {
 
   // ── Outbox Relay ────────────────────────────────────────────────────────
 
-  test.skip('outbox row INSERT → relay → BullMQ enqueue', async () => {
+  test.skip("outbox row INSERT → relay → BullMQ enqueue", async () => {
     // Setup: INSERT outbox_events row with channel='bullmq_job',
     //        status='PENDING', target='agentic-engine-long-running-jobs'
     // Action: trigger one relay tick (relayOnce())
@@ -66,7 +65,7 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true);
   });
 
-  test.skip('BullMQ duplicate jobId add is idempotent', async () => {
+  test.skip("BullMQ duplicate jobId add is idempotent", async () => {
     // Setup: queue already has job with jobId X
     // Action: relay dispatches same outbox row twice (retry scenario)
     // Assert: BullMQ queue still has only 1 job with that jobId
@@ -74,7 +73,7 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true);
   });
 
-  test.skip('relay marks outbox row DEAD after 10 attempts', async () => {
+  test.skip("relay marks outbox row DEAD after 10 attempts", async () => {
     // Setup: INSERT outbox row where dispatch always fails
     // Action: trigger relay ticks until attempts = 10
     // Assert: row status = 'DEAD'
@@ -83,7 +82,7 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true);
   });
 
-  test.skip('relay recovers after Redis restart', async () => {
+  test.skip("relay recovers after Redis restart", async () => {
     // Setup: relay running, Redis restart
     // Assert: relay resumes polling after Redis reconnects
     // Assert: PENDING rows processed after recovery
@@ -93,7 +92,7 @@ describe('P1-07 Jobs Integration', () => {
 
   // ── Scheduler ───────────────────────────────────────────────────────────
 
-  test.skip('cleanup cron job registered in BullMQ', async () => {
+  test.skip("cleanup cron job registered in BullMQ", async () => {
     // Setup: real BullMQ Queue + SchedulerService wired
     // Action: registerRepeatJobs()
     // Assert: getRepeatableJobs() contains sessions-physical-cleanup + outbox-events-cleanup
@@ -101,7 +100,7 @@ describe('P1-07 Jobs Integration', () => {
     expect(true).toBe(true);
   });
 
-  test.skip('session cleanup deletes sessions older than 30 days', async () => {
+  test.skip("session cleanup deletes sessions older than 30 days", async () => {
     // Setup: INSERT session with deleted = 31d ago
     // Action: trigger cleanup worker
     // Assert: session row physically deleted

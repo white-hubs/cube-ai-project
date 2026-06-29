@@ -16,15 +16,15 @@ bun run dev:up:deps          # compose 起 MySQL/Redis/Qdrant
 
 ## 渐进式披露路径
 
-| 需要什么 | 去哪里 | 何时读 |
-|---|---|---|
-| 领域术语/概念边界 | [CONTEXT.md](./CONTEXT.md) | 接触不熟悉的领域词时 |
-| 目录布局 + 包依赖图 | [docs/architecture/repo-layout-and-dependencies.md](./docs/architecture/repo-layout-and-dependencies.md) | 跨包改动/新增包前 |
-| 某决策为什么这样 | [docs/adr/README.md](./docs/adr/README.md) 索引 → 对应 ADR | 质疑现状设计前 |
-| 直连 vendor 例外 | [docs/architecture/direct-vendor-exceptions.md](./docs/architecture/direct-vendor-exceptions.md) | 涉及 LLM 调用路径时 |
-| 未关闭事项 | [docs/backlog.md](./docs/backlog.md) | 发现"像没做完"的东西时 |
-| 生产切换步骤 | [docs/operations/cutover-runbook.md](./docs/operations/cutover-runbook.md) | 运维操作时 |
-| 代码结构查询 | codegraph MCP（`codegraph_explore`） | 优先于 grep/通读文件 |
+| 需要什么            | 去哪里                                                                                                   | 何时读                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 领域术语/概念边界   | [CONTEXT.md](./CONTEXT.md)                                                                               | 接触不熟悉的领域词时   |
+| 目录布局 + 包依赖图 | [docs/architecture/repo-layout-and-dependencies.md](./docs/architecture/repo-layout-and-dependencies.md) | 跨包改动/新增包前      |
+| 某决策为什么这样    | [docs/adr/README.md](./docs/adr/README.md) 索引 → 对应 ADR                                               | 质疑现状设计前         |
+| 直连 vendor 例外    | [docs/architecture/direct-vendor-exceptions.md](./docs/architecture/direct-vendor-exceptions.md)         | 涉及 LLM 调用路径时    |
+| 未关闭事项          | [docs/backlog.md](./docs/backlog.md)                                                                     | 发现"像没做完"的东西时 |
+| 生产切换步骤        | [docs/operations/cutover-runbook.md](./docs/operations/cutover-runbook.md)                               | 运维操作时             |
+| 代码结构查询        | codegraph MCP（`codegraph_explore`）                                                                     | 优先于 grep/通读文件   |
 
 ## 目录地图（一行式）
 

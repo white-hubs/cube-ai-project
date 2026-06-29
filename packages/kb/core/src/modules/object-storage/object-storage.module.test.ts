@@ -1,18 +1,19 @@
-import { Application, ModuleRegistry } from '@dangao/bun-server'
-import { describe, expect, test } from 'bun:test'
-import { ObjectStorageService } from './services/object-storage.service'
-import { ObjectStorageModule } from './object-storage.module'
+import { Application, ModuleRegistry } from "@dangao/bun-server";
+import { describe, expect, test } from "bun:test";
 
-describe('ObjectStorageModule', () => {
-  test('registers ObjectStorageService with all constructor dependencies', () => {
-    const app = new Application({ enableSignalHandlers: false })
+import { ObjectStorageModule } from "./object-storage.module";
+import { ObjectStorageService } from "./services/object-storage.service";
 
-    app.registerModule(ObjectStorageModule)
+describe("ObjectStorageModule", () => {
+  test("registers ObjectStorageService with all constructor dependencies", () => {
+    const app = new Application({ enableSignalHandlers: false });
 
-    const moduleRef = ModuleRegistry.getInstance().getModuleRef(ObjectStorageModule)
-    expect(moduleRef).toBeDefined()
+    app.registerModule(ObjectStorageModule);
 
-    const service = moduleRef?.container.resolve(ObjectStorageService)
-    expect(service).toBeInstanceOf(ObjectStorageService)
-  })
-})
+    const moduleRef = ModuleRegistry.getInstance().getModuleRef(ObjectStorageModule);
+    expect(moduleRef).toBeDefined();
+
+    const service = moduleRef?.container.resolve(ObjectStorageService);
+    expect(service).toBeInstanceOf(ObjectStorageService);
+  });
+});

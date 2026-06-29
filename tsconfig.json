@@ -3,11 +3,5 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": [
-    "apps/**/*",
-    "packages/**/*",
-    "infra/**/*",
-    "packages/platform-adapters/**/*",
-    "tools/**/*"
-  ]
+  "include": ["apps/**/*", "packages/**/*", "infra/**/*", "packages/platform-adapters/**/*", "tools/**/*"]
 }

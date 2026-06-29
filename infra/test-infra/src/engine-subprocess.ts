@@ -1,12 +1,9 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import type { MysqlRedisQdrantStack, MysqlRedisStack } from './stack';
-import { INTEGRATION_AGENT_DESCRIPTOR_DIR } from './integration-agent-fixture';
-import { testInfraLog } from './log';
-import {
-  findMonorepoRoot,
-  resolveBunExecutable,
-  resolveEnginePackageDir,
-} from './repo-path';
+import { type ChildProcess, spawn } from "node:child_process";
+
+import { INTEGRATION_AGENT_DESCRIPTOR_DIR } from "./integration-agent-fixture";
+import { testInfraLog } from "./log";
+import { findMonorepoRoot, resolveBunExecutable, resolveEnginePackageDir } from "./repo-path";
+import { type MysqlRedisQdrantStack, type MysqlRedisStack } from "./stack";
 
 /**
  * Stack flavours acceptable for {@link startEngineIntegrationProcess}:
@@ -18,11 +15,7 @@ import {
  */
 type EngineSubprocessStack = MysqlRedisQdrantStack | MysqlRedisStack;
 
-async function waitForHttpOk(
-  url: string,
-  timeoutMs: number,
-  label: string,
-): Promise<void> {
+async function waitForHttpOk(url: string, timeoutMs: number, label: string): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastErr: unknown;
   const started = Date.now();
@@ -41,15 +34,11 @@ async function waitForHttpOk(
     if (now - lastProgressLog >= 10_000) {
       lastProgressLog = now;
       const sec = Math.round((now - started) / 1000);
-      testInfraLog(
-        `Still waiting for ${label} (${sec}s / ${Math.round(timeoutMs / 1000)}s) — ${url} lastErr=${String(lastErr)}`,
-      );
+      testInfraLog(`Still waiting for ${label} (${sec}s / ${Math.round(timeoutMs / 1000)}s) — ${url} lastErr=${String(lastErr)}`);
     }
     await new Promise((r) => setTimeout(r, 400));
   }
-  throw new Error(
-    `waitForHttpOk: timeout ${timeoutMs}ms for ${url} last=${String(lastErr)}`,
-  );
+  throw new Error(`waitForHttpOk: timeout ${timeoutMs}ms for ${url} last=${String(lastErr)}`);
 }
 
 export interface EngineIntegrationProcess {
@@ -73,9 +62,7 @@ export interface EngineIntegrationProcess {
    *
    * @param timeoutMs — defaults to 30s; rejects on timeout.
    */
-  waitForExit(
-    timeoutMs?: number,
-  ): Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  waitForExit(timeoutMs?: number): Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
 }
 
 /**
@@ -83,10 +70,7 @@ export interface EngineIntegrationProcess {
  * with the captured `exitCode` / `signalCode`. Multiple concurrent waiters are
  * supported (each registers its own `child.once('exit', …)` listener).
  */
-function awaitChildExit(
-  child: ChildProcess,
-  timeoutMs: number,
-): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+function awaitChildExit(child: ChildProcess, timeoutMs: number): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   if (child.exitCode !== null || child.signalCode !== null) {
     return Promise.resolve({
       code: child.exitCode,
@@ -94,11 +78,8 @@ function awaitChildExit(
     });
   }
   return new Promise((resolve, reject) => {
-    const t = setTimeout(
-      () => reject(new Error(`waitForExit timeout ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-    child.once('exit', (code, signal) => {
+    const t = setTimeout(() => reject(new Error(`waitForExit timeout ${timeoutMs}ms`)), timeoutMs);
+    child.once("exit", (code, signal) => {
       clearTimeout(t);
       resolve({ code, signal });
     });
@@ -144,9 +125,7 @@ export async function startEngineIntegrationProcess(opts: {
   const baseUrl = `http://127.0.0.1:${opts.port}`;
   const readyMs = opts.readyTimeoutMs ?? 120_000;
 
-  testInfraLog(
-    `Spawning Engine subprocess (${bunExe} run src/main.ts, cwd=${engineCwd}) → ${baseUrl} …`,
-  );
+  testInfraLog(`Spawning Engine subprocess (${bunExe} run src/main.ts, cwd=${engineCwd}) → ${baseUrl} …`);
 
   const env: NodeJS.ProcessEnv = { ...process.env };
 
@@ -155,33 +134,33 @@ export async function startEngineIntegrationProcess(opts: {
    * DescriptorLoader 会轮询连不可达地址；勿继承不存在的 `AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR`（如 `./descriptors`）以免 ENOENT 噪音。
    */
   for (const k of [
-    'AGENTIC_ENGINE_NACOS_URL',
-    'AGENTIC_ENGINE_NACOS_SERVERS',
-    'AGENTIC_ENGINE_NACOS_NAMESPACE',
-    'AGENTIC_ENGINE_NACOS_USERNAME',
-    'AGENTIC_ENGINE_NACOS_PASSWORD',
-    'AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR',
+    "AGENTIC_ENGINE_NACOS_URL",
+    "AGENTIC_ENGINE_NACOS_SERVERS",
+    "AGENTIC_ENGINE_NACOS_NAMESPACE",
+    "AGENTIC_ENGINE_NACOS_USERNAME",
+    "AGENTIC_ENGINE_NACOS_PASSWORD",
+    "AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR",
   ] as const) {
     delete env[k];
   }
 
   Object.assign(env, {
-    AGENTIC_ENGINE_PORT: String(opts.port),
-    AGENTIC_ENGINE_HOSTNAME: '127.0.0.1',
-    AGENTIC_ENGINE_MYSQL_URL: opts.stack.mysqlUrl,
-    AGENTIC_ENGINE_MYSQL_DSN: opts.stack.mysqlUrl,
-    AGENTIC_ENGINE_REDIS_URL: opts.stack.redisUrl,
-    AGENTIC_ENGINE_AUTH_MODE: 'mock',
-    AGENTIC_ENGINE_SECRETS_SOURCE: 'env',
-    AGENTIC_ENGINE_PROVIDER: 'noop',
-    AGENTIC_ENGINE_ENABLE_JOB_WORKERS: '0',
-    AGENTIC_ENGINE_DRAIN_GRACE_SECONDS: '2',
-    AGENTIC_ENGINE_PRE_DRAIN_SLEEP_MS: '0',
     AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR: INTEGRATION_AGENT_DESCRIPTOR_DIR,
-    NODE_ENV: 'test',
+    AGENTIC_ENGINE_AUTH_MODE: "mock",
+    AGENTIC_ENGINE_DRAIN_GRACE_SECONDS: "2",
+    AGENTIC_ENGINE_ENABLE_JOB_WORKERS: "0",
+    AGENTIC_ENGINE_HOSTNAME: "127.0.0.1",
+    AGENTIC_ENGINE_MYSQL_DSN: opts.stack.mysqlUrl,
+    AGENTIC_ENGINE_MYSQL_URL: opts.stack.mysqlUrl,
+    AGENTIC_ENGINE_PORT: String(opts.port),
+    AGENTIC_ENGINE_PRE_DRAIN_SLEEP_MS: "0",
+    AGENTIC_ENGINE_PROVIDER: "noop",
+    AGENTIC_ENGINE_REDIS_URL: opts.stack.redisUrl,
+    AGENTIC_ENGINE_SECRETS_SOURCE: "env",
+    NODE_ENV: "test",
   });
 
-  if ('qdrantUrl' in opts.stack && opts.stack.qdrantUrl) {
+  if ("qdrantUrl" in opts.stack && opts.stack.qdrantUrl) {
     env.AGENTIC_ENGINE_QDRANT_URL = opts.stack.qdrantUrl;
   }
 
@@ -196,51 +175,53 @@ export async function startEngineIntegrationProcess(opts: {
   }
 
   const capture = opts.captureProcessOutput === true;
-  let outputRing = '';
+  let outputRing = "";
   const OUTPUT_CAP = 512_000;
   const appendCapture = (chunk: Buffer): void => {
-    outputRing = (outputRing + chunk.toString('utf8')).slice(-OUTPUT_CAP);
+    outputRing = (outputRing + chunk.toString("utf8")).slice(-OUTPUT_CAP);
   };
 
-  const child: ChildProcess = spawn(bunExe, ['run', 'src/main.ts'], {
+  const child: ChildProcess = spawn(bunExe, ["run", "src/main.ts"], {
     cwd: engineCwd,
-    env,
-    stdio: capture ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'],
     detached: false,
+    env,
+    stdio: capture ? ["ignore", "pipe", "pipe"] : ["ignore", "inherit", "inherit"],
   });
 
   const spawnError = new Promise<never>((_, reject) => {
-    child.once('error', (err) => {
-      reject(
-        new Error(
-          `Engine subprocess spawn failed (${bunExe}): ${err instanceof Error ? err.message : String(err)}`,
-          { cause: err },
-        ),
-      );
+    child.once("error", (err) => {
+      reject(new Error(`Engine subprocess spawn failed (${bunExe}): ${err instanceof Error ? err.message : String(err)}`, { cause: err }));
     });
   });
 
   if (capture) {
-    child.stdout?.on('data', appendCapture);
-    child.stderr?.on('data', appendCapture);
+    child.stdout?.on("data", appendCapture);
+    child.stderr?.on("data", appendCapture);
   }
 
   try {
-    await Promise.race([
-      waitForHttpOk(`${baseUrl}/health/live`, readyMs, 'Engine /health/live'),
-      spawnError,
-    ]);
+    await Promise.race([waitForHttpOk(`${baseUrl}/health/live`, readyMs, "Engine /health/live"), spawnError]);
   } catch (e) {
     if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGKILL');
-      await new Promise<void>((r) => child.once('exit', () => r()));
+      child.kill("SIGKILL");
+      await new Promise<void>((r) => child.once("exit", () => r()));
     }
     throw e;
   }
 
   return {
     baseUrl,
-    getCapturedOutput: () => (capture ? outputRing : ''),
+    getCapturedOutput: () => (capture ? outputRing : ""),
+    sendSignal: (sig: NodeJS.Signals) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        return;
+      }
+      try {
+        child.kill(sig);
+      } catch {
+        /* ignore: race with self-initiated exit */
+      }
+    },
     stop: () =>
       new Promise((resolve, reject) => {
         /**
@@ -260,32 +241,24 @@ export async function startEngineIntegrationProcess(opts: {
         }
         const killTimer = setTimeout(() => {
           try {
-            child.kill('SIGKILL');
+            child.kill("SIGKILL");
           } catch {
             /* ignore */
           }
         }, 25_000);
-        child.once('exit', () => {
+        child.once("exit", () => {
           clearTimeout(killTimer);
           resolve();
         });
-        child.once('error', reject);
+        child.once("error", reject);
         try {
-          child.kill('SIGTERM');
+          child.kill("SIGTERM");
         } catch {
           /* child already torn down between the guard and this call */
           clearTimeout(killTimer);
           resolve();
         }
       }),
-    sendSignal: (sig: NodeJS.Signals) => {
-      if (child.exitCode !== null || child.signalCode !== null) return;
-      try {
-        child.kill(sig);
-      } catch {
-        /* ignore: race with self-initiated exit */
-      }
-    },
     waitForExit: (timeoutMs = 30_000) => awaitChildExit(child, timeoutMs),
   };
 }

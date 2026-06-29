@@ -3,11 +3,12 @@
  *
  * Ref: `bullmq-protocol.md` §4 / `P1-07-jobs.md` §4.1
  */
-import type { Queue, ConnectionOptions } from 'bullmq';
-import Redis from 'ioredis';
-import type { BullMqEnqueuePort } from './dispatcher';
+import { type ConnectionOptions, type Queue } from "bullmq";
+import Redis from "ioredis";
 
-const BULL_PREFIX = 'agentic:engine:bull';
+import { type BullMqEnqueuePort } from "./dispatcher";
+
+const BULL_PREFIX = "agentic:engine:bull";
 
 export class BullMqEnqueueAdapter implements BullMqEnqueuePort {
   private readonly queues = new Map<string, Queue>();
@@ -20,33 +21,33 @@ export class BullMqEnqueueAdapter implements BullMqEnqueuePort {
     opts: {
       jobId: string;
       attempts: number;
-      backoff: { type: 'exponential'; delay: number };
+      backoff: { type: "exponential"; delay: number };
     },
   ): Promise<void> {
-    const { Queue } = await import('bullmq');
+    const { Queue } = await import("bullmq");
     let q = this.queues.get(queueName);
     if (!q) {
       q = new Queue(queueName, {
         connection: this.connection as ConnectionOptions,
-        prefix:     BULL_PREFIX,
+        prefix: BULL_PREFIX,
       });
       this.queues.set(queueName, q);
     }
-    await q.add('outbox', payload, {
-      jobId:     opts.jobId,
-      attempts:  opts.attempts,
-      backoff:   opts.backoff,
+    await q.add("outbox", payload, {
+      attempts: opts.attempts,
+      backoff: opts.backoff,
+      jobId: opts.jobId,
     });
   }
 }
 
 export function buildRedisForBullMq(redisUrl?: string): Redis {
-  const url = redisUrl ?? process.env['AGENTIC_ENGINE_REDIS_URL'] ?? 'redis://127.0.0.1:6379/0';
+  const url = redisUrl ?? process.env["AGENTIC_ENGINE_REDIS_URL"] ?? "redis://127.0.0.1:6379/0";
   const client = new Redis(url, {
-    lazyConnect:          true,
+    lazyConnect: true,
     maxRetriesPerRequest: null,
   });
-  client.on('error', () => {
+  client.on("error", () => {
     /* BullMQ manages reconnect; avoid unhandled ioredis error events */
   });
   return client;

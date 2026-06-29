@@ -1,49 +1,47 @@
-import { HttpException } from '@dangao/bun-server'
-import type { LlmProviderPort } from '@cube-ai/contracts'
-import type { CubeFlowGraph, CubeFlowNode } from '../contracts/cube-flow'
-import type { NormalizedRunBody } from '../contracts/cube-run'
-import { encodeCubeSseEvent } from '../langflow/build-event-mapper'
-import {
-  isChatInputLfKey,
-  isLlmLfKey,
-  lfKeyFromCubeType,
-  resolveLinearExecutionChain,
-} from './linear-chain'
-import { cubeLlmChatStream, cubeLlmChatSync, resolveCubeEngineLlmConfig } from './cube-engine-llm'
+import { HttpException } from "@dangao/bun-server";
 
-export type CubeEngineContext = {
-  llm: LlmProviderPort
-  tenant: number
-  signal?: AbortSignal
+import { type LlmProviderPort } from "@cube-ai/contracts";
+
+import { type CubeFlowGraph, type CubeFlowNode } from "../contracts/cube-flow";
+import { type NormalizedRunBody } from "../contracts/cube-run";
+import { encodeCubeSseEvent } from "../langflow/build-event-mapper";
+import { cubeLlmChatStream, cubeLlmChatSync, resolveCubeEngineLlmConfig } from "./cube-engine-llm";
+import { isChatInputLfKey, isLlmLfKey, lfKeyFromCubeType, resolveLinearExecutionChain } from "./linear-chain";
+
+export interface CubeEngineContext {
+  llm: LlmProviderPort;
+  tenant: number;
+  signal?: AbortSignal;
 }
 
 function resolveUserMessageForChain(chain: CubeFlowNode[], norm: NormalizedRunBody): string {
-  if (chain.length === 0) return norm.input ?? ''
+  if (chain.length === 0) {
+    return norm.input ?? "";
+  }
   /** 最后一个为 LLM，其前可有 ChatInput */
-  let msg = norm.input ?? ''
+  let msg = norm.input ?? "";
   for (let i = 0; i < chain.length - 1; i++) {
-    const node = chain[i]!
-    const k = lfKeyFromCubeType(node.cubeType)
-    if (k === 'note') continue
+    const node = chain[i]!;
+    const k = lfKeyFromCubeType(node.cubeType);
+    if (k === "note") {
+      continue;
+    }
     if (isChatInputLfKey(k)) {
-      msg =
-        typeof norm.input === 'string' && norm.input.trim() !== ''
-          ? norm.input
-          : String(node.config['input_value'] ?? '')
-      continue
+      msg = typeof norm.input === "string" && norm.input.trim() !== "" ? norm.input : String(node.config["input_value"] ?? "");
+      continue;
     }
     throw new HttpException(422, `Cube engine MVP only allows ChatInput/note before LLM, got: ${k}`, {
-      code: 'CUBE_ENGINE_UNSUPPORTED_NODE',
-    })
+      code: "CUBE_ENGINE_UNSUPPORTED_NODE",
+    });
   }
-  return msg
+  return msg;
 }
 
 function assertLlmConfigured(llmCfg: ReturnType<typeof resolveCubeEngineLlmConfig>): void {
   if (!llmCfg.legacyApiKey && !llmCfg.modelCode) {
-    throw new HttpException(503, 'LLM modelRef or api_key missing in node config', {
-      code: 'CUBE_ENGINE_LLM_CONFIG',
-    })
+    throw new HttpException(503, "LLM modelRef or api_key missing in node config", {
+      code: "CUBE_ENGINE_LLM_CONFIG",
+    });
   }
 }
 
@@ -51,19 +49,19 @@ export async function runCubeLinearEngineSync(
   graph: CubeFlowGraph,
   norm: NormalizedRunBody,
   ctx: CubeEngineContext,
-): Promise<{ text: string; totalTokens?: number; execution_backend: 'cube-engine' }> {
-  const chain = resolveLinearExecutionChain(graph)
-  const last = chain[chain.length - 1]
+): Promise<{ text: string; totalTokens?: number; execution_backend: "cube-engine" }> {
+  const chain = resolveLinearExecutionChain(graph);
+  const last = chain.at(-1);
   if (!last || !isLlmLfKey(lfKeyFromCubeType(last.cubeType))) {
-    throw new HttpException(422, 'Cube engine MVP requires terminal LLM node', {
-      code: 'CUBE_ENGINE_UNSUPPORTED_GRAPH',
-    })
+    throw new HttpException(422, "Cube engine MVP requires terminal LLM node", {
+      code: "CUBE_ENGINE_UNSUPPORTED_GRAPH",
+    });
   }
-  const userMsg = resolveUserMessageForChain(chain, norm)
-  const llmCfg = resolveCubeEngineLlmConfig(last.config, ctx.tenant)
-  assertLlmConfigured(llmCfg)
-  const r = await cubeLlmChatSync(ctx.llm, userMsg, llmCfg, ctx.signal)
-  return { text: r.text, totalTokens: r.totalTokens, execution_backend: 'cube-engine' }
+  const userMsg = resolveUserMessageForChain(chain, norm);
+  const llmCfg = resolveCubeEngineLlmConfig(last.config, ctx.tenant);
+  assertLlmConfigured(llmCfg);
+  const r = await cubeLlmChatSync(ctx.llm, userMsg, llmCfg, ctx.signal);
+  return { execution_backend: "cube-engine", text: r.text, totalTokens: r.totalTokens };
 }
 
 /**
@@ -77,80 +75,78 @@ export function createCubeLinearEngineSseStream(
   ctx: CubeEngineContext,
   mergeRequestExt?: Record<string, unknown>,
 ): ReadableStream<Uint8Array> {
-  const chain = resolveLinearExecutionChain(graph)
-  const last = chain[chain.length - 1]
+  const chain = resolveLinearExecutionChain(graph);
+  const last = chain.at(-1);
   if (!last || !isLlmLfKey(lfKeyFromCubeType(last.cubeType))) {
-    throw new HttpException(422, 'Cube engine MVP requires terminal LLM node (AIMLModel/OpenAIModel/…)', {
-      code: 'CUBE_ENGINE_UNSUPPORTED_GRAPH',
-    })
+    throw new HttpException(422, "Cube engine MVP requires terminal LLM node (AIMLModel/OpenAIModel/…)", {
+      code: "CUBE_ENGINE_UNSUPPORTED_GRAPH",
+    });
   }
 
-  const userMsg = resolveUserMessageForChain(chain, norm)
-  const llmNode = last
-  const llmCfg = resolveCubeEngineLlmConfig(llmNode.config, ctx.tenant)
+  const userMsg = resolveUserMessageForChain(chain, norm);
+  const llmNode = last;
+  const llmCfg = resolveCubeEngineLlmConfig(llmNode.config, ctx.tenant);
 
   return new ReadableStream({
     async start(controller) {
       try {
-        assertLlmConfigured(llmCfg)
+        assertLlmConfigured(llmCfg);
         controller.enqueue(
           encodeCubeSseEvent(
             {
-              type: 'node_start',
               payload: {
-                vertices: chain.map((n) => n.lfNodeId),
-                phase: 'cube-linear',
                 flow_id: flowPk,
+                phase: "cube-linear",
+                vertices: chain.map((n) => n.lfNodeId),
               },
+              type: "node_start",
             },
             mergeRequestExt,
           ),
-        )
+        );
 
         const usage = await cubeLlmChatStream(
           ctx.llm,
           userMsg,
           llmCfg,
           (delta) => {
-            controller.enqueue(encodeCubeSseEvent({ type: 'token', payload: { text: delta } }, mergeRequestExt))
+            controller.enqueue(encodeCubeSseEvent({ payload: { text: delta }, type: "token" }, mergeRequestExt));
           },
           ctx.signal,
-        )
+        );
 
         controller.enqueue(
           encodeCubeSseEvent(
             {
-              type: 'node_end',
               payload: {
-                vertex_id: llmNode.lfNodeId,
                 terminal: true,
                 usage_hint: { total_tokens: usage.totalTokens },
+                vertex_id: llmNode.lfNodeId,
               },
+              type: "node_end",
             },
             mergeRequestExt,
           ),
-        )
+        );
         controller.enqueue(
           encodeCubeSseEvent(
             {
-              type: 'end',
               payload: {
+                execution_backend: "cube-engine",
                 total_tokens: usage.totalTokens,
-                execution_backend: 'cube-engine',
               },
+              type: "end",
             },
             mergeRequestExt,
           ),
-        )
+        );
       } catch (e) {
-        const msg = e instanceof HttpException ? e.message : e instanceof Error ? e.message : String(e)
-        controller.enqueue(
-          encodeCubeSseEvent({ type: 'error', payload: { message: msg } }, mergeRequestExt),
-        )
-        controller.enqueue(encodeCubeSseEvent({ type: 'end', payload: {} }, mergeRequestExt))
+        const msg = e instanceof HttpException ? e.message : e instanceof Error ? e.message : String(e);
+        controller.enqueue(encodeCubeSseEvent({ payload: { message: msg }, type: "error" }, mergeRequestExt));
+        controller.enqueue(encodeCubeSseEvent({ payload: {}, type: "end" }, mergeRequestExt));
       } finally {
-        controller.close()
+        controller.close();
       }
     },
-  })
+  });
 }

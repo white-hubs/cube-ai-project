@@ -14,9 +14,7 @@ export interface NacosConfigSnapshot<T = unknown> {
   content: T;
 }
 
-export type NacosChangeHandler<T = unknown> = (
-  snapshot: NacosConfigSnapshot<T>,
-) => void | Promise<void>;
+export type NacosChangeHandler<T = unknown> = (snapshot: NacosConfigSnapshot<T>) => void | Promise<void>;
 
 export interface NacosObserverOptions {
   serverAddr?: string;
@@ -33,13 +31,8 @@ export interface NacosObserverOptions {
  * when available, otherwise to a local JSON file for tests.
  */
 export interface NacosConfigObserver {
-  subscribe<T = unknown>(
-    dataId: string,
-    handler: NacosChangeHandler<T>,
-  ): Promise<() => Promise<void>>;
-  getSnapshot<T = unknown>(
-    dataId: string,
-  ): Promise<NacosConfigSnapshot<T> | null>;
+  subscribe<T = unknown>(dataId: string, handler: NacosChangeHandler<T>): Promise<() => Promise<void>>;
+  getSnapshot<T = unknown>(dataId: string): Promise<NacosConfigSnapshot<T> | null>;
   start(): Promise<void>;
   stop(): Promise<void>;
 }

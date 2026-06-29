@@ -1,58 +1,54 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from "bun:test";
+
+import { type SearchItem } from "../modules/common/document-types";
+import { type RetrievalService } from "../modules/vector-store/services/retrieval.service";
 import {
   KnowledgeQueryPortImpl,
   mapKbIdsToDirectoryIds,
   mapSearchItemToKnowledgeHit,
   mapTenantToProjectId,
-} from './knowledge-query.port-impl';
-import type { SearchItem } from '../modules/common/document-types';
-import type { RetrievalService } from '../modules/vector-store/services/retrieval.service';
+} from "./knowledge-query.port-impl";
 
-describe('KnowledgeQueryPort mapping', () => {
-  test('maps tenant to tenantId string', () => {
-    expect(mapTenantToProjectId(9)).toBe('9');
+describe("KnowledgeQueryPort mapping", () => {
+  test("maps tenant to tenantId string", () => {
+    expect(mapTenantToProjectId(9)).toBe("9");
   });
 
-  test('maps kbIds to unique directory ids', () => {
-    expect(mapKbIdsToDirectoryIds(['kb-a', 'kb-b', 'kb-a'])).toEqual(['kb-a', 'kb-b']);
+  test("maps kbIds to unique directory ids", () => {
+    expect(mapKbIdsToDirectoryIds(["kb-a", "kb-b", "kb-a"])).toEqual(["kb-a", "kb-b"]);
   });
 
-  test('maps SearchItem to KnowledgeHit using text and rankScore', () => {
+  test("maps SearchItem to KnowledgeHit using text and rankScore", () => {
     const item: SearchItem = {
-      chunkId: 'doc-1-0',
-      documentId: 'doc-1',
+      chunkId: "doc-1-0",
       chunkIndex: 0,
-      text: 'aggregated snippet text',
-      fileName: 'guide.pdf',
-      sourceType: 'pdf',
-      score: 0.5,
-      vectorScore: 0.4,
-      rankScore: 0.82,
-      sectionId: 's1',
-      headingPath: ['Intro'],
+      chunkType: "paragraph",
+      documentId: "doc-1",
+      fileName: "guide.pdf",
+      headingPath: ["Intro"],
       pageNo: 1,
-      chunkType: 'paragraph',
+      rankScore: 0.82,
+      score: 0.5,
+      sectionId: "s1",
+      sourceType: "pdf",
+      text: "aggregated snippet text",
+      vectorScore: 0.4,
     };
 
-    expect(mapSearchItemToKnowledgeHit(item, 'dir-1')).toEqual({
-      docId: 'doc-1',
-      kbId: 'dir-1',
-      title: 'guide.pdf',
-      snippet: 'aggregated snippet text',
-      score: 0.82,
+    expect(mapSearchItemToKnowledgeHit(item, "dir-1")).toEqual({
+      docId: "doc-1",
+      kbId: "dir-1",
       link: undefined,
+      score: 0.82,
+      snippet: "aggregated snippet text",
+      title: "guide.pdf",
     });
   });
 
-  test('query delegates to retrievalService.searchByDirectory per kbId', async () => {
-    const calls: Array<{ directoryId: string; similarityThreshold: number }> = [];
+  test("query delegates to retrievalService.searchByDirectory per kbId", async () => {
+    const calls: { directoryId: string; similarityThreshold: number }[] = [];
     const retrievalService = {
-      searchByDirectory: async (params: {
-        query: string;
-        topK: number;
-        directoryId: string;
-        similarityThreshold?: number;
-      }) => {
+      searchByDirectory: async (params: { query: string; topK: number; directoryId: string; similarityThreshold?: number }) => {
         calls.push({
           directoryId: params.directoryId,
           similarityThreshold: params.similarityThreshold ?? 0,
@@ -61,19 +57,19 @@ describe('KnowledgeQueryPort mapping', () => {
           items: [
             {
               chunkId: `${params.directoryId}-0`,
-              documentId: 'doc-1',
               chunkIndex: 0,
-              text: 'body',
-              fileName: 'f.pdf',
-              sourceType: 'pdf',
-              score: 0.9,
-              vectorScore: 0.9,
-              rankScore: 0.91,
-              sectionId: 's',
+              chunkType: "paragraph",
+              documentId: "doc-1",
+              fileName: "f.pdf",
               headingPath: [],
-              pageNo: null,
-              chunkType: 'paragraph',
               orderInSection: 0,
+              pageNo: null,
+              rankScore: 0.91,
+              score: 0.9,
+              sectionId: "s",
+              sourceType: "pdf",
+              text: "body",
+              vectorScore: 0.9,
             },
           ],
         };
@@ -83,21 +79,21 @@ describe('KnowledgeQueryPort mapping', () => {
     const port = new KnowledgeQueryPortImpl(retrievalService);
     const resp = await port.query(
       {
-        tenant: 42,
-        query: 'hello world',
-        kbIds: ['dir-a', 'dir-b'],
-        topK: 3,
+        kbIds: ["dir-a", "dir-b"],
+        query: "hello world",
         scoreThreshold: 0.3,
-        traceId: 'tr',
+        tenant: 42,
+        topK: 3,
+        traceId: "tr",
       },
       new AbortController().signal,
     );
 
     expect(calls).toEqual([
-      { directoryId: 'dir-a', similarityThreshold: 0.3 },
-      { directoryId: 'dir-b', similarityThreshold: 0.3 },
+      { directoryId: "dir-a", similarityThreshold: 0.3 },
+      { directoryId: "dir-b", similarityThreshold: 0.3 },
     ]);
     expect(resp.hits).toHaveLength(2);
-    expect(resp.hits[0]?.kbId).toBe('dir-a');
+    expect(resp.hits[0]?.kbId).toBe("dir-a");
   });
 });

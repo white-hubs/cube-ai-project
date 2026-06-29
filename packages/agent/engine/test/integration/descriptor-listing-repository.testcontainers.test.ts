@@ -1,21 +1,23 @@
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { createPool } from "mysql2/promise";
+
 /**
  * Descriptor listing repository — MySQL Testcontainers.
  *
  *   USE_TESTCONTAINERS=1 bun test packages/agent/engine/test/integration/descriptor-listing-repository.testcontainers.test.ts
  */
-import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
-import { createPool } from 'mysql2/promise';
 import {
+  type MysqlRedisStack,
   applyMinimalMysqlSchema,
   registerProcessShutdown,
   resolveShouldRunTestcontainers,
   startMysqlRedis,
   stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
-import { SfidService } from '../../src/infra/sfid/sfid.service';
-import { TenantDescriptorRepositoryImpl } from '../../src/bc/descriptor/tenant-descriptor.repository';
-import { DescriptorListingRepositoryImpl } from '../../src/bc/descriptor/descriptor-listing.repository';
+} from "@cube-ai/test-infra";
+
+import { DescriptorListingRepositoryImpl } from "../../src/bc/descriptor/descriptor-listing.repository";
+import { TenantDescriptorRepositoryImpl } from "../../src/bc/descriptor/tenant-descriptor.repository";
+import { SfidService } from "../../src/infra/sfid/sfid.service";
 
 const run = await resolveShouldRunTestcontainers();
 const stackHolder: { current: MysqlRedisStack | null } = { current: null };
@@ -35,7 +37,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('DescriptorListingRepository [testcontainers]', () => {
+(run ? describe : describe.skip)("DescriptorListingRepository [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startMysqlRedis();
     try {
@@ -55,58 +57,68 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('list/unlist and browse tenant library projection', async () => {
-    const s = stackHolder.current!;
-    const pool = createPool({
-      uri: s.mysqlUrl,
-      connectionLimit: 4,
-      supportBigNumbers: true,
-      bigNumberStrings: true,
-    });
-    try {
-      const sfid = new SfidService();
-      const descriptors = new TenantDescriptorRepositoryImpl(pool, sfid);
-      const listings = new DescriptorListingRepositoryImpl(pool);
-      const tenant = 701;
-
-      const created = await descriptors.upsert(tenant, 'agent', 'support', {
-        prompt: 'published prompt',
-        displayName: 'Support Agent',
-        tags: ['support'],
-      }, 'alice');
-      await descriptors.publish(tenant, created.id, 'alice');
-
-      const listed = await listings.list(tenant, created.id, 1, 'alice');
-      expect(listed).toMatchObject({
-        descriptorId: created.id,
-        listed: true,
-        sharedVersionNo: 1,
-        publisherUserId: 'alice',
+  test(
+    "list/unlist and browse tenant library projection",
+    async () => {
+      const s = stackHolder.current!;
+      const pool = createPool({
+        bigNumberStrings: true,
+        connectionLimit: 4,
+        supportBigNumbers: true,
+        uri: s.mysqlUrl,
       });
+      try {
+        const sfid = new SfidService();
+        const descriptors = new TenantDescriptorRepositoryImpl(pool, sfid);
+        const listings = new DescriptorListingRepositoryImpl(pool);
+        const tenant = 701;
 
-      const library = await listings.browseListed(tenant, 'agent');
-      expect(library).toEqual([
-        {
-          ref: created.id,
-          kind: 'agent',
-          tier: 'tenant',
-          displayName: 'Support Agent',
-          tags: ['support'],
-          sharedVersionNo: 1,
-          content: {
-            prompt: 'published prompt',
-            displayName: 'Support Agent',
-            tags: ['support'],
+        const created = await descriptors.upsert(
+          tenant,
+          "agent",
+          "support",
+          {
+            displayName: "Support Agent",
+            prompt: "published prompt",
+            tags: ["support"],
           },
-        },
-      ]);
+          "alice",
+        );
+        await descriptors.publish(tenant, created.id, "alice");
 
-      const unlisted = await listings.unlist(tenant, created.id, 'alice');
-      expect(unlisted.listed).toBe(false);
-      expect(unlisted.sharedVersionNo).toBe(1);
-      expect(await listings.browseListed(tenant, 'agent')).toEqual([]);
-    } finally {
-      await pool.end();
-    }
-  }, HOOK_MS);
+        const listed = await listings.list(tenant, created.id, 1, "alice");
+        expect(listed).toMatchObject({
+          descriptorId: created.id,
+          listed: true,
+          publisherUserId: "alice",
+          sharedVersionNo: 1,
+        });
+
+        const library = await listings.browseListed(tenant, "agent");
+        expect(library).toEqual([
+          {
+            content: {
+              displayName: "Support Agent",
+              prompt: "published prompt",
+              tags: ["support"],
+            },
+            displayName: "Support Agent",
+            kind: "agent",
+            ref: created.id,
+            sharedVersionNo: 1,
+            tags: ["support"],
+            tier: "tenant",
+          },
+        ]);
+
+        const unlisted = await listings.unlist(tenant, created.id, "alice");
+        expect(unlisted.listed).toBe(false);
+        expect(unlisted.sharedVersionNo).toBe(1);
+        expect(await listings.browseListed(tenant, "agent")).toEqual([]);
+      } finally {
+        await pool.end();
+      }
+    },
+    HOOK_MS,
+  );
 });

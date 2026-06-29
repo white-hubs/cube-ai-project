@@ -1,17 +1,18 @@
-import type { ReplayBufferScope } from './types';
-import type { ReplayBufferEntry } from './types';
-import type { SessionSseEmitter } from './sse-emitter';
-import type { DrainService, SseConnection } from './drain.service';
+import { type DrainService, type SseConnection } from "./drain.service";
+import { type SessionSseEmitter } from "./sse-emitter";
+import { type ReplayBufferEntry, type ReplayBufferScope } from "./types";
 
 /** Align `packages/contracts/src/sse/events.ts` — `eventId = "{turnId}:{seq6}"`. */
-const LAST_EVENT_ID_RE = /^\d{1,20}:\d{6}$/;
+const LAST_EVENT_ID_RE = /^\d{1,20}:\d{6}$/u;
 
 /**
  * Parse `Last-Event-ID` / `last-event-id` (RFC 6202) to id string or null.
  * ref: concurrency-and-replay.md §3.1
  */
 export function parseLastEventIdHeader(header: string | undefined | null): string | null {
-  if (!header?.trim()) return null;
+  if (!header?.trim()) {
+    return null;
+  }
   const trimmed = header.trim();
   return LAST_EVENT_ID_RE.test(trimmed) ? trimmed : null;
 }
@@ -22,11 +23,7 @@ export function parseLastEventIdHeader(header: string | undefined | null): strin
  * with a normal EOF — mirrors `turn.service` terminal emit + `sdk-mock`
  * close-on-terminal. ref: ADR-0022 §D5.1.v2.
  */
-const TERMINAL_TURN_SCHEMAS = new Set([
-  'turn-completed-v1',
-  'turn-failed-v1',
-  'turn-cancelled-v1',
-]);
+const TERMINAL_TURN_SCHEMAS = new Set(["turn-completed-v1", "turn-failed-v1", "turn-cancelled-v1"]);
 
 function isTerminalTurnSchema(schema: string): boolean {
   return TERMINAL_TURN_SCHEMAS.has(schema);
@@ -35,15 +32,13 @@ function isTerminalTurnSchema(schema: string): boolean {
 /** Format one SSE record (no trailing extra newline — caller concatenates). */
 export function formatSseRecord(entry: ReplayBufferEntry): string {
   const dataObj =
-    typeof entry.payload === 'object' && entry.payload !== null
-      ? (entry.payload as Record<string, unknown>)
-      : { value: entry.payload };
+    typeof entry.payload === "object" && entry.payload !== null ? (entry.payload as Record<string, unknown>) : { value: entry.payload };
   const body = JSON.stringify({
     ...dataObj,
     schema: entry.schema,
   });
-  const lines = [`id: ${entry.eventId}`, `event: ${entry.event}`, `data: ${body}`, ''];
-  return `${lines.join('\n')}\n`;
+  const lines = [`id: ${entry.eventId}`, `event: ${entry.event}`, `data: ${body}`, ""];
+  return `${lines.join("\n")}\n`;
 }
 
 export interface SessionSseStreamParams {
@@ -66,12 +61,12 @@ export interface SessionSseStreamParams {
  */
 export function createSessionSseStreamResponse(p: SessionSseStreamParams): Response {
   if (!drainServiceAcceptsNewStreams(p.drainService)) {
-    return new Response(
-      JSON.stringify({
-        code: 'UNAVAILABLE_SERVICE_DRAINING',
-        message: 'Server is draining; reconnect with Last-Event-ID shortly',
-      }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } },
+    return Response.json(
+      {
+        code: "UNAVAILABLE_SERVICE_DRAINING",
+        message: "Server is draining; reconnect with Last-Event-ID shortly",
+      },
+      { headers: { "Content-Type": "application/json" }, status: 503 },
     );
   }
 
@@ -79,6 +74,10 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
   let unregisterDrain: (() => void) | undefined;
 
   const stream = new ReadableStream<Uint8Array>({
+    cancel() {
+      unsubscribe?.();
+      unregisterDrain?.();
+    },
     start(controller) {
       const enc = new TextEncoder();
       const push = (s: string) => controller.enqueue(enc.encode(s));
@@ -92,11 +91,13 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
           /* noop */
         }
       };
-      p.signal.addEventListener('abort', onAbort, { once: true });
+      p.signal.addEventListener("abort", onAbort, { once: true });
 
       let terminated = false;
       const closeOnTerminal = (): void => {
-        if (terminated) return;
+        if (terminated) {
+          return;
+        }
         terminated = true;
         try {
           unsubscribe?.();
@@ -109,13 +110,8 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
 
       void (async () => {
         try {
-          const turnIdFilter =
-            p.turnId !== undefined && p.turnId !== '' ? `${p.turnId}:` : null;
-          const replayed = await p.emitter.replayStore.since(
-            p.scope,
-            p.lastEventId,
-            p.turnId,
-          );
+          const turnIdFilter = p.turnId !== undefined && p.turnId !== "" ? `${p.turnId}:` : null;
+          const replayed = await p.emitter.replayStore.since(p.scope, p.lastEventId, p.turnId);
           let replayHitTerminal = false;
           for (const e of replayed) {
             push(formatSseRecord(e));
@@ -144,7 +140,7 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
 
           const conn: SseConnection = {
             writeEvent(ev: string, data: unknown, id?: string): void {
-              push(`event: ${ev}\ndata: ${JSON.stringify(data)}\nid: ${id ?? ''}\n\n`);
+              push(`event: ${ev}\ndata: ${JSON.stringify(data)}\nid: ${id ?? ""}\n\n`);
             },
             close(): void {
               controller.close();
@@ -156,18 +152,14 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
         }
       })();
     },
-    cancel() {
-      unsubscribe?.();
-      unregisterDrain?.();
-    },
   });
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-store',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      "Cache-Control": "no-store",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "X-Accel-Buffering": "no",
     },
   });
 }

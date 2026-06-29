@@ -1,3 +1,10 @@
+type MergeSources<T> = (T extends unknown ? (value: T) => void : never) extends (value: infer R) => void ? R : never;
+
+function mergeObject<T extends object, S extends readonly object[]>(target: T, ...sources: S): T & MergeSources<S[number]> {
+  const clone = { ...target } as T & MergeSources<S[number]>;
+  return Object.assign(clone, ...sources);
+}
+
 /**
  * AssistantStore 行为边界补充测试：
  *   - lifecycle（reset / dispose / 订阅退订 / listener 容错）
@@ -10,18 +17,14 @@
  * 沿用 store.test.ts 的 fake port 思路；本文件的 fake 额外支持把错误
  * **真正 reject** 进 for-await（断流路径需要）。
  */
-import { describe, expect, test } from 'bun:test';
-import { createAssistantStore, AssistantStore } from './store';
-import { createMemoryReasoningStore } from './reasoning-store';
-import { StoreDisposedError, StreamDisconnectedError } from '@cube-ai/agent-sdk-client';
-import type {
-  AssistantEnginePort,
-  GrantResponseInput,
-  NormalizedSseEvent,
-  PortMessageItem,
-} from './port';
-import type { AssistantMessage, AssistantSessionSummary } from './types';
-import type { AssistantState } from './store';
+import { describe, expect, test } from "bun:test";
+
+import { StoreDisposedError, StreamDisconnectedError } from "@cube-ai/agent-sdk-client";
+
+import { type AssistantEnginePort, type GrantResponseInput, type NormalizedSseEvent, type PortMessageItem } from "./port";
+import { createMemoryReasoningStore } from "./reasoning-store";
+import { type AssistantState, type AssistantStore, createAssistantStore } from "./store";
+import { type AssistantMessage, type AssistantSessionSummary } from "./types";
 
 interface FakeStream {
   push(ev: NormalizedSseEvent): void;
@@ -36,57 +39,95 @@ interface FakePort {
   failStream: (sessionId: string, e: Error) => void;
   setMessages: (sessionId: string, items: PortMessageItem[]) => void;
   calls: {
-    startTurn: Array<{ sessionId: string; body: unknown }>;
-    cancelTurn: Array<{ sessionId: string; turnId: string }>;
-    listMessages: Array<{ sessionId: string }>;
+    startTurn: { sessionId: string; body: unknown }[];
+    cancelTurn: { sessionId: string; turnId: string }[];
+    listMessages: { sessionId: string }[];
     listSessions: number;
-    patchSession: Array<{ sessionId: string; patch: unknown }>;
+    patchSession: { sessionId: string; patch: unknown }[];
     deleteSession: string[];
     respondGrant: GrantResponseInput[];
   };
   streamCount: () => number;
 }
 
-function makeFakePort(initial: {
-  sessions?: AssistantSessionSummary[];
-  messages?: Record<string, PortMessageItem[]>;
-} = {}): FakePort {
+function makeFakePort(
+  initial: {
+    sessions?: AssistantSessionSummary[];
+    messages?: Record<string, PortMessageItem[]>;
+  } = {},
+): FakePort {
   const streams = new Map<string, FakeStream>();
   const turnCounter = { n: 1000 };
-  const calls: FakePort['calls'] = {
-    startTurn: [],
+  const calls: FakePort["calls"] = {
     cancelTurn: [],
+    deleteSession: [],
     listMessages: [],
     listSessions: 0,
     patchSession: [],
-    deleteSession: [],
     respondGrant: [],
+    startTurn: [],
   };
   let sessions = initial.sessions ?? [];
-  const messages: Record<string, PortMessageItem[]> = { ...(initial.messages ?? {}) };
+  const messages: Record<string, PortMessageItem[]> = { ...initial.messages };
 
   const port: AssistantEnginePort = {
+    cancelTurn: async (sessionId, turnId) => {
+      calls.cancelTurn.push({ sessionId, turnId });
+    },
+    createSession: async (req) => ({
+      id: `sess-${sessions.length + 1}`,
+      title: req.title ?? "",
+      createTime: Date.now(),
+    }),
+    deleteSession: async (sessionId) => {
+      calls.deleteSession.push(sessionId);
+    },
+    getSession: async (id) => sessions.find((s) => s.id === id) ?? null,
+    listMessages: async (sessionId) => {
+      calls.listMessages.push({ sessionId });
+      return { items: messages[sessionId] ?? [] };
+    },
+    listSessions: async () => {
+      calls.listSessions += 1;
+      return { items: sessions, hasMore: false };
+    },
+    patchSession: async (sessionId, patch) => {
+      calls.patchSession.push({ sessionId, patch });
+      sessions = sessions.map((s) =>
+        s.id === sessionId && typeof patch.title === "string" ? mergeObject({}, s, { title: patch.title }) : s,
+      );
+    },
+    respondGrant: async (input) => {
+      calls.respondGrant.push(input);
+    },
     startTurn: async (sessionId, body) => {
       calls.startTurn.push({ sessionId, body });
       return { turnId: String(++turnCounter.n) };
     },
     streamEvents: (sessionId, opts) => {
       const queue: NormalizedSseEvent[] = [];
-      const resolvers: Array<{
+      const resolvers: {
         resolve: (v: IteratorResult<NormalizedSseEvent>) => void;
         reject: (e: Error) => void;
-      }> = [];
+      }[] = [];
       let done = false;
       let pendingError: Error | null = null;
       const handle: FakeStream = {
         push(ev) {
-          if (done) return;
+          if (done) {
+            return;
+          }
           const r = resolvers.shift();
-          if (r) r.resolve({ value: ev, done: false });
-          else queue.push(ev);
+          if (r) {
+            r.resolve({ value: ev, done: false });
+          } else {
+            queue.push(ev);
+          }
         },
         end() {
-          if (done) return;
+          if (done) {
+            return;
+          }
           done = true;
           while (resolvers.length > 0) {
             resolvers.shift()!.resolve({
@@ -96,9 +137,13 @@ function makeFakePort(initial: {
           }
         },
         fail(err) {
-          if (done) return;
+          if (done) {
+            return;
+          }
           done = true;
-          if (streams.get(sessionId) === handle) streams.delete(sessionId);
+          if (streams.get(sessionId) === handle) {
+            streams.delete(sessionId);
+          }
           if (resolvers.length > 0) {
             resolvers.shift()!.reject(err);
             while (resolvers.length > 0) {
@@ -114,7 +159,9 @@ function makeFakePort(initial: {
       };
       streams.set(sessionId, handle);
       const cleanup = (): void => {
-        if (streams.get(sessionId) === handle) streams.delete(sessionId);
+        if (streams.get(sessionId) === handle) {
+          streams.delete(sessionId);
+        }
       };
       const iter: AsyncIterableIterator<NormalizedSseEvent> = {
         [Symbol.asyncIterator]() {
@@ -128,7 +175,7 @@ function makeFakePort(initial: {
             const e = pendingError;
             pendingError = null;
             cleanup();
-            return Promise.reject(e);
+            return Promise.reject(e instanceof Error ? e : new Error(String(e)));
           }
           if (done || opts?.signal?.aborted === true) {
             cleanup();
@@ -140,10 +187,10 @@ function makeFakePort(initial: {
           return new Promise((resolve, reject) => {
             resolvers.push({ resolve, reject });
             opts?.signal?.addEventListener(
-              'abort',
+              "abort",
               () => {
                 const idx = resolvers.findIndex((r) => r.resolve === resolve);
-                if (idx >= 0) {
+                if (idx !== -1) {
                   resolvers.splice(idx, 1);
                   cleanup();
                   resolve({
@@ -167,47 +214,16 @@ function makeFakePort(initial: {
       };
       return iter;
     },
-    listMessages: async (sessionId) => {
-      calls.listMessages.push({ sessionId });
-      return { items: messages[sessionId] ?? [] };
-    },
-    createSession: async (req) => ({
-      id: `sess-${sessions.length + 1}`,
-      title: req.title ?? '',
-      createTime: Date.now(),
-    }),
-    listSessions: async () => {
-      calls.listSessions += 1;
-      return { items: sessions, hasMore: false };
-    },
-    getSession: async (id) => sessions.find((s) => s.id === id) ?? null,
-    patchSession: async (sessionId, patch) => {
-      calls.patchSession.push({ sessionId, patch });
-      sessions = sessions.map((s) =>
-        s.id === sessionId && typeof patch.title === 'string'
-          ? { ...s, title: patch.title }
-          : s,
-      );
-    },
-    deleteSession: async (sessionId) => {
-      calls.deleteSession.push(sessionId);
-    },
-    cancelTurn: async (sessionId, turnId) => {
-      calls.cancelTurn.push({ sessionId, turnId });
-    },
-    respondGrant: async (input) => {
-      calls.respondGrant.push(input);
-    },
   };
   return {
-    port,
-    pushEvent: (sessionId, ev) => streams.get(sessionId)?.push(ev),
+    calls,
     endStream: (sessionId) => streams.get(sessionId)?.end(),
     failStream: (sessionId, e) => streams.get(sessionId)?.fail(e),
+    port,
+    pushEvent: (sessionId, ev) => streams.get(sessionId)?.push(ev),
     setMessages: (sessionId, items) => {
       messages[sessionId] = items;
     },
-    calls,
     streamCount: () => streams.size,
   };
 }
@@ -219,14 +235,14 @@ async function nextTick(): Promise<void> {
 
 function lastAssistant(store: AssistantStore, sessionId: string): AssistantMessage | undefined {
   const msgs = (store.getState().messagesBySessionId[sessionId] ?? []) as AssistantMessage[];
-  return [...msgs].reverse().find((m) => m.role === 'assistant');
+  return msgs.findLast((m) => m.role === "assistant");
 }
 
-describe('AssistantStore — lifecycle 边界', () => {
-  test('reset() 清空 state、关闭活跃 stream，并通知订阅者', async () => {
+describe("AssistantStore — lifecycle 边界", () => {
+  test("reset() 清空 state、关闭活跃 stream，并通知订阅者", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
     expect(fake.streamCount()).toBe(1);
     const states: AssistantState[] = [];
@@ -243,30 +259,28 @@ describe('AssistantStore — lifecycle 边界', () => {
     store.dispose();
   });
 
-  test('dispose() 幂等；之后所有语义方法抛 StoreDisposedError', async () => {
+  test("dispose() 幂等；之后所有语义方法抛 StoreDisposedError", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
     store.dispose();
     store.dispose(); // 第二次不抛
-    expect(store.send('x')).rejects.toThrow(StoreDisposedError);
+    expect(store.send("x")).rejects.toThrow(StoreDisposedError);
     expect(store.loadSessions()).rejects.toThrow(StoreDisposedError);
-    expect(store.openSession('s')).rejects.toThrow(StoreDisposedError);
-    expect(store.createSession({ agentId: 'a' })).rejects.toThrow(StoreDisposedError);
-    expect(store.deleteSession('s')).rejects.toThrow(StoreDisposedError);
-    expect(store.patchSession('s', { title: 't' })).rejects.toThrow(StoreDisposedError);
+    expect(store.openSession("s")).rejects.toThrow(StoreDisposedError);
+    expect(store.createSession({ agentId: "a" })).rejects.toThrow(StoreDisposedError);
+    expect(store.deleteSession("s")).rejects.toThrow(StoreDisposedError);
+    expect(store.patchSession("s", { title: "t" })).rejects.toThrow(StoreDisposedError);
     expect(store.cancel()).rejects.toThrow(StoreDisposedError);
-    expect(
-      store.respondGrant({ grantRequestId: 'g', decision: 'APPROVE' }),
-    ).rejects.toThrow(StoreDisposedError);
+    expect(store.respondGrant({ decision: "APPROVE", grantRequestId: "g" })).rejects.toThrow(StoreDisposedError);
     expect(() => store.setModels([])).toThrow(StoreDisposedError);
     expect(() => store.setLoadingModels(true)).toThrow(StoreDisposedError);
     expect(() => store.reset()).toThrow(StoreDisposedError);
   });
 
-  test('dispose() 关闭活跃 stream 并清空 listeners（不再 emit）', async () => {
+  test("dispose() 关闭活跃 stream 并清空 listeners（不再 emit）", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
     expect(fake.streamCount()).toBe(1);
     store.dispose();
@@ -274,7 +288,7 @@ describe('AssistantStore — lifecycle 边界', () => {
     expect(fake.streamCount()).toBe(0);
   });
 
-  test('unsubscribe 后不再收到通知', () => {
+  test("unsubscribe 后不再收到通知", () => {
     const fake = makeFakePort();
     const store = createAssistantStore({ engine: fake.port });
     let count = 0;
@@ -288,14 +302,16 @@ describe('AssistantStore — lifecycle 边界', () => {
     store.dispose();
   });
 
-  test('emit 时某个 listener 抛错被吞，不影响其它 listener', () => {
+  test("emit 时某个 listener 抛错被吞，不影响其它 listener", () => {
     const fake = makeFakePort();
     const store = createAssistantStore({ engine: fake.port });
     let badCalls = 0;
     let goodCalls = 0;
     store.subscribe(() => {
       badCalls += 1;
-      if (badCalls > 1) throw new Error('listener boom'); // 仅后续 emit 抛
+      if (badCalls > 1) {
+        throw new Error("listener boom");
+      } // 仅后续 emit 抛
     });
     store.subscribe(() => {
       goodCalls += 1;
@@ -307,10 +323,10 @@ describe('AssistantStore — lifecycle 边界', () => {
   });
 });
 
-describe('AssistantStore — loadSessions / models', () => {
-  test('loadSessions 设置 loading true→false 并覆盖 sessions', async () => {
+describe("AssistantStore — loadSessions / models", () => {
+  test("loadSessions 设置 loading true→false 并覆盖 sessions", async () => {
     const fake = makeFakePort({
-      sessions: [{ id: 's1', title: 't1', updatedAt: 1 }],
+      sessions: [{ id: "s1", title: "t1", updatedAt: 1 }],
     });
     const store = createAssistantStore({ engine: fake.port });
     const loadingSeq: boolean[] = [];
@@ -320,45 +336,43 @@ describe('AssistantStore — loadSessions / models', () => {
     const s = store.getState();
     expect(s.loadingSessions).toBe(false);
     expect(s.sessions).toHaveLength(1);
-    expect(s.sessions[0]?.id).toBe('s1');
+    expect(s.sessions[0]?.id).toBe("s1");
     store.dispose();
   });
 
-  test('loadSessions 失败 → loadingSessions 复位 false 且错误向上抛（finally 兜底）', async () => {
+  test("loadSessions 失败 → loadingSessions 复位 false 且错误向上抛（finally 兜底）", async () => {
     const fake = makeFakePort();
     fake.port.listSessions = async () => {
-      throw new Error('network down');
+      throw new Error("network down");
     };
     const store = createAssistantStore({ engine: fake.port });
-    expect(store.loadSessions()).rejects.toThrow('network down');
+    expect(store.loadSessions()).rejects.toThrow("network down");
     await nextTick();
     expect(store.getState().loadingSessions).toBe(false);
     store.dispose();
   });
 
-  test('setModels / setLoadingModels 走 setState 链路', () => {
+  test("setModels / setLoadingModels 走 setState 链路", () => {
     const fake = makeFakePort();
     const store = createAssistantStore({ engine: fake.port });
     store.setLoadingModels(true);
     expect(store.getState().loadingModels).toBe(true);
-    store.setModels([
-      { modelCode: 'gpt-x', displayName: 'GPT X', providerName: 'openai' },
-    ]);
+    store.setModels([{ displayName: "GPT X", modelCode: "gpt-x", providerName: "openai" }]);
     store.setLoadingModels(false);
     const s = store.getState();
     expect(s.models).toHaveLength(1);
-    expect(s.models[0]?.modelCode).toBe('gpt-x');
+    expect(s.models[0]?.modelCode).toBe("gpt-x");
     expect(s.loadingModels).toBe(false);
     store.dispose();
   });
 });
 
-describe('AssistantStore — autoLoad bootstrap', () => {
+describe("AssistantStore — autoLoad bootstrap", () => {
   test("autoLoad:'sessions' → 仅 listSessions，不打开 session", async () => {
     const fake = makeFakePort({
-      sessions: [{ id: 's1', title: 't1', updatedAt: 1 }],
+      sessions: [{ id: "s1", title: "t1", updatedAt: 1 }],
     });
-    const store = createAssistantStore({ engine: fake.port, autoLoad: 'sessions' });
+    const store = createAssistantStore({ autoLoad: "sessions", engine: fake.port });
     await nextTick();
     expect(fake.calls.listSessions).toBe(1);
     const s = store.getState();
@@ -370,31 +384,31 @@ describe('AssistantStore — autoLoad bootstrap', () => {
 
   test("autoLoad:'sessions-and-first' → 打开第一个 session 并拉取消息", async () => {
     const fake = makeFakePort({
-      sessions: [
-        { id: 's1', title: 't1', updatedAt: 2 },
-        { id: 's2', title: 't2', updatedAt: 1 },
-      ],
       messages: {
-        s1: [{ id: 'm1', role: 'assistant', content: 'hi', createTime: 1 }],
+        s1: [{ id: "m1", role: "assistant", content: "hi", createTime: 1 }],
       },
+      sessions: [
+        { id: "s1", title: "t1", updatedAt: 2 },
+        { id: "s2", title: "t2", updatedAt: 1 },
+      ],
     });
     const store = createAssistantStore({
+      autoLoad: "sessions-and-first",
       engine: fake.port,
-      autoLoad: 'sessions-and-first',
     });
     await nextTick();
     const s = store.getState();
-    expect(s.currentSessionId).toBe('s1');
-    expect(s.messagesBySessionId['s1']).toHaveLength(1);
+    expect(s.currentSessionId).toBe("s1");
+    expect(s.messagesBySessionId["s1"]).toHaveLength(1);
     store.dispose();
   });
 
-  test('autoLoad bootstrap 中 listSessions 抛错被吞（构造不抛）', async () => {
+  test("autoLoad bootstrap 中 listSessions 抛错被吞（构造不抛）", async () => {
     const fake = makeFakePort();
     fake.port.listSessions = async () => {
-      throw new Error('boom');
+      throw new Error("boom");
     };
-    const store = createAssistantStore({ engine: fake.port, autoLoad: 'sessions' });
+    const store = createAssistantStore({ autoLoad: "sessions", engine: fake.port });
     await nextTick();
     expect(store.getState().sessions).toEqual([]);
     expect(store.getState().loadingSessions).toBe(false);
@@ -402,60 +416,60 @@ describe('AssistantStore — autoLoad bootstrap', () => {
   });
 });
 
-describe('AssistantStore — send / createSession / cancel 边界', () => {
-  test('createSession 无 agentId 且无 defaultAgentId → 抛错', async () => {
+describe("AssistantStore — send / createSession / cancel 边界", () => {
+  test("createSession 无 agentId 且无 defaultAgentId → 抛错", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({ engine: fake.port });
-    expect(store.createSession({})).rejects.toThrow(/agentId is required/);
+    expect(store.createSession({})).rejects.toThrow(/agentId is required/u);
     store.dispose();
   });
 
-  test('send 纯空白且无附件 → 抛错且不产生任何占位消息', async () => {
+  test("send 纯空白且无附件 → 抛错且不产生任何占位消息", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    expect(store.send('   ')).rejects.toThrow(/non-empty text/);
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    expect(store.send("   ")).rejects.toThrow(/non-empty text/u);
     await nextTick();
     expect(store.getState().messagesBySessionId).toEqual({});
     expect(fake.calls.startTurn).toHaveLength(0);
     store.dispose();
   });
 
-  test('send 用自定义 deriveTitleFromText 推导新会话标题', async () => {
+  test("send 用自定义 deriveTitleFromText 推导新会话标题", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({
-      engine: fake.port,
-      defaultAgentId: 'a',
+      defaultAgentId: "a",
       deriveTitleFromText: (text) => `[T] ${text.slice(0, 4)}`,
+      engine: fake.port,
     });
-    await store.send('hello world');
+    await store.send("hello world");
     await nextTick();
-    expect(store.getState().sessions[0]?.title).toBe('[T] hell');
+    expect(store.getState().sessions[0]?.title).toBe("[T] hell");
     // 首条用户消息会再 patchSession 一次（同一推导函数）
-    expect(fake.calls.patchSession[0]?.patch).toEqual({ title: '[T] hell' });
+    expect(fake.calls.patchSession[0]?.patch).toEqual({ title: "[T] hell" });
     store.dispose();
   });
 
-  test('send startTurn 抛普通 Error → 占位回滚 + sending=false + 原错误抛出', async () => {
+  test("send startTurn 抛普通 Error → 占位回滚 + sending=false + 原错误抛出", async () => {
     const fake = makeFakePort();
     fake.port.startTurn = async () => {
-      throw new Error('plain failure');
+      throw new Error("plain failure");
     };
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
     let err: unknown;
     try {
-      await store.send('hello');
+      await store.send("hello");
     } catch (e) {
       err = e;
     }
-    expect((err as Error).message).toBe('plain failure');
+    expect((err as Error).message).toBe("plain failure");
     const s = store.getState();
     expect(s.sending).toBe(false);
-    expect(s.messagesBySessionId['sess-1'] ?? []).toEqual([]);
-    expect(s.activeTurnIdBySessionId['sess-1']).toBeUndefined();
+    expect(s.messagesBySessionId["sess-1"] ?? []).toEqual([]);
+    expect(s.activeTurnIdBySessionId["sess-1"]).toBeUndefined();
     store.dispose();
   });
 
-  test('cancel：无 currentSessionId → no-op', async () => {
+  test("cancel：无 currentSessionId → no-op", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({ engine: fake.port });
     await store.cancel();
@@ -463,24 +477,24 @@ describe('AssistantStore — send / createSession / cancel 边界', () => {
     store.dispose();
   });
 
-  test('cancel：有 session 但无 activeTurnId → no-op', async () => {
+  test("cancel：有 session 但无 activeTurnId → no-op", async () => {
     const fake = makeFakePort({
-      sessions: [{ id: 's1', title: 't', updatedAt: 1 }],
+      sessions: [{ id: "s1", title: "t", updatedAt: 1 }],
     });
     const store = createAssistantStore({ engine: fake.port });
-    await store.openSession('s1');
+    await store.openSession("s1");
     await store.cancel();
     expect(fake.calls.cancelTurn).toHaveLength(0);
     store.dispose();
   });
 
-  test('cancel：engine.cancelTurn 抛错被吞 + sending=false + stream 兜底关闭', async () => {
+  test("cancel：engine.cancelTurn 抛错被吞 + sending=false + stream 兜底关闭", async () => {
     const fake = makeFakePort();
     fake.port.cancelTurn = async () => {
-      throw new Error('cancel http 500');
+      throw new Error("cancel http 500");
     };
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
     expect(fake.streamCount()).toBe(1);
     await store.cancel(); // 不抛
@@ -491,187 +505,187 @@ describe('AssistantStore — send / createSession / cancel 边界', () => {
   });
 });
 
-describe('AssistantStore — deleteSession / patchSession', () => {
-  test('删除当前 session → currentSessionId=null、per-session map 清空、stream 关闭', async () => {
+describe("AssistantStore — deleteSession / patchSession", () => {
+  test("删除当前 session → currentSessionId=null、per-session map 清空、stream 关闭", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q'); // 自动创建 sess-1 + 开 stream
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q"); // 自动创建 sess-1 + 开 stream
     await nextTick();
     expect(fake.streamCount()).toBe(1);
-    await store.deleteSession('sess-1');
+    await store.deleteSession("sess-1");
     await nextTick();
     const s = store.getState();
-    expect(fake.calls.deleteSession).toEqual(['sess-1']);
+    expect(fake.calls.deleteSession).toEqual(["sess-1"]);
     expect(s.currentSessionId).toBeNull();
-    expect(s.sessions.find((x) => x.id === 'sess-1')).toBeUndefined();
-    expect(s.messagesBySessionId['sess-1']).toBeUndefined();
-    expect(s.sendingBySessionId['sess-1']).toBeUndefined();
-    expect(s.activeTurnIdBySessionId['sess-1']).toBeUndefined();
-    expect(s.lastTurnStatusBySessionId['sess-1']).toBeUndefined();
-    expect(s.toolEventsBySessionId['sess-1']).toBeUndefined();
+    expect(s.sessions.find((x) => x.id === "sess-1")).toBeUndefined();
+    expect(s.messagesBySessionId["sess-1"]).toBeUndefined();
+    expect(s.sendingBySessionId["sess-1"]).toBeUndefined();
+    expect(s.activeTurnIdBySessionId["sess-1"]).toBeUndefined();
+    expect(s.lastTurnStatusBySessionId["sess-1"]).toBeUndefined();
+    expect(s.toolEventsBySessionId["sess-1"]).toBeUndefined();
     expect(s.sending).toBe(false);
     expect(fake.streamCount()).toBe(0);
     store.dispose();
   });
 
-  test('删除非当前 session → currentSessionId 保留', async () => {
+  test("删除非当前 session → currentSessionId 保留", async () => {
     const fake = makeFakePort({
       sessions: [
-        { id: 's1', title: 't1', updatedAt: 1 },
-        { id: 's2', title: 't2', updatedAt: 2 },
+        { id: "s1", title: "t1", updatedAt: 1 },
+        { id: "s2", title: "t2", updatedAt: 2 },
       ],
     });
     const store = createAssistantStore({ engine: fake.port });
     await store.loadSessions();
-    await store.openSession('s1');
-    await store.deleteSession('s2');
+    await store.openSession("s1");
+    await store.deleteSession("s2");
     const s = store.getState();
-    expect(s.currentSessionId).toBe('s1');
-    expect(s.sessions.map((x) => x.id)).toEqual(['s1']);
+    expect(s.currentSessionId).toBe("s1");
+    expect(s.sessions.map((x) => x.id)).toEqual(["s1"]);
     store.dispose();
   });
 
-  test('patchSession 带 title → 同步更新 state.sessions；仅 status → sessions 不变', async () => {
+  test("patchSession 带 title → 同步更新 state.sessions；仅 status → sessions 不变", async () => {
     const fake = makeFakePort({
-      sessions: [{ id: 's1', title: 'old', updatedAt: 1 }],
+      sessions: [{ id: "s1", title: "old", updatedAt: 1 }],
     });
     const store = createAssistantStore({ engine: fake.port });
     await store.loadSessions();
-    await store.patchSession('s1', { title: 'renamed' });
-    expect(store.getState().sessions[0]?.title).toBe('renamed');
-    await store.patchSession('s1', { status: 'CLOSED' });
-    expect(store.getState().sessions[0]?.title).toBe('renamed');
+    await store.patchSession("s1", { title: "renamed" });
+    expect(store.getState().sessions[0]?.title).toBe("renamed");
+    await store.patchSession("s1", { status: "CLOSED" });
+    expect(store.getState().sessions[0]?.title).toBe("renamed");
     expect(fake.calls.patchSession).toHaveLength(2);
     store.dispose();
   });
 });
 
-describe('AssistantStore — 事件 reducer 边界', () => {
-  test('message-completed-v1 → 替换 placeholder id + 覆盖最终 content', async () => {
+describe("AssistantStore — 事件 reducer 边界", () => {
+  test("message-completed-v1 → 替换 placeholder id + 覆盖最终 content", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'message-completed-v1',
+    fake.pushEvent("sess-1", {
       data: {
-        messageId: 'srv-done',
-        turnId: '1001',
-        content: [{ type: 'text', text: 'final answer' }],
+        content: [{ type: "text", text: "final answer" }],
+        messageId: "srv-done",
+        turnId: "1001",
       },
+      event: "message-completed-v1",
     });
     await nextTick();
-    const assistant = lastAssistant(store, 'sess-1');
-    expect(assistant?.id).toBe('srv-done');
-    expect(assistant?.turnId).toBe('1001');
-    expect(assistant?.content).toBe('final answer');
+    const assistant = lastAssistant(store, "sess-1");
+    expect(assistant?.id).toBe("srv-done");
+    expect(assistant?.turnId).toBe("1001");
+    expect(assistant?.content).toBe("final answer");
     store.dispose();
   });
 
-  test('message-completed-v1 content 为空 → 保留流式已积累 content', async () => {
+  test("message-completed-v1 content 为空 → 保留流式已积累 content", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'message-delta-v1',
-      data: { messageId: 'srv-1', delta: { type: 'text', text: 'partial' } },
+    fake.pushEvent("sess-1", {
+      data: { delta: { text: "partial", type: "text" }, messageId: "srv-1" },
+      event: "message-delta-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'message-completed-v1',
-      data: { messageId: 'srv-1' },
+    fake.pushEvent("sess-1", {
+      data: { messageId: "srv-1" },
+      event: "message-completed-v1",
     });
     await nextTick();
-    const assistant = lastAssistant(store, 'sess-1');
-    expect(assistant?.content).toBe('partial');
+    const assistant = lastAssistant(store, "sess-1");
+    expect(assistant?.content).toBe("partial");
     store.dispose();
   });
 
-  test('turn-started-v1 → activeTurnId 更新 + tokenUsage 初始化为零三元组', async () => {
+  test("turn-started-v1 → activeTurnId 更新 + tokenUsage 初始化为零三元组", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'turn-started-v1',
-      data: { turnId: '1001' },
+    fake.pushEvent("sess-1", {
+      data: { turnId: "1001" },
+      event: "turn-started-v1",
     });
     await nextTick();
     const s = store.getState();
-    expect(s.activeTurnIdBySessionId['sess-1']).toBe('1001');
-    expect(s.lastTurnStatusBySessionId['sess-1']).toBe('running');
-    const usage = s.tokenUsageBySessionId['sess-1'];
-    expect(usage?.turnId).toBe('1001');
+    expect(s.activeTurnIdBySessionId["sess-1"]).toBe("1001");
+    expect(s.lastTurnStatusBySessionId["sess-1"]).toBe("running");
+    const usage = s.tokenUsageBySessionId["sess-1"];
+    expect(usage?.turnId).toBe("1001");
     expect(usage?.cumulative).toEqual({ input: 0, output: 0, total: 0 });
     expect(usage?.items).toEqual([]);
     store.dispose();
   });
 
-  test('usage-delta-v1（旧名）与 v2 同 reducer：负数 / 小数截断为非负整数', async () => {
+  test("usage-delta-v1（旧名）与 v2 同 reducer：负数 / 小数截断为非负整数", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'usage-delta-v1',
+    fake.pushEvent("sess-1", {
       data: {
-        turnId: '1001',
-        usage: { input: 10.9, output: -5, total: 10.9 },
+        attribution: { id: "llm-1", kind: "llm_call" },
         cumulative: { input: 10.9, output: -5, total: 10.9 },
-        attribution: { id: 'llm-1', kind: 'llm_call' },
+        turnId: "1001",
+        usage: { input: 10.9, output: -5, total: 10.9 },
       },
+      event: "usage-delta-v1",
     });
     await nextTick();
-    const usage = store.getState().tokenUsageBySessionId['sess-1'];
+    const usage = store.getState().tokenUsageBySessionId["sess-1"];
     expect(usage?.cumulative).toEqual({ input: 10, output: 0, total: 10 });
     expect(usage?.items).toHaveLength(1);
     store.dispose();
   });
 
-  test('usage-delta 无 cumulative → 整条忽略', async () => {
+  test("usage-delta 无 cumulative → 整条忽略", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    const before = store.getState().tokenUsageBySessionId['sess-1'] ?? null;
-    fake.pushEvent('sess-1', {
-      event: 'usage-delta-v2',
-      data: { turnId: '1001', usage: { input: 5, output: 1, total: 6 } },
+    const before = store.getState().tokenUsageBySessionId["sess-1"] ?? null;
+    fake.pushEvent("sess-1", {
+      data: { turnId: "1001", usage: { input: 5, output: 1, total: 6 } },
+      event: "usage-delta-v2",
     });
     await nextTick();
-    expect(store.getState().tokenUsageBySessionId['sess-1'] ?? null).toEqual(before);
+    expect(store.getState().tokenUsageBySessionId["sess-1"] ?? null).toEqual(before);
     store.dispose();
   });
 
-  test('usage-delta 用 delta:{input,output} 兜底合成 usage 三元组', async () => {
+  test("usage-delta 用 delta:{input,output} 兜底合成 usage 三元组", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'usage-delta-v2',
+    fake.pushEvent("sess-1", {
       data: {
-        turnId: '1001',
-        delta: { input: 7, output: 3 },
+        attribution: { id: "llm-1", kind: "llm_call" },
         cumulative: { input: 7, output: 3, total: 10 },
-        attribution: { id: 'llm-1', kind: 'llm_call' },
+        delta: { input: 7, output: 3 },
+        turnId: "1001",
       },
+      event: "usage-delta-v2",
     });
     await nextTick();
-    const usage = store.getState().tokenUsageBySessionId['sess-1'];
+    const usage = store.getState().tokenUsageBySessionId["sess-1"];
     expect(usage?.items[0]?.usage).toEqual({ input: 7, output: 3, total: 10 });
     store.dispose();
   });
 
-  test('未知事件 → 不影响 state（消息 / usage / grants 原样）', async () => {
+  test("未知事件 → 不影响 state（消息 / usage / grants 原样）", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
     const before = store.getState();
-    fake.pushEvent('sess-1', {
-      event: 'mystery-event-v9',
-      data: { foo: 'bar' },
+    fake.pushEvent("sess-1", {
+      data: { foo: "bar" },
+      event: "mystery-event-v9",
     });
     await nextTick();
     const after = store.getState();
@@ -681,14 +695,14 @@ describe('AssistantStore — 事件 reducer 边界', () => {
     store.dispose();
   });
 
-  test('grant-request-v1 缺 grantRequestId → 忽略', async () => {
+  test("grant-request-v1 缺 grantRequestId → 忽略", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'grant-request-v1',
-      data: { toolName: 't1', reason: 'why' },
+    fake.pushEvent("sess-1", {
+      data: { reason: "why", toolName: "t1" },
+      event: "grant-request-v1",
     });
     await nextTick();
     expect(store.getState().pendingGrants).toHaveLength(0);
@@ -696,350 +710,350 @@ describe('AssistantStore — 事件 reducer 边界', () => {
     store.dispose();
   });
 
-  test('respondGrant：engine 抛错被吞，pendingGrant 仍已移除（SSE 重发自然纠正）', async () => {
+  test("respondGrant：engine 抛错被吞，pendingGrant 仍已移除（SSE 重发自然纠正）", async () => {
     const fake = makeFakePort();
     fake.port.respondGrant = async () => {
-      throw new Error('grant http 500');
+      throw new Error("grant http 500");
     };
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'grant-request-v1',
-      data: { grantRequestId: 'gr-1' },
+    fake.pushEvent("sess-1", {
+      data: { grantRequestId: "gr-1" },
+      event: "grant-request-v1",
     });
     await nextTick();
     expect(store.getState().pendingGrants).toHaveLength(1);
-    await store.respondGrant({ grantRequestId: 'gr-1', decision: 'DENY' }); // 不抛
+    await store.respondGrant({ decision: "DENY", grantRequestId: "gr-1" }); // 不抛
     expect(store.getState().pendingGrants).toHaveLength(0);
     store.dispose();
   });
 
-  test('tool-use-started/completed-v1 → 仅进 toolEvents timeline，不折进 reasoning', async () => {
+  test("tool-use-started/completed-v1 → 仅进 toolEvents timeline，不折进 reasoning", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'tool-use-started-v1',
-      data: { toolUseId: 'tu-1', toolName: 'web.search', time: 10, turnId: '1001' },
+    fake.pushEvent("sess-1", {
+      data: { time: 10, toolName: "web.search", toolUseId: "tu-1", turnId: "1001" },
+      event: "tool-use-started-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'tool-use-completed-v1',
-      data: { toolUseId: 'tu-1', toolName: 'web.search', time: 20, resultPreview: 'ok' },
+    fake.pushEvent("sess-1", {
+      data: { resultPreview: "ok", time: 20, toolName: "web.search", toolUseId: "tu-1" },
+      event: "tool-use-completed-v1",
     });
     await nextTick();
     const s = store.getState();
-    expect(s.toolEventsBySessionId['sess-1']).toHaveLength(1);
-    expect(s.toolEventsBySessionId['sess-1']?.[0]).toMatchObject({
-      id: 'tu-1',
-      toolName: 'web.search',
-      phase: 'completed',
-      startedAt: 10,
+    expect(s.toolEventsBySessionId["sess-1"]).toHaveLength(1);
+    expect(s.toolEventsBySessionId["sess-1"]?.[0]).toMatchObject({
       completedAt: 20,
-      resultPreview: 'ok',
-      turnId: '1001',
+      id: "tu-1",
+      phase: "completed",
+      resultPreview: "ok",
+      startedAt: 10,
+      toolName: "web.search",
+      turnId: "1001",
     });
-    expect(lastAssistant(store, 'sess-1')?.reasoning?.steps ?? []).toHaveLength(0);
+    expect(lastAssistant(store, "sess-1")?.reasoning?.steps ?? []).toHaveLength(0);
     store.dispose();
   });
 
-  test('tool-call-completed-v1 无先行 started → 直接补 completed 条目', async () => {
+  test("tool-call-completed-v1 无先行 started → 直接补 completed 条目", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'tool-call-completed-v1',
+    fake.pushEvent("sess-1", {
       data: {
-        toolCallId: 'tc-orphan',
-        toolName: 'platform.search',
-        time: 99,
         output: { n: 1 },
-        turnId: '1001',
+        time: 99,
+        toolCallId: "tc-orphan",
+        toolName: "platform.search",
+        turnId: "1001",
       },
+      event: "tool-call-completed-v1",
     });
     await nextTick();
-    const events = store.getState().toolEventsBySessionId['sess-1'] ?? [];
+    const events = store.getState().toolEventsBySessionId["sess-1"] ?? [];
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      id: 'tc-orphan',
-      phase: 'completed',
-      startedAt: 99,
       completedAt: 99,
+      id: "tc-orphan",
+      phase: "completed",
       resultPreview: { n: 1 },
+      startedAt: 99,
     });
     store.dispose();
   });
 
-  test('tool 事件缺所有 id 字段 → 忽略', async () => {
+  test("tool 事件缺所有 id 字段 → 忽略", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'tool-use-started-v1',
-      data: { toolName: 'x' },
+    fake.pushEvent("sess-1", {
+      data: { toolName: "x" },
+      event: "tool-use-started-v1",
     });
     await nextTick();
-    expect(store.getState().toolEventsBySessionId['sess-1'] ?? []).toHaveLength(0);
+    expect(store.getState().toolEventsBySessionId["sess-1"] ?? []).toHaveLength(0);
     store.dispose();
   });
 
-  test('debugEventBuffer：超过 max 截断保留最新 N 条', async () => {
+  test("debugEventBuffer：超过 max 截断保留最新 N 条", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({
-      engine: fake.port,
-      defaultAgentId: 'a',
       debugEventBuffer: { max: 2 },
+      defaultAgentId: "a",
+      engine: fake.port,
     });
-    await store.send('q');
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', { event: 'turn-started-v1', data: { turnId: '1001' } });
-    fake.pushEvent('sess-1', {
-      event: 'message-delta-v1',
-      data: { messageId: 'm', delta: { type: 'text', text: 'a' } },
+    fake.pushEvent("sess-1", { data: { turnId: "1001" }, event: "turn-started-v1" });
+    fake.pushEvent("sess-1", {
+      data: { delta: { text: "a", type: "text" }, messageId: "m" },
+      event: "message-delta-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'message-delta-v1',
-      data: { messageId: 'm', delta: { type: 'text', text: 'b' } },
+    fake.pushEvent("sess-1", {
+      data: { delta: { text: "b", type: "text" }, messageId: "m" },
+      event: "message-delta-v1",
     });
     await nextTick();
     const dbg = store.getState().debugEvents;
     expect(dbg).toHaveLength(2);
-    expect(dbg.map((d) => d.event)).toEqual(['message-delta-v1', 'message-delta-v1']);
+    expect(dbg.map((d) => d.event)).toEqual(["message-delta-v1", "message-delta-v1"]);
     store.dispose();
   });
 
-  test('debugEventBuffer 缺省关闭 → debugEvents 恒为空', async () => {
+  test("debugEventBuffer 缺省关闭 → debugEvents 恒为空", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', { event: 'turn-started-v1', data: { turnId: '1001' } });
+    fake.pushEvent("sess-1", { data: { turnId: "1001" }, event: "turn-started-v1" });
     await nextTick();
     expect(store.getState().debugEvents).toHaveLength(0);
     store.dispose();
   });
 });
 
-describe('AssistantStore — 断流 / placeholder 兜底', () => {
-  test('StreamDisconnectedError → sending=false + 活跃 reasoning step 强制 END（ok=false / STREAM_DISCONNECTED）', async () => {
+describe("AssistantStore — 断流 / placeholder 兜底", () => {
+  test("StreamDisconnectedError → sending=false + 活跃 reasoning step 强制 END（ok=false / STREAM_DISCONNECTED）", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'reasoning-step-v1',
-      data: { stepId: 'open-step', kind: 'phase', event: 'START', time: 1 },
+    fake.pushEvent("sess-1", {
+      data: { event: "START", kind: "phase", stepId: "open-step", time: 1 },
+      event: "reasoning-step-v1",
     });
     await nextTick();
-    fake.failStream('sess-1', new StreamDisconnectedError('conn lost'));
+    fake.failStream("sess-1", new StreamDisconnectedError("conn lost"));
     await nextTick();
     const s = store.getState();
     expect(s.sending).toBe(false);
-    expect(s.sendingBySessionId['sess-1']).toBe(false);
-    const assistant = lastAssistant(store, 'sess-1');
-    const step = assistant?.reasoning?.steps.find((x) => x.stepId === 'open-step');
+    expect(s.sendingBySessionId["sess-1"]).toBe(false);
+    const assistant = lastAssistant(store, "sess-1");
+    const step = assistant?.reasoning?.steps.find((x) => x.stepId === "open-step");
     expect(step?.ok).toBe(false);
-    expect(step?.error?.code).toBe('STREAM_DISCONNECTED');
+    expect(step?.error?.code).toBe("STREAM_DISCONNECTED");
     expect(step?.endTime).toBeGreaterThan(0);
     expect(fake.streamCount()).toBe(0);
     store.dispose();
   });
 
-  test('非 StreamDisconnectedError 的 stream 异常被吞 → 不抛到业务侧', async () => {
+  test("非 StreamDisconnectedError 的 stream 异常被吞 → 不抛到业务侧", async () => {
     const fake = makeFakePort();
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.send('q');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.send("q");
     await nextTick();
-    fake.failStream('sess-1', new Error('random boom'));
+    fake.failStream("sess-1", new Error("random boom"));
     await nextTick();
     // 不抛即通过；sending 不被该路径复位（非断连语义）
-    expect(store.getState().sendingBySessionId['sess-1']).toBe(true);
+    expect(store.getState().sendingBySessionId["sess-1"]).toBe(true);
     store.dispose();
   });
 
-  test('turn 结束时 placeholder 未替换 → listMessages 兜底解析 id + turnId + commit reasoning', async () => {
+  test("turn 结束时 placeholder 未替换 → listMessages 兜底解析 id + turnId + commit reasoning", async () => {
     const reasoning = createMemoryReasoningStore();
     const fake = makeFakePort();
     const store = createAssistantStore({
+      defaultAgentId: "a",
       engine: fake.port,
-      defaultAgentId: 'a',
       reasoningStore: reasoning,
     });
-    await store.send('q');
+    await store.send("q");
     await nextTick();
     // 服务端落库后的真实 assistant 消息（兜底 listMessages 返回）
-    fake.setMessages('sess-1', [
-      { id: 'u-real', role: 'user', content: 'q', createTime: 1 },
-      { id: 'srv-real', role: 'assistant', content: 'ans', createTime: 2, turnId: '1001' },
+    fake.setMessages("sess-1", [
+      { content: "q", createTime: 1, id: "u-real", role: "user" },
+      { content: "ans", createTime: 2, id: "srv-real", role: "assistant", turnId: "1001" },
     ]);
-    fake.pushEvent('sess-1', {
-      event: 'reasoning-step-v1',
-      data: { stepId: 'r1', kind: 'phase', event: 'START', time: 1 },
+    fake.pushEvent("sess-1", {
+      data: { event: "START", kind: "phase", stepId: "r1", time: 1 },
+      event: "reasoning-step-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'reasoning-delta-v1',
-      data: { stepId: 'r1', text: 'late-bound reasoning' },
+    fake.pushEvent("sess-1", {
+      data: { stepId: "r1", text: "late-bound reasoning" },
+      event: "reasoning-delta-v1",
     });
     // 全程没有 message-delta（无 serverMessageId）→ placeholder 残留
-    fake.pushEvent('sess-1', { event: 'turn-completed-v1', data: { turnId: '1001' } });
+    fake.pushEvent("sess-1", { data: { turnId: "1001" }, event: "turn-completed-v1" });
     await nextTick();
     await nextTick();
     expect(fake.calls.listMessages.length).toBeGreaterThanOrEqual(1);
-    const assistant = lastAssistant(store, 'sess-1');
-    expect(assistant?.id).toBe('srv-real');
-    expect(assistant?.turnId).toBe('1001');
+    const assistant = lastAssistant(store, "sess-1");
+    expect(assistant?.id).toBe("srv-real");
+    expect(assistant?.turnId).toBe("1001");
     // 兜底替换后 reasoning 以真实 id commit 到 store
-    const persisted = await reasoning.get('sess-1', 'srv-real');
-    expect(persisted?.tree.steps[0]?.text).toBe('late-bound reasoning');
+    const persisted = await reasoning.get("sess-1", "srv-real");
+    expect(persisted?.tree.steps[0]?.text).toBe("late-bound reasoning");
     store.dispose();
   });
 
-  test('fallbackResolveAssistantId=false → turn 结束不调用 listMessages，placeholder 保留', async () => {
+  test("fallbackResolveAssistantId=false → turn 结束不调用 listMessages，placeholder 保留", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({
+      defaultAgentId: "a",
       engine: fake.port,
-      defaultAgentId: 'a',
       fallbackResolveAssistantId: false,
     });
-    await store.send('q');
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', { event: 'turn-completed-v1', data: { turnId: '1001' } });
+    fake.pushEvent("sess-1", { data: { turnId: "1001" }, event: "turn-completed-v1" });
     await nextTick();
     await nextTick();
     expect(fake.calls.listMessages).toHaveLength(0);
-    const assistant = lastAssistant(store, 'sess-1');
-    expect(assistant?.id.startsWith('assistant-')).toBe(true);
+    const assistant = lastAssistant(store, "sess-1");
+    expect(assistant?.id.startsWith("assistant-")).toBe(true);
     store.dispose();
   });
 
-  test('placeholderIdPrefix 可定制：占位 id 用自定义前缀生成与替换', async () => {
+  test("placeholderIdPrefix 可定制：占位 id 用自定义前缀生成与替换", async () => {
     const fake = makeFakePort();
     const store = createAssistantStore({
+      defaultAgentId: "a",
       engine: fake.port,
-      defaultAgentId: 'a',
-      placeholderIdPrefix: 'ph-',
       fallbackResolveAssistantId: false,
+      placeholderIdPrefix: "ph-",
     });
-    await store.send('q');
+    await store.send("q");
     await nextTick();
-    expect(lastAssistant(store, 'sess-1')?.id.startsWith('ph-')).toBe(true);
-    fake.pushEvent('sess-1', {
-      event: 'message-delta-v1',
-      data: { messageId: 'srv-1', delta: { type: 'text', text: 'x' } },
+    expect(lastAssistant(store, "sess-1")?.id.startsWith("ph-")).toBe(true);
+    fake.pushEvent("sess-1", {
+      data: { delta: { text: "x", type: "text" }, messageId: "srv-1" },
+      event: "message-delta-v1",
     });
     await nextTick();
-    expect(lastAssistant(store, 'sess-1')?.id).toBe('srv-1');
+    expect(lastAssistant(store, "sess-1")?.id).toBe("srv-1");
     store.dispose();
   });
 
-  test('reasoning commit 时 IDB put 抛错被吞 → 不影响 turn 终态', async () => {
+  test("reasoning commit 时 IDB put 抛错被吞 → 不影响 turn 终态", async () => {
     const failingStore = {
+      bulkGet: async () => new Map(),
       get: async () => null,
       put: async () => {
-        throw new Error('idb write failed');
+        throw new Error("idb write failed");
       },
-      bulkGet: async () => new Map(),
     };
     const fake = makeFakePort();
     const store = createAssistantStore({
+      defaultAgentId: "a",
       engine: fake.port,
-      defaultAgentId: 'a',
       reasoningStore: failingStore,
     });
-    await store.send('q');
+    await store.send("q");
     await nextTick();
-    fake.pushEvent('sess-1', {
-      event: 'message-delta-v1',
-      data: { messageId: 'srv-1', delta: { type: 'text', text: 'A' } },
+    fake.pushEvent("sess-1", {
+      data: { delta: { text: "A", type: "text" }, messageId: "srv-1" },
+      event: "message-delta-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'reasoning-step-v1',
-      data: { stepId: 'r', kind: 'phase', event: 'START', time: 1 },
+    fake.pushEvent("sess-1", {
+      data: { event: "START", kind: "phase", stepId: "r", time: 1 },
+      event: "reasoning-step-v1",
     });
-    fake.pushEvent('sess-1', {
-      event: 'reasoning-delta-v1',
-      data: { stepId: 'r', text: 'will fail to persist' },
+    fake.pushEvent("sess-1", {
+      data: { stepId: "r", text: "will fail to persist" },
+      event: "reasoning-delta-v1",
     });
-    fake.pushEvent('sess-1', { event: 'turn-completed-v1', data: { turnId: '1001' } });
+    fake.pushEvent("sess-1", { data: { turnId: "1001" }, event: "turn-completed-v1" });
     await nextTick();
     await nextTick();
     const s = store.getState();
-    expect(s.lastTurnStatusBySessionId['sess-1']).toBe('completed');
+    expect(s.lastTurnStatusBySessionId["sess-1"]).toBe("completed");
     expect(s.sending).toBe(false);
     store.dispose();
   });
 
-  test('openSession 时 bulkGet 抛错被吞 → 消息列表仍保持原始拉取结果', async () => {
+  test("openSession 时 bulkGet 抛错被吞 → 消息列表仍保持原始拉取结果", async () => {
     const failingStore = {
+      bulkGet: async (): Promise<Map<string, never>> => {
+        throw new Error("idb read failed");
+      },
       get: async () => null,
       put: async () => {
         /* no-op */
       },
-      bulkGet: async (): Promise<Map<string, never>> => {
-        throw new Error('idb read failed');
-      },
     };
     const fake = makeFakePort({
-      sessions: [{ id: 's1', title: 't', updatedAt: 1 }],
       messages: {
-        s1: [{ id: 'm1', role: 'assistant', content: 'hello', createTime: 1 }],
+        s1: [{ id: "m1", role: "assistant", content: "hello", createTime: 1 }],
       },
+      sessions: [{ id: "s1", title: "t", updatedAt: 1 }],
     });
     const store = createAssistantStore({
       engine: fake.port,
       reasoningStore: failingStore,
     });
-    await store.openSession('s1');
+    await store.openSession("s1");
     await nextTick();
     // refreshMessages 整体 swallow：bulkGet 失败 → 该次回填放弃，不抛
-    expect(store.getState().currentSessionId).toBe('s1');
+    expect(store.getState().currentSessionId).toBe("s1");
     store.dispose();
   });
 });
 
-describe('AssistantStore — 多 session sending 同步', () => {
-  test('切换 session 时 sending 跟随目标 session 的 sendingBySessionId', async () => {
+describe("AssistantStore — 多 session sending 同步", () => {
+  test("切换 session 时 sending 跟随目标 session 的 sendingBySessionId", async () => {
     const fake = makeFakePort({
       sessions: [
-        { id: 's1', title: 't1', updatedAt: 1 },
-        { id: 's2', title: 't2', updatedAt: 2 },
+        { id: "s1", title: "t1", updatedAt: 1 },
+        { id: "s2", title: "t2", updatedAt: 2 },
       ],
     });
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.openSession('s1');
-    await store.send('q-on-s1');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.openSession("s1");
+    await store.send("q-on-s1");
     await nextTick();
     expect(store.getState().sending).toBe(true);
-    await store.openSession('s2'); // s2 空闲
+    await store.openSession("s2"); // s2 空闲
     expect(store.getState().sending).toBe(false);
-    expect(store.getState().sendingBySessionId['s1']).toBe(true);
-    await store.openSession('s1'); // 切回仍在发送
+    expect(store.getState().sendingBySessionId["s1"]).toBe(true);
+    await store.openSession("s1"); // 切回仍在发送
     expect(store.getState().sending).toBe(true);
     store.dispose();
   });
 
-  test('非当前 session 的 turn 完成不影响当前 session 的 sending', async () => {
+  test("非当前 session 的 turn 完成不影响当前 session 的 sending", async () => {
     const fake = makeFakePort({
       sessions: [
-        { id: 's1', title: 't1', updatedAt: 1 },
-        { id: 's2', title: 't2', updatedAt: 2 },
+        { id: "s1", title: "t1", updatedAt: 1 },
+        { id: "s2", title: "t2", updatedAt: 2 },
       ],
     });
-    const store = createAssistantStore({ engine: fake.port, defaultAgentId: 'a' });
-    await store.openSession('s1');
-    await store.send('q1');
-    await store.openSession('s2');
-    await store.send('q2');
+    const store = createAssistantStore({ defaultAgentId: "a", engine: fake.port });
+    await store.openSession("s1");
+    await store.send("q1");
+    await store.openSession("s2");
+    await store.send("q2");
     await nextTick();
     expect(store.getState().sending).toBe(true); // s2 sending
-    fake.pushEvent('s1', { event: 'turn-completed-v1', data: { turnId: '1001' } });
+    fake.pushEvent("s1", { data: { turnId: "1001" }, event: "turn-completed-v1" });
     await nextTick();
     const s = store.getState();
-    expect(s.sendingBySessionId['s1']).toBe(false);
-    expect(s.sendingBySessionId['s2']).toBe(true);
+    expect(s.sendingBySessionId["s1"]).toBe(false);
+    expect(s.sendingBySessionId["s2"]).toBe(true);
     expect(s.sending).toBe(true); // 当前是 s2，不受 s1 影响
     store.dispose();
   });

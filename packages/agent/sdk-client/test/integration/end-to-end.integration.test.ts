@@ -5,50 +5,49 @@
  *
  * Ref: P3-15-sdk-impl §6
  */
-import { describe, expect, test } from 'bun:test';
-import { createAgenticClient } from '../../src/client';
+import { describe, expect, test } from "bun:test";
 
-describe.skip('sdk-core × live engine（解 skip 后运行）', () => {
-  test('healthLive → UP', async () => {
-    const base = process.env.AGENTIC_ENGINE_URL ?? 'http://127.0.0.1:4015';
-    const token = process.env.AGENTIC_AUTH_TOKEN ?? '';
-    const client  = createAgenticClient({
+import { createAgenticClient } from "../../src/client";
+
+describe.skip("sdk-core × live engine（解 skip 后运行）", () => {
+  test("healthLive → UP", async () => {
+    const base = process.env.AGENTIC_ENGINE_URL ?? "http://127.0.0.1:4015";
+    const token = process.env.AGENTIC_AUTH_TOKEN ?? "";
+    const client = createAgenticClient({
+      auth: { provider: () => token },
       baseUrl: base,
-      auth:    { provider: () => token },
     });
     const { status } = await client.healthLive();
-    expect(status).toMatch(/UP|HEALTHY/i);
+    expect(status).toMatch(/UP|HEALTHY/iu);
   });
 
-  test('createSession → streamMessages → 收到 turn-completed-v1', async () => {
-    const base  = process.env.AGENTIC_ENGINE_URL ?? 'http://127.0.0.1:4015';
-    const token = process.env.AGENTIC_AUTH_TOKEN ?? '';
+  test("createSession → streamMessages → 收到 turn-completed-v1", async () => {
+    const base = process.env.AGENTIC_ENGINE_URL ?? "http://127.0.0.1:4015";
+    const token = process.env.AGENTIC_AUTH_TOKEN ?? "";
     const client = createAgenticClient({
+      auth: { provider: () => token },
       baseUrl: base,
-      auth:    { provider: () => token },
-      sse:     { maxReconnectAttempts: 5 },
+      sse: { maxReconnectAttempts: 5 },
     });
 
     const created = await client.sessions.create({
-      agentId: '9100000000000000001',
+      agentId: "9100000000000000001",
     });
 
     const schemas: string[] = [];
-    for await (const ev of client.sessions.streamMessages(
-      created.id,
-      {
-        content: {
-          schema: 'message-content-v1',
-          blocks: [{ type: 'text', text: 'e2e ping' }],
-        },
+    for await (const ev of client.sessions.streamMessages(created.id, {
+      content: {
+        blocks: [{ type: "text", text: "e2e ping" }],
+        schema: "message-content-v1",
       },
-    )) {
+    })) {
       schemas.push(ev.schema);
-      if (ev.schema === 'turn-completed-v1') break;
+      if (ev.schema === "turn-completed-v1") {
+        break;
+      }
     }
 
-    expect(schemas.some(s => s.includes('completed') || s.includes('delta') || s.includes('started')))
-      .toBe(true);
-    expect(schemas).toContain('turn-completed-v1');
+    expect(schemas.some((s) => s.includes("completed") || s.includes("delta") || s.includes("started"))).toBe(true);
+    expect(schemas).toContain("turn-completed-v1");
   });
 });

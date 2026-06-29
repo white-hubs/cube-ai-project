@@ -1,15 +1,17 @@
-import { LRUCache } from 'lru-cache';
+import { LRUCache } from "lru-cache";
+
 import {
-  LlmModelRuntimeConfigSchema,
-  LlmProviderSummarySchema,
   type LlmCatalogPort,
   type LlmModelRuntimeConfig,
+  LlmModelRuntimeConfigSchema,
   type LlmProviderSummary,
-} from '@cube-ai/contracts';
-import { GhcloudPlatformError } from '../errors';
-import { doFetchJson } from '../fetch-utils';
+  LlmProviderSummarySchema,
+} from "@cube-ai/contracts";
 
-const NULL_RUNTIME = Symbol('null-runtime');
+import { GhcloudPlatformError } from "../errors";
+import { doFetchJson } from "../fetch-utils";
+
+const NULL_RUNTIME = Symbol("null-runtime");
 type CachedRuntime = LlmModelRuntimeConfig | typeof NULL_RUNTIME;
 
 export interface GhcloudLlmCatalogAdapterOpts {
@@ -34,42 +36,38 @@ export class GhcloudLlmCatalogAdapter implements LlmCatalogPort {
   async listProviders(tenant: number, signal: AbortSignal): Promise<LlmProviderSummary[]> {
     const token = await this.opts.tokenProvider(tenant);
     const { body } = await doFetchJson({
-      url: `${this.opts.baseUrl}/ai/llm/providers`,
-      method: 'GET',
+      fetchImpl: this.opts.fetchImpl,
       headers: {
         Authorization: `Bearer ${token}`,
+        "X-Engine-Caller": "cube-agentic-engine",
         tenant: String(tenant),
-        terminal: 'bimops-manage-web',
-        'X-Engine-Caller': 'cube-agentic-engine',
+        terminal: "bimops-manage-web",
       },
+      method: "GET",
       signal,
       timeoutMs: this.opts.timeoutMs ?? 10_000,
-      fetchImpl: this.opts.fetchImpl,
+      url: `${this.opts.baseUrl}/ai/llm/providers`,
     });
     if (!Array.isArray(body)) {
       throw GhcloudPlatformError.fromCode(
-        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-        'llm catalog providers remote response did not match schema',
+        "INVALID_ARGUMENT_SCHEMA_VIOLATION",
+        "llm catalog providers remote response did not match schema",
         { body },
       );
     }
     return body.map((row) =>
       LlmProviderSummarySchema.parse({
-        id: expectProviderIdField(row, 'id'),
-        providerCode: expectStringField(row, 'providerCode'),
-        typeCode: expectStringField(row, 'typeCode'),
         /** 列表行上的 base URL 不参与实际 chat（见 `resolveModelRuntime`）；中台常漏填或为 null。 */
         apiBaseUrl: apiBaseUrlFromProviderListRow(row),
-        enabled: expectBooleanField(row, 'enabled'),
+        enabled: expectBooleanField(row, "enabled"),
+        id: expectProviderIdField(row, "id"),
+        providerCode: expectStringField(row, "providerCode"),
+        typeCode: expectStringField(row, "typeCode"),
       }),
     );
   }
 
-  async resolveModelRuntime(
-    tenant: number,
-    modelCode: string,
-    signal: AbortSignal,
-  ): Promise<LlmModelRuntimeConfig | null> {
+  async resolveModelRuntime(tenant: number, modelCode: string, signal: AbortSignal): Promise<LlmModelRuntimeConfig | null> {
     const key = `${tenant}:${modelCode}`;
     const cached = this.cache.get(key);
     if (cached !== undefined) {
@@ -78,9 +76,9 @@ export class GhcloudLlmCatalogAdapter implements LlmCatalogPort {
     const token = await this.opts.tokenProvider(tenant);
     const headers = {
       Authorization: `Bearer ${token}`,
+      "X-Engine-Caller": "cube-agentic-engine",
       tenant: String(tenant),
-      terminal: 'bimops-manage-web',
-      'X-Engine-Caller': 'cube-agentic-engine',
+      terminal: "bimops-manage-web",
     } as const;
     const providers = await this.listProviders(tenant, signal);
     const enabled = providers.filter((p) => p.enabled);
@@ -91,25 +89,25 @@ export class GhcloudLlmCatalogAdapter implements LlmCatalogPort {
     for (const provider of enabled) {
       try {
         const { body } = await doFetchJson({
-          url: `${this.opts.baseUrl}/ai/llm/providers/${encodeURIComponent(provider.id)}/models/${encodeURIComponent(modelCode)}/runtime-config`,
-          method: 'GET',
+          fetchImpl: this.opts.fetchImpl,
           headers: { ...headers },
+          method: "GET",
           signal,
           timeoutMs: this.opts.timeoutMs ?? 10_000,
-          fetchImpl: this.opts.fetchImpl,
+          url: `${this.opts.baseUrl}/ai/llm/providers/${encodeURIComponent(provider.id)}/models/${encodeURIComponent(modelCode)}/runtime-config`,
         });
         const parsed = LlmModelRuntimeConfigSchema.safeParse(body);
         if (!parsed.success) {
           throw GhcloudPlatformError.fromCode(
-            'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-            'llm catalog runtime-config remote response did not match schema',
+            "INVALID_ARGUMENT_SCHEMA_VIOLATION",
+            "llm catalog runtime-config remote response did not match schema",
             { issues: parsed.error.issues },
           );
         }
         this.cache.set(key, parsed.data);
         return parsed.data;
       } catch (e) {
-        if (e instanceof GhcloudPlatformError && e.code === 'RESOURCE_NOT_FOUND_REMOTE') {
+        if (e instanceof GhcloudPlatformError && e.code === "RESOURCE_NOT_FOUND_REMOTE") {
           continue;
         }
         throw e;
@@ -125,28 +123,26 @@ export class GhcloudLlmCatalogAdapter implements LlmCatalogPort {
       return;
     }
     for (const k of this.cache.keys()) {
-      if (k.startsWith(`${tenant}:`)) this.cache.delete(k);
+      if (k.startsWith(`${tenant}:`)) {
+        this.cache.delete(k);
+      }
     }
   }
 }
 
 function expectProviderIdField(value: unknown, field: string): string {
-  if (typeof value !== 'object' || value === null || !(field in value)) {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      `llm catalog providers response missing ${field}`,
-      { value },
-    );
+  if (typeof value !== "object" || value === null || !(field in value)) {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", `llm catalog providers response missing ${field}`, { value });
   }
   const candidate = (value as Record<string, unknown>)[field];
-  if (typeof candidate === 'string' && candidate.length > 0) {
+  if (typeof candidate === "string" && candidate.length > 0) {
     return candidate;
   }
-  if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
     return String(candidate);
   }
   throw GhcloudPlatformError.fromCode(
-    'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+    "INVALID_ARGUMENT_SCHEMA_VIOLATION",
     `llm catalog providers response field ${field} is not a non-empty id`,
     { value },
   );
@@ -158,37 +154,31 @@ function expectProviderIdField(value: unknown, field: string): string {
  * 此处做宽松解析；全无则保持 null，表示供应商连接尚未配置。
  */
 function apiBaseUrlFromProviderListRow(row: unknown): string | null {
-  if (typeof row !== 'object' || row === null) {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      'llm catalog providers row is not object',
-      { value: row },
-    );
+  if (typeof row !== "object" || row === null) {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "llm catalog providers row is not object", { value: row });
   }
   const r = row as Record<string, unknown>;
-  const keys = ['apiBaseUrl', 'baseUrl', 'apiUrl', 'endpoint', 'hostUrl'] as const;
+  const keys = ["apiBaseUrl", "baseUrl", "apiUrl", "endpoint", "hostUrl"] as const;
   for (const k of keys) {
     const v = r[k];
-    if (typeof v === 'string') {
+    if (typeof v === "string") {
       const t = v.trim();
-      if (t.length > 0) return t;
+      if (t.length > 0) {
+        return t;
+      }
     }
   }
   return null;
 }
 
 function expectStringField(value: unknown, field: string): string {
-  if (typeof value !== 'object' || value === null || !(field in value)) {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      `llm catalog providers response missing ${field}`,
-      { value },
-    );
+  if (typeof value !== "object" || value === null || !(field in value)) {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", `llm catalog providers response missing ${field}`, { value });
   }
   const candidate = (value as Record<string, unknown>)[field];
-  if (typeof candidate !== 'string') {
+  if (typeof candidate !== "string") {
     throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+      "INVALID_ARGUMENT_SCHEMA_VIOLATION",
       `llm catalog providers response field ${field} is not string`,
       { value },
     );
@@ -197,17 +187,13 @@ function expectStringField(value: unknown, field: string): string {
 }
 
 function expectBooleanField(value: unknown, field: string): boolean {
-  if (typeof value !== 'object' || value === null || !(field in value)) {
-    throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-      `llm catalog providers response missing ${field}`,
-      { value },
-    );
+  if (typeof value !== "object" || value === null || !(field in value)) {
+    throw GhcloudPlatformError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", `llm catalog providers response missing ${field}`, { value });
   }
   const candidate = (value as Record<string, unknown>)[field];
-  if (typeof candidate !== 'boolean') {
+  if (typeof candidate !== "boolean") {
     throw GhcloudPlatformError.fromCode(
-      'INVALID_ARGUMENT_SCHEMA_VIOLATION',
+      "INVALID_ARGUMENT_SCHEMA_VIOLATION",
       `llm catalog providers response field ${field} is not boolean`,
       { value },
     );

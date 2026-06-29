@@ -1,6 +1,6 @@
-import type { SystemLlmProviderEntity } from './entities';
-import { InMemoryCatalogStore } from './in-memory-catalog.store';
-import { ModelMetadataInferenceService } from './metadata-inference.service';
+import { type SystemLlmProviderEntity } from "./entities";
+import { type InMemoryCatalogStore } from "./in-memory-catalog.store";
+import { ModelMetadataInferenceService } from "./metadata-inference.service";
 
 let nextId = 1;
 function genId(): string {
@@ -11,13 +11,13 @@ export class LlmCatalogProvisioningService {
   constructor(
     private readonly store: InMemoryCatalogStore,
     private readonly inference = new ModelMetadataInferenceService({
+      listActiveModels: async () => [...this.store.systemModels.values()],
       listActiveProviders: async () =>
         [...this.store.systemProviders.values()].map((p) => ({
           id: p.id,
           provider_code: p.provider_code,
           type_code: p.type_code,
         })),
-      listActiveModels: async () => [...this.store.systemModels.values()],
       listActiveRules: async () => this.store.listActiveMatchRules(),
     }),
   ) {}
@@ -32,67 +32,64 @@ export class LlmCatalogProvisioningService {
     }
   }
 
-  private async ensureTenantProvider(
-    tenant: number,
-    provider: SystemLlmProviderEntity,
-  ): Promise<{ id: string }> {
+  private async ensureTenantProvider(tenant: number, provider: SystemLlmProviderEntity): Promise<{ id: string }> {
     const existing = this.store.findTenantProviderBySystemId(tenant, provider.id);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const id = genId();
     this.store.insertTenantProvider({
-      id,
-      tenant,
-      system_provider_id: provider.id,
-      provider_code: provider.provider_code,
-      type_code: provider.type_code,
-      name: provider.name,
-      icon_url: provider.icon_url,
       api_base_url: null,
       api_key: null,
       enabled: false,
+      icon_url: provider.icon_url,
+      id,
       is_custom: false,
+      name: provider.name,
+      provider_code: provider.provider_code,
       remark: provider.default_remark,
+      system_provider_id: provider.id,
+      tenant,
+      type_code: provider.type_code,
     });
     return { id };
   }
 
-  private async syncModelsForProvider(
-    tenant: number,
-    systemProvider: SystemLlmProviderEntity,
-    tenantProviderId: string,
-  ): Promise<void> {
+  private async syncModelsForProvider(tenant: number, systemProvider: SystemLlmProviderEntity, tenantProviderId: string): Promise<void> {
     const existing = this.store.listTenantModelsByProvider(tenant, tenantProviderId);
     const existingSystemModelIds = new Set(
-      existing.map((m) => m.system_model_id).filter((id): id is string => id != null),
+      existing.map((m) => m.system_model_id).filter((id): id is string => id !== null && id !== undefined),
     );
     const systemModels = this.store.listSystemModelsByProvider(systemProvider.id);
     for (const model of systemModels) {
-      if (existingSystemModelIds.has(model.id)) continue;
+      if (existingSystemModelIds.has(model.id)) {
+        continue;
+      }
       const inferred = (
         await this.inference.inferRemoteModels(
           {
-            typeCode: systemProvider.type_code,
-            providerCode: systemProvider.provider_code,
             iconUrl: systemProvider.icon_url,
+            providerCode: systemProvider.provider_code,
             systemProviderId: systemProvider.id,
+            typeCode: systemProvider.type_code,
           },
-          [{ modelCode: model.model_code, displayName: model.display_name, groupName: model.group_name }],
+          [{ displayName: model.display_name, groupName: model.group_name, modelCode: model.model_code }],
         )
       )[0];
       this.store.insertTenantModel({
-        id: genId(),
-        tenant,
-        tenant_provider_id: tenantProviderId,
-        system_model_id: model.id,
-        model_code: model.model_code,
+        api_base_url: model.api_base_url,
         display_name: inferred?.displayName ?? model.display_name,
+        enabled: false,
+        endpoint_type: model.endpoint_type,
         group_name: inferred?.groupName ?? model.group_name,
         icon_url: model.icon_url,
-        api_base_url: model.api_base_url,
-        endpoint_type: model.endpoint_type,
-        model_types: (inferred?.modelTypes ?? model.model_types.split(',')).join(','),
+        id: genId(),
         is_free: model.is_free,
-        enabled: false,
+        model_code: model.model_code,
+        model_types: (inferred?.modelTypes ?? model.model_types.split(",")).join(","),
+        system_model_id: model.id,
+        tenant,
+        tenant_provider_id: tenantProviderId,
       });
     }
   }

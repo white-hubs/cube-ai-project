@@ -47,12 +47,13 @@ packages/flow/studio/migrations/
 ```ts
 interface MigrationRunnerOpts {
   mysqlUrl: string;
-  migrationsDir: string;   // 绝对路径，指向域内 migrations/
-  historyTable: string;    // e.g. 'engine_schema_migrations'
+  migrationsDir: string; // 绝对路径，指向域内 migrations/
+  historyTable: string; // e.g. 'engine_schema_migrations'
 }
 ```
 
 runner 逻辑：
+
 1. `CREATE TABLE IF NOT EXISTS {historyTable}` 确保 history 表存在
 2. 扫 `migrationsDir` 下 `V*.sql` 按版本号排序，跳过已记录的，顺序执行，写入 history
 3. 扫 `S*.sql` 按版本号排序，每次全量重跑（幂等）
@@ -70,25 +71,27 @@ runner 串行执行，全部通过后才启动 HTTP server。
 
 ### 6. 现有文件迁移
 
-| 原文件 | 迁移目标 |
-|---|---|
-| `mysql/init/01-agentic-engine.sql` | `packages/agent/engine/migrations/V001__init.sql` |
-| `mysql/init/02-flow.sql` | `packages/flow/core/migrations/V001__init.sql` |
-| `mysql/init/03-llm-catalog.sql` | `packages/llm/core/migrations/V001__init.sql` + `S001__system_seed.sql` |
-| `mysql/init/04-kb.sql` | `packages/kb/core/migrations/V001__init.sql`（替换现有 `001_kb_core_schema.sql`） |
-| `mysql/init/05-flow-studio.sql` | `packages/flow/studio/migrations/V001__init.sql` |
+| 原文件                             | 迁移目标                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `mysql/init/01-agentic-engine.sql` | `packages/agent/engine/migrations/V001__init.sql`                                 |
+| `mysql/init/02-flow.sql`           | `packages/flow/core/migrations/V001__init.sql`                                    |
+| `mysql/init/03-llm-catalog.sql`    | `packages/llm/core/migrations/V001__init.sql` + `S001__system_seed.sql`           |
+| `mysql/init/04-kb.sql`             | `packages/kb/core/migrations/V001__init.sql`（替换现有 `001_kb_core_schema.sql`） |
+| `mysql/init/05-flow-studio.sql`    | `packages/flow/studio/migrations/V001__init.sql`                                  |
 
 > **Seed 内容补充（2026-06-22）**：llm-catalog 域的 S 类不止 `S001__system_seed.sql`（10 个通用兜底模型 + providers/types）。系统全量 vendor 目录已落为同域 S 类启动 seed——`S002__seed_aliyun_bailian_models.sql`（37）、`S003__seed_volcengine_ark_models.sql`（41）、`S004__seed_geekai_models.sql`（666）——合计 **754** 个系统模型，随启动幂等灌入（数据源为 cube-services 旧 `seed_*.sql`，逐字节迁入）。因此 cutover 不再迁移系统目录四表（`ai_system_llm_*`），详见 [cutover-runbook §3](../operations/cutover-runbook.md)。
 
 ## Consequences
 
 **正面**
+
 - 线上初始化与演进统一为一个命令（`docker compose up`），无手工干预
 - 每域 migration 状态完全自包含，拆服务时零改动
 - V/S 分轨解决 seed 幂等问题
 - 无外部 Java/Go 依赖，Bun + mysql2 原生
 
 **负面 / 权衡**
+
 - 需实现约 80 行 `infra/mysql-migration/` runner（一次性）
 - 需迁移 5 个 init SQL 文件到各域 `migrations/`（一次性）
 - 全新环境首次 `docker compose up` 时 runner 会跑 V001（等价于原 init SQL），稍慢于直接 entrypoint 执行，但可接受
@@ -96,10 +99,10 @@ runner 串行执行，全部通过后才启动 HTTP server。
 
 ## Options Considered
 
-| 方案 | 排除原因 |
-|---|---|
-| Flyway / Liquibase | 需 Java 镜像或 Docker sidecar，compose 复杂化 |
-| golang-migrate | 外部 Go 二进制，脱离 Bun 生态 |
-| Umzug | 可用，但自写 runner 更轻量且无新增依赖 |
-| 集中 `deploy/docker-compose/mysql/migrations/` | 绑死中心，拆服务时要手工切分文件 |
-| 共享单张 `schema_migrations` 表 | 拆服务时要切分行，域边界不清晰 |
+| 方案                                           | 排除原因                                      |
+| ---------------------------------------------- | --------------------------------------------- |
+| Flyway / Liquibase                             | 需 Java 镜像或 Docker sidecar，compose 复杂化 |
+| golang-migrate                                 | 外部 Go 二进制，脱离 Bun 生态                 |
+| Umzug                                          | 可用，但自写 runner 更轻量且无新增依赖        |
+| 集中 `deploy/docker-compose/mysql/migrations/` | 绑死中心，拆服务时要手工切分文件              |
+| 共享单张 `schema_migrations` 表                | 拆服务时要切分行，域边界不清晰                |

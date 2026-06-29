@@ -2,8 +2,8 @@
   "name": "@cube-ai/mysql-migration",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Lightweight domain-scoped MySQL migration runner (V/S files, per-domain history table).",
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },

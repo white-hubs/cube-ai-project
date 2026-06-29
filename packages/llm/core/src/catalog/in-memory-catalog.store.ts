@@ -5,7 +5,7 @@ import type {
   SystemLlmProviderTypeEntity,
   TenantLlmModelEntity,
   TenantLlmProviderEntity,
-} from './entities';
+} from "./entities";
 
 export interface InMemoryCatalogSeed {
   systemTypes?: SystemLlmProviderTypeEntity[];
@@ -25,12 +25,24 @@ export class InMemoryCatalogStore {
   readonly tenantModels = new Map<string, TenantLlmModelEntity>();
 
   constructor(seed?: InMemoryCatalogSeed) {
-    for (const row of seed?.systemTypes ?? []) this.systemTypes.set(row.id, row);
-    for (const row of seed?.systemProviders ?? []) this.systemProviders.set(row.id, row);
-    for (const row of seed?.systemModels ?? []) this.systemModels.set(row.id, row);
-    for (const row of seed?.matchRules ?? []) this.matchRules.set(row.id, row);
-    for (const row of seed?.tenantProviders ?? []) this.tenantProviders.set(row.id, row);
-    for (const row of seed?.tenantModels ?? []) this.tenantModels.set(row.id, row);
+    for (const row of seed?.systemTypes ?? []) {
+      this.systemTypes.set(row.id, row);
+    }
+    for (const row of seed?.systemProviders ?? []) {
+      this.systemProviders.set(row.id, row);
+    }
+    for (const row of seed?.systemModels ?? []) {
+      this.systemModels.set(row.id, row);
+    }
+    for (const row of seed?.matchRules ?? []) {
+      this.matchRules.set(row.id, row);
+    }
+    for (const row of seed?.tenantProviders ?? []) {
+      this.tenantProviders.set(row.id, row);
+    }
+    for (const row of seed?.tenantModels ?? []) {
+      this.tenantModels.set(row.id, row);
+    }
   }
 
   listEnabledSystemTypes(): SystemLlmProviderTypeEntity[] {
@@ -39,15 +51,11 @@ export class InMemoryCatalogStore {
 
   listSystemProvidersByTypeCodes(typeCodes: string[]): SystemLlmProviderEntity[] {
     const set = new Set(typeCodes);
-    return [...this.systemProviders.values()].filter(
-      (item) => item.enabled && set.has(item.type_code),
-    );
+    return [...this.systemProviders.values()].filter((item) => item.enabled && set.has(item.type_code));
   }
 
   listSystemModelsByProvider(systemProviderId: string): SystemLlmModelEntity[] {
-    return [...this.systemModels.values()].filter(
-      (item) => item.system_provider_id === systemProviderId,
-    );
+    return [...this.systemModels.values()].filter((item) => item.system_provider_id === systemProviderId);
   }
 
   listActiveMatchRules(): SystemLlmModelMatchRuleEntity[] {
@@ -60,9 +68,7 @@ export class InMemoryCatalogStore {
 
   findTenantProviderBySystemId(tenant: number, systemProviderId: string): TenantLlmProviderEntity | null {
     return (
-      [...this.tenantProviders.values()].find(
-        (item) => item.tenant === tenant && item.system_provider_id === systemProviderId,
-      ) ?? null
+      [...this.tenantProviders.values()].find((item) => item.tenant === tenant && item.system_provider_id === systemProviderId) ?? null
     );
   }
 
@@ -72,17 +78,11 @@ export class InMemoryCatalogStore {
   }
 
   listTenantModelsByProvider(tenant: number, tenantProviderId: string): TenantLlmModelEntity[] {
-    return [...this.tenantModels.values()].filter(
-      (item) => item.tenant === tenant && item.tenant_provider_id === tenantProviderId,
-    );
+    return [...this.tenantModels.values()].filter((item) => item.tenant === tenant && item.tenant_provider_id === tenantProviderId);
   }
 
   findTenantModelByCode(tenant: number, modelCode: string): TenantLlmModelEntity | null {
-    return (
-      [...this.tenantModels.values()].find(
-        (item) => item.tenant === tenant && item.model_code === modelCode && item.enabled,
-      ) ?? null
-    );
+    return [...this.tenantModels.values()].find((item) => item.tenant === tenant && item.model_code === modelCode && item.enabled) ?? null;
   }
 
   insertTenantProvider(row: TenantLlmProviderEntity): void {
@@ -96,118 +96,118 @@ export class InMemoryCatalogStore {
 
 export function createDefaultCatalogSeed(tenant = 1001): InMemoryCatalogSeed {
   return {
-    systemTypes: [
-      { id: 'type-openai', code: 'openai', name: 'OpenAI', enabled: true },
-      { id: 'type-volc', code: 'volcengine_ark', name: 'Volcengine', enabled: true },
+    systemModels: [
+      {
+        id: "sys-model-gpt4o",
+        system_provider_id: "sys-prov-openai",
+        model_code: "gpt-4o",
+        display_name: "GPT-4o",
+        group_name: "GPT-4o",
+        icon_url: null,
+        api_base_url: "https://api.openai.com/v1",
+        endpoint_type: "openai",
+        model_types: "reasoning,tool",
+        is_free: false,
+        supports_test: true,
+      },
+      {
+        id: "sys-model-doubao-embed",
+        system_provider_id: "sys-prov-volc",
+        model_code: "doubao-embedding-vision-251215",
+        display_name: "Doubao Embedding Vision",
+        group_name: "Embedding",
+        icon_url: null,
+        api_base_url: "https://ark.cn-beijing.volces.com/api/v3",
+        endpoint_type: "volcengine_ark",
+        model_types: "embedding,multimodal",
+        is_free: false,
+        supports_test: true,
+      },
     ],
     systemProviders: [
       {
-        id: 'sys-prov-openai',
-        provider_code: 'openai-official',
-        type_code: 'openai',
-        name: 'OpenAI Official',
+        id: "sys-prov-openai",
+        provider_code: "openai-official",
+        type_code: "openai",
+        name: "OpenAI Official",
         icon_url: null,
         default_remark: null,
         enabled: true,
       },
       {
-        id: 'sys-prov-volc',
-        provider_code: 'volc-doubao',
-        type_code: 'volcengine_ark',
-        name: 'Doubao',
+        id: "sys-prov-volc",
+        provider_code: "volc-doubao",
+        type_code: "volcengine_ark",
+        name: "Doubao",
         icon_url: null,
         default_remark: null,
         enabled: true,
       },
     ],
-    systemModels: [
+    systemTypes: [
+      { id: "type-openai", code: "openai", name: "OpenAI", enabled: true },
+      { id: "type-volc", code: "volcengine_ark", name: "Volcengine", enabled: true },
+    ],
+    tenantModels: [
       {
-        id: 'sys-model-gpt4o',
-        system_provider_id: 'sys-prov-openai',
-        model_code: 'gpt-4o',
-        display_name: 'GPT-4o',
-        group_name: 'GPT-4o',
+        id: "tenant-model-gpt4o",
+        tenant,
+        tenant_provider_id: "tenant-prov-openai",
+        system_model_id: "sys-model-gpt4o",
+        model_code: "gpt-4o",
+        display_name: "GPT-4o",
+        group_name: "GPT-4o",
         icon_url: null,
-        api_base_url: 'https://api.openai.com/v1',
-        endpoint_type: 'openai',
-        model_types: 'reasoning,tool',
+        api_base_url: "https://api.openai.com/v1",
+        endpoint_type: "openai",
+        model_types: "reasoning,tool",
         is_free: false,
-        supports_test: true,
+        enabled: true,
       },
       {
-        id: 'sys-model-doubao-embed',
-        system_provider_id: 'sys-prov-volc',
-        model_code: 'doubao-embedding-vision-251215',
-        display_name: 'Doubao Embedding Vision',
-        group_name: 'Embedding',
+        id: "tenant-model-doubao-embed",
+        tenant,
+        tenant_provider_id: "tenant-prov-volc",
+        system_model_id: "sys-model-doubao-embed",
+        model_code: "doubao-embedding-vision-251215",
+        display_name: "Doubao Embedding Vision",
+        group_name: "Embedding",
         icon_url: null,
-        api_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-        endpoint_type: 'volcengine_ark',
-        model_types: 'embedding,multimodal',
+        api_base_url: "https://ark.cn-beijing.volces.com/api/v3",
+        endpoint_type: "volcengine_ark",
+        model_types: "embedding,multimodal",
         is_free: false,
-        supports_test: true,
+        enabled: true,
       },
     ],
     tenantProviders: [
       {
-        id: 'tenant-prov-openai',
+        id: "tenant-prov-openai",
         tenant,
-        system_provider_id: 'sys-prov-openai',
-        provider_code: 'openai-official',
-        type_code: 'openai',
-        name: 'OpenAI Official',
+        system_provider_id: "sys-prov-openai",
+        provider_code: "openai-official",
+        type_code: "openai",
+        name: "OpenAI Official",
         icon_url: null,
-        api_base_url: 'https://api.openai.com/v1',
-        api_key: 'sk-tenant-openai',
+        api_base_url: "https://api.openai.com/v1",
+        api_key: "sk-tenant-openai",
         enabled: true,
         is_custom: false,
         remark: null,
       },
       {
-        id: 'tenant-prov-volc',
+        id: "tenant-prov-volc",
         tenant,
-        system_provider_id: 'sys-prov-volc',
-        provider_code: 'volc-doubao',
-        type_code: 'volcengine_ark',
-        name: 'Doubao',
+        system_provider_id: "sys-prov-volc",
+        provider_code: "volc-doubao",
+        type_code: "volcengine_ark",
+        name: "Doubao",
         icon_url: null,
-        api_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-        api_key: 'sk-tenant-volc',
+        api_base_url: "https://ark.cn-beijing.volces.com/api/v3",
+        api_key: "sk-tenant-volc",
         enabled: true,
         is_custom: false,
         remark: null,
-      },
-    ],
-    tenantModels: [
-      {
-        id: 'tenant-model-gpt4o',
-        tenant,
-        tenant_provider_id: 'tenant-prov-openai',
-        system_model_id: 'sys-model-gpt4o',
-        model_code: 'gpt-4o',
-        display_name: 'GPT-4o',
-        group_name: 'GPT-4o',
-        icon_url: null,
-        api_base_url: 'https://api.openai.com/v1',
-        endpoint_type: 'openai',
-        model_types: 'reasoning,tool',
-        is_free: false,
-        enabled: true,
-      },
-      {
-        id: 'tenant-model-doubao-embed',
-        tenant,
-        tenant_provider_id: 'tenant-prov-volc',
-        system_model_id: 'sys-model-doubao-embed',
-        model_code: 'doubao-embedding-vision-251215',
-        display_name: 'Doubao Embedding Vision',
-        group_name: 'Embedding',
-        icon_url: null,
-        api_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-        endpoint_type: 'volcengine_ark',
-        model_types: 'embedding,multimodal',
-        is_free: false,
-        enabled: true,
       },
     ],
   };

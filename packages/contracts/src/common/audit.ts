@@ -1,6 +1,7 @@
-import { z } from 'zod';
-import { EpochMsSchema } from './time';
-import { TenantSchema } from './ids';
+import { z } from "zod";
+
+import { TenantSchema } from "./ids";
+import { EpochMsSchema } from "./time";
 
 /**
  * Standard 10 audit fields required on every business entity table.
@@ -28,7 +29,7 @@ import { TenantSchema } from './ids';
  * DB schema, so callers should wrap with `.nullable()` at the field
  * level (see `AuditFieldsSchema` below).
  */
-export const ActorTypeSchema = z.enum(['USER', 'SERVICE', 'SYSTEM']);
+export const ActorTypeSchema = z.enum(["USER", "SERVICE", "SYSTEM"]);
 export type ActorType = z.infer<typeof ActorTypeSchema>;
 
 /** Backwards-compatible alias used by P1-01 foundations. */
@@ -36,16 +37,16 @@ export const CreatorTypeSchema = ActorTypeSchema.nullable();
 export type CreatorType = z.infer<typeof CreatorTypeSchema>;
 
 export const AuditFieldsSchema = z.object({
-  tenant:      TenantSchema,
-  deleted:     z.union([z.bigint().nonnegative(), z.number().int().nonnegative()]),
-  createBy:    z.string().max(64),
-  creatorId:   z.string().max(64).nullable(),
+  createBy: z.string().max(64),
+  createTime: EpochMsSchema,
+  creatorId: z.string().max(64).nullable(),
   creatorType: ActorTypeSchema.nullable(),
-  createTime:  EpochMsSchema,
-  updateBy:    z.string().max(64),
-  updaterId:   z.string().max(64).nullable(),
+  deleted: z.union([z.bigint().nonnegative(), z.number().int().nonnegative()]),
+  tenant: TenantSchema,
+  updateBy: z.string().max(64),
+  updateTime: EpochMsSchema,
+  updaterId: z.string().max(64).nullable(),
   updaterType: ActorTypeSchema.nullable(),
-  updateTime:  EpochMsSchema,
 });
 
 export type AuditFields = z.infer<typeof AuditFieldsSchema>;
@@ -59,16 +60,16 @@ export type AuditFields = z.infer<typeof AuditFieldsSchema>;
  */
 export function systemAuditFields(tenant: number, now: number = Date.now()): AuditFields {
   return {
+    createBy: "system",
+    createTime: now,
+    creatorId: null,
+    creatorType: "SYSTEM",
+    deleted: 0,
     tenant,
-    deleted:     0,
-    createBy:    'system',
-    creatorId:   null,
-    creatorType: 'SYSTEM',
-    createTime:  now,
-    updateBy:    'system',
-    updaterId:   null,
-    updaterType: 'SYSTEM',
-    updateTime:  now,
+    updateBy: "system",
+    updateTime: now,
+    updaterId: null,
+    updaterType: "SYSTEM",
   };
 }
 
@@ -89,15 +90,15 @@ export function defaultAuditFields(
   now: number = Date.now(),
 ): AuditFields {
   return {
-    tenant,
-    deleted:     0,
-    createBy:    actor.by,
-    creatorId:   actor.id ?? null,
+    createBy: actor.by,
+    createTime: now,
+    creatorId: actor.id ?? null,
     creatorType: actor.type ?? null,
-    createTime:  now,
-    updateBy:    actor.by,
-    updaterId:   actor.id ?? null,
+    deleted: 0,
+    tenant,
+    updateBy: actor.by,
+    updateTime: now,
+    updaterId: actor.id ?? null,
     updaterType: actor.type ?? null,
-    updateTime:  now,
   };
 }

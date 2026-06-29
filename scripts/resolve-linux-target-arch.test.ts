@@ -6,11 +6,7 @@ const REPO_ROOT = path.join(import.meta.dir, "..");
 const LIB = path.join(REPO_ROOT, "scripts/lib/resolve-linux-target-arch.sh");
 
 function resolveFromMachine(machine: string): string {
-  const result = spawnSync(
-    "bash",
-    ["-c", `source '${LIB}' && _resolve_linux_target_arch_from_machine '${machine}'`],
-    { encoding: "utf8" },
-  );
+  const result = spawnSync("bash", ["-c", `source '${LIB}' && _resolve_linux_target_arch_from_machine '${machine}'`], { encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(result.stderr || "resolve-linux-target-arch failed");
   }

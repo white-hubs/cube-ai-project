@@ -2,8 +2,8 @@
   "name": "@cube-ai/bun-server-ext-outbox",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Outbox Relay leader-election + dispatcher extension for @dangao/bun-server.",
+  "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -19,16 +19,16 @@
   },
   "dependencies": {
     "@cube-ai/contracts": "workspace:*",
-    "mysql2": "catalog:",
     "bullmq": "catalog:queue",
-    "ioredis": "catalog:queue"
-  },
-  "peerDependencies": {
-    "@dangao/bun-server": "catalog:bun-server"
+    "ioredis": "catalog:queue",
+    "mysql2": "catalog:"
   },
   "devDependencies": {
     "@cube-ai/test-infra": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@dangao/bun-server": "catalog:bun-server"
   }
 }

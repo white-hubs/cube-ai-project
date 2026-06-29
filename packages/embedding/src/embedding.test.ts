@@ -1,73 +1,67 @@
-import { describe, expect, test } from 'bun:test';
-import type { LlmProviderPort } from '@cube-ai/contracts';
-import {
-  buildDoubaoMultimodalEmbedBody,
-  LlmProviderEmbeddingPort,
-  normalizeSparseEmbedding,
-  resolveRetrievalInstruction,
-} from './index';
+import { describe, expect, test } from "bun:test";
 
-describe('buildDoubaoMultimodalEmbedBody', () => {
-  test('builds multimodal request body using text inputs', () => {
+import { type LlmProviderPort } from "@cube-ai/contracts";
+
+import { LlmProviderEmbeddingPort, buildDoubaoMultimodalEmbedBody, normalizeSparseEmbedding, resolveRetrievalInstruction } from "./index";
+
+describe("buildDoubaoMultimodalEmbedBody", () => {
+  test("builds multimodal request body using text inputs", () => {
     const body = buildDoubaoMultimodalEmbedBody({
-      model: 'doubao-embedding-vision-251215',
-      input: ['第一段文本', '第二段文本'],
       dimension: 1024,
-      purpose: 'document',
+      input: ["第一段文本", "第二段文本"],
+      model: "doubao-embedding-vision-251215",
+      purpose: "document",
     });
 
     expect(body).toEqual({
-      model: 'doubao-embedding-vision-251215',
-      instructions: 'Instruction:Compress the text into one word.\nQuery:',
-      input: [{ type: 'text', text: '第一段文本' }, { type: 'text', text: '第二段文本' }],
       dimensions: 1024,
-      multi_embedding: { type: 'enabled' },
-      sparse_embedding: { type: 'enabled' },
-      encoding_format: 'float',
+      encoding_format: "float",
+      input: [
+        { type: "text", text: "第一段文本" },
+        { type: "text", text: "第二段文本" },
+      ],
+      instructions: "Instruction:Compress the text into one word.\nQuery:",
+      model: "doubao-embedding-vision-251215",
+      multi_embedding: { type: "enabled" },
+      sparse_embedding: { type: "enabled" },
     });
   });
 
-  test('uses retrieval-specific instruction for query embeddings', () => {
+  test("uses retrieval-specific instruction for query embeddings", () => {
     const body = buildDoubaoMultimodalEmbedBody({
-      model: 'doubao-embedding-vision-251215',
-      input: ['痛点问题'],
       dimension: 1024,
-      purpose: 'query',
+      input: ["痛点问题"],
+      model: "doubao-embedding-vision-251215",
+      purpose: "query",
     });
 
-    expect(body.instructions).toBe(
-      'Target_modality: text.\nInstruction:为这个问题生成表示以用于检索可回答问题的相关内容\nQuery:',
-    );
+    expect(body.instructions).toBe("Target_modality: text.\nInstruction:为这个问题生成表示以用于检索可回答问题的相关内容\nQuery:");
   });
 
-  test('uses entity lookup instruction when retrieval profile is provided', () => {
+  test("uses entity lookup instruction when retrieval profile is provided", () => {
     const body = buildDoubaoMultimodalEmbedBody({
-      model: 'doubao-embedding-vision-251215',
-      input: ['研发中心3号265CBRS'],
+      contexts: [{ retrievalProfile: "entity-lookup" }],
       dimension: 1024,
-      purpose: 'query',
-      contexts: [{ retrievalProfile: 'entity-lookup' }],
+      input: ["研发中心3号265CBRS"],
+      model: "doubao-embedding-vision-251215",
+      purpose: "query",
     });
 
-    expect(body.instructions).toBe(
-      'Target_modality: text.\nInstruction:根据名称、编号、别名或关键词检索最相关的结构化记录\nQuery:',
-    );
+    expect(body.instructions).toBe("Target_modality: text.\nInstruction:根据名称、编号、别名或关键词检索最相关的结构化记录\nQuery:");
   });
 });
 
-describe('normalizeSparseEmbedding', () => {
-  test('extracts dense and sparse embedding from response payload', () => {
-    expect(
-      normalizeSparseEmbedding([{ index: 1, value: 0.9 }]),
-    ).toEqual({ indices: [1], values: [0.9] });
+describe("normalizeSparseEmbedding", () => {
+  test("extracts dense and sparse embedding from response payload", () => {
+    expect(normalizeSparseEmbedding([{ index: 1, value: 0.9 }])).toEqual({ indices: [1], values: [0.9] });
   });
 });
 
-describe('LlmProviderEmbeddingPort', () => {
-  test('embed returns {dense,sparse} from provider', async () => {
+describe("LlmProviderEmbeddingPort", () => {
+  test("embed returns {dense,sparse} from provider", async () => {
     const provider: LlmProviderPort = {
-      chat: async () => ({ content: '', finishReason: 'stop' }),
-      chatStream: async function* () {},
+      chat: async () => ({ content: "", finishReason: "stop" }),
+      async *chatStream() {},
       embed: async () => [
         { dense: [0.1, 0.2], sparse: { indices: [1], values: [0.9] } },
         { dense: [0.3, 0.4], sparse: { indices: [2], values: [0.7] } },
@@ -75,13 +69,13 @@ describe('LlmProviderEmbeddingPort', () => {
     };
 
     const port = new LlmProviderEmbeddingPort({
-      provider,
-      modelCode: 'doubao-embedding-vision-251215',
-      tenant: 1,
       dimension: 1024,
+      modelCode: "doubao-embedding-vision-251215",
+      provider,
+      tenant: 1,
     });
 
-    const vectors = await port.embed(['q1', 'q2'], 'query', [{ retrievalProfile: 'semantic-qa' }]);
+    const vectors = await port.embed(["q1", "q2"], "query", [{ retrievalProfile: "semantic-qa" }]);
 
     expect(vectors).toEqual([
       { dense: [0.1, 0.2], sparse: { indices: [1], values: [0.9] } },
@@ -90,11 +84,11 @@ describe('LlmProviderEmbeddingPort', () => {
     expect(port.dimension).toBe(1024);
   });
 
-  test('resolveModelCode overrides static modelCode per embed call', async () => {
+  test("resolveModelCode overrides static modelCode per embed call", async () => {
     const seen: string[] = [];
     const provider: LlmProviderPort = {
-      chat: async () => ({ content: '', finishReason: 'stop' }),
-      chatStream: async function* () {},
+      chat: async () => ({ content: "", finishReason: "stop" }),
+      async *chatStream() {},
       embed: async (req) => {
         seen.push(req.modelCode);
         return req.input.map(() => ({ dense: [0.1] }));
@@ -102,20 +96,20 @@ describe('LlmProviderEmbeddingPort', () => {
     };
 
     const port = new LlmProviderEmbeddingPort({
-      provider,
-      modelCode: 'env-model',
-      tenant: 1,
       dimension: 4,
-      resolveModelCode: () => 'turn-model',
+      modelCode: "env-model",
+      provider,
+      resolveModelCode: () => "turn-model",
+      tenant: 1,
     });
 
-    await port.embed(['q']);
-    expect(seen).toEqual(['turn-model']);
+    await port.embed(["q"]);
+    expect(seen).toEqual(["turn-model"]);
   });
 });
 
-describe('resolveRetrievalInstruction', () => {
-  test('maps retrieval profile to query instructions', () => {
-    expect(resolveRetrievalInstruction('query', 'entity-lookup')).toContain('结构化记录');
+describe("resolveRetrievalInstruction", () => {
+  test("maps retrieval profile to query instructions", () => {
+    expect(resolveRetrievalInstruction("query", "entity-lookup")).toContain("结构化记录");
   });
 });

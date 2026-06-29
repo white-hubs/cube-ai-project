@@ -3,14 +3,17 @@
  *
  * 对齐官方 Docker 用法：https://docs.ollama.com/docker
  */
-import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
-import { testInfraLog, withProgressLog } from './log';
+import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
+
+import { testInfraLog, withProgressLog } from "./log";
 
 let ollamaTracked: StartedTestContainer[] | null = null;
 
 export async function stopTrackedOllamaIfAny(): Promise<void> {
   const arr = ollamaTracked;
-  if (!arr?.length) return;
+  if (!arr?.length) {
+    return;
+  }
   testInfraLog(`Stopping ${arr.length} Ollama Testcontainer(s)…`);
   await Promise.all(
     arr.map((c) =>
@@ -19,7 +22,9 @@ export async function stopTrackedOllamaIfAny(): Promise<void> {
       }),
     ),
   );
-  if (ollamaTracked === arr) ollamaTracked = null;
+  if (ollamaTracked === arr) {
+    ollamaTracked = null;
+  }
 }
 
 export interface OllamaStack {
@@ -42,17 +47,9 @@ export interface StartOllamaWithModelOptions {
 /**
  * 启动 `ollama/ollama`，等待 API，再在容器内执行 `ollama pull`（首次可能极慢）。
  */
-export async function startOllamaWithModel(
-  opts: StartOllamaWithModelOptions = {},
-): Promise<OllamaStack> {
-  const model =
-    opts.model?.trim() ||
-    process.env['AGENTIC_E2E_OLLAMA_MODEL']?.trim() ||
-    'tinyllama';
-  const image =
-    opts.image?.trim() ||
-    process.env['AGENTIC_E2E_OLLAMA_IMAGE']?.trim() ||
-    'ollama/ollama';
+export async function startOllamaWithModel(opts: StartOllamaWithModelOptions = {}): Promise<OllamaStack> {
+  const model = opts.model?.trim() || process.env["AGENTIC_E2E_OLLAMA_MODEL"]?.trim() || "tinyllama";
+  const image = opts.image?.trim() || process.env["AGENTIC_E2E_OLLAMA_IMAGE"]?.trim() || "ollama/ollama";
 
   const started: StartedTestContainer[] = [];
   ollamaTracked = started;
@@ -62,12 +59,10 @@ export async function startOllamaWithModel(
     const t0 = Date.now();
 
     const container = await withProgressLog(
-      'Ollama GenericContainer.start()',
+      "Ollama GenericContainer.start()",
       new GenericContainer(image)
         .withExposedPorts(11434)
-        .withWaitStrategy(
-          Wait.forHttp('/api/tags', 11434).withStartupTimeout(120_000),
-        )
+        .withWaitStrategy(Wait.forHttp("/api/tags", 11434).withStartupTimeout(120_000))
         .withStartupTimeout(180_000)
         .start(),
     );
@@ -79,17 +74,13 @@ export async function startOllamaWithModel(
     const port = container.getMappedPort(11434);
     const openAiBaseUrl = `http://${host}:${port}/v1`;
 
-    testInfraLog(
-      `Pulling Ollama model "${model}" (first run can take many minutes)…`,
-    );
+    testInfraLog(`Pulling Ollama model "${model}" (first run can take many minutes)…`);
     const pullT0 = Date.now();
 
-    const pullResult = await withProgressLog(`ollama pull ${model}`, container.exec(['ollama', 'pull', model]));
+    const pullResult = await withProgressLog(`ollama pull ${model}`, container.exec(["ollama", "pull", model]));
 
     if (pullResult.exitCode !== 0) {
-      throw new Error(
-        `ollama pull ${model} failed: exit=${pullResult.exitCode} stderr=${pullResult.stderr.slice(-4000)}`,
-      );
+      throw new Error(`ollama pull ${model} failed: exit=${pullResult.exitCode} stderr=${pullResult.stderr.slice(-4000)}`);
     }
 
     testInfraLog(`Ollama model "${model}" ready (+${Date.now() - pullT0}ms)`);
@@ -99,7 +90,9 @@ export async function startOllamaWithModel(
       openAiBaseUrl,
       async stop(): Promise<void> {
         await container.stop().catch(() => {});
-        if (ollamaTracked === started) ollamaTracked = null;
+        if (ollamaTracked === started) {
+          ollamaTracked = null;
+        }
       },
     };
   } catch (e) {
@@ -110,7 +103,9 @@ export async function startOllamaWithModel(
         }),
       ),
     );
-    if (ollamaTracked === started) ollamaTracked = null;
+    if (ollamaTracked === started) {
+      ollamaTracked = null;
+    }
     throw e;
   }
 }

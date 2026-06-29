@@ -2,8 +2,8 @@
   "name": "@cube-ai/test-infra",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Testcontainers helpers for MySQL / Redis / Qdrant integration tests",
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./ghcloud-ai-app-stub": "./src/ghcloud-ai-app-stub.ts"

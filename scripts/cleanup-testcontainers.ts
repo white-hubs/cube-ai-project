@@ -7,9 +7,9 @@
  *   bun run test:containers:cleanup -- --dry-run
  */
 
-import { cleanupTestcontainersOrphans } from './lib/testcontainers-cleanup';
+import { cleanupTestcontainersOrphans } from "./lib/testcontainers-cleanup";
 
-const dryRun = process.argv.includes('--dry-run');
+const dryRun = process.argv.includes("--dry-run");
 
 try {
   cleanupTestcontainersOrphans({ dryRun });

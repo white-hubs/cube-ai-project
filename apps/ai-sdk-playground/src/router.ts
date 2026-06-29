@@ -1,7 +1,8 @@
-import { createRouter, createWebHistory } from 'vue-router';
-import { PlaygroundView } from './playground/PlaygroundView';
+import { createRouter, createWebHistory } from "vue-router";
+
+import { PlaygroundView } from "./playground/PlaygroundView";
 
 export const router = createRouter({
   history: createWebHistory(),
-  routes: [{ path: '/', component: PlaygroundView }],
+  routes: [{ component: PlaygroundView, path: "/" }],
 });

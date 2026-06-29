@@ -1,7 +1,8 @@
-import { z } from 'zod';
-import { SfidSchema } from '../common/ids';
-import { EpochMsSchema } from '../common/time';
-import { AuditFieldsSchema } from '../common/audit';
+import { z } from "zod";
+
+import { AuditFieldsSchema } from "../common/audit";
+import { SfidSchema } from "../common/ids";
+import { EpochMsSchema } from "../common/time";
 
 /**
  * Zod schema for the `grants` (user_grant) table row.
@@ -19,25 +20,25 @@ import { AuditFieldsSchema } from '../common/audit';
  *   G-C: session-scoped grant (Redis only, not in this table)
  *   G-D: single-call grant (ephemeral, not persisted)
  */
-export const GrantTypeSchema = z.enum(['G_A', 'G_B']);
+export const GrantTypeSchema = z.enum(["G_A", "G_B"]);
 export type GrantType = z.infer<typeof GrantTypeSchema>;
 
-export const GrantStatusSchema = z.enum(['ACTIVE', 'REVOKED', 'EXPIRED']);
+export const GrantStatusSchema = z.enum(["ACTIVE", "REVOKED", "EXPIRED"]);
 export type GrantStatus = z.infer<typeof GrantStatusSchema>;
 
 export const UserGrantRowSchema = AuditFieldsSchema.extend({
-  id:                   SfidSchema,
-  userId:               z.string().max(64).nullable(),
-  agentId:              SfidSchema.nullable(),
-  toolRef:              z.string().max(128),
-  grantType:            GrantTypeSchema,
-  status:               GrantStatusSchema,
+  agentId: SfidSchema.nullable(),
   /**
    * args_constraint — JSONPath v1 DSL (ADR-0013).
    * Null = no constraint (unconditional grant).
    */
-  argsConstraintJson:   z.unknown().nullable(),
-  expireTime:           EpochMsSchema.nullable(),
+  argsConstraintJson: z.unknown().nullable(),
+  expireTime: EpochMsSchema.nullable(),
+  grantType: GrantTypeSchema,
+  id: SfidSchema,
+  status: GrantStatusSchema,
+  toolRef: z.string().max(128),
+  userId: z.string().max(64).nullable(),
 });
 
 export type UserGrantRow = z.infer<typeof UserGrantRowSchema>;

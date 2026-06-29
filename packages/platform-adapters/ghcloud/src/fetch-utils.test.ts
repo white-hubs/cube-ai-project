@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'bun:test';
-import { doFetchJson } from './fetch-utils';
-import { GhcloudPlatformError } from './errors';
+import { describe, expect, it } from "bun:test";
+
+import { GhcloudPlatformError } from "./errors";
+import { doFetchJson } from "./fetch-utils";
 
 function neverAbort(): AbortSignal {
   return new AbortController().signal;
@@ -10,10 +11,7 @@ function asFetch(impl: (url: RequestInfo | URL, init?: RequestInit) => Promise<R
   return impl as unknown as typeof fetch;
 }
 
-async function expectPlatformError(
-  promise: Promise<unknown>,
-  code: GhcloudPlatformError['code'],
-): Promise<GhcloudPlatformError> {
+async function expectPlatformError(promise: Promise<unknown>, code: GhcloudPlatformError["code"]): Promise<GhcloudPlatformError> {
   try {
     await promise;
   } catch (e) {
@@ -25,195 +23,188 @@ async function expectPlatformError(
   throw new Error(`expected GhcloudPlatformError(${code}) but promise resolved`);
 }
 
-describe('doFetchJson', () => {
-  it('returns parsed JSON body and status on 2xx', async () => {
+describe("doFetchJson", () => {
+  it("returns parsed JSON body and status on 2xx", async () => {
     const out = await doFetchJson({
-      url: 'http://upstream/ok',
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+      fetchImpl: asFetch(async () => Response.json({ ok: true, n: 7 }, { status: 200 })),
+      headers: { Accept: "application/json" },
+      method: "GET",
       signal: neverAbort(),
       timeoutMs: 1000,
-      fetchImpl: asFetch(async () =>
-        new Response(JSON.stringify({ ok: true, n: 7 }), { status: 200 })),
+      url: "http://upstream/ok",
     });
     expect(out.status).toBe(200);
-    expect(out.body).toEqual({ ok: true, n: 7 });
+    expect(out.body).toEqual({ n: 7, ok: true });
   });
 
-  it('serializes bodyJson for POST and forwards method/headers', async () => {
-    let seenUrl = '';
+  it("serializes bodyJson for POST and forwards method/headers", async () => {
+    let seenUrl = "";
     let seenInit: RequestInit | undefined;
     const out = await doFetchJson({
-      url: 'http://upstream/create',
-      method: 'POST',
-      headers: { 'x-trace': 'abc' },
-      bodyJson: { name: '一只小猫' },
-      signal: neverAbort(),
-      timeoutMs: 1000,
+      bodyJson: { name: "一只小猫" },
       fetchImpl: asFetch(async (url, init) => {
         seenUrl = String(url);
         seenInit = init;
         return new Response('{"id":1}', { status: 201 });
       }),
-    });
-    expect(out.status).toBe(201);
-    expect(seenUrl).toBe('http://upstream/create');
-    expect(seenInit?.method).toBe('POST');
-    expect((seenInit?.headers as Record<string, string>)['x-trace']).toBe('abc');
-    expect(JSON.parse(String(seenInit?.body))).toEqual({ name: '一只小猫' });
-  });
-
-  it('omits body when bodyJson is undefined', async () => {
-    let seenBody: unknown = 'sentinel';
-    await doFetchJson({
-      url: 'http://upstream/list',
-      method: 'GET',
-      headers: {},
+      headers: { "x-trace": "abc" },
+      method: "POST",
       signal: neverAbort(),
       timeoutMs: 1000,
+      url: "http://upstream/create",
+    });
+    expect(out.status).toBe(201);
+    expect(seenUrl).toBe("http://upstream/create");
+    expect(seenInit?.method).toBe("POST");
+    expect(((seenInit?.headers ?? {}) as Record<string, string>)["x-trace"]).toBe("abc");
+    expect(JSON.parse(String(seenInit?.body))).toEqual({ name: "一只小猫" });
+  });
+
+  it("omits body when bodyJson is undefined", async () => {
+    let seenBody: unknown = "sentinel";
+    await doFetchJson({
       fetchImpl: asFetch(async (_url, init) => {
         seenBody = init?.body;
-        return new Response('[]', { status: 200 });
+        return new Response("[]", { status: 200 });
       }),
+      headers: {},
+      method: "GET",
+      signal: neverAbort(),
+      timeoutMs: 1000,
+      url: "http://upstream/list",
     });
     expect(seenBody).toBeUndefined();
   });
 
-  it('empty 2xx body parses to undefined; non-JSON text body kept as raw string', async () => {
+  it("empty 2xx body parses to undefined; non-JSON text body kept as raw string", async () => {
     const empty = await doFetchJson({
-      url: 'http://upstream/empty',
-      method: 'DELETE',
+      fetchImpl: asFetch(async () => new Response("", { status: 204 })),
       headers: {},
+      method: "DELETE",
       signal: neverAbort(),
       timeoutMs: 1000,
-      fetchImpl: asFetch(async () => new Response('', { status: 204 })),
+      url: "http://upstream/empty",
     });
     expect(empty.body).toBeUndefined();
 
     const text = await doFetchJson({
-      url: 'http://upstream/text',
-      method: 'GET',
+      fetchImpl: asFetch(async () => new Response("plain text", { status: 200 })),
       headers: {},
+      method: "GET",
       signal: neverAbort(),
       timeoutMs: 1000,
-      fetchImpl: asFetch(async () => new Response('plain text', { status: 200 })),
+      url: "http://upstream/text",
     });
-    expect(text.body).toBe('plain text');
+    expect(text.body).toBe("plain text");
   });
 
-  it('maps 401/403 to UPSTREAM_AUTH_FAILED with status + body details', async () => {
+  it("maps 401/403 to UPSTREAM_AUTH_FAILED with status + body details", async () => {
     for (const status of [401, 403]) {
       const err = await expectPlatformError(
         doFetchJson({
-          url: 'http://upstream/secure',
-          method: 'GET',
+          fetchImpl: asFetch(async () => Response.json({ message: "denied" }, { status })),
           headers: {},
+          method: "GET",
           signal: neverAbort(),
           timeoutMs: 1000,
-          fetchImpl: asFetch(async () =>
-            new Response(JSON.stringify({ message: 'denied' }), { status })),
+          url: "http://upstream/secure",
         }),
-        'UPSTREAM_AUTH_FAILED',
+        "UPSTREAM_AUTH_FAILED",
       );
       expect(err.details?.status).toBe(status);
-      expect(err.details?.body).toEqual({ message: 'denied' });
+      expect(err.details?.body).toEqual({ message: "denied" });
     }
   });
 
-  it('maps 404 to RESOURCE_NOT_FOUND_REMOTE', async () => {
+  it("maps 404 to RESOURCE_NOT_FOUND_REMOTE", async () => {
     const err = await expectPlatformError(
       doFetchJson({
-        url: 'http://upstream/missing',
-        method: 'GET',
+        fetchImpl: asFetch(async () => new Response("not found", { status: 404 })),
         headers: {},
+        method: "GET",
         signal: neverAbort(),
         timeoutMs: 1000,
-        fetchImpl: asFetch(async () => new Response('not found', { status: 404 })),
+        url: "http://upstream/missing",
       }),
-      'RESOURCE_NOT_FOUND_REMOTE',
+      "RESOURCE_NOT_FOUND_REMOTE",
     );
     expect(err.details?.status).toBe(404);
-    expect(err.message).toContain('HTTP 404');
+    expect(err.message).toContain("HTTP 404");
   });
 
-  it('maps other non-2xx (incl. non-JSON 5xx) to UPSTREAM_TOOL_HTTP_FAILED', async () => {
+  it("maps other non-2xx (incl. non-JSON 5xx) to UPSTREAM_TOOL_HTTP_FAILED", async () => {
     const err = await expectPlatformError(
       doFetchJson({
-        url: 'http://upstream/boom',
-        method: 'POST',
+        fetchImpl: asFetch(async () => new Response("<html>Internal Server Error</html>", { status: 500 })),
         headers: {},
+        method: "POST",
         signal: neverAbort(),
         timeoutMs: 1000,
-        fetchImpl: asFetch(async () =>
-          new Response('<html>Internal Server Error</html>', { status: 500 })),
+        url: "http://upstream/boom",
       }),
-      'UPSTREAM_TOOL_HTTP_FAILED',
+      "UPSTREAM_TOOL_HTTP_FAILED",
     );
     expect(err.details?.status).toBe(500);
-    expect(err.details?.body).toBe('<html>Internal Server Error</html>');
+    expect(err.details?.body).toBe("<html>Internal Server Error</html>");
   });
 
-  it('maps per-call timeout to UPSTREAM_NETWORK_TIMEOUT', async () => {
+  it("maps per-call timeout to UPSTREAM_NETWORK_TIMEOUT", async () => {
     const hangUntilAbort = asFetch(
       (_url, init) =>
         new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () =>
-            reject(new DOMException('The operation was aborted.', 'AbortError')),
-          );
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
         }),
     );
 
     const err = await expectPlatformError(
       doFetchJson({
-        url: 'http://upstream/slow',
-        method: 'GET',
+        fetchImpl: hangUntilAbort,
         headers: {},
+        method: "GET",
         signal: neverAbort(),
         timeoutMs: 10,
-        fetchImpl: hangUntilAbort,
+        url: "http://upstream/slow",
       }),
-      'UPSTREAM_NETWORK_TIMEOUT',
+      "UPSTREAM_NETWORK_TIMEOUT",
     );
-    expect(err.message).toContain('timed out after 10ms');
+    expect(err.message).toContain("timed out after 10ms");
   });
 
-  it('caller abort signal also aborts the composed fetch', async () => {
+  it("caller abort signal also aborts the composed fetch", async () => {
     const caller = new AbortController();
     const hangUntilAbort = asFetch(
       (_url, init) =>
         new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () =>
-            reject(new DOMException('The operation was aborted.', 'AbortError')),
-          );
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
         }),
     );
 
     const pending = doFetchJson({
-      url: 'http://upstream/cancelled',
-      method: 'GET',
+      fetchImpl: hangUntilAbort,
       headers: {},
+      method: "GET",
       signal: caller.signal,
       timeoutMs: 60_000,
-      fetchImpl: hangUntilAbort,
+      url: "http://upstream/cancelled",
     });
     caller.abort();
-    await expectPlatformError(pending, 'UPSTREAM_NETWORK_TIMEOUT');
+    await expectPlatformError(pending, "UPSTREAM_NETWORK_TIMEOUT");
   });
 
-  it('maps generic network failure to UPSTREAM_TOOL_HTTP_FAILED with cause message', async () => {
+  it("maps generic network failure to UPSTREAM_TOOL_HTTP_FAILED with cause message", async () => {
     const err = await expectPlatformError(
       doFetchJson({
-        url: 'http://upstream/down',
-        method: 'GET',
+        fetchImpl: asFetch(async () => {
+          throw new TypeError("Unable to connect");
+        }),
         headers: {},
+        method: "GET",
         signal: neverAbort(),
         timeoutMs: 1000,
-        fetchImpl: asFetch(async () => {
-          throw new TypeError('Unable to connect');
-        }),
+        url: "http://upstream/down",
       }),
-      'UPSTREAM_TOOL_HTTP_FAILED',
+      "UPSTREAM_TOOL_HTTP_FAILED",
     );
-    expect(err.message).toContain('Unable to connect');
+    expect(err.message).toContain("Unable to connect");
   });
 });

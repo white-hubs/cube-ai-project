@@ -1,6 +1,7 @@
-import { Module } from '@dangao/bun-server';
-import { NacosSecretsLoader } from './nacos-secrets.loader';
-import { SecretResolver } from './secret-resolver';
+import { Module } from "@dangao/bun-server";
+
+import { NacosSecretsLoader } from "./nacos-secrets.loader";
+import { SecretResolver } from "./secret-resolver";
 
 /**
  * SecretsModule — DI registration for Nacos secrets infrastructure.
@@ -17,13 +18,11 @@ import { SecretResolver } from './secret-resolver';
       provide: NacosSecretsLoader,
       useFactory: () => {
         return new NacosSecretsLoader({
-          nacosAddress: process.env['AGENTIC_ENGINE_NACOS_URL'] ?? '',
-          nacosNamespace: process.env['AGENTIC_ENGINE_NACOS_NAMESPACE'] ?? '',
-          nacosUsername: process.env['AGENTIC_ENGINE_NACOS_USERNAME'] ?? '',
-          nacosPassword: process.env['AGENTIC_ENGINE_NACOS_PASSWORD'] ?? '',
-          secretsGroup:
-            process.env['AGENTIC_ENGINE_NACOS_SECRETS_GROUP'] ??
-            'agentic-engine-secrets',
+          nacosAddress: process.env["AGENTIC_ENGINE_NACOS_URL"] ?? "",
+          nacosNamespace: process.env["AGENTIC_ENGINE_NACOS_NAMESPACE"] ?? "",
+          nacosUsername: process.env["AGENTIC_ENGINE_NACOS_USERNAME"] ?? "",
+          nacosPassword: process.env["AGENTIC_ENGINE_NACOS_PASSWORD"] ?? "",
+          secretsGroup: process.env["AGENTIC_ENGINE_NACOS_SECRETS_GROUP"] ?? "agentic-engine-secrets",
         });
       },
     },

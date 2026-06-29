@@ -1,28 +1,30 @@
-import type { z } from 'zod';
-import type {
-  AvailableToolView,
-  DescriptorListingView,
-  DescriptorVersion,
-  InstallRequest,
-  LibraryItemView,
-  PluginCatalogItemView,
-  ProposeRequest,
-  ProposeResult,
-  ShelfEntryView,
-  ShelfPatch,
-  TenantAgentContentSchema,
-  TenantDescriptorKind,
-  TenantDescriptorStatus,
-  TenantDescriptorView,
-  TenantRuleContentSchema,
-  TenantSkillContentSchema,
-} from '@cube-ai/contracts';
+import { type z } from "zod";
+
 import {
+  type AvailableToolView,
+  type DescriptorListingView,
+  type DescriptorVersion,
+  type InstallRequest,
+  type LibraryItemView,
+  type PluginCatalogItemView,
+  type ProposeRequest,
+  type ProposeResult,
+  type ShelfEntryView,
+  type ShelfPatch,
+  type TenantAgentContentSchema,
+  type TenantDescriptorKind,
+  type TenantDescriptorStatus,
+  type TenantDescriptorView,
+  type TenantRuleContentSchema,
+  type TenantSkillContentSchema,
+} from "@cube-ai/contracts";
+
+import {
+  type AgentConsoleConfig,
   agentConsoleRequestJson as requestJson,
   agentConsoleRequestText as requestText,
   agentConsoleStreamSse as streamSse,
-  type AgentConsoleConfig,
-} from './http';
+} from "./http";
 
 /** Options for {@link AgentConsoleClient.propose} (ADR-0027 §5 SSE). */
 export interface ProposeOptions {
@@ -40,22 +42,24 @@ export type RuleContentInput = z.input<typeof TenantRuleContentSchema>;
 
 export interface ShelfListOptions {
   enabled?: boolean;
-  source?: 'authored' | 'ref' | 'copy';
+  source?: "authored" | "ref" | "copy";
 }
 
 export interface LibraryBrowseOptions {
   q?: string;
-  tier?: 'tenant' | 'system';
+  tier?: "tenant" | "system";
 }
 
 /** Plural path segment for each descriptor kind. */
 const KIND_PLURAL: Record<TenantDescriptorKind, string> = {
-  agent: 'agents',
-  skill: 'skills',
-  rule: 'rules',
+  agent: "agents",
+  rule: "rules",
+  skill: "skills",
 };
 
-type ItemEnvelope<T> = { items: T[] };
+interface ItemEnvelope<T> {
+  items: T[];
+}
 
 function itemsOf<T>(envelope: ItemEnvelope<T>): T[] {
   return envelope.items;
@@ -63,11 +67,10 @@ function itemsOf<T>(envelope: ItemEnvelope<T>): T[] {
 
 function withQuery(path: string, query?: object): string {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query ?? {}) as Array<[
-    string,
-    string | number | boolean | undefined,
-  ]>) {
-    if (value !== undefined) params.set(key, String(value));
+  for (const [key, value] of Object.entries(query ?? {}) as [string, string | number | boolean | undefined][]) {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
   }
   const qs = params.toString();
   return qs ? `${path}?${qs}` : path;
@@ -88,161 +91,83 @@ class AgentConsoleClientImpl {
   // --- generic CRUD over a plural kind segment ---
 
   private create<C>(plural: string, body: C): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(
-      this.config,
-      'POST',
-      `/${plural}`,
-      body,
-    );
+    return requestJson<TenantDescriptorView>(this.config, "POST", `/${plural}`, body);
   }
 
   private list(plural: string): Promise<TenantDescriptorView[]> {
-    return requestJson<ItemEnvelope<TenantDescriptorView>>(this.config, 'GET', `/${plural}`).then(itemsOf);
+    return requestJson<ItemEnvelope<TenantDescriptorView>>(this.config, "GET", `/${plural}`).then(itemsOf);
   }
 
   private get(plural: string, id: string): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(
-      this.config,
-      'GET',
-      `/${plural}/${encodeURIComponent(id)}`,
-    );
+    return requestJson<TenantDescriptorView>(this.config, "GET", `/${plural}/${encodeURIComponent(id)}`);
   }
 
   private update<C>(plural: string, id: string, body: C): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(
-      this.config,
-      'PATCH',
-      `/${plural}/${encodeURIComponent(id)}`,
-      body,
-    );
+    return requestJson<TenantDescriptorView>(this.config, "PATCH", `/${plural}/${encodeURIComponent(id)}`, body);
   }
 
   private remove(plural: string, id: string): Promise<void> {
-    return requestJson<void>(
-      this.config,
-      'DELETE',
-      `/${plural}/${encodeURIComponent(id)}`,
-    );
+    return requestJson<void>(this.config, "DELETE", `/${plural}/${encodeURIComponent(id)}`);
   }
 
   private publish(plural: string, id: string): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(
-      this.config,
-      'POST',
-      `/${plural}/${encodeURIComponent(id)}/publish`,
-    );
+    return requestJson<TenantDescriptorView>(this.config, "POST", `/${plural}/${encodeURIComponent(id)}/publish`);
   }
 
   private listVersions(plural: string, id: string): Promise<DescriptorVersion[]> {
-    return requestJson<ItemEnvelope<DescriptorVersion>>(
-      this.config,
-      'GET',
-      `/${plural}/${encodeURIComponent(id)}/versions`,
-    ).then(itemsOf);
+    return requestJson<ItemEnvelope<DescriptorVersion>>(this.config, "GET", `/${plural}/${encodeURIComponent(id)}/versions`).then(itemsOf);
   }
 
   private getVersion(plural: string, id: string, versionNo: number): Promise<{ content: unknown }> {
     return requestJson<{ content: unknown }>(
       this.config,
-      'GET',
+      "GET",
       `/${plural}/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(versionNo))}`,
     );
   }
 
   private rollback(plural: string, id: string, versionNo: number): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(
-      this.config,
-      'POST',
-      `/${plural}/${encodeURIComponent(id)}/rollback`,
-      { versionNo },
-    );
+    return requestJson<TenantDescriptorView>(this.config, "POST", `/${plural}/${encodeURIComponent(id)}/rollback`, { versionNo });
   }
 
-  private listDescriptor(
-    plural: string,
-    id: string,
-    versionNo: number,
-  ): Promise<DescriptorListingView> {
-    return requestJson<DescriptorListingView>(
-      this.config,
-      'POST',
-      `/${plural}/${encodeURIComponent(id)}/list`,
-      { versionNo },
-    );
+  private listDescriptor(plural: string, id: string, versionNo: number): Promise<DescriptorListingView> {
+    return requestJson<DescriptorListingView>(this.config, "POST", `/${plural}/${encodeURIComponent(id)}/list`, { versionNo });
   }
 
   private unlistDescriptor(plural: string, id: string): Promise<DescriptorListingView> {
-    return requestJson<DescriptorListingView>(
-      this.config,
-      'POST',
-      `/${plural}/${encodeURIComponent(id)}/unlist`,
-    );
+    return requestJson<DescriptorListingView>(this.config, "POST", `/${plural}/${encodeURIComponent(id)}/unlist`);
   }
 
   private getDescriptorListing(plural: string, id: string): Promise<DescriptorListingView | null> {
-    return requestJson<DescriptorListingView | null>(
-      this.config,
-      'GET',
-      `/${plural}/${encodeURIComponent(id)}/listing`,
-    );
+    return requestJson<DescriptorListingView | null>(this.config, "GET", `/${plural}/${encodeURIComponent(id)}/listing`);
   }
 
-  private shelfKind(kind: 'agent' | 'skill'): string {
+  private shelfKind(kind: "agent" | "skill"): string {
     return KIND_PLURAL[kind];
   }
 
-  private myShelf(kind: 'agent' | 'skill', opts?: ShelfListOptions): Promise<ShelfEntryView[]> {
-    return requestJson<ItemEnvelope<ShelfEntryView>>(
-      this.config,
-      'GET',
-      withQuery(`/my/${this.shelfKind(kind)}`, opts),
-    ).then(itemsOf);
+  private myShelf(kind: "agent" | "skill", opts?: ShelfListOptions): Promise<ShelfEntryView[]> {
+    return requestJson<ItemEnvelope<ShelfEntryView>>(this.config, "GET", withQuery(`/my/${this.shelfKind(kind)}`, opts)).then(itemsOf);
   }
 
-  private installShelf(kind: 'agent' | 'skill', req: InstallRequest): Promise<ShelfEntryView> {
-    return requestJson<ShelfEntryView>(
-      this.config,
-      'POST',
-      `/my/${this.shelfKind(kind)}`,
-      req,
-    );
+  private installShelf(kind: "agent" | "skill", req: InstallRequest): Promise<ShelfEntryView> {
+    return requestJson<ShelfEntryView>(this.config, "POST", `/my/${this.shelfKind(kind)}`, req);
   }
 
-  private patchShelf(
-    kind: 'agent' | 'skill',
-    sheId: string,
-    patch: ShelfPatch,
-  ): Promise<ShelfEntryView> {
-    return requestJson<ShelfEntryView>(
-      this.config,
-      'PATCH',
-      `/my/${this.shelfKind(kind)}/${encodeURIComponent(sheId)}`,
-      patch,
-    );
+  private patchShelf(kind: "agent" | "skill", sheId: string, patch: ShelfPatch): Promise<ShelfEntryView> {
+    return requestJson<ShelfEntryView>(this.config, "PATCH", `/my/${this.shelfKind(kind)}/${encodeURIComponent(sheId)}`, patch);
   }
 
-  private removeShelf(kind: 'agent' | 'skill', sheId: string): Promise<void> {
-    return requestJson<void>(
-      this.config,
-      'DELETE',
-      `/my/${this.shelfKind(kind)}/${encodeURIComponent(sheId)}`,
-    );
+  private removeShelf(kind: "agent" | "skill", sheId: string): Promise<void> {
+    return requestJson<void>(this.config, "DELETE", `/my/${this.shelfKind(kind)}/${encodeURIComponent(sheId)}`);
   }
 
-  private browseLibrary(kind: 'agent' | 'skill', opts?: LibraryBrowseOptions): Promise<LibraryItemView[]> {
-    return requestJson<ItemEnvelope<LibraryItemView>>(
-      this.config,
-      'GET',
-      withQuery(`/library/${KIND_PLURAL[kind]}`, opts),
-    ).then(itemsOf);
+  private browseLibrary(kind: "agent" | "skill", opts?: LibraryBrowseOptions): Promise<LibraryItemView[]> {
+    return requestJson<ItemEnvelope<LibraryItemView>>(this.config, "GET", withQuery(`/library/${KIND_PLURAL[kind]}`, opts)).then(itemsOf);
   }
 
-  private getLibrary(kind: 'agent' | 'skill', ref: string): Promise<LibraryItemView> {
-    return requestJson<LibraryItemView>(
-      this.config,
-      'GET',
-      `/library/${KIND_PLURAL[kind]}/${encodeURIComponent(ref)}`,
-    );
+  private getLibrary(kind: "agent" | "skill", ref: string): Promise<LibraryItemView> {
+    return requestJson<LibraryItemView>(this.config, "GET", `/library/${KIND_PLURAL[kind]}/${encodeURIComponent(ref)}`);
   }
 
   // --- agents ---
@@ -386,84 +311,75 @@ class AgentConsoleClientImpl {
   // --- my agents / skills shelf ---
 
   myAgents(opts?: ShelfListOptions): Promise<ShelfEntryView[]> {
-    return this.myShelf('agent', opts);
+    return this.myShelf("agent", opts);
   }
 
   mySkills(opts?: ShelfListOptions): Promise<ShelfEntryView[]> {
-    return this.myShelf('skill', opts);
+    return this.myShelf("skill", opts);
   }
 
   installAgent(req: InstallRequest): Promise<ShelfEntryView> {
-    return this.installShelf('agent', req);
+    return this.installShelf("agent", req);
   }
 
   installSkill(req: InstallRequest): Promise<ShelfEntryView> {
-    return this.installShelf('skill', req);
+    return this.installShelf("skill", req);
   }
 
   patchShelfAgent(sheId: string, patch: ShelfPatch): Promise<ShelfEntryView> {
-    return this.patchShelf('agent', sheId, patch);
+    return this.patchShelf("agent", sheId, patch);
   }
 
   patchShelfSkill(sheId: string, patch: ShelfPatch): Promise<ShelfEntryView> {
-    return this.patchShelf('skill', sheId, patch);
+    return this.patchShelf("skill", sheId, patch);
   }
 
   removeShelfAgent(sheId: string): Promise<void> {
-    return this.removeShelf('agent', sheId);
+    return this.removeShelf("agent", sheId);
   }
 
   removeShelfSkill(sheId: string): Promise<void> {
-    return this.removeShelf('skill', sheId);
+    return this.removeShelf("skill", sheId);
   }
 
   // --- library / marketplace ---
 
   browseLibraryAgents(opts?: LibraryBrowseOptions): Promise<LibraryItemView[]> {
-    return this.browseLibrary('agent', opts);
+    return this.browseLibrary("agent", opts);
   }
 
   getLibraryAgent(ref: string): Promise<LibraryItemView> {
-    return this.getLibrary('agent', ref);
+    return this.getLibrary("agent", ref);
   }
 
   browseLibrarySkills(opts?: LibraryBrowseOptions): Promise<LibraryItemView[]> {
-    return this.browseLibrary('skill', opts);
+    return this.browseLibrary("skill", opts);
   }
 
   getLibrarySkill(ref: string): Promise<LibraryItemView> {
-    return this.getLibrary('skill', ref);
+    return this.getLibrary("skill", ref);
   }
 
   // --- plugins / available tools ---
 
   pluginCatalog(): Promise<PluginCatalogItemView[]> {
-    return requestJson<ItemEnvelope<PluginCatalogItemView>>(this.config, 'GET', '/plugins').then(itemsOf);
+    return requestJson<ItemEnvelope<PluginCatalogItemView>>(this.config, "GET", "/plugins").then(itemsOf);
   }
 
   myTools(): Promise<AvailableToolView[]> {
-    return requestJson<ItemEnvelope<AvailableToolView>>(this.config, 'GET', '/my/tools').then(itemsOf);
+    return requestJson<ItemEnvelope<AvailableToolView>>(this.config, "GET", "/my/tools").then(itemsOf);
   }
 
   installTool(toolName: string): Promise<AvailableToolView> {
-    return requestJson<AvailableToolView>(this.config, 'POST', '/my/tools', { toolName });
+    return requestJson<AvailableToolView>(this.config, "POST", "/my/tools", { toolName });
   }
 
   patchTool(toolName: string, enabled: boolean): Promise<AvailableToolView> {
-    return requestJson<AvailableToolView>(
-      this.config,
-      'PATCH',
-      `/my/tools/${encodeURIComponent(toolName)}`,
-      { enabled },
-    );
+    return requestJson<AvailableToolView>(this.config, "PATCH", `/my/tools/${encodeURIComponent(toolName)}`, { enabled });
   }
 
   removeTool(toolName: string): Promise<void> {
-    return requestJson<void>(
-      this.config,
-      'DELETE',
-      `/my/tools/${encodeURIComponent(toolName)}`,
-    );
+    return requestJson<void>(this.config, "DELETE", `/my/tools/${encodeURIComponent(toolName)}`);
   }
 
   // --- propose (AI authoring assistance, ADR-0027 ①) ---
@@ -473,32 +389,30 @@ class AgentConsoleClientImpl {
    * stream: forwards prose token deltas to `opts.onDelta` and resolves to the terminal
    * `proposal` envelope ({@link ProposeResult}).
    */
-  async propose(
-    kind: TenantDescriptorKind,
-    req: ProposeRequest,
-    opts: ProposeOptions = {},
-  ): Promise<ProposeResult> {
+  async propose(kind: TenantDescriptorKind, req: ProposeRequest, opts: ProposeOptions = {}): Promise<ProposeResult> {
     const plural = KIND_PLURAL[kind];
     let result: ProposeResult | undefined;
     let streamError: string | undefined;
-    await streamSse(this.config, 'POST', `/${plural}:propose`, req, (ev) => {
-      if (ev.event === 'delta') {
+    await streamSse(this.config, "POST", `/${plural}:propose`, req, (ev) => {
+      if (ev.event === "delta") {
         if (opts.onDelta) {
           const parsed = JSON.parse(ev.data) as { delta?: unknown };
-          if (typeof parsed.delta === 'string') opts.onDelta(parsed.delta);
+          if (typeof parsed.delta === "string") {
+            opts.onDelta(parsed.delta);
+          }
         }
-      } else if (ev.event === 'proposal') {
+      } else if (ev.event === "proposal") {
         result = JSON.parse(ev.data) as ProposeResult;
-      } else if (ev.event === 'error') {
+      } else if (ev.event === "error") {
         const parsed = JSON.parse(ev.data) as { message?: unknown };
-        streamError = typeof parsed.message === 'string' ? parsed.message : 'unknown error';
+        streamError = typeof parsed.message === "string" ? parsed.message : "unknown error";
       }
     });
     if (streamError !== undefined) {
       throw new Error(`agent-sdk-console propose: ${streamError}`);
     }
     if (!result) {
-      throw new Error('agent-sdk-console propose: stream ended without a proposal event');
+      throw new Error("agent-sdk-console propose: stream ended without a proposal event");
     }
     return result;
   }
@@ -511,12 +425,7 @@ class AgentConsoleClientImpl {
    */
   createFromDocument(kind: TenantDescriptorKind, raw: string): Promise<FromDocumentResult> {
     const plural = KIND_PLURAL[kind];
-    return requestText<FromDocumentResult>(
-      this.config,
-      'POST',
-      `/${plural}:fromDocument`,
-      raw,
-    );
+    return requestText<FromDocumentResult>(this.config, "POST", `/${plural}:fromDocument`, raw);
   }
 }
 

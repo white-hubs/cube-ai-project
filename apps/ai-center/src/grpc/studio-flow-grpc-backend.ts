@@ -1,11 +1,12 @@
-import type { FlowRunBody as StudioFlowRunBody, FlowService } from '@cube-ai/flow-studio'
-import type { FlowGrpcBackend, FlowRunBody, FlowUploadResultLike } from './flow-grpc-backend'
+import { type FlowService, type FlowRunBody as StudioFlowRunBody } from "@cube-ai/flow-studio";
+
+import { type FlowGrpcBackend, type FlowRunBody, type FlowUploadResultLike } from "./flow-grpc-backend";
 
 function toStudioRunBody(body: FlowRunBody): StudioFlowRunBody {
   return {
-    ...(body.input !== undefined ? { input: body.input as StudioFlowRunBody['input'] } : {}),
+    ...(body.input !== undefined ? { input: body.input as StudioFlowRunBody["input"] } : {}),
     ...(body.variables !== undefined ? { variables: body.variables } : {}),
-  }
+  };
 }
 
 /**
@@ -14,11 +15,8 @@ function toStudioRunBody(body: FlowRunBody): StudioFlowRunBody {
  */
 export function createStudioFlowGrpcBackend(studio: FlowService): FlowGrpcBackend {
   return {
-    uploadFlowFile: (flowId, file) =>
-      studio.uploadFlowFile(flowId, file) as Promise<FlowUploadResultLike>,
-    runFlow: (flowId, body) =>
-      studio.runFlow(flowId, toStudioRunBody(body)) as Promise<{ raw?: Record<string, unknown> }>,
-    runFlowStream: (flowId, body) =>
-      studio.runFlowStream(flowId, toStudioRunBody(body)),
-  }
+    runFlow: (flowId, body) => studio.runFlow(flowId, toStudioRunBody(body)) as Promise<{ raw?: Record<string, unknown> }>,
+    runFlowStream: (flowId, body) => studio.runFlowStream(flowId, toStudioRunBody(body)),
+    uploadFlowFile: (flowId, file) => studio.uploadFlowFile(flowId, file) as Promise<FlowUploadResultLike>,
+  };
 }

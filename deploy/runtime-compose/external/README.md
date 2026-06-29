@@ -46,23 +46,23 @@ bash ../../scripts/verify-ai-center-http.sh "http://127.0.0.1:${AI_CENTER_HOST_P
 
 ## 配置说明
 
-| 项 | 默认 | 说明 |
-|---|---|---|
-| 鉴权 | mock（示例） | 共享部署应配 `JWT_KEY_URL`；mock 仅用于冒烟 |
-| LLM | **agentic-platform-llm-catalog** | catalog 数据在 MySQL `cube_ai_center` 库 |
-| 配置源 | 纯 env | 可选 `NACOS_ADDRESS` 做 descriptor 发现 |
-| 进程模型 | 单进程 | agent + flow + kb + llm 同容器 |
-| 镜像来源 | `AI_CENTER_IMAGE` | 必须指向已推送的 **发布镜像** tag |
-| Descriptor 挂载 | `../../../descriptors` | 可通过 `DESCRIPTORS_DIR` / `CONFIG_DIR` / `GLOBAL_PROMPT_FILE` 覆盖 |
+| 项              | 默认                             | 说明                                                                |
+| --------------- | -------------------------------- | ------------------------------------------------------------------- |
+| 鉴权            | mock（示例）                     | 共享部署应配 `JWT_KEY_URL`；mock 仅用于冒烟                         |
+| LLM             | **agentic-platform-llm-catalog** | catalog 数据在 MySQL `cube_ai_center` 库                            |
+| 配置源          | 纯 env                           | 可选 `NACOS_ADDRESS` 做 descriptor 发现                             |
+| 进程模型        | 单进程                           | agent + flow + kb + llm 同容器                                      |
+| 镜像来源        | `AI_CENTER_IMAGE`                | 必须指向已推送的 **发布镜像** tag                                   |
+| Descriptor 挂载 | `../../../descriptors`           | 可通过 `DESCRIPTORS_DIR` / `CONFIG_DIR` / `GLOBAL_PROMPT_FILE` 覆盖 |
 
 ## 与本地 dev compose 的差异
 
-| 维度 | 本模板 | `deploy/docker-compose/` |
-|---|---|---|
-| 用途 | 共享部署环境样本 | 本地 dev / 集成测试 |
-| 依赖 | 全部外部 | 可选 `--profile deps` 起本地容器 |
-| 镜像 | pull 发布镜像 | 默认 compose build |
-| Flow 数据 | 发布镜像内 `/app/data` | dev 可挂载覆盖 |
+| 维度      | 本模板                 | `deploy/docker-compose/`         |
+| --------- | ---------------------- | -------------------------------- |
+| 用途      | 共享部署环境样本       | 本地 dev / 集成测试              |
+| 依赖      | 全部外部               | 可选 `--profile deps` 起本地容器 |
+| 镜像      | pull 发布镜像          | 默认 compose build               |
+| Flow 数据 | 发布镜像内 `/app/data` | dev 可挂载覆盖                   |
 
 ## 相关文档
 

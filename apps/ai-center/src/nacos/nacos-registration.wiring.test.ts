@@ -25,8 +25,11 @@ describe("resolveRegistrationOptions", () => {
 
   afterEach(() => {
     for (const key of ENV_KEYS) {
-      if (saved[key] === undefined) delete process.env[key];
-      else process.env[key] = saved[key];
+      if (saved[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = saved[key];
+      }
     }
   });
 

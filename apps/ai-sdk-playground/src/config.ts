@@ -1,4 +1,4 @@
-import { DEFAULT_CONNECTION_PROFILE, loadConnectionProfile } from './playground/connection-profile';
+import { DEFAULT_CONNECTION_PROFILE, loadConnectionProfile } from "./playground/connection-profile";
 
 /** @deprecated Use loadConnectionProfile() — kept for core-flow smoke tests. */
 export function sdkConfig() {

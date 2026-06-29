@@ -5,25 +5,19 @@ export interface FlowSdkConfig {
   headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
 }
 
-export async function flowRequestJson<T>(
-  config: FlowSdkConfig,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  const prefix = config.pathPrefix ?? '/flow';
-  const url = `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
-  const extra =
-    typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
+export async function flowRequestJson<T>(config: FlowSdkConfig, method: string, path: string, body?: unknown): Promise<T> {
+  const prefix = config.pathPrefix ?? "/flow";
+  const url = `${config.baseUrl.replace(/\/$/u, "")}${prefix}${path}`;
+  const extra = typeof config.headers === "function" ? await config.headers() : (config.headers ?? {});
   const fetchImpl = config.fetchImpl ?? fetch;
   const res = await fetchImpl(url, {
-    method,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     headers: {
-      accept: 'application/json',
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      accept: "application/json",
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
       ...extra,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    method,
   });
   if (!res.ok) {
     throw new Error(`flow-sdk-client ${method} ${path}: HTTP ${res.status}`);
@@ -32,30 +26,25 @@ export async function flowRequestJson<T>(
 }
 
 function resolveUrl(config: FlowSdkConfig, path: string): string {
-  const prefix = config.pathPrefix ?? '/flow';
-  return `${config.baseUrl.replace(/\/$/, '')}${prefix}${path}`;
+  const prefix = config.pathPrefix ?? "/flow";
+  return `${config.baseUrl.replace(/\/$/u, "")}${prefix}${path}`;
 }
 
 async function resolveHeaders(config: FlowSdkConfig): Promise<Record<string, string>> {
-  return typeof config.headers === 'function' ? await config.headers() : (config.headers ?? {});
+  return typeof config.headers === "function" ? await config.headers() : (config.headers ?? {});
 }
 
 /** Raw request returning the {@link Response} unread — used for SSE / streaming endpoints (run-stream). */
-export async function flowRequestRaw(
-  config: FlowSdkConfig,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<Response> {
+export async function flowRequestRaw(config: FlowSdkConfig, method: string, path: string, body?: unknown): Promise<Response> {
   const fetchImpl = config.fetchImpl ?? fetch;
   const res = await fetchImpl(resolveUrl(config, path), {
-    method,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     headers: {
-      accept: 'text/event-stream',
-      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      accept: "text/event-stream",
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
       ...(await resolveHeaders(config)),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    method,
   });
   if (!res.ok) {
     throw new Error(`flow-sdk-client ${method} ${path}: HTTP ${res.status}`);
@@ -64,19 +53,15 @@ export async function flowRequestRaw(
 }
 
 /** Multipart upload (FormData) — used for flow file uploads. Content-Type set by the runtime. */
-export async function flowRequestMultipart<T>(
-  config: FlowSdkConfig,
-  path: string,
-  form: FormData,
-): Promise<T> {
+export async function flowRequestMultipart<T>(config: FlowSdkConfig, path: string, form: FormData): Promise<T> {
   const fetchImpl = config.fetchImpl ?? fetch;
   const res = await fetchImpl(resolveUrl(config, path), {
-    method: 'POST',
+    body: form,
     headers: {
-      accept: 'application/json',
+      accept: "application/json",
       ...(await resolveHeaders(config)),
     },
-    body: form,
+    method: "POST",
   });
   if (!res.ok) {
     throw new Error(`flow-sdk-client POST ${path}: HTTP ${res.status}`);

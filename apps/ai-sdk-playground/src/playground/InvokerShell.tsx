@@ -1,22 +1,23 @@
-import { defineComponent, ref, watch, type PropType } from 'vue';
-import type { CapabilityEntry, ConnectionProfile, CapabilityParam, InvokeResult } from './types';
-import { invokeCapability } from './invoke-capability';
-import { runComposableCapability } from './composable-runner';
-import { defaultArgsForCapability, placementLabel } from './invoke-args';
+import { type PropType, defineComponent, ref, watch } from "vue";
+
+import { runComposableCapability } from "./composable-runner";
+import { defaultArgsForCapability, placementLabel } from "./invoke-args";
+import { invokeCapability } from "./invoke-capability";
+import { type CapabilityEntry, type CapabilityParam, type ConnectionProfile, type InvokeResult } from "./types";
 
 function sortedParams(cap: CapabilityEntry): CapabilityParam[] {
-  return [...cap.params].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  return [...cap.params].toSorted((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
 export const InvokerShell = defineComponent({
-  name: 'InvokerShell',
+  emits: ["ran"],
+  name: "InvokerShell",
   props: {
-    capability: { type: Object as PropType<CapabilityEntry | null>, default: null },
-    profile: { type: Object as PropType<ConnectionProfile>, required: true },
+    capability: { default: null, type: Object as PropType<CapabilityEntry | null> },
+    profile: { required: true, type: Object as PropType<ConnectionProfile> },
   },
-  emits: ['ran'],
   setup(props, { emit }) {
-    const argsText = ref('{}');
+    const argsText = ref("{}");
     const file = ref<File | null>(null);
     const running = ref(false);
     const result = ref<InvokeResult | null>(null);
@@ -24,7 +25,9 @@ export const InvokerShell = defineComponent({
     watch(
       () => props.capability?.id ?? null,
       (id) => {
-        if (!id || !props.capability) return;
+        if (!id || !props.capability) {
+          return;
+        }
         argsText.value = defaultArgsForCapability(props.capability);
         file.value = null;
         result.value = null;
@@ -34,20 +37,22 @@ export const InvokerShell = defineComponent({
 
     async function run() {
       const cap = props.capability;
-      if (!cap) return;
+      if (!cap) {
+        return;
+      }
       running.value = true;
       result.value = null;
       try {
         let parsed: unknown = {};
-        if (cap.kind !== 'form-data') {
+        if (cap.kind !== "form-data") {
           parsed = argsText.value.trim() ? JSON.parse(argsText.value) : {};
         } else if (file.value) {
           const fd = new FormData();
-          fd.append('file', file.value);
+          fd.append("file", file.value);
           parsed = { formData: fd };
         }
 
-        if (cap.kind === 'composable' || cap.kind === 'mock') {
+        if (cap.kind === "composable" || cap.kind === "mock") {
           result.value = await runComposableCapability(cap, parsed as Record<string, unknown>);
         } else {
           result.value = await invokeCapability(cap, props.profile, parsed);
@@ -60,7 +65,7 @@ export const InvokerShell = defineComponent({
         };
       } finally {
         running.value = false;
-        emit('ran');
+        emit("ran");
       }
     }
 
@@ -82,7 +87,7 @@ export const InvokerShell = defineComponent({
             <h2>{cap.id}</h2>
             <span class="invoker__meta">
               {cap.kind} · {cap.factory}
-              {cap.apiPath ? `.${cap.apiPath}` : ''}.{cap.method}
+              {cap.apiPath ? `.${cap.apiPath}` : ""}.{cap.method}
             </span>
           </header>
 
@@ -109,22 +114,22 @@ export const InvokerShell = defineComponent({
                       </td>
                       <td>{placementLabel(param.placement)}</td>
                       <td>{param.type}</td>
-                      <td>{param.required ? 'yes' : 'no'}</td>
-                      <td>{param.description ?? '—'}</td>
+                      <td>{param.required ? "yes" : "no"}</td>
+                      <td>{param.description ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p class="invoker__hint">
-                Arguments JSON uses the parameter names above as keys; values are passed to the SDK
-                method in order. You may also use <code>__positional</code> as an array.
+                Arguments JSON uses the parameter names above as keys; values are passed to the SDK method in order. You may also use{" "}
+                <code>__positional</code> as an array.
               </p>
             </div>
           ) : (
             <p class="invoker__hint">This method takes no arguments.</p>
           )}
 
-          {cap.kind === 'form-data' ? (
+          {cap.kind === "form-data" ? (
             <label class="invoker__file">
               File
               <input
@@ -150,7 +155,7 @@ export const InvokerShell = defineComponent({
 
           <div class="invoker__actions">
             <button type="button" disabled={running.value} onClick={() => void run()}>
-              {running.value ? 'Running…' : 'Run'}
+              {running.value ? "Running…" : "Run"}
             </button>
             <button
               type="button"
@@ -164,15 +169,11 @@ export const InvokerShell = defineComponent({
           </div>
 
           {result.value ? (
-            <div class={result.value.ok ? 'invoker__result is-ok' : 'invoker__result is-error'}>
-              <h3>{result.value.ok ? 'Result' : 'Error'}</h3>
+            <div class={result.value.ok ? "invoker__result is-ok" : "invoker__result is-error"}>
+              <h3>{result.value.ok ? "Result" : "Error"}</h3>
               {result.value.error ? <pre>{result.value.error}</pre> : null}
-              {result.value.data !== undefined ? (
-                <pre>{JSON.stringify(result.value.data, null, 2)}</pre>
-              ) : null}
-              {result.value.sseEvents?.length ? (
-                <pre>{JSON.stringify(result.value.sseEvents, null, 2)}</pre>
-              ) : null}
+              {result.value.data !== undefined ? <pre>{JSON.stringify(result.value.data, null, 2)}</pre> : null}
+              {result.value.sseEvents?.length ? <pre>{JSON.stringify(result.value.sseEvents, null, 2)}</pre> : null}
             </div>
           ) : null}
         </section>

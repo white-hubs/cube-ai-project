@@ -1,5 +1,5 @@
 kind: agent
-name: '1934000000000000003'
+name: "1934000000000000003"
 version: 0.1.0
 description: Enterprise data analysis agent that answers questions by querying business databases through the biz-ontology MCP tools.
 displayName: 业务数据分析助手

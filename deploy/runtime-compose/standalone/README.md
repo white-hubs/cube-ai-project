@@ -60,13 +60,13 @@ MySQL init SQL 不重复存放，compose 挂载 `../../docker-compose/mysql/init
 
 ## 默认行为
 
-| 项 | 值 |
-|---|---|
-| 鉴权 | 示例默认 mock；共享部署配 `JWT_KEY_URL` |
-| LLM | **agentic-platform-llm-catalog**（同库 MySQL） |
-| 进程模型 | 单进程 ai-center |
-| OTel | 默认关闭；`--profile otel` 启用本地 collector |
-| 镜像 | pull `AI_CENTER_IMAGE` 发布 tag，不在 compose 内 build |
+| 项       | 值                                                     |
+| -------- | ------------------------------------------------------ |
+| 鉴权     | 示例默认 mock；共享部署配 `JWT_KEY_URL`                |
+| LLM      | **agentic-platform-llm-catalog**（同库 MySQL）         |
+| 进程模型 | 单进程 ai-center                                       |
+| OTel     | 默认关闭；`--profile otel` 启用本地 collector          |
+| 镜像     | pull `AI_CENTER_IMAGE` 发布 tag，不在 compose 内 build |
 
 ## 维护
 

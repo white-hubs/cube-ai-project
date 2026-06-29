@@ -1,21 +1,21 @@
-import type { LlmEndpointType } from '@cube-ai/contracts';
+import type { LlmEndpointType } from "@cube-ai/contracts";
 
 /** ghcloud-aligned endpoint types (11 values); contracts adds `ollama` + `jina_rerank`. */
 export const GHCLOUD_ENDPOINT_TYPES = [
-  'openai',
-  'openai_response',
-  'anthropic',
-  'gemini',
-  'azure_openai',
-  'new_api',
-  'openai_image',
-  'geekai',
-  'dashscope',
-  'dashscope_text2image',
-  'volcengine_ark',
+  "openai",
+  "openai_response",
+  "anthropic",
+  "gemini",
+  "azure_openai",
+  "new_api",
+  "openai_image",
+  "geekai",
+  "dashscope",
+  "dashscope_text2image",
+  "volcengine_ark",
 ] as const satisfies readonly LlmEndpointType[];
 
-export const CONTRACTS_ONLY_ENDPOINT_TYPES = ['ollama', 'jina_rerank'] as const satisfies readonly LlmEndpointType[];
+export const CONTRACTS_ONLY_ENDPOINT_TYPES = ["ollama", "jina_rerank"] as const satisfies readonly LlmEndpointType[];
 
 export interface SystemLlmProviderTypeEntity {
   id: string;
@@ -52,7 +52,7 @@ export interface SystemLlmModelMatchRuleEntity {
   id: string;
   provider_type_code: string | null;
   provider_code: string | null;
-  match_type: 'exact' | 'prefix' | 'contains' | 'regex';
+  match_type: "exact" | "prefix" | "contains" | "regex";
   pattern: string;
   normalized_name: string | null;
   native_family: string | null;

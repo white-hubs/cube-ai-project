@@ -31,11 +31,17 @@ export interface GhcloudStubHandle {
 
 async function readRequestBody(req: Request): Promise<unknown> {
   const method = req.method.toUpperCase();
-  if (method === 'GET' || method === 'HEAD') return undefined;
+  if (method === "GET" || method === "HEAD") {
+    return undefined;
+  }
   const text = await req.text();
-  if (!text) return '';
-  const ct = req.headers.get('content-type') ?? '';
-  if (!ct.includes('application/json')) return text;
+  if (!text) {
+    return "";
+  }
+  const ct = req.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) {
+    return text;
+  }
   try {
     return JSON.parse(text) as unknown;
   } catch {
@@ -46,26 +52,26 @@ async function readRequestBody(req: Request): Promise<unknown> {
 function defaultFlowRunResponse(): Record<string, unknown> {
   return {
     ok: true,
-    stub: 'flow-sync-complete',
     outputs: {},
+    stub: "flow-sync-complete",
   };
 }
 
 function defaultFlowListResponse(): unknown[] {
   return [
     {
-      id: '1',
-      tenant: 0,
-      name: 'stub-flow',
-      description: null,
-      compileStatus: 'OK',
       compileError: null,
-      compileRevision: '1',
+      compileRevision: "1",
+      compileStatus: "OK",
+      createTime: null,
+      description: null,
+      enabled: true,
+      id: "1",
+      name: "stub-flow",
       publishedReleaseId: null,
       publishedRevision: null,
-      enabled: true,
       remark: null,
-      createTime: null,
+      tenant: 0,
       updateTime: null,
     },
   ];
@@ -73,34 +79,34 @@ function defaultFlowListResponse(): unknown[] {
 
 function defaultKnowledgeResponse(): Record<string, unknown> {
   return {
-    hits: [{ docId: 'd1', kbId: 'kb1', title: 'T', snippet: 'stub hit', score: 0.81 }],
+    hits: [{ docId: "d1", kbId: "kb1", score: 0.81, snippet: "stub hit", title: "T" }],
     truncated: false,
   };
 }
 
 function defaultChatCompletionsResponse(): Record<string, unknown> {
   return {
-    id: 'chatcmpl-stub',
-    object: 'chat.completion',
-    created: Math.floor(Date.now() / 1000),
-    model: 'stub-model',
     choices: [
       {
         index: 0,
-        finish_reason: 'stop',
+        finish_reason: "stop",
         message: {
-          role: 'assistant',
-          content: 'stub assistant response',
+          role: "assistant",
+          content: "stub assistant response",
           // ADR-0021：默认在 stub 响应里同时塞一段 `reasoning_content`，让
           // OpenAICompatProvider 的非流路径走通 reasoning 提取分支（DeepSeek-R1 /
           // 豆包-thinking 风格）。集成测试可断言 SSE 流里出现 reasoning-*-v1 事件。
-          reasoning_content: 'stub reasoning trace: weighing options…',
+          reasoning_content: "stub reasoning trace: weighing options…",
         },
       },
     ],
+    created: Math.floor(Date.now() / 1000),
+    id: "chatcmpl-stub",
+    model: "stub-model",
+    object: "chat.completion",
     usage: {
-      prompt_tokens: 8,
       completion_tokens: 4,
+      prompt_tokens: 8,
       total_tokens: 12,
     },
   };
@@ -112,27 +118,25 @@ function resolveChatMessage(script: GhcloudStubScripted): {
   model: string;
 } {
   const resp = script.chatCompletionsResponse ?? defaultChatCompletionsResponse();
-  const choice = (resp.choices as Array<{
-    message?: { content?: string; reasoning_content?: string };
-  }> | undefined)?.[0];
+  const choice = (
+    resp.choices as
+      | {
+          message?: { content?: string; reasoning_content?: string };
+        }[]
+      | undefined
+  )?.[0];
   const message = choice?.message ?? {};
   return {
-    content:
-      typeof message.content === 'string'
-        ? message.content
-        : 'stub assistant response',
-    reasoning:
-      typeof message.reasoning_content === 'string'
-        ? message.reasoning_content
-        : 'stub reasoning trace: weighing options…',
-    model: typeof resp.model === 'string' ? resp.model : 'stub-model',
+    content: typeof message.content === "string" ? message.content : "stub assistant response",
+    model: typeof resp.model === "string" ? resp.model : "stub-model",
+    reasoning: typeof message.reasoning_content === "string" ? message.reasoning_content : "stub reasoning trace: weighing options…",
   };
 }
 
 /** OpenAI-compatible SSE for `stream: true` chat completions requests. */
 function buildChatCompletionSse(script: GhcloudStubScripted): string {
   const { content, reasoning, model } = resolveChatMessage(script);
-  const id = 'chatcmpl-stub-stream';
+  const id = "chatcmpl-stub-stream";
   const created = Math.floor(Date.now() / 1000);
   const chunks: string[] = [];
   const push = (data: unknown): void => {
@@ -140,45 +144,42 @@ function buildChatCompletionSse(script: GhcloudStubScripted): string {
   };
 
   push({
-    id,
-    object: 'chat.completion.chunk',
-    created,
-    model,
     choices: [
       {
         index: 0,
-        delta: { role: 'assistant', reasoning_content: reasoning },
+        delta: { role: "assistant", reasoning_content: reasoning },
         finish_reason: null,
       },
     ],
+    created,
+    id,
+    model,
+    object: "chat.completion.chunk",
   });
   push({
-    id,
-    object: 'chat.completion.chunk',
-    created,
-    model,
     choices: [{ index: 0, delta: { content }, finish_reason: null }],
+    created,
+    id,
+    model,
+    object: "chat.completion.chunk",
   });
   push({
-    id,
-    object: 'chat.completion.chunk',
+    choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
     created,
+    id,
     model,
-    choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
-    usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+    object: "chat.completion.chunk",
+    usage: { completion_tokens: 4, prompt_tokens: 8, total_tokens: 12 },
   });
-  chunks.push('data: [DONE]\n\n');
-  return chunks.join('');
+  chunks.push("data: [DONE]\n\n");
+  return chunks.join("");
 }
 
-export async function startGhcloudAiAppStub(
-  initial?: GhcloudStubScripted,
-): Promise<GhcloudStubHandle> {
+export async function startGhcloudAiAppStub(initial?: GhcloudStubScripted): Promise<GhcloudStubHandle> {
   let script: GhcloudStubScripted = initial ?? {};
   const requests: GhcloudStubRequestLog[] = [];
 
   const server = Bun.serve({
-    port: 0,
     async fetch(req) {
       const u = new URL(req.url);
       const headers: Record<string, string> = {};
@@ -188,62 +189,46 @@ export async function startGhcloudAiAppStub(
       const body = await readRequestBody(req);
       requests.push({ method: req.method.toUpperCase(), path: u.pathname, query: u.search, headers, body });
 
-      if (
-        req.method.toUpperCase() === 'POST' &&
-        /^\/ai\/flows\/[^/]+\/run(?:-stream)?$/u.test(u.pathname)
-      ) {
+      if (req.method.toUpperCase() === "POST" && /^\/ai\/flows\/[^/]+\/run(?:-stream)?$/u.test(u.pathname)) {
         return Response.json(script.flowRunResponse ?? defaultFlowRunResponse());
       }
 
-      if (
-        req.method.toUpperCase() === 'GET' &&
-        (u.pathname === '/ai/flows' || u.pathname === '/ai/flows/')
-      ) {
+      if (req.method.toUpperCase() === "GET" && (u.pathname === "/ai/flows" || u.pathname === "/ai/flows/")) {
         return Response.json(script.flowListResponse ?? defaultFlowListResponse());
       }
 
-      if (req.method.toUpperCase() === 'POST' && u.pathname === '/ai/knowledge/query') {
-        return Response.json(
-          script.knowledgeQueryResponse ?? defaultKnowledgeResponse(),
-        );
+      if (req.method.toUpperCase() === "POST" && u.pathname === "/ai/knowledge/query") {
+        return Response.json(script.knowledgeQueryResponse ?? defaultKnowledgeResponse());
       }
 
-      if (req.method.toUpperCase() === 'GET' && u.pathname === '/ai/llm/providers') {
+      if (req.method.toUpperCase() === "GET" && u.pathname === "/ai/llm/providers") {
         return Response.json(script.providersResponse ?? []);
       }
 
-      if (
-        req.method.toUpperCase() === 'GET' &&
-        /^\/ai\/llm\/providers\/[^/]+\/models\/[^/]+\/runtime-config$/u.test(u.pathname)
-      ) {
+      if (req.method.toUpperCase() === "GET" && /^\/ai\/llm\/providers\/[^/]+\/models\/[^/]+\/runtime-config$/u.test(u.pathname)) {
         if (!script.modelRuntimeConfig) {
-          return new Response('not found', { status: 404 });
+          return new Response("not found", { status: 404 });
         }
         return Response.json(script.modelRuntimeConfig);
       }
 
-      if (
-        req.method.toUpperCase() === 'POST' &&
-        u.pathname === '/v1/chat/completions'
-      ) {
+      if (req.method.toUpperCase() === "POST" && u.pathname === "/v1/chat/completions") {
         const reqBody = body as { stream?: boolean } | undefined;
         if (reqBody?.stream === true) {
           return new Response(buildChatCompletionSse(script), {
-            headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+            headers: { "Content-Type": "text/event-stream; charset=utf-8" },
           });
         }
-        return Response.json(
-          script.chatCompletionsResponse ?? defaultChatCompletionsResponse(),
-        );
+        return Response.json(script.chatCompletionsResponse ?? defaultChatCompletionsResponse());
       }
 
-      return new Response('stub: not found', { status: 404 });
+      return new Response("stub: not found", { status: 404 });
     },
+    port: 0,
   });
 
   const port = server.port as number;
   return {
-    url: `http://127.0.0.1:${port}`,
     port,
     requests,
     setScript(next) {
@@ -252,5 +237,6 @@ export async function startGhcloudAiAppStub(
     async stop() {
       server.stop(true);
     },
+    url: `http://127.0.0.1:${port}`,
   };
 }

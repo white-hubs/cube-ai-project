@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { OpenAiCompatProvider } from './openai-compat-provider';
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+
+import { OpenAiCompatProvider } from "./openai-compat-provider";
 
 const ORIGINAL_FETCH = globalThis.fetch.bind(globalThis);
 
@@ -17,243 +18,246 @@ afterEach(() => {
   stubFetch(ORIGINAL_FETCH as FetchLike);
 });
 
-describe('OpenAiCompatProvider', () => {
-  it('chat parses content and usage from OpenAI-compatible response', async () => {
+describe("OpenAiCompatProvider", () => {
+  it("chat parses content and usage from OpenAI-compatible response", async () => {
     stubFetch(async () =>
       Response.json({
-        choices: [{ message: { role: 'assistant', content: '你好' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+        choices: [{ finish_reason: "stop", message: { content: "你好", role: "assistant" } }],
+        usage: { completion_tokens: 2, prompt_tokens: 3, total_tokens: 5 },
       }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-4o',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      model: "gpt-4o",
     });
     const res = await provider.chat({
+      messages: [{ role: "user", content: "hi" }],
+      modelCode: "gpt-4o",
       tenant: 1,
-      modelCode: 'gpt-4o',
-      messages: [{ role: 'user', content: 'hi' }],
     });
-    expect(res.content).toBe('你好');
+    expect(res.content).toBe("你好");
     expect(res.usage?.totalTokens).toBe(5);
   });
 
-  it('chat parses tool_calls from OpenAI-compatible response', async () => {
+  it("chat parses tool_calls from OpenAI-compatible response", async () => {
     stubFetch(async () =>
       Response.json({
         choices: [
           {
+            finish_reason: "tool_calls",
             message: {
-              role: 'assistant',
               content: null,
+              role: "assistant",
               tool_calls: [
                 {
-                  id: 'call_1',
-                  type: 'function',
-                  function: { name: 'weather', arguments: '{"city":"SH"}' },
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "weather", arguments: '{"city":"SH"}' },
                 },
               ],
             },
-            finish_reason: 'tool_calls',
           },
         ],
-        usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+        usage: { completion_tokens: 2, prompt_tokens: 1, total_tokens: 3 },
       }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-4o',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      model: "gpt-4o",
     });
     const res = await provider.chat({
+      messages: [{ role: "user", content: "天气" }],
+      modelCode: "gpt-4o",
       tenant: 1,
-      modelCode: 'gpt-4o',
-      messages: [{ role: 'user', content: '天气' }],
       tools: [
         {
-          name: 'weather',
-          description: '查天气',
-          inputSchema: { type: 'object', properties: { city: { type: 'string' } } },
+          name: "weather",
+          description: "查天气",
+          inputSchema: { type: "object", properties: { city: { type: "string" } } },
         },
       ],
     });
-    expect(res.toolCalls?.[0]?.arguments).toEqual({ city: 'SH' });
-    expect(res.finishReason).toBe('tool_calls');
+    expect(res.toolCalls?.[0]?.arguments).toEqual({ city: "SH" });
+    expect(res.finishReason).toBe("tool_calls");
   });
 
-  it('chatStream yields tool-call chunks from streaming tool_calls deltas', async () => {
+  it("chatStream yields tool-call chunks from streaming tool_calls deltas", async () => {
     const sse = [
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"weather","arguments":"{\\"city\\":"}}]}}]}',
-      '',
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"SH\\"}"}}]}}]}',
-      '',
+      String.raw`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"weather","arguments":"{\"city\":"}}]}}]}`,
+      "",
+      String.raw`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"SH\"}"}}]}}]}`,
+      "",
       'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}',
-      '',
-      'data: [DONE]',
-      '',
-    ].join('\n');
+      "",
+      "data: [DONE]",
+      "",
+    ].join("\n");
 
-    stubFetch(async () =>
-      new Response(sse, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      }),
+    stubFetch(
+      async () =>
+        new Response(sse, {
+          headers: { "Content-Type": "text/event-stream" },
+          status: 200,
+        }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-4o',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      model: "gpt-4o",
     });
 
-    const chunks: Array<{ type: string }> = [];
+    const chunks: { type: string }[] = [];
     for await (const ch of provider.chatStream({
+      messages: [{ role: "user", content: "天气" }],
+      modelCode: "gpt-4o",
       tenant: 1,
-      modelCode: 'gpt-4o',
-      messages: [{ role: 'user', content: '天气' }],
-      tools: [{ name: 'weather', inputSchema: { type: 'object' } }],
+      tools: [{ name: "weather", inputSchema: { type: "object" } }],
     })) {
       chunks.push(ch);
     }
 
-    expect(chunks.some((c) => c.type === 'tool-call-delta')).toBe(true);
-    expect(chunks.some((c) => c.type === 'tool-call-complete')).toBe(true);
-    const complete = chunks.find((c) => c.type === 'tool-call-complete') as {
+    expect(chunks.some((c) => c.type === "tool-call-delta")).toBe(true);
+    expect(chunks.some((c) => c.type === "tool-call-complete")).toBe(true);
+    const complete = chunks.find((c) => c.type === "tool-call-complete") as {
       type: string;
       call?: { name: string; arguments: Record<string, unknown> };
     };
-    expect(complete?.call?.name).toBe('weather');
-    expect(complete?.call?.arguments).toEqual({ city: 'SH' });
+    expect(complete?.call?.name).toBe("weather");
+    expect(complete?.call?.arguments).toEqual({ city: "SH" });
   });
 
-  it('chatStream parses tool_calls from message field (gateway compatibility)', async () => {
+  it("chatStream parses tool_calls from message field (gateway compatibility)", async () => {
     const sse = [
-      'data: {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"weather","arguments":"{\\"city\\":\\"SH\\"}"}}]},"finish_reason":"tool_calls"}]}',
-      '',
-      'data: [DONE]',
-      '',
-    ].join('\n');
+      String.raw`data: {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"weather","arguments":"{\"city\":\"SH\"}"}}]},"finish_reason":"tool_calls"}]}`,
+      "",
+      "data: [DONE]",
+      "",
+    ].join("\n");
 
-    stubFetch(async () =>
-      new Response(sse, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      }),
+    stubFetch(
+      async () =>
+        new Response(sse, {
+          headers: { "Content-Type": "text/event-stream" },
+          status: 200,
+        }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-4o',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
+      model: "gpt-4o",
     });
 
-    const chunks: Array<{ type: string }> = [];
+    const chunks: { type: string }[] = [];
     for await (const ch of provider.chatStream({
+      messages: [{ role: "user", content: "天气" }],
+      modelCode: "gpt-4o",
       tenant: 1,
-      modelCode: 'gpt-4o',
-      messages: [{ role: 'user', content: '天气' }],
-      tools: [{ name: 'weather', inputSchema: { type: 'object' } }],
+      tools: [{ name: "weather", inputSchema: { type: "object" } }],
     })) {
       chunks.push(ch);
     }
 
-    const complete = chunks.find((c) => c.type === 'tool-call-complete') as {
+    const complete = chunks.find((c) => c.type === "tool-call-complete") as {
       type: string;
       call?: { name: string; arguments: Record<string, unknown> };
     };
-    expect(complete?.call?.name).toBe('weather');
-    expect(complete?.call?.arguments).toEqual({ city: 'SH' });
-    const finish = chunks.find((c) => c.type === 'finish') as { finishReason?: string };
-    expect(finish?.finishReason).toBe('tool_calls');
+    expect(complete?.call?.name).toBe("weather");
+    expect(complete?.call?.arguments).toEqual({ city: "SH" });
+    const finish = chunks.find((c) => c.type === "finish") as { finishReason?: string };
+    expect(finish?.finishReason).toBe("tool_calls");
   });
 
-  it('chatStream parses plain JSON when gateway ignores stream flag (geekai)', async () => {
+  it("chatStream parses plain JSON when gateway ignores stream flag (geekai)", async () => {
     const json =
       '{"choices":[{"message":{"role":"assistant","content":"汇总结果"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}}';
 
-    stubFetch(async () =>
-      new Response(json, {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+    stubFetch(
+      async () =>
+        new Response(json, {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://geekai.co/api/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-5.5',
+      apiKey: "sk-test",
+      baseURL: "https://geekai.co/api/v1",
+      model: "gpt-5.5",
     });
 
-    const chunks: Array<{ type: string; delta?: string }> = [];
+    const chunks: { type: string; delta?: string }[] = [];
     for await (const ch of provider.chatStream({
+      messages: [{ role: "user", content: "统计报警" }],
+      modelCode: "gpt-5.5",
       tenant: 1,
-      modelCode: 'gpt-5.5',
-      messages: [{ role: 'user', content: '统计报警' }],
-      tools: [{ name: 'query', inputSchema: { type: 'object' } }],
+      tools: [{ name: "query", inputSchema: { type: "object" } }],
     })) {
       chunks.push(ch);
     }
 
     const text = chunks
-      .filter((c) => c.type === 'text-delta')
+      .filter((c) => c.type === "text-delta")
       .map((c) => c.delta)
-      .join('');
-    expect(text).toBe('汇总结果');
+      .join("");
+    expect(text).toBe("汇总结果");
   });
 
-  it('chatStream falls back to non-stream chat when stream body is empty (geekai)', async () => {
+  it("chatStream falls back to non-stream chat when stream body is empty (geekai)", async () => {
     stubFetch(async (_input, init) => {
       const body = JSON.parse(init?.body as string) as { stream?: boolean };
       if (body.stream) {
-        return new Response('', {
+        return new Response("", {
+          headers: { "Content-Type": "text/event-stream" },
           status: 200,
-          headers: { 'Content-Type': 'text/event-stream' },
         });
       }
       return Response.json({
         choices: [
           {
+            finish_reason: "tool_calls",
             message: {
-              role: 'assistant',
               content: null,
+              role: "assistant",
               tool_calls: [
                 {
-                  id: 'call_fb',
-                  type: 'function',
-                  function: { name: 'query_database', arguments: '{"year":2026}' },
+                  id: "call_fb",
+                  type: "function",
+                  function: { name: "query_database", arguments: '{"year":2026}' },
                 },
               ],
             },
-            finish_reason: 'tool_calls',
           },
         ],
       });
     });
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://geekai.co/api/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-5.5',
+      apiKey: "sk-test",
+      baseURL: "https://geekai.co/api/v1",
+      model: "gpt-5.5",
     });
 
-    const chunks: Array<{ type: string; call?: { name: string } }> = [];
+    const chunks: { type: string; call?: { name: string } }[] = [];
     for await (const ch of provider.chatStream({
+      messages: [{ role: "user", content: "统计报警" }],
+      modelCode: "gpt-5.5",
       tenant: 1,
-      modelCode: 'gpt-5.5',
-      messages: [{ role: 'user', content: '统计报警' }],
-      tools: [{ name: 'query_database', inputSchema: { type: 'object' } }],
+      tools: [{ name: "query_database", inputSchema: { type: "object" } }],
     })) {
       chunks.push(ch as { type: string; call?: { name: string } });
     }
 
-    const complete = chunks.find((c) => c.type === 'tool-call-complete');
-    expect(complete?.call?.name).toBe('query_database');
+    const complete = chunks.find((c) => c.type === "tool-call-complete");
+    expect(complete?.call?.name).toBe("query_database");
   });
 
-  it('chatStream flushes a final SSE data line that lacks a trailing newline (geekai single-frame)', async () => {
+  it("chatStream flushes a final SSE data line that lacks a trailing newline (geekai single-frame)", async () => {
     // geekai consolidates the whole turn into one SSE frame and may omit the
     // terminating newline on the final `data:` line. The previous reader loop
     // kept that line in `buffer` and dropped it on stream end → sseChunks=0 →
@@ -261,135 +265,136 @@ describe('OpenAiCompatProvider', () => {
     const sse =
       'data: {"choices":[{"message":{"role":"assistant","content":"今日新闻摘要"},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":4,"total_tokens":14}}';
 
-    stubFetch(async () =>
-      new Response(sse, {
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-      }),
+    stubFetch(
+      async () =>
+        new Response(sse, {
+          headers: { "Content-Type": "text/event-stream" },
+          status: 200,
+        }),
     );
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://geekai.co/api/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-5.5',
+      apiKey: "sk-test",
+      baseURL: "https://geekai.co/api/v1",
+      model: "gpt-5.5",
     });
 
-    const chunks: Array<{ type: string; delta?: string }> = [];
+    const chunks: { type: string; delta?: string }[] = [];
     for await (const ch of provider.chatStream({
+      messages: [{ role: "user", content: "搜索今日新闻" }],
+      modelCode: "gpt-5.5",
       tenant: 1,
-      modelCode: 'gpt-5.5',
-      messages: [{ role: 'user', content: '搜索今日新闻' }],
     })) {
       chunks.push(ch);
     }
 
     const text = chunks
-      .filter((c) => c.type === 'text-delta')
+      .filter((c) => c.type === "text-delta")
       .map((c) => c.delta)
-      .join('');
-    expect(text).toBe('今日新闻摘要');
-    const finish = chunks.find((c) => c.type === 'finish') as { finishReason?: string };
-    expect(finish?.finishReason).toBe('stop');
+      .join("");
+    expect(text).toBe("今日新闻摘要");
+    const finish = chunks.find((c) => c.type === "finish") as { finishReason?: string };
+    expect(finish?.finishReason).toBe("stop");
   });
 
-  it('sends tools in request body when tools are provided', async () => {
+  it("sends tools in request body when tools are provided", async () => {
     let capturedBody: unknown;
     const capturingFetch: FetchLike = async (_input, init) => {
       capturedBody = JSON.parse(init?.body as string);
       return Response.json({
-        choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+        choices: [{ finish_reason: "stop", message: { content: "ok", role: "assistant" } }],
       });
     };
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-4o',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
       fetch: capturingFetch as typeof fetch,
+      model: "gpt-4o",
     });
     await provider.chat({
+      messages: [{ role: "user", content: "hi" }],
+      modelCode: "gpt-4o",
       tenant: 1,
-      modelCode: 'gpt-4o',
-      messages: [{ role: 'user', content: 'hi' }],
-      tools: [{ name: 'demo', description: 'd', inputSchema: { type: 'object' } }],
+      tools: [{ name: "demo", description: "d", inputSchema: { type: "object" } }],
     });
 
     const body = capturedBody as { tools?: unknown[]; tool_choice?: string };
     expect(body.tools?.length).toBe(1);
-    expect(body.tool_choice).toBe('auto');
+    expect(body.tool_choice).toBe("auto");
   });
 
-  it('encodes dotted MCP tool names for OpenAI wire format and decodes tool_calls', async () => {
+  it("encodes dotted MCP tool names for OpenAI wire format and decodes tool_calls", async () => {
     let capturedBody: unknown;
     const capturingFetch: FetchLike = async (_input, init) => {
       capturedBody = JSON.parse(init?.body as string);
       return Response.json({
         choices: [
           {
+            finish_reason: "tool_calls",
             message: {
-              role: 'assistant',
               content: null,
+              role: "assistant",
               tool_calls: [
                 {
-                  id: 'call_1',
-                  type: 'function',
+                  id: "call_1",
+                  type: "function",
                   function: {
-                    name: 'mcp_biz-ontology_query_database',
+                    name: "mcp_biz-ontology_query_database",
                     arguments: '{"year":2026}',
                   },
                 },
               ],
             },
-            finish_reason: 'tool_calls',
           },
         ],
       });
     };
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://geekai.co/api/v1',
-      apiKey: 'sk-test',
-      model: 'gpt-5.5',
+      apiKey: "sk-test",
+      baseURL: "https://geekai.co/api/v1",
       fetch: capturingFetch as typeof fetch,
+      model: "gpt-5.5",
     });
 
     const res = await provider.chat({
+      messages: [{ role: "user", content: "统计报警" }],
+      modelCode: "gpt-5.5",
       tenant: 1,
-      modelCode: 'gpt-5.5',
-      messages: [{ role: 'user', content: '统计报警' }],
       tools: [
-        { name: 'currentDate', inputSchema: { type: 'object' } },
-        { name: 'mcp.biz-ontology.query_database', inputSchema: { type: 'object' } },
+        { name: "currentDate", inputSchema: { type: "object" } },
+        { name: "mcp.biz-ontology.query_database", inputSchema: { type: "object" } },
       ],
     });
 
     const body = capturedBody as {
-      tools?: Array<{ function?: { name?: string } }>;
+      tools?: { function?: { name?: string } }[];
     };
-    expect(body.tools?.[0]?.function?.name).toBe('currentDate');
-    expect(body.tools?.[1]?.function?.name).toBe('mcp_biz-ontology_query_database');
-    expect(res.toolCalls?.[0]?.name).toBe('mcp.biz-ontology.query_database');
+    expect(body.tools?.[0]?.function?.name).toBe("currentDate");
+    expect(body.tools?.[1]?.function?.name).toBe("mcp_biz-ontology_query_database");
+    expect(res.toolCalls?.[0]?.name).toBe("mcp.biz-ontology.query_database");
     expect(res.toolCalls?.[0]?.arguments).toEqual({ year: 2026 });
   });
 
-  it('embed returns dense vectors (G3 sparse optional on openai path)', async () => {
+  it("embed returns dense vectors (G3 sparse optional on openai path)", async () => {
     const embeddingFetch: FetchLike = async () =>
       Response.json({
-        object: 'list',
-        data: [{ object: 'embedding', embedding: [0.1, 0.2, 0.3], index: 0 }],
+        data: [{ object: "embedding", embedding: [0.1, 0.2, 0.3], index: 0 }],
+        object: "list",
         usage: { prompt_tokens: 2, total_tokens: 2 },
       });
 
     const provider = new OpenAiCompatProvider({
-      baseURL: 'https://api.example.com/v1',
-      apiKey: 'sk-test',
-      model: 'text-embedding-3-small',
+      apiKey: "sk-test",
+      baseURL: "https://api.example.com/v1",
       fetch: embeddingFetch as typeof fetch,
+      model: "text-embedding-3-small",
     });
     const res = await provider.embed({
+      input: ["hello world"],
+      modelCode: "text-embedding-3-small",
       tenant: 1,
-      modelCode: 'text-embedding-3-small',
-      input: ['hello world'],
     });
     expect(res).toEqual([{ dense: [0.1, 0.2, 0.3] }]);
     expect(res[0]?.sparse).toBeUndefined();

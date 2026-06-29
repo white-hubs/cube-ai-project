@@ -1,36 +1,33 @@
-import { defineComponent, ref, computed, onMounted, watch } from 'vue';
-import type { CapabilityEntry, ConnectionProfile } from './types';
-import manifest from '../generated/capabilities.json';
-import { CapabilityTree } from './CapabilityTree';
-import { ConnectionProfilePanel } from './ConnectionProfilePanel';
-import { InvokerShell } from './InvokerShell';
-import { loadConnectionProfile } from './connection-profile';
-import { ProxyRequestLogPanel } from './ProxyRequestLogPanel';
+import { computed, defineComponent, onMounted, ref, watch } from "vue";
+
+import manifest from "../generated/capabilities.json";
+import { CapabilityTree } from "./CapabilityTree";
+import { loadConnectionProfile } from "./connection-profile";
+import { ConnectionProfilePanel } from "./ConnectionProfilePanel";
+import { InvokerShell } from "./InvokerShell";
+import { ProxyRequestLogPanel } from "./ProxyRequestLogPanel";
+import { type CapabilityEntry, type ConnectionProfile } from "./types";
 
 async function probeHealth(prefix: string): Promise<string> {
-  const base = prefix.replace(/\/$/, '');
+  const base = prefix.replace(/\/$/u, "");
   const res = await fetch(`${base}/health/live`);
   return res.ok ? `ok (${res.status})` : `HTTP ${res.status}`;
 }
 
 export const PlaygroundView = defineComponent({
-  name: 'PlaygroundView',
+  name: "PlaygroundView",
   setup() {
     const selectedId = ref<string | null>(null);
     const profile = ref<ConnectionProfile>(loadConnectionProfile());
-    const health = ref('checking…');
+    const health = ref("checking…");
     const logRefreshToken = ref(0);
 
-    const selectedCapability = computed(() =>
-      (manifest.entries as CapabilityEntry[]).find((e) => e.id === selectedId.value) ?? null,
-    );
+    const selectedCapability = computed(() => (manifest.entries as CapabilityEntry[]).find((e) => e.id === selectedId.value) ?? null);
 
-    const healthPath = computed(
-      () => `${profile.value.sdkPathPrefix.replace(/\/$/, '')}/health/live`,
-    );
+    const healthPath = computed(() => `${profile.value.sdkPathPrefix.replace(/\/$/u, "")}/health/live`);
 
     async function refreshHealth() {
-      health.value = 'checking…';
+      health.value = "checking…";
       try {
         health.value = await probeHealth(profile.value.sdkPathPrefix);
       } catch (e) {

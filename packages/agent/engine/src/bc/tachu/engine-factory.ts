@@ -1,11 +1,7 @@
-import { Injectable } from '@dangao/bun-server';
-import { RuntimeRefsSchema } from '@cube-ai/contracts';
-import type { LlmProviderPort, RuntimeRefs } from '@cube-ai/contracts';
-import type { ImageAttachment, MessageContentV1 } from '@cube-ai/contracts';
+import { Injectable } from "@dangao/bun-server";
 import {
   Engine,
   adapterCallContextFromExecution,
-  type AdapterCallContext,
   type EngineConfig,
   type ExecutionContext,
   type InputEnvelope,
@@ -17,42 +13,36 @@ import {
   type StreamChunkPayload,
   type TaskExecutor,
   type MemorySystem,
-} from '@tachu/core';
-import type { DescriptorRegistryService } from '../descriptor/descriptor-registry.service';
-import type { SkillRegistryService } from '../descriptor/skill-registry.service';
-import type { ToolHandlerCtx } from '../tools/tool-context';
-import type { ToolService } from '../tools/tool.service';
-import { mapContractToolToTachu } from './contract-tool-to-tachu';
-import { computeTachuToolMirrorNamesForPrompt } from './engine-tool-mirror';
-import { findExplicitSkillMentions } from './explicit-skill-mention';
-import {
-  applyHostTurnPolicyPreseed,
-  TURN_POLICY_INTENT_ROUTING_APPENDIX,
-} from './host-turn-policy';
+} from "@tachu/core";
 
-import { appendSkillDiscoveryHint } from '../skill-activation/skill-activation-bridge';
-import { findExplicitToolMentions } from './explicit-tool-mention';
-import {
-  KeywordToolStrategy,
-  SemanticToolStrategy,
-  type IntentRoutingBlock,
-} from '../tool-activation';
-import { assembleTachuRuntime, buildDefaultEngineConfig } from './assemble-tachu-runtime';
-import { emitHostEngineEvent } from './host-observability';
-import type { TurnContextHolder } from './turn-context-holder';
-import { resolveNonEmptyModel } from './tachu.tokens';
-import type { MemoryProjectionRelayService } from '../../infra/memory-projection/memory-projection-relay.service';
-import { LocalFileService } from '../files/local-file.service';
-import {
-  snapshotSkillsToDescriptors,
-  type SnapshotSkillEntry,
-} from '../session/snapshot-skill-hydration';
+import { RuntimeRefsSchema } from "@cube-ai/contracts";
+import type { LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
+import type { ImageAttachment, MessageContentV1 } from "@cube-ai/contracts";
 
-const RUNTIME_SKILL_REFS_TOOL_NAME = 'runtime.skill.refs';
-const RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME = 'platform.knowledge.query';
+import { MemoryProjectionRelayService } from "../../infra/memory-projection/memory-projection-relay.service";
+import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
+import { SkillRegistryService } from "../descriptor/skill-registry.service";
+import { LocalFileService } from "../files/local-file.service";
+import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session/snapshot-skill-hydration";
+import { appendSkillDiscoveryHint } from "../skill-activation/skill-activation-bridge";
+import { type IntentRoutingBlock } from "../tool-activation";
+import type { ToolHandlerCtx } from "../tools/tool-context";
+import { ToolService } from "../tools/tool.service";
+import { assembleTachuRuntime, buildDefaultEngineConfig } from "./assemble-tachu-runtime";
+import { mapContractToolToTachu } from "./contract-tool-to-tachu";
+import { computeTachuToolMirrorNamesForPrompt } from "./engine-tool-mirror";
+import { findExplicitSkillMentions } from "./explicit-skill-mention";
+import { findExplicitToolMentions } from "./explicit-tool-mention";
+import { emitHostEngineEvent } from "./host-observability";
+import { applyHostTurnPolicyPreseed, TURN_POLICY_INTENT_ROUTING_APPENDIX } from "./host-turn-policy";
+import { resolveNonEmptyModel } from "./tachu.tokens";
+import type { TurnContextHolder } from "./turn-context-holder";
 
-type RuntimeKnowledgeRef = NonNullable<RuntimeRefs['knowledgeBases']>[number];
-type RuntimeSkillRef = NonNullable<RuntimeRefs['userSkills']>[number];
+const RUNTIME_SKILL_REFS_TOOL_NAME = "runtime.skill.refs";
+const RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME = "platform.knowledge.query";
+
+type RuntimeKnowledgeRef = NonNullable<RuntimeRefs["knowledgeBases"]>[number];
+type RuntimeSkillRef = NonNullable<RuntimeRefs["userSkills"]>[number];
 
 interface KnowledgeHitView {
   docId?: string;
@@ -63,10 +53,7 @@ interface KnowledgeHitView {
   link?: string;
 }
 
-function appendRuntimeKnowledgeRefsHint(
-  systemInstruction: string,
-  runtimeRefs: RuntimeRefs | undefined,
-): string {
+function appendRuntimeKnowledgeRefsHint(systemInstruction: string, runtimeRefs: RuntimeRefs | undefined): string {
   const refs = runtimeRefs?.knowledgeBases ?? [];
   if (refs.length === 0) return systemInstruction;
 
@@ -77,22 +64,19 @@ function appendRuntimeKnowledgeRefsHint(
     if (!kbId || seen.has(kbId)) continue;
     seen.add(kbId);
     const label = ref.displayName?.trim();
-    lines.push(`- ${label && label !== kbId ? `${label} ` : ''}(kbId: ${kbId})`);
+    lines.push(`- ${label && label !== kbId ? `${label} ` : ""}(kbId: ${kbId})`);
   }
   if (lines.length === 0) return systemInstruction;
 
   const hint = [
-    '## Runtime Knowledge References',
-    'The user attached these knowledge bases for this turn. Use `platform.knowledge.query` when external knowledge is needed. The tool is restricted to this list; do not request kbIds outside it.',
+    "## Runtime Knowledge References",
+    "The user attached these knowledge bases for this turn. Use `platform.knowledge.query` when external knowledge is needed. The tool is restricted to this list; do not request kbIds outside it.",
     ...lines,
-  ].join('\n');
-  return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join('\n\n');
+  ].join("\n");
+  return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join("\n\n");
 }
 
-function appendRuntimeSkillRefsHint(
-  systemInstruction: string,
-  runtimeRefs: RuntimeRefs | undefined,
-): string {
+function appendRuntimeSkillRefsHint(systemInstruction: string, runtimeRefs: RuntimeRefs | undefined): string {
   const refs = runtimeRefs?.userSkills ?? [];
   if (refs.length === 0) return systemInstruction;
 
@@ -103,16 +87,16 @@ function appendRuntimeSkillRefsHint(
     if (!skillId || seen.has(skillId)) continue;
     seen.add(skillId);
     const label = ref.displayName?.trim();
-    lines.push(`- ${label && label !== skillId ? `${label} ` : ''}(skillId: ${skillId})`);
+    lines.push(`- ${label && label !== skillId ? `${label} ` : ""}(skillId: ${skillId})`);
   }
   if (lines.length === 0) return systemInstruction;
 
   const hint = [
-    '## Runtime Skill References',
-    'The user explicitly attached these skills for this turn. Treat them as pinned current-turn skills when their instructions are available.',
+    "## Runtime Skill References",
+    "The user explicitly attached these skills for this turn. Treat them as pinned current-turn skills when their instructions are available.",
     ...lines,
-  ].join('\n');
-  return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join('\n\n');
+  ].join("\n");
+  return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join("\n\n");
 }
 
 function uniqueRuntimeKnowledgeRefs(runtimeRefs: RuntimeRefs | undefined): RuntimeKnowledgeRef[] {
@@ -152,56 +136,50 @@ function truncateText(value: string, maxChars: number): string {
 const INTENT_TOOL_DESCRIPTION_MAX_CHARS = 160;
 
 function summarizeToolDescriptionForIntent(description: string): string {
-  const firstLine = description.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
+  const firstLine =
+    description
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l.length > 0) ?? "";
   return truncateText(firstLine, INTENT_TOOL_DESCRIPTION_MAX_CHARS);
 }
 
 function hasImageInput(content: MessageContentV1 | undefined): boolean {
-  return (content?.blocks ?? []).some((block) => block.type === 'image_ref');
+  return (content?.blocks ?? []).some((block) => block.type === "image_ref");
 }
 
 function readOptionalStringField(rec: Record<string, unknown>, key: string): string | undefined {
   const value = rec[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 function readKnowledgeHits(output: unknown): KnowledgeHitView[] {
-  if (!output || typeof output !== 'object' || Array.isArray(output)) return [];
+  if (!output || typeof output !== "object" || Array.isArray(output)) return [];
   const hits = (output as { hits?: unknown }).hits;
   if (!Array.isArray(hits)) return [];
 
   const out: KnowledgeHitView[] = [];
   for (const item of hits) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const rec = item as Record<string, unknown>;
     const snippet =
-      readOptionalStringField(rec, 'snippet') ??
-      readOptionalStringField(rec, 'content') ??
-      readOptionalStringField(rec, 'text');
+      readOptionalStringField(rec, "snippet") ?? readOptionalStringField(rec, "content") ?? readOptionalStringField(rec, "text");
     if (!snippet) continue;
-    const score = rec['score'];
+    const score = rec["score"];
     out.push({
       snippet,
-      ...(readOptionalStringField(rec, 'docId') !== undefined
-        ? { docId: readOptionalStringField(rec, 'docId') }
-        : {}),
-      ...(readOptionalStringField(rec, 'kbId') !== undefined
-        ? { kbId: readOptionalStringField(rec, 'kbId') }
-        : {}),
-      ...(readOptionalStringField(rec, 'title') !== undefined
-        ? { title: readOptionalStringField(rec, 'title') }
-        : {}),
-      ...(typeof score === 'number' && Number.isFinite(score) ? { score } : {}),
-      ...(readOptionalStringField(rec, 'link') !== undefined
-        ? { link: readOptionalStringField(rec, 'link') }
-        : {}),
+      ...(readOptionalStringField(rec, "docId") !== undefined ? { docId: readOptionalStringField(rec, "docId") } : {}),
+      ...(readOptionalStringField(rec, "kbId") !== undefined ? { kbId: readOptionalStringField(rec, "kbId") } : {}),
+      ...(readOptionalStringField(rec, "title") !== undefined ? { title: readOptionalStringField(rec, "title") } : {}),
+      ...(typeof score === "number" && Number.isFinite(score) ? { score } : {}),
+      ...(readOptionalStringField(rec, "link") !== undefined ? { link: readOptionalStringField(rec, "link") } : {}),
     });
   }
   return out;
 }
 
 function readKnowledgeTruncated(output: unknown): boolean {
-  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
     return false;
   }
   return (output as { truncated?: unknown }).truncated === true;
@@ -215,46 +193,42 @@ function summarizeKnowledgeHitsForObservability(
     ...(hit.docId !== undefined ? { docId: hit.docId } : {}),
     ...(hit.kbId !== undefined ? { kbId: hit.kbId } : {}),
     ...(hit.title !== undefined ? { title: hit.title } : {}),
-    ...(typeof hit.score === 'number' ? { score: hit.score } : {}),
+    ...(typeof hit.score === "number" ? { score: hit.score } : {}),
   }));
 }
 
-function formatRetrievedKnowledgeContext(
-  output: unknown,
-  refs: readonly RuntimeKnowledgeRef[],
-): string {
+function formatRetrievedKnowledgeContext(output: unknown, refs: readonly RuntimeKnowledgeRef[]): string {
   const hitLines = readKnowledgeHits(output)
     .slice(0, 5)
     .map((hit, index) => {
       const title = hit.title ?? hit.docId ?? `Knowledge hit ${index + 1}`;
       const meta = [
         hit.kbId ? `kbId: ${hit.kbId}` : undefined,
-        typeof hit.score === 'number' ? `score: ${hit.score.toFixed(3)}` : undefined,
+        typeof hit.score === "number" ? `score: ${hit.score.toFixed(3)}` : undefined,
         hit.link ? `link: ${hit.link}` : undefined,
       ].filter((part): part is string => part !== undefined);
-      return [
-        `[${index + 1}] ${title}${meta.length > 0 ? ` (${meta.join(', ')})` : ''}`,
-        truncateText(hit.snippet.trim(), 1200),
-      ].join('\n');
+      return [`[${index + 1}] ${title}${meta.length > 0 ? ` (${meta.join(", ")})` : ""}`, truncateText(hit.snippet.trim(), 1200)].join(
+        "\n",
+      );
     });
   const refLines = refs.map((ref) => {
     const label = ref.displayName?.trim();
-    return `- ${label && label !== ref.kbId ? `${label} ` : ''}(kbId: ${ref.kbId})`;
+    return `- ${label && label !== ref.kbId ? `${label} ` : ""}(kbId: ${ref.kbId})`;
   });
   return [
-    '## Retrieved Knowledge Context',
-    'The engine has already queried the user-attached knowledge bases for this turn. Use these snippets as current business context. If the snippets do not answer the question, say that the attached knowledge base did not provide a matching answer.',
-    'Attached knowledge bases:',
+    "## Retrieved Knowledge Context",
+    "The engine has already queried the user-attached knowledge bases for this turn. Use these snippets as current business context. If the snippets do not answer the question, say that the attached knowledge base did not provide a matching answer.",
+    "Attached knowledge bases:",
     ...refLines,
-    '',
-    hitLines.length > 0 ? hitLines.join('\n\n') : 'No matching knowledge snippets were returned.',
-  ].join('\n');
+    "",
+    hitLines.length > 0 ? hitLines.join("\n\n") : "No matching knowledge snippets were returned.",
+  ].join("\n");
 }
 
 function errorToToolError(error: unknown): { code: string; message: string; retryable: boolean } {
-  const rec = error && typeof error === 'object' ? (error as Record<string, unknown>) : {};
-  const code = typeof rec['code'] === 'string' ? rec['code'] : 'TOOL_EXECUTION_FAILED';
-  const retryable = typeof rec['retryable'] === 'boolean' ? rec['retryable'] : false;
+  const rec = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
+  const code = typeof rec["code"] === "string" ? rec["code"] : "TOOL_EXECUTION_FAILED";
+  const retryable = typeof rec["retryable"] === "boolean" ? rec["retryable"] : false;
   const message = error instanceof Error ? error.message : String(error);
   return { code, message, retryable };
 }
@@ -339,9 +313,9 @@ export class EngineFactory {
   private readonly descriptorRegistry?: DescriptorRegistryService;
   private readonly skillRegistry?: SkillRegistryService;
   /** 与 DescriptorRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 tool 表。 */
-  private toolsMirrorSig = '';
+  private toolsMirrorSig = "";
   /** 与 SkillRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 skill 表。 */
-  private skillsMirrorSig = '';
+  private skillsMirrorSig = "";
   /** Lazily-resolved ToolService cache (see {@link getToolService}). */
   private lazyToolService?: ToolService;
   /** True once the lazy provider has thrown, so we don't spam the error log each call. */
@@ -374,7 +348,7 @@ export class EngineFactory {
     this.descriptorRegistry = descriptorRegistry;
     this.skillRegistry = skillRegistry;
     this.providerId = provider.id;
-    this.defaultModel = resolveNonEmptyModel(process.env['AGENTIC_ENGINE_MODEL'], 'gpt-4o-mini');
+    this.defaultModel = resolveNonEmptyModel(process.env["AGENTIC_ENGINE_MODEL"], "gpt-4o-mini");
 
     const assembled = assembleTachuRuntime({
       provider,
@@ -425,7 +399,7 @@ export class EngineFactory {
         ...(arg.userId !== undefined ? { userId: arg.userId } : {}),
       },
       budget: {},
-      scopes: arg.scopes && arg.scopes.length > 0 ? [...arg.scopes] : ['*'],
+      scopes: arg.scopes && arg.scopes.length > 0 ? [...arg.scopes] : ["*"],
     };
     for (const chunk of this.buildRuntimeSkillRefChunks(arg, ctx)) {
       yield chunk;
@@ -437,9 +411,7 @@ export class EngineFactory {
     const input = await this.buildInputEnvelope(arg);
     const scope = this.buildSessionScope(arg, knowledgePrefetch.promptContext);
     this.turnContext.embeddingModelCode = arg.skillEmbeddingModelCode;
-    this.turnContext.intentRoutingBlock =
-      (arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined) ??
-      null;
+    this.turnContext.intentRoutingBlock = (arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined) ?? null;
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
     try {
       yield* this.engine.runStream(input, ctx, scope);
@@ -450,55 +422,49 @@ export class EngineFactory {
     }
   }
 
-  async resolveEffectiveRoute(arg: Pick<TurnRunStreamInput, 'prompt' | 'content' | 'turnModelCode' | 'agentSnapshot'>): Promise<{
+  async resolveEffectiveRoute(arg: Pick<TurnRunStreamInput, "prompt" | "content" | "turnModelCode" | "agentSnapshot">): Promise<{
     requestedModelCode?: string;
     effectiveModelCode: string;
     effectiveProviderCode: string;
-    reason: 'DIRECT' | 'IMAGE_CAPABILITY_REROUTE' | 'FALLBACK';
+    reason: "DIRECT" | "IMAGE_CAPABILITY_REROUTE" | "FALLBACK";
   }> {
-    const requestedModelCode =
-      arg.turnModelCode ??
-      arg.agentSnapshot?.agent?.content?.modelConfig?.model ??
-      this.defaultModel;
+    const requestedModelCode = arg.turnModelCode ?? arg.agentSnapshot?.agent?.content?.modelConfig?.model ?? this.defaultModel;
     if (!hasImageInput(arg.content)) {
       return {
         requestedModelCode: arg.turnModelCode,
         effectiveModelCode: requestedModelCode,
         effectiveProviderCode: this.providerId,
-        reason: 'DIRECT',
+        reason: "DIRECT",
       };
     }
     const models = await this.provider.listAvailableModels();
     const requested = models.find((model) => model.modelName === requestedModelCode);
-    if (requested?.capabilities.supportedModalities.includes('image')) {
+    if (requested?.capabilities.supportedModalities.includes("image")) {
       return {
         requestedModelCode: arg.turnModelCode,
         effectiveModelCode: requestedModelCode,
         effectiveProviderCode: this.providerId,
-        reason: 'DIRECT',
+        reason: "DIRECT",
       };
     }
-    const imageCapable = models.find((model) => model.capabilities.supportedModalities.includes('image'));
+    const imageCapable = models.find((model) => model.capabilities.supportedModalities.includes("image"));
     if (imageCapable) {
       return {
         requestedModelCode: arg.turnModelCode,
         effectiveModelCode: imageCapable.modelName,
         effectiveProviderCode: this.providerId,
-        reason: 'IMAGE_CAPABILITY_REROUTE',
+        reason: "IMAGE_CAPABILITY_REROUTE",
       };
     }
     return {
       requestedModelCode: arg.turnModelCode,
       effectiveModelCode: requestedModelCode,
       effectiveProviderCode: this.providerId,
-      reason: 'FALLBACK',
+      reason: "FALLBACK",
     };
   }
 
-  private buildRuntimeSkillRefChunks(
-    arg: TurnRunStreamInput,
-    context: ExecutionContext,
-  ): StreamChunk[] {
+  private buildRuntimeSkillRefChunks(arg: TurnRunStreamInput, context: ExecutionContext): StreamChunk[] {
     const refs = uniqueRuntimeSkillRefs(arg.runtimeRefs);
     if (refs.length === 0) return [];
 
@@ -515,7 +481,7 @@ export class EngineFactory {
     return [
       this.withStreamEnvelope(
         {
-          type: 'tool-call-start',
+          type: "tool-call-start",
           callId,
           tool: RUNTIME_SKILL_REFS_TOOL_NAME,
           argumentsPreview: JSON.stringify(args),
@@ -524,7 +490,7 @@ export class EngineFactory {
       ),
       this.withStreamEnvelope(
         {
-          type: 'tool-call-end',
+          type: "tool-call-end",
           callId,
           tool: RUNTIME_SKILL_REFS_TOOL_NAME,
           success: true,
@@ -537,36 +503,33 @@ export class EngineFactory {
   }
 
   private async buildInputEnvelope(arg: TurnRunStreamInput): Promise<InputEnvelope> {
-    const registeredToolNames = this.tachuRegistry.list('tool').map((t) => t.name);
+    const registeredToolNames = this.tachuRegistry.list("tool").map((t) => t.name);
     if (!hasImageInput(arg.content)) {
       return applyHostTurnPolicyPreseed(
         {
           content: arg.prompt,
-          metadata: { modality: 'text', size: arg.prompt.length },
+          metadata: { modality: "text", size: arg.prompt.length },
         },
         arg.prompt,
         registeredToolNames,
       );
     }
     const attachmentsById = new Map((arg.attachments ?? []).map((attachment) => [attachment.attachmentId, attachment]));
-    const contentParts: Array<
-      | { type: 'text'; text: string }
-      | { type: 'file'; file: { mimeType: string; uri: string } }
-    > = [];
+    const contentParts: Array<{ type: "text"; text: string } | { type: "file"; file: { mimeType: string; uri: string } }> = [];
     let size = 0;
     for (const block of arg.content?.blocks ?? []) {
-      if (block.type === 'text') {
+      if (block.type === "text") {
         const text = block.text.trim();
         if (!text) continue;
         size += text.length;
-        contentParts.push({ type: 'text', text });
+        contentParts.push({ type: "text", text });
         continue;
       }
       const attachment = attachmentsById.get(block.attachmentId);
       if (!attachment) continue;
       size += attachment.size ?? 0;
       contentParts.push({
-        type: 'file',
+        type: "file",
         file: {
           mimeType: attachment.mimeType,
           uri: attachment.fileId,
@@ -577,7 +540,7 @@ export class EngineFactory {
       {
         content: contentParts,
         metadata: {
-          modality: 'image',
+          modality: "image",
           size,
         },
       },
@@ -598,10 +561,10 @@ export class EngineFactory {
     if (refs.length === 0) {
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: 'knowledge_prefetch_skipped',
-        phase: 'prefetch',
+        type: "knowledge_prefetch_skipped",
+        phase: "prefetch",
         payload: {
-          reason: 'no_refs',
+          reason: "no_refs",
           queryChars: query.length,
         },
       });
@@ -610,10 +573,10 @@ export class EngineFactory {
     if (!toolService) {
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: 'knowledge_prefetch_skipped',
-        phase: 'prefetch',
+        type: "knowledge_prefetch_skipped",
+        phase: "prefetch",
         payload: {
-          reason: 'no_tool_service',
+          reason: "no_tool_service",
           kbIds,
           queryChars: query.length,
         },
@@ -623,10 +586,10 @@ export class EngineFactory {
     if (query.length < 2) {
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: 'knowledge_prefetch_skipped',
-        phase: 'prefetch',
+        type: "knowledge_prefetch_skipped",
+        phase: "prefetch",
         payload: {
-          reason: 'query_too_short',
+          reason: "query_too_short",
           kbIds,
           queryChars: query.length,
         },
@@ -640,7 +603,7 @@ export class EngineFactory {
     const chunks: StreamChunk[] = [
       this.withStreamEnvelope(
         {
-          type: 'tool-call-start',
+          type: "tool-call-start",
           callId,
           tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
           argumentsPreview: JSON.stringify({
@@ -654,16 +617,13 @@ export class EngineFactory {
 
     try {
       const controller = new AbortController();
-      const output = await toolService.invoke(
-        RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
-        input,
-        this.toToolHandlerCtx(context, controller.signal),
-        { toolCallId: callId },
-      );
+      const output = await toolService.invoke(RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME, input, this.toToolHandlerCtx(context, controller.signal), {
+        toolCallId: callId,
+      });
       chunks.push(
         this.withStreamEnvelope(
           {
-            type: 'tool-call-end',
+            type: "tool-call-end",
             callId,
             tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
             success: true,
@@ -677,8 +637,8 @@ export class EngineFactory {
       const hits = readKnowledgeHits(output);
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: 'knowledge_prefetch_end',
-        phase: 'prefetch',
+        type: "knowledge_prefetch_end",
+        phase: "prefetch",
         payload: {
           hitCount: hits.length,
           truncated: readKnowledgeTruncated(output),
@@ -694,8 +654,8 @@ export class EngineFactory {
       const toolError = errorToToolError(error);
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: 'knowledge_prefetch_failed',
-        phase: 'prefetch',
+        type: "knowledge_prefetch_failed",
+        phase: "prefetch",
         payload: {
           kbIds,
           queryChars: query.length,
@@ -707,7 +667,7 @@ export class EngineFactory {
       chunks.push(
         this.withStreamEnvelope(
           {
-            type: 'tool-call-end',
+            type: "tool-call-end",
             callId,
             tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
             success: false,
@@ -721,10 +681,7 @@ export class EngineFactory {
     }
   }
 
-  private withStreamEnvelope(
-    chunk: StreamChunkPayload,
-    context: ExecutionContext,
-  ): StreamChunk {
+  private withStreamEnvelope(chunk: StreamChunkPayload, context: ExecutionContext): StreamChunk {
     return {
       ...chunk,
       correlation: context.correlation,
@@ -765,13 +722,13 @@ export class EngineFactory {
     const parts: string[] = [];
     for (const name of namesList) {
       const d = this.descriptorRegistry.resolve(name);
-      if (d) parts.push(`${d.name}@${d.version ?? '1.0.0'}`);
+      if (d) parts.push(`${d.name}@${d.version ?? "1.0.0"}`);
     }
-    const sig = parts.join('|');
+    const sig = parts.join("|");
     if (sig === this.toolsMirrorSig) return;
 
-    for (const name of this.tachuRegistry.list('tool').map((t) => t.name)) {
-      await this.tachuRegistry.unregister('tool', name).catch(() => {});
+    for (const name of this.tachuRegistry.list("tool").map((t) => t.name)) {
+      await this.tachuRegistry.unregister("tool", name).catch(() => {});
     }
     for (const name of namesList) {
       const d = this.descriptorRegistry.resolve(name);
@@ -786,8 +743,8 @@ export class EngineFactory {
     const sig = this.skillRegistry.signature();
     if (sig === this.skillsMirrorSig) return;
 
-    for (const name of this.tachuRegistry.list('skill').map((s) => s.name)) {
-      await this.tachuRegistry.unregister('skill', name).catch(() => {});
+    for (const name of this.tachuRegistry.list("skill").map((s) => s.name)) {
+      await this.tachuRegistry.unregister("skill", name).catch(() => {});
     }
     for (const skill of this.skillRegistry.list()) {
       await this.tachuRegistry.register(skill);
@@ -806,19 +763,14 @@ export class EngineFactory {
    * - additionalSkills：快照内联 skill 名称列表（ADR-0007：作为 snapshot-refs 输入，T0 pinned）。
    * - keyword 候选由 tachu `SkillActivator` + `KeywordCandidateStrategy` 处理。
    */
-  private buildSessionScope(
-    arg: TurnRunStreamInput,
-    retrievedKnowledgeContext?: string,
-  ): SessionScope {
+  private buildSessionScope(arg: TurnRunStreamInput, retrievedKnowledgeContext?: string): SessionScope {
     const rawPrompt = arg.agentSnapshot?.agent?.content?.prompt;
     const model =
       resolveNonEmptyModel(arg.turnModelCode) ||
       resolveNonEmptyModel(arg.agentSnapshot?.agent?.content?.modelConfig?.model) ||
       this.defaultModel;
 
-    const intentRouting = arg.agentSnapshot?.agent?.content?.intentRouting as
-      | IntentRoutingBlock
-      | undefined;
+    const intentRouting = arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined;
 
     const scope: SessionScope = {
       modelOverride: { all: { provider: this.providerId, model } },
@@ -829,12 +781,11 @@ export class EngineFactory {
       ...(intentRouting?.enabled === false ? { toolRoutingDisabled: true } : {}),
     };
 
-    const basePrompt =
-      typeof rawPrompt === 'string' && rawPrompt.trim().length > 0 ? rawPrompt.trim() : '';
+    const basePrompt = typeof rawPrompt === "string" && rawPrompt.trim().length > 0 ? rawPrompt.trim() : "";
     const withKnowledgeRefs = appendRuntimeKnowledgeRefsHint(basePrompt, arg.runtimeRefs);
     const withRetrievedKnowledge = [withKnowledgeRefs.trim(), retrievedKnowledgeContext?.trim()]
       .filter((part): part is string => part !== undefined && part.length > 0)
-      .join('\n\n');
+      .join("\n\n");
     const withRuntimeSkillRefs = appendRuntimeSkillRefsHint(withRetrievedKnowledge, arg.runtimeRefs);
     const withHint = appendSkillDiscoveryHint(withRuntimeSkillRefs);
     if (withHint.trim().length > 0) {
@@ -845,11 +796,11 @@ export class EngineFactory {
     // decisions without relying on hardcoded domain regex patterns.
     // tachuRegistry is already up-to-date: mirrorDescriptorToolsToTachuIfNeeded() runs
     // before buildSessionScope() in runStream().
-    const registeredTools = this.tachuRegistry.list('tool') as Array<{
+    const registeredTools = this.tachuRegistry.list("tool") as Array<{
       name: string;
       description?: string;
     }>;
-    const registeredSkills = this.tachuRegistry.list('skill') as Array<{
+    const registeredSkills = this.tachuRegistry.list("skill") as Array<{
       name: string;
       description?: string;
       tags?: string[];
@@ -867,12 +818,8 @@ export class EngineFactory {
         description: s.description as string,
         ...(s.tags && s.tags.length > 0 ? { tags: [...s.tags] } : {}),
       }));
-    const intentInstructionParts = [
-      basePrompt,
-      TURN_POLICY_INTENT_ROUTING_APPENDIX,
-    ].filter((part) => part.length > 0);
-    const intentSystemInstruction =
-      intentInstructionParts.length > 0 ? intentInstructionParts.join('\n\n') : undefined;
+    const intentInstructionParts = [basePrompt, TURN_POLICY_INTENT_ROUTING_APPENDIX].filter((part) => part.length > 0);
+    const intentSystemInstruction = intentInstructionParts.length > 0 ? intentInstructionParts.join("\n\n") : undefined;
     if (intentSystemInstruction || intentTools.length > 0 || intentSkills.length > 0) {
       scope.intentAgentContext = {
         ...(intentSystemInstruction ? { systemInstruction: intentSystemInstruction } : {}),
@@ -883,12 +830,8 @@ export class EngineFactory {
 
     const registeredToolNames = registeredTools.map((tool) => tool.name);
     const registeredSkillNames = registeredSkills.map((skill) => skill.name);
-    const explicitToolNames = new Set(
-      findExplicitToolMentions(arg.prompt, registeredToolNames),
-    );
-    const explicitSkillNames = new Set(
-      findExplicitSkillMentions(arg.prompt, registeredSkillNames),
-    );
+    const explicitToolNames = new Set(findExplicitToolMentions(arg.prompt, registeredToolNames));
+    const explicitSkillNames = new Set(findExplicitSkillMentions(arg.prompt, registeredSkillNames));
     for (const ref of uniqueRuntimeSkillRefs(arg.runtimeRefs)) {
       const resolved = this.skillRegistry?.resolve(ref.skillId);
       if (resolved?.name) explicitSkillNames.add(resolved.name);
@@ -961,8 +904,8 @@ export class EngineFactory {
       // EngineFactory 没有注入 logger；此路径属于"本不该发生"的装配级故障，
       // 用 console.error 显式喷出，避免再次被静默吞掉。
       console.error(
-        '[EngineFactory] failed to resolve ToolService lazily; tool calls will fail:',
-        error instanceof Error ? error.stack ?? error.message : String(error),
+        "[EngineFactory] failed to resolve ToolService lazily; tool calls will fail:",
+        error instanceof Error ? (error.stack ?? error.message) : String(error),
       );
       return undefined;
     }
@@ -975,7 +918,7 @@ export class EngineFactory {
   private buildToolTaskExecutor(): TaskExecutor {
     return async (task, context, signal) => {
       // 非 tool 任务（agent / sub-flow 占位）保持占位输出语义。
-      if (task.type !== 'tool') {
+      if (task.type !== "tool") {
         return {
           ok: true,
           output: {
@@ -994,18 +937,16 @@ export class EngineFactory {
         return {
           ok: false,
           error: {
-            code: 'TOOL_SERVICE_UNAVAILABLE',
+            code: "TOOL_SERVICE_UNAVAILABLE",
             message: `Tool "${task.ref}" cannot run: ToolService is not available in the engine runtime.`,
             retryable: false,
-            source: 'engine',
+            source: "engine",
           },
         };
       }
 
       const handlerCtx = this.toToolHandlerCtx(context, signal);
-      const toolCallId = task.id.startsWith('tool-use:')
-        ? task.id.slice('tool-use:'.length)
-        : task.id;
+      const toolCallId = task.id.startsWith("tool-use:") ? task.id.slice("tool-use:".length) : task.id;
 
       const output = await toolService.invoke(task.ref, task.input, handlerCtx, { toolCallId });
       return { ok: true, output };
@@ -1013,21 +954,17 @@ export class EngineFactory {
   }
 
   private toToolHandlerCtx(context: ExecutionContext, signal: AbortSignal): ToolHandlerCtx {
-    const tenant = this.readTenant(context.principal['tenant']);
-    const userId = this.readOptionalString(context.principal['userId']);
-    const runtimeRefs = this.readRuntimeRefs(context.principal['runtimeRefs']);
-    const turnId =
-      this.readOptionalString(context.principal['turnId']) ??
-      context.correlation.turnId;
+    const tenant = this.readTenant(context.principal["tenant"]);
+    const userId = this.readOptionalString(context.principal["userId"]);
+    const runtimeRefs = this.readRuntimeRefs(context.principal["runtimeRefs"]);
+    const turnId = this.readOptionalString(context.principal["turnId"]) ?? context.correlation.turnId;
 
     return {
       traceId: context.correlation.traceId,
       signal,
       auth: {
         tenant,
-        ...(userId
-          ? { user: { userId, scopes: [...(context.scopes ?? [])] } }
-          : {}),
+        ...(userId ? { user: { userId, scopes: [...(context.scopes ?? [])] } } : {}),
       },
       session: {
         id: context.correlation.sessionId,
@@ -1038,15 +975,15 @@ export class EngineFactory {
   }
 
   private readTenant(raw: unknown): number {
-    if (typeof raw === 'number' && Number.isFinite(raw)) return Math.trunc(raw);
-    if (typeof raw === 'string' && /^-?\d+$/.test(raw.trim())) {
+    if (typeof raw === "number" && Number.isFinite(raw)) return Math.trunc(raw);
+    if (typeof raw === "string" && /^-?\d+$/.test(raw.trim())) {
       return Math.trunc(Number(raw.trim()));
     }
-    throw new Error('Tachu Tool TaskExecutor requires numeric tenant in ExecutionContext.principal');
+    throw new Error("Tachu Tool TaskExecutor requires numeric tenant in ExecutionContext.principal");
   }
 
   private readOptionalString(raw: unknown): string | undefined {
-    if (typeof raw !== 'string') return undefined;
+    if (typeof raw !== "string") return undefined;
     const s = raw.trim();
     return s.length > 0 ? s : undefined;
   }

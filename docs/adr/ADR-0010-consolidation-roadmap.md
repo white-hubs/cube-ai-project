@@ -7,7 +7,7 @@
 
 ## Context
 
-终态（方案 A）：单一 AI-center 仓 + 前端走 SDK，与 agentic-engine 现有 engine+adapters+contracts+sdk-* 形状天然吻合，port 已就位。
+终态（方案 A）：单一 AI-center 仓 + 前端走 SDK，与 agentic-engine 现有 engine+adapters+contracts+sdk-\* 形状天然吻合，port 已就位。
 
 本次收编不是在旧系统上「就地灰度迁移」，而是**另起一套并行新系统**：copy 各处实现进新仓串起来，前端也新开独立项目，与现网不冲突、不动旧系统；新系统就绪后**整体切换**，旧系统在此之前照常运行。这把过渡复杂度挡在新仓之外——无需在新仓里维护「转发回老系统」的过渡桥或逐 port 灰度。
 

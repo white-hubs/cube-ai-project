@@ -1,7 +1,7 @@
-import type { LlmProviderPort, LlmChatRequest } from '@cube-ai/contracts';
+import type { LlmChatRequest, LlmProviderPort } from "@cube-ai/contracts";
 
 /** Resolved LLM call parameters for cube-linear-engine (catalog modelRef + soft inline-key fallback). */
-export type CubeEngineLlmConfig = {
+export interface CubeEngineLlmConfig {
   tenant: number;
   modelCode: string;
   legacyApiKey?: string;
@@ -9,70 +9,59 @@ export type CubeEngineLlmConfig = {
   temperature: number;
   maxTokens?: number;
   systemPrompt?: string;
-};
+}
 
-export function resolveCubeEngineLlmConfig(
-  nodeConfig: Record<string, unknown>,
-  tenant: number,
-): CubeEngineLlmConfig {
+export function resolveCubeEngineLlmConfig(nodeConfig: Record<string, unknown>, tenant: number): CubeEngineLlmConfig {
   const cfg = nodeConfig;
   const modelRef =
-    (typeof cfg['model_ref'] === 'string' && cfg['model_ref'].trim()) ||
-    (typeof cfg['modelRef'] === 'string' && cfg['modelRef'].trim()) ||
-    '';
-  const modelName =
-    modelRef ||
-    String(cfg['model_name'] ?? cfg['model'] ?? process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini');
+    (typeof cfg["model_ref"] === "string" && cfg["model_ref"].trim()) ||
+    (typeof cfg["modelRef"] === "string" && cfg["modelRef"].trim()) ||
+    "";
+  const modelName = modelRef || String(cfg["model_name"] ?? cfg["model"] ?? process.env["OPENAI_MODEL"] ?? "gpt-4o-mini");
   const legacyApiKey =
-    typeof cfg['api_key'] === 'string' && cfg['api_key'].trim()
-      ? cfg['api_key'].trim()
-      : typeof process.env['OPENAI_API_KEY'] === 'string' && process.env['OPENAI_API_KEY'].trim()
-        ? process.env['OPENAI_API_KEY'].trim()
+    typeof cfg["api_key"] === "string" && cfg["api_key"].trim()
+      ? cfg["api_key"].trim()
+      : typeof process.env["OPENAI_API_KEY"] === "string" && process.env["OPENAI_API_KEY"].trim()
+        ? process.env["OPENAI_API_KEY"].trim()
         : undefined;
   const legacyApiBaseUrl =
-    typeof cfg['openai_api_base'] === 'string' && cfg['openai_api_base'].trim()
-      ? cfg['openai_api_base'].trim()
-      : typeof process.env['OPENAI_API_BASE'] === 'string' && process.env['OPENAI_API_BASE'].trim()
-        ? process.env['OPENAI_API_BASE'].trim()
+    typeof cfg["openai_api_base"] === "string" && cfg["openai_api_base"].trim()
+      ? cfg["openai_api_base"].trim()
+      : typeof process.env["OPENAI_API_BASE"] === "string" && process.env["OPENAI_API_BASE"].trim()
+        ? process.env["OPENAI_API_BASE"].trim()
         : undefined;
-  const tempRaw = cfg['temperature'];
-  const temp =
-    typeof tempRaw === 'number'
-      ? tempRaw
-      : typeof tempRaw === 'string'
-        ? Number(tempRaw)
-        : 0.7;
-  const maxTokRaw = cfg['max_tokens'];
-  const maxTokensParsed =
-    typeof maxTokRaw === 'number' ? maxTokRaw : typeof maxTokRaw === 'string' ? Number(maxTokRaw) : Number.NaN;
+  const tempRaw = cfg["temperature"];
+  const temp = typeof tempRaw === "number" ? tempRaw : typeof tempRaw === "string" ? Number(tempRaw) : 0.7;
+  const maxTokRaw = cfg["max_tokens"];
+  const maxTokensParsed = typeof maxTokRaw === "number" ? maxTokRaw : typeof maxTokRaw === "string" ? Number(maxTokRaw) : Number.NaN;
   const maxTokens = Number.isFinite(maxTokensParsed) ? maxTokensParsed : undefined;
-  const system = String(cfg['system_message'] ?? cfg['system_prompt'] ?? cfg['systemMessage'] ?? '');
+  const system = String(cfg["system_message"] ?? cfg["system_prompt"] ?? cfg["systemMessage"] ?? "");
 
   return {
-    tenant,
-    modelCode: modelName,
-    legacyApiKey,
     legacyApiBaseUrl,
-    temperature: Number.isFinite(temp) ? temp : 0.7,
+    legacyApiKey,
     maxTokens,
+    modelCode: modelName,
     systemPrompt: system.trim() || undefined,
+    temperature: Number.isFinite(temp) ? temp : 0.7,
+    tenant,
   };
 }
 
 function buildChatRequest(userText: string, llmCfg: CubeEngineLlmConfig): LlmChatRequest {
-  const messages: LlmChatRequest['messages'] = [];
+  const messages: LlmChatRequest["messages"] = [];
   if (llmCfg.systemPrompt) {
-    messages.push({ role: 'system', content: llmCfg.systemPrompt });
+    messages.push({ content: llmCfg.systemPrompt, role: "system" });
   }
-  messages.push({ role: 'user', content: userText });
+  messages.push({ content: userText, role: "user" });
   return {
-    tenant: llmCfg.tenant,
-    modelCode: llmCfg.modelCode,
-    messages,
-    temperature: llmCfg.temperature,
-    maxTokens: llmCfg.maxTokens,
-    legacyApiKey: llmCfg.legacyApiKey,
     legacyApiBaseUrl: llmCfg.legacyApiBaseUrl,
+    legacyApiKey: llmCfg.legacyApiKey,
+    maxTokens: llmCfg.maxTokens,
+    messages,
+    modelCode: llmCfg.modelCode,
+    temperature: llmCfg.temperature,
+    tenant: llmCfg.tenant,
   };
 }
 
@@ -98,8 +87,12 @@ export async function cubeLlmChatStream(
 ): Promise<{ totalTokens?: number }> {
   let total: number | undefined;
   for await (const chunk of llm.chatStream(buildChatRequest(userText, llmCfg), signal)) {
-    if (chunk.type === 'text-delta' && chunk.delta) onDelta(chunk.delta);
-    if (chunk.type === 'finish' && chunk.usage?.totalTokens != null) total = chunk.usage.totalTokens;
+    if (chunk.type === "text-delta" && chunk.delta) {
+      onDelta(chunk.delta);
+    }
+    if (chunk.type === "finish" && chunk.usage?.totalTokens !== null && chunk.usage?.totalTokens !== undefined) {
+      total = chunk.usage.totalTokens;
+    }
   }
   return { totalTokens: total };
 }

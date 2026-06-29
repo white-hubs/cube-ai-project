@@ -13,70 +13,65 @@
  *      → endpointPath || path || name || fallbackIconUrl；空则抛异常。
  */
 
-import { BadRequestException, HttpException } from '@dangao/bun-server'
-import type { LlmProviderIconStorePort, ProviderIconPersistInput } from '@cube-ai/contracts/platform'
+import { BadRequestException, HttpException } from "@dangao/bun-server";
 
-import type { Cube2FileClients } from './cube2-file-client'
+import type { LlmProviderIconStorePort, ProviderIconPersistInput } from "@cube-ai/contracts/platform";
 
-const PROVIDER_ICON_SCENE_CODE = 'AI_APPLICATION::LLM_PROVIDER::ICON'
+import type { Cube2FileClients } from "./cube2-file-client";
+
+const PROVIDER_ICON_SCENE_CODE = "AI_APPLICATION::LLM_PROVIDER::ICON";
 
 export class Cube2ProviderIconStore implements LlmProviderIconStorePort {
   constructor(private readonly fileClients: Cube2FileClients) {}
 
-  async persistProviderIcon(
-    input: ProviderIconPersistInput,
-    signal?: AbortSignal,
-  ): Promise<string | null> {
-    const iconFileId = parseOptionalFileId(input.iconFileId)
-    const normalizedFallbackIconUrl = input.fallbackIconUrl?.trim() || null
+  async persistProviderIcon(input: ProviderIconPersistInput, signal?: AbortSignal): Promise<string | null> {
+    const iconFileId = parseOptionalFileId(input.iconFileId);
+    const normalizedFallbackIconUrl = input.fallbackIconUrl?.trim() || null;
 
-    if (iconFileId == null) {
-      return normalizedFallbackIconUrl
+    if (iconFileId === null || iconFileId === undefined) {
+      return normalizedFallbackIconUrl;
     }
 
-    const providerId = BigInt(input.providerId)
+    const providerId = BigInt(input.providerId);
 
-    const fileOperateClient = await this.fileClients.getFileOperateClient()
+    const fileOperateClient = await this.fileClients.getFileOperateClient();
     const induceResponse = await fileOperateClient.fileInduceSingle(
       {
-        sceneCode: PROVIDER_ICON_SCENE_CODE,
         businessKey: providerId,
         fileId: iconFileId,
+        sceneCode: PROVIDER_ICON_SCENE_CODE,
       },
       { signal },
-    )
+    );
 
     if (induceResponse.value !== true) {
-      throw new HttpException(500, '供应商图标持久化失败')
+      throw new HttpException(500, "供应商图标持久化失败");
     }
 
-    const fileCoreClient = await this.fileClients.getFileCoreClient()
-    const fileResponse = await fileCoreClient.getById(
-      { id: iconFileId },
-      { signal },
-    )
+    const fileCoreClient = await this.fileClients.getFileCoreClient();
+    const fileResponse = await fileCoreClient.getById({ id: iconFileId }, { signal });
 
     const persistedIconUrl =
       fileResponse.file?.endpointPath?.trim() ||
       fileResponse.file?.path?.trim() ||
       fileResponse.file?.name?.trim() ||
-      normalizedFallbackIconUrl
+      normalizedFallbackIconUrl;
 
     if (!persistedIconUrl) {
-      throw new HttpException(500, '供应商图标地址解析失败')
+      throw new HttpException(500, "供应商图标地址解析失败");
     }
 
-    return persistedIconUrl
+    return persistedIconUrl;
   }
 }
 
 function parseOptionalFileId(raw: string | null | undefined): bigint | null {
-  const normalized = raw?.trim()
+  const normalized = raw?.trim();
   if (!normalized) {
-    return null
+    return null;
   }
-  if (!/^\d+$/.test(normalized)) {
-    throw new BadRequestException('iconFileId 非法')
+  if (!/^\d+$/u.test(normalized)) {
+    throw new BadRequestException("iconFileId 非法");
   }
-  return BigInt(normalized)
+  return BigInt(normalized);
 }

@@ -1,11 +1,11 @@
-import type { QdrantClientLike } from './client';
-import { DENSE_VECTOR_NAME, QdrantCollectionService, SPARSE_VECTOR_NAME, type CollectionSpec } from './collection';
-import { buildPointId } from './point-id';
+import { type QdrantClientLike } from "./client";
+import { type CollectionSpec, DENSE_VECTOR_NAME, type QdrantCollectionService, SPARSE_VECTOR_NAME } from "./collection";
+import { buildPointId } from "./point-id";
 
-export type SparseVector = {
+export interface SparseVector {
   indices: number[];
   values: number[];
-};
+}
 
 export type QdrantFilter = Record<string, unknown>;
 
@@ -24,7 +24,7 @@ export interface VectorQueryParams {
   sparse?: SparseVector | null;
   filter?: QdrantFilter;
   topK: number;
-  fusion?: 'rrf';
+  fusion?: "rrf";
   scoreThreshold?: number;
   denseVectorName?: string;
   sparseVectorName?: string;
@@ -42,7 +42,7 @@ function getErrorMessage(error: unknown): string {
 
 function isNotFoundError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
-  return message.includes('404') || message.includes('not found');
+  return message.includes("404") || message.includes("not found");
 }
 
 export class QdrantVectorIndex {
@@ -67,11 +67,11 @@ export class QdrantVectorIndex {
     await client.upsert(collectionName, {
       points: points.map((point) => ({
         id: point.id,
+        payload: point.payload,
         vector: {
           [DENSE_VECTOR_NAME]: point.vectors.dense,
           ...(point.vectors.sparse ? { [SPARSE_VECTOR_NAME]: point.vectors.sparse } : {}),
         },
-        payload: point.payload,
       })),
     });
   }
@@ -82,29 +82,29 @@ export class QdrantVectorIndex {
     const client = await this.qdrantClient.getClient();
     const prefetch = [
       {
-        query: params.dense,
-        using: denseName,
-        limit: params.topK,
         filter: params.filter,
+        limit: params.topK,
+        query: params.dense,
         score_threshold: params.scoreThreshold,
+        using: denseName,
       },
       ...(params.sparse
         ? [
             {
+              filter: params.filter,
+              limit: params.topK,
               query: params.sparse,
               using: sparseName,
-              limit: params.topK,
-              filter: params.filter,
             },
           ]
         : []),
     ];
     const queryPayload = {
+      limit: params.topK,
       prefetch,
       query: {
-        fusion: params.fusion ?? 'rrf',
+        fusion: params.fusion ?? "rrf",
       },
-      limit: params.topK,
       with_payload: true,
     };
 
@@ -120,8 +120,8 @@ export class QdrantVectorIndex {
 
     return result.points.map((item) => ({
       id: String(item.id),
-      score: item.score,
       payload: (item.payload ?? {}) as Record<string, unknown>,
+      score: item.score,
     }));
   }
 
@@ -138,8 +138,8 @@ export class QdrantVectorIndex {
     }
 
     const countResult = await client.count(collectionName, {
-      filter,
       exact: false,
+      filter,
     });
     if ((countResult.count ?? 0) === 0) {
       return;
@@ -149,14 +149,14 @@ export class QdrantVectorIndex {
   }
 }
 
-export { buildPointId, buildStableQdrantPointId } from './point-id';
-export * from './client';
-export type { QdrantClientLike, QdrantRestClientLike } from './client';
+export * from "./client";
+export type { QdrantClientLike, QdrantRestClientLike } from "./client";
 export {
-  QdrantCollectionService,
-  hasHybridVectorSchema,
-  hasDenseOnlySchema,
-  type CollectionSpec,
   DENSE_VECTOR_NAME,
+  hasDenseOnlySchema,
+  hasHybridVectorSchema,
+  QdrantCollectionService,
   SPARSE_VECTOR_NAME,
-} from './collection';
+  type CollectionSpec,
+} from "./collection";
+export { buildPointId, buildStableQdrantPointId } from "./point-id";

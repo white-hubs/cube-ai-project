@@ -9,7 +9,7 @@
 
 「跑 agent / 调 LLM / 列模型 / 执行 flow / 检索知识」这套 AI 核心能力当前被实现了 2–3 遍，散在三个仓：
 
-- `cube-agentic-engine`（@cube-ai/* monorepo：engine + agentic-adapters + contracts + sdk-*，port 已就位，27 篇 ADR、CONTEXT.md、deploy/k8s 齐备）
+- `cube-agentic-engine`（@cube-ai/_ monorepo：engine + agentic-adapters + contracts + sdk-_，port 已就位，27 篇 ADR、CONTEXT.md、deploy/k8s 齐备）
 - `cube-ai`（redesign：flow 引擎 / Langflow / kb Qdrant / assistant）
 - `ghcloud`（prod：ai-server 壳 + ai-application 的 flow 编译/DSL 映射/kb 转发/llm-catalog）
 

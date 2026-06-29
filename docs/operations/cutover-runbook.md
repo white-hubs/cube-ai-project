@@ -4,12 +4,12 @@
 
 ## 1. 前置条件
 
-| 项 | 验收 |
-|---|---|
-| 仓库基线绿 | `bun run typecheck` + `bun test` |
-| ai-center 单进程 | `/health` 200；agent/flow/kb/llm 路由可达 |
-| 鉴权中心 JWT 公钥 | `JWT_KEY_URL` 可达（例：`http://<oauth-host>/oauth2/jwt.key`） |
-| catalog 迁移导出 | ghcloud `cube_base_ai_application` **租户两表**（`ai_application_tenant_llm_provider/model`，含凭据）JSON/SQL 导出就绪；系统目录四表已随启动 seed（见 §3），无需导出 |
+| 项                | 验收                                                                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 仓库基线绿        | `bun run typecheck` + `bun test`                                                                                                                                     |
+| ai-center 单进程  | `/health` 200；agent/flow/kb/llm 路由可达                                                                                                                            |
+| 鉴权中心 JWT 公钥 | `JWT_KEY_URL` 可达（例：`http://<oauth-host>/oauth2/jwt.key`）                                                                                                       |
+| catalog 迁移导出  | ghcloud `cube_base_ai_application` **租户两表**（`ai_application_tenant_llm_provider/model`，含凭据）JSON/SQL 导出就绪；系统目录四表已随启动 seed（见 §3），无需导出 |
 
 ## 2. 身份切换（host 注入）
 
@@ -92,12 +92,12 @@ bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:
 
 ### 4.1 目标路由
 
-| 旧（多跳） | 新（ai-center 单 origin） |
-|---|---|
-| `${BASE_API}/aiApplication/ai/agent/*` | `/agent/*` |
-| `${BASE_API}/aiApplication/ai/flows/*` | `/flow/*`（FlowModule SSE 独立） |
-| `${BASE_API}/aiApplication/ai/knowledge/*` | `/kb/*` |
-| `${BASE_API}/aiApplication/ai/llm/*` | `/llm/*` |
+| 旧（多跳）                                 | 新（ai-center 单 origin）        |
+| ------------------------------------------ | -------------------------------- |
+| `${BASE_API}/aiApplication/ai/agent/*`     | `/agent/*`                       |
+| `${BASE_API}/aiApplication/ai/flows/*`     | `/flow/*`（FlowModule SSE 独立） |
+| `${BASE_API}/aiApplication/ai/knowledge/*` | `/kb/*`                          |
+| `${BASE_API}/aiApplication/ai/llm/*`       | `/llm/*`                         |
 
 ### 4.2 灰度建议
 
@@ -107,24 +107,24 @@ bun run catalog:migrate -- --source ... --target mysql --mysql-url mysql://user:
 
 ### 4.3 一键回滚
 
-| 层级 | 动作 |
-|---|---|
-| 网关 | 路由切回 `${BASE_API}/aiApplication/...` |
+| 层级 | 动作                                                           |
+| ---- | -------------------------------------------------------------- |
+| 网关 | 路由切回 `${BASE_API}/aiApplication/...`                       |
 | 身份 | `USE_GHCLOUD_IDENTITY=0` 重启 ai-center → mock 身份（opt-out） |
-| 数据 | 保留 ghcloud MySQL 只读副本；catalog 迁移脚本幂等，可重跑 |
+| 数据 | 保留 ghcloud MySQL 只读副本；catalog 迁移脚本幂等，可重跑      |
 
 旧链路保留期建议 ≥ 1 个发布周期；监控：HTTP 5xx、P95 延迟、kb retrieval-evaluation 通过率。
 
 ## 5. 退役清单（文档化，非本轮执行）
 
-| 组件 | 处置 |
-|---|---|
-| `@ghcloud/ai-server` 进程 | 宿主职能 → `apps/ai-center` |
-| ai-application catalog/flow/kb/agent 逻辑 | 已收编 llm/flow/kb/agent-engine |
-| gRPC `FlowServiceGrpc`（仅旧仓 ai-server 进程实例） | **不退役能力面，仅退役旧实例**；该面是**平台服务间调用面**（兄弟后端经 gRPC + Nacos 发现），在 `apps/ai-center` host 重建（ADR-0028）。注意：engine→flow 走进程内 `FlowInvokerPort` 是**另一条路**，不替代本对外 gRPC 面。 |
-| `TenantProjectService` / `ai_center_api_key` | **删除**，不迁移 |
-| `@ghcloud/cube-ai-application-service` gateway façade | M5 前端/SDK 替代 |
-| RocketMQ 租户初始化/catalog 同步 | 待定：platform port 主动拉取 vs MQ adapter（见 M6 决策记录） |
+| 组件                                                  | 处置                                                                                                                                                                                                                       |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@ghcloud/ai-server` 进程                             | 宿主职能 → `apps/ai-center`                                                                                                                                                                                                |
+| ai-application catalog/flow/kb/agent 逻辑             | 已收编 llm/flow/kb/agent-engine                                                                                                                                                                                            |
+| gRPC `FlowServiceGrpc`（仅旧仓 ai-server 进程实例）   | **不退役能力面，仅退役旧实例**；该面是**平台服务间调用面**（兄弟后端经 gRPC + Nacos 发现），在 `apps/ai-center` host 重建（ADR-0028）。注意：engine→flow 走进程内 `FlowInvokerPort` 是**另一条路**，不替代本对外 gRPC 面。 |
+| `TenantProjectService` / `ai_center_api_key`          | **删除**，不迁移                                                                                                                                                                                                           |
+| `@ghcloud/cube-ai-application-service` gateway façade | M5 前端/SDK 替代                                                                                                                                                                                                           |
+| RocketMQ 租户初始化/catalog 同步                      | 待定：platform port 主动拉取 vs MQ adapter（见 M6 决策记录）                                                                                                                                                               |
 
 `platform-adapter-ghcloud` **保留**：JWT/tenant/session + 未来 cube2 gRPC 源文档桥。
 

@@ -37,19 +37,19 @@ npm i @cube-ai/agent-sdk-console        # 或 pnpm add / yarn add / bun add
 ## 30 秒上手
 
 ```ts
-import { createAgentConsoleClient } from '@cube-ai/agent-sdk-console';
+import { createAgentConsoleClient } from "@cube-ai/agent-sdk-console";
 
 const console = createAgentConsoleClient({
-  baseUrl: 'https://ai-center.example.com', // 不含 /agent/console 前缀
+  baseUrl: "https://ai-center.example.com", // 不含 /agent/console 前缀
   // 鉴权 / 租户头：每次请求都会带上（支持同步或异步函数，便于刷新 token）
   headers: () => ({ authorization: `Bearer ${getToken()}` }),
 });
 
 // 1) 结构化创建一个 agent（落为草稿）
 const agent = await console.createAgent({
-  prompt: '你是客服助手。',
-  ruleRefs: ['rul_123'],
-  displayName: 'support',
+  prompt: "你是客服助手。",
+  ruleRefs: ["rul_123"],
+  displayName: "support",
 });
 
 // 2) 发布后才会被运行时解析（未发布 = 草稿，对运行时不可见）
@@ -65,28 +65,29 @@ await console.publishAgent(agent.id);
 
 ## 配置 `AgentConsoleConfig`
 
-| 字段 | 必填 | 说明 |
-|---|---|---|
-| `baseUrl` | 是 | ai-center 根地址，**不要**带 `/agent/console` |
-| `pathPrefix` | 否 | 默认 `/agent/console` |
-| `headers` | 否 | 对象或 `() => headers`（可 async）；放鉴权 / 租户头 |
-| `fetchImpl` | 否 | 自定义 fetch（测试 / 非浏览器环境） |
+| 字段         | 必填 | 说明                                                |
+| ------------ | ---- | --------------------------------------------------- |
+| `baseUrl`    | 是   | ai-center 根地址，**不要**带 `/agent/console`       |
+| `pathPrefix` | 否   | 默认 `/agent/console`                               |
+| `headers`    | 否   | 对象或 `() => headers`（可 async）；放鉴权 / 租户头 |
+| `fetchImpl`  | 否   | 自定义 fetch（测试 / 非浏览器环境）                 |
 
 ## 完整方法表
 
 三种 kind 对称。`create/update/createFromDocument` 返回 `TenantDescriptorView`（含 `id/kind/name/status/headVersionNo/publishedVersionNo/content/createTime/updateTime`）。
 
-| 能力 | agent | skill | rule |
-|---|---|---|---|
-| 建草稿 | `createAgent(content)` | `createSkill(content)` | `createRule(content)` |
-| 列表 | `listAgents()` | `listSkills()` | `listRules()` |
-| 取单个 | `getAgent(id)` | `getSkill(id)` | `getRule(id)` |
-| 更新（新草稿版本） | `updateAgent(id, content)` | `updateSkill(id, content)` | `updateRule(id, content)` |
-| 软删 | `deleteAgent(id)` | `deleteSkill(id)` | `deleteRule(id)` |
-| 发布 head | `publishAgent(id)` | `publishSkill(id)` | `publishRule(id)` |
-| 文档导入 | `createFromDocument('agent', raw)` | `createFromDocument('skill', raw)` | `createFromDocument('rule', raw)` |
+| 能力               | agent                              | skill                              | rule                              |
+| ------------------ | ---------------------------------- | ---------------------------------- | --------------------------------- |
+| 建草稿             | `createAgent(content)`             | `createSkill(content)`             | `createRule(content)`             |
+| 列表               | `listAgents()`                     | `listSkills()`                     | `listRules()`                     |
+| 取单个             | `getAgent(id)`                     | `getSkill(id)`                     | `getRule(id)`                     |
+| 更新（新草稿版本） | `updateAgent(id, content)`         | `updateSkill(id, content)`         | `updateRule(id, content)`         |
+| 软删               | `deleteAgent(id)`                  | `deleteSkill(id)`                  | `deleteRule(id)`                  |
+| 发布 head          | `publishAgent(id)`                 | `publishSkill(id)`                 | `publishRule(id)`                 |
+| 文档导入           | `createFromDocument('agent', raw)` | `createFromDocument('skill', raw)` | `createFromDocument('rule', raw)` |
 
 结构化创建/更新直接传 kind 对应的 `content` 对象（由 contracts schema 校验，服务端会补默认值）：
+
 - **agent**：`prompt`(必填) + 可选 `modelConfig` / `ruleRefs` / `skillRefs` / `availableTools` / `subAgentRefs` / `maxDepth`
 - **skill**：`description` + `instructions`（均必填）+ 可选 `trigger`
 - **rule**：`content`(必填) + 可选 `description`
@@ -104,7 +105,7 @@ tags: [code-review]
 ---
 仔细阅读 diff，指出风险与改进点。`;
 
-const res = await console.createFromDocument('skill', doc);
+const res = await console.createFromDocument("skill", doc);
 // res = { id: 'skl_…', name: 'review-pr', action: 'created' | 'updated', headVersionNo, status: 'draft' }
 await console.publishSkill(res.id);
 ```

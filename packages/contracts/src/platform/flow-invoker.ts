@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * FlowInvokerPort
@@ -13,12 +13,11 @@ import { z } from 'zod';
  *      docs/detailed-design/07-tools/builtin-catalog.md §6
  */
 
-const SfidStringSchema = z.string().regex(/^\d{19}$/u, 'must be a 19-digit SFID');
+const SfidStringSchema = z.string().regex(/^\d{19}$/u, "must be a 19-digit SFID");
 
 export const FlowInvokeRequestSchema = z.object({
-  tenant: z.number().int().min(0).max(2_147_483_647),
   flowId: z.string().min(1).max(64),
-  variables: z.record(z.string(), z.unknown()).optional(),
+  tenant: z.number().int().min(0).max(2_147_483_647),
   traceId: z.string().min(1),
   /**
    * Optional OBO-issued user token. When present, adapter MUST forward it as
@@ -26,13 +25,14 @@ export const FlowInvokeRequestSchema = z.object({
    * service principal via the configured `tokenProvider(tenant)`.
    */
   userToken: z.string().min(1).optional(),
+  variables: z.record(z.string(), z.unknown()).optional(),
 });
 export type FlowInvokeRequest = z.infer<typeof FlowInvokeRequestSchema>;
 
 export const FlowExecutionTraceItemSchema = z.object({
   kind: z.string().min(1),
-  ts: z.string().optional(),
   payload: z.unknown().optional(),
+  ts: z.string().optional(),
 });
 export type FlowExecutionTraceItem = z.infer<typeof FlowExecutionTraceItemSchema>;
 
@@ -40,11 +40,11 @@ export type FlowExecutionTraceItem = z.infer<typeof FlowExecutionTraceItemSchema
  * 同步 flow run 的引擎侧规范返回值（进入 `tool.call.completed` payload）。
  */
 export const FlowInvokeSyncResponseSchema = z.object({
-  result: z.record(z.string(), z.unknown()),
-  executionTrace: z.array(FlowExecutionTraceItemSchema).optional(),
-  traceTruncated: z.boolean().optional(),
-  partial: z.boolean().optional(),
   error: z.unknown().optional(),
+  executionTrace: z.array(FlowExecutionTraceItemSchema).optional(),
+  partial: z.boolean().optional(),
+  result: z.record(z.string(), z.unknown()),
+  traceTruncated: z.boolean().optional(),
 });
 export type FlowInvokeSyncResponse = z.infer<typeof FlowInvokeSyncResponseSchema>;
 
@@ -54,10 +54,10 @@ export interface FlowInvokerPort {
 
 /** @internal 测试与历史契约：旧版 scheduled job 形响应（仅作样例数据）。 */
 export const LegacyFlowScheduledEnvelopeSchema = z.object({
-  scheduled: z.literal(true),
+  estimatedDurationMs: z.number().int().nonnegative().optional(),
   jobId: SfidStringSchema,
   remoteFlowRunId: z.string().min(1).optional(),
-  estimatedDurationMs: z.number().int().nonnegative().optional(),
+  scheduled: z.literal(true),
   statusUrl: z.string().min(1),
 });
 export type LegacyFlowScheduledEnvelope = z.infer<typeof LegacyFlowScheduledEnvelopeSchema>;

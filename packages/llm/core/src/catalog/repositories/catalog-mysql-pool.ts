@@ -6,32 +6,28 @@ export interface CatalogMysqlPool {
   query(sql: string, values?: unknown[]): Promise<[unknown, unknown]>;
 }
 
-export async function queryRows<T>(
-  pool: CatalogMysqlPool,
-  sql: string,
-  params: ReadonlyArray<unknown> = [],
-): Promise<T[]> {
+export async function queryRows<T>(pool: CatalogMysqlPool, sql: string, params: readonly unknown[] = []): Promise<T[]> {
   const [rows] = await pool.query(sql, [...params]);
   return Array.isArray(rows) ? (rows as T[]) : [];
 }
 
-export async function exec(
-  pool: CatalogMysqlPool,
-  sql: string,
-  params: ReadonlyArray<unknown> = [],
-): Promise<void> {
+export async function exec(pool: CatalogMysqlPool, sql: string, params: readonly unknown[] = []): Promise<void> {
   await pool.query(sql, [...params]);
 }
 
 /** mysql2 占位符安全值转换：boolean→0/1，undefined→null，Date 原样。 */
 export function sqlParam(value: unknown): unknown {
-  if (value === undefined) return null;
-  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (value === undefined) {
+    return null;
+  }
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
   return value;
 }
 
-export function sqlParams(values: ReadonlyArray<unknown>): unknown[] {
-  return values.map(sqlParam);
+export function sqlParams(values: readonly unknown[]): unknown[] {
+  return values.map((value) => sqlParam(value));
 }
 
 /** 系统审计信息。auth 仍 Mock，统一记 system；TODO: 接真实 principal 后注入。 */
@@ -41,7 +37,7 @@ export interface AuditInfo {
   type: string | null;
 }
 
-export const SYSTEM_AUDIT: AuditInfo = { by: 'system', id: null, type: null };
+export const SYSTEM_AUDIT: AuditInfo = { by: "system", id: null, type: null };
 
 /**
  * catalog 真实列式表 DDL（与 engine/flow 同库 cube_ai_center），对齐 ghcloud

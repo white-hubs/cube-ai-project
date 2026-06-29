@@ -1,14 +1,15 @@
-import type {
-  ImageGenerationPort,
-  ImageGenerationRequest,
-  ImageGenerationResult,
-  LlmCatalogPort,
-  LlmModelRuntimeConfig,
-} from '@cube-ai/contracts';
-import { LlmProviderError } from '../openai-compat-provider';
-import { shouldUseGeekaiNanoBananaImageProvider, isDashscopeText2Image } from '../catalog-provider-routing';
-import { DashscopeText2ImageProvider } from './dashscope-text2image-provider';
-import { GeekaiNanoBananaProvider } from './geekai-nano-banana-provider';
+import {
+  type ImageGenerationPort,
+  type ImageGenerationRequest,
+  type ImageGenerationResult,
+  type LlmCatalogPort,
+  type LlmModelRuntimeConfig,
+} from "@cube-ai/contracts";
+
+import { isDashscopeText2Image, shouldUseGeekaiNanoBananaImageProvider } from "../catalog-provider-routing";
+import { LlmProviderError } from "../openai-compat-provider";
+import { DashscopeText2ImageProvider } from "./dashscope-text2image-provider";
+import { GeekaiNanoBananaProvider } from "./geekai-nano-banana-provider";
 
 export interface InnerImageProvider extends ImageGenerationPort {
   readonly id: string;
@@ -25,7 +26,7 @@ export function createImageProviderFromRuntimeConfig(cfg: LlmModelRuntimeConfig)
       apiKey: cfg.apiKey,
       modelCode: cfg.modelCode,
     });
-    return { id: 'dashscope-text2image', generate: (req, signal) => provider.generate(req, signal) };
+    return { generate: (req, signal) => provider.generate(req, signal), id: "dashscope-text2image" };
   }
 
   if (shouldUseGeekaiNanoBananaImageProvider(cfg)) {
@@ -34,11 +35,11 @@ export function createImageProviderFromRuntimeConfig(cfg: LlmModelRuntimeConfig)
       apiKey: cfg.apiKey,
       modelCode: cfg.modelCode,
     });
-    return { id: 'geekai-nano-banana', generate: (req, signal) => provider.generate(req, signal) };
+    return { generate: (req, signal) => provider.generate(req, signal), id: "geekai-nano-banana" };
   }
 
   throw new LlmProviderError(
-    'UPSTREAM_LLM_UNAVAILABLE',
+    "UPSTREAM_LLM_UNAVAILABLE",
     `createImageProviderFromRuntimeConfig: unsupported endpointType='${cfg.endpointType}' providerCode='${cfg.providerCode}' for image generation`,
   );
 }
@@ -60,7 +61,9 @@ class TtlLruCache<T> {
 
   get(key: string): T | undefined {
     const entry = this.map.get(key);
-    if (!entry) return undefined;
+    if (!entry) {
+      return undefined;
+    }
     if (entry.expiresAt <= Date.now()) {
       this.map.delete(key);
       return undefined;
@@ -71,10 +74,12 @@ class TtlLruCache<T> {
   }
 
   set(key: string, value: T): void {
-    this.map.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    this.map.set(key, { expiresAt: Date.now() + this.ttlMs, value });
     while (this.map.size > this.maxEntries) {
       const oldest = this.map.keys().next().value;
-      if (!oldest) break;
+      if (!oldest) {
+        break;
+      }
       this.map.delete(oldest);
     }
   }
@@ -101,15 +106,11 @@ export class CatalogImageProvider implements ImageGenerationPort {
   }
 
   async generate(req: ImageGenerationRequest, signal?: AbortSignal): Promise<ImageGenerationResult> {
-    const cfg = await this.opts.catalog.resolveModelRuntime(
-      req.tenant,
-      req.modelCode,
-      signal ?? new AbortController().signal,
-    );
+    const cfg = await this.opts.catalog.resolveModelRuntime(req.tenant, req.modelCode, signal ?? new AbortController().signal);
 
     if (!cfg) {
       throw new LlmProviderError(
-        'UPSTREAM_LLM_UNAVAILABLE',
+        "UPSTREAM_LLM_UNAVAILABLE",
         `CatalogImageProvider: no catalog entry for tenant=${req.tenant} model=${req.modelCode}`,
       );
     }

@@ -1,14 +1,14 @@
-import { Inject, Injectable } from '@dangao/bun-server';
-import type { ReplayBufferEntry, ReplayBufferScope } from './types';
-import { SSE_REPLAY_BUFFER_STORE_TOKEN } from './sse.tokens';
-import type { ReplayBufferStore } from './types';
+import { Inject, Injectable } from "@dangao/bun-server";
 
-export type SseEmitPayload = {
+import { SSE_REPLAY_BUFFER_STORE_TOKEN } from "./sse.tokens";
+import { type ReplayBufferEntry, type ReplayBufferScope, type ReplayBufferStore } from "./types";
+
+export interface SseEmitPayload {
   /** SSE `event:` line (M1 §15), e.g. `turn.started` */
   sseEvent: string;
   /** Discriminated payload including `schema: '<kebab>-v1'` */
   payload: Record<string, unknown>;
-};
+}
 
 /**
  * Broadcasts session-scoped SSE events, assigns monotonic `eventId` per turn,
@@ -32,10 +32,7 @@ export class SessionSseEmitter {
   }
 
   /** Subscribe to live events (+ synthetic heartbeat envelopes). */
-  subscribe(
-    scope: ReplayBufferScope,
-    onEvent: (e: ReplayBufferEntry) => void,
-  ): () => void {
+  subscribe(scope: ReplayBufferScope, onEvent: (e: ReplayBufferEntry) => void): () => void {
     const key = this.scopeKey(scope);
     let bucket = this.live.get(key);
     if (!bucket) {
@@ -65,10 +62,10 @@ export class SessionSseEmitter {
 
   private pingAll(): void {
     const ping: ReplayBufferEntry = {
-      eventId: '0:000000',
-      event: 'ping',
-      schema: 'ping-v1',
-      payload: { schema: 'ping-v1' },
+      event: "ping",
+      eventId: "0:000000",
+      payload: { schema: "ping-v1" },
+      schema: "ping-v1",
       time: Date.now(),
     };
     for (const subs of this.live.values()) {
@@ -90,13 +87,13 @@ export class SessionSseEmitter {
     const prev = this.seqByTurn.get(turnId) ?? 0;
     const seq = prev + 1;
     this.seqByTurn.set(turnId, seq);
-    const eventId = `${turnId}:${String(seq).padStart(6, '0')}`;
+    const eventId = `${turnId}:${String(seq).padStart(6, "0")}`;
 
     const entry: ReplayBufferEntry = {
-      eventId,
       event: msg.sseEvent,
-      schema: String((msg.payload as { schema?: unknown }).schema ?? ''),
+      eventId,
       payload: msg.payload,
+      schema: String((msg.payload as { schema?: unknown }).schema ?? ""),
       time: Date.now(),
     };
 

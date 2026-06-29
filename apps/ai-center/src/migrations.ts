@@ -1,5 +1,6 @@
-import { join } from 'node:path';
-import { createMigrationRunner } from '@cube-ai/mysql-migration';
+import { join } from "node:path";
+
+import { createMigrationRunner } from "@cube-ai/mysql-migration";
 
 /**
  * 项目根目录。
@@ -7,16 +8,14 @@ import { createMigrationRunner } from '@cube-ai/mysql-migration';
  * - binary 模式（runtime-binary / runtime-binary-prebuilt）：import.meta.url 是二进制路径，
  *   相对计算失效，必须通过 AGENTIC_ENGINE_MIGRATIONS_ROOT 显式传入
  */
-const root =
-  process.env['AGENTIC_ENGINE_MIGRATIONS_ROOT'] ??
-  new URL('../../../', import.meta.url).pathname;
+const root = process.env["AGENTIC_ENGINE_MIGRATIONS_ROOT"] ?? new URL("../../../", import.meta.url).pathname;
 
 const DOMAIN_MIGRATIONS = [
-  { migrationsDir: join(root, 'packages/agent/engine/migrations'), historyTable: 'engine_schema_migrations' },
-  { migrationsDir: join(root, 'packages/flow/core/migrations'),    historyTable: 'flow_schema_migrations' },
-  { migrationsDir: join(root, 'packages/llm/core/migrations'),     historyTable: 'llm_catalog_schema_migrations' },
-  { migrationsDir: join(root, 'packages/kb/core/migrations'),      historyTable: 'kb_schema_migrations' },
-  { migrationsDir: join(root, 'packages/flow/studio/migrations'),  historyTable: 'flow_studio_schema_migrations' },
+  { historyTable: "engine_schema_migrations", migrationsDir: join(root, "packages/agent/engine/migrations") },
+  { historyTable: "flow_schema_migrations", migrationsDir: join(root, "packages/flow/core/migrations") },
+  { historyTable: "llm_catalog_schema_migrations", migrationsDir: join(root, "packages/llm/core/migrations") },
+  { historyTable: "kb_schema_migrations", migrationsDir: join(root, "packages/kb/core/migrations") },
+  { historyTable: "flow_studio_schema_migrations", migrationsDir: join(root, "packages/flow/studio/migrations") },
 ] as const;
 
 export async function runAllDomainMigrations(mysqlUrl: string): Promise<void> {

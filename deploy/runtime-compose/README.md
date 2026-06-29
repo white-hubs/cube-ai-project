@@ -2,10 +2,10 @@
 
 两套面向 **共享部署环境** 的 docker compose 样本（非本地 dev profile 栈）：
 
-| 模板 | 路径 | 说明 |
-|---|---|---|
-| **外置依赖运行时模板** | [`external/`](./external/) | 仅 ai-center；MySQL / Redis / Qdrant 等通过 `.env` 连外部服务 |
-| **全内置运行时模板** | [`standalone/`](./standalone/) | ai-center + MySQL + Redis + Qdrant；OTel 可选 `--profile otel` |
+| 模板                   | 路径                           | 说明                                                           |
+| ---------------------- | ------------------------------ | -------------------------------------------------------------- |
+| **外置依赖运行时模板** | [`external/`](./external/)     | 仅 ai-center；MySQL / Redis / Qdrant 等通过 `.env` 连外部服务  |
+| **全内置运行时模板**   | [`standalone/`](./standalone/) | ai-center + MySQL + Redis + Qdrant；OTel 可选 `--profile otel` |
 
 本地开发 / 集成测试仍用 [`deploy/docker-compose/`](../docker-compose/)。
 
@@ -56,11 +56,11 @@
 
 ## 与 agentic-engine 运行时模板的差异
 
-| 维度 | cube-ai-project | cube-agentic-engine |
-|---|---|---|
-| 服务名 | `ai-center` | `engine` |
-| 默认端口 | 3000 | 8080 |
-| 镜像名 | `cube-ai-center` | `cube-agentic-engine` |
-| 拓扑 | 单进程 agent + flow + kb + llm | 仅 engine；平台 API 外置 |
-| 鉴权 | ghcloud JWT（`JWT_KEY_URL`） | OAuth2 introspection |
-| standalone 内置 | MySQL + Redis + Qdrant | + Nacos（需 seed） |
+| 维度            | cube-ai-project                | cube-agentic-engine      |
+| --------------- | ------------------------------ | ------------------------ |
+| 服务名          | `ai-center`                    | `engine`                 |
+| 默认端口        | 3000                           | 8080                     |
+| 镜像名          | `cube-ai-center`               | `cube-agentic-engine`    |
+| 拓扑            | 单进程 agent + flow + kb + llm | 仅 engine；平台 API 外置 |
+| 鉴权            | ghcloud JWT（`JWT_KEY_URL`）   | OAuth2 introspection     |
+| standalone 内置 | MySQL + Redis + Qdrant         | + Nacos（需 seed）       |

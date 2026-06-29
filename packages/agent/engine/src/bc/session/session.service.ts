@@ -11,7 +11,7 @@ import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import { SfidService } from "../../infra/sfid/sfid.service";
 import type { RuleDescriptor } from "../descriptor/rule-registry.service";
 import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
-import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
+import { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import { appendEngineUtcClockBlock } from "../tools/engine-utc";
 import type { SessionRepository } from "./repository/session.repository";
 import { hydrateSnapshotRules, snapshotRuleTexts, type RuleRegistryResolveLike } from "./snapshot-rule-hydration";

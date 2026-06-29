@@ -1,108 +1,95 @@
-import { describe, test, expect } from 'bun:test';
-import { AuditLogEntrySchema, AuditActorSchema } from './audit-log-entry';
+import { describe, expect, test } from "bun:test";
+
+import { AuditActorSchema, AuditLogEntrySchema } from "./audit-log-entry";
 
 const validActor = {
-  userId: 'u_123',
   agentId: null,
+  principalType: "USER" as const,
   tenant: 1,
-  principalType: 'USER' as const,
+  userId: "u_123",
 };
 
 const validEntry = {
-  id: '1845921456789012345',
-  tenant: 1,
-  eventType: 'grant.created',
-  eventSchema: 'audit-grant-created-v1',
-  severity: 2,
-  occurredTime: Date.now(),
   actor: validActor,
-  traceId: 'abc123def456',
-  sessionId: null,
-  turnId: null,
-  toolCallId: null,
-  jobId: null,
+  eventSchema: "audit-grant-created-v1",
+  eventType: "grant.created",
   grantRequestId: null,
-  subject: 'grant(18459214567890123)',
-  outcome: 'SUCCESS' as const,
-  payloadJson: { grantId: '18459214567890123' },
+  id: "1845921456789012345",
   ipAddress: null,
+  jobId: null,
+  occurredTime: Date.now(),
+  outcome: "SUCCESS" as const,
+  payloadJson: { grantId: "18459214567890123" },
+  sessionId: null,
+  severity: 2,
+  subject: "grant(18459214567890123)",
+  tenant: 1,
+  toolCallId: null,
+  traceId: "abc123def456",
+  turnId: null,
   userAgent: null,
 };
 
-describe('AuditActorSchema', () => {
-  test('valid dual-subject actor passes (userId + agentId)', () => {
+describe("AuditActorSchema", () => {
+  test("valid dual-subject actor passes (userId + agentId)", () => {
     expect(() => AuditActorSchema.parse(validActor)).not.toThrow();
   });
 
-  test('SERVICE actor without userId passes', () => {
+  test("SERVICE actor without userId passes", () => {
     const serviceActor = {
-      userId: null,
-      agentId: 'sp_456',
+      agentId: "sp_456",
+      principalType: "SERVICE" as const,
       tenant: 1,
-      principalType: 'SERVICE' as const,
+      userId: null,
     };
     expect(() => AuditActorSchema.parse(serviceActor)).not.toThrow();
   });
 
-  test('negative tenant fails validation', () => {
-    expect(() =>
-      AuditActorSchema.parse({ ...validActor, tenant: -1 }),
-    ).toThrow();
+  test("negative tenant fails validation", () => {
+    expect(() => AuditActorSchema.parse({ ...validActor, tenant: -1 })).toThrow();
   });
 });
 
-describe('AuditLogEntrySchema', () => {
-  test('valid full entry passes', () => {
+describe("AuditLogEntrySchema", () => {
+  test("valid full entry passes", () => {
     expect(() => AuditLogEntrySchema.parse(validEntry)).not.toThrow();
   });
 
-  test('eventType must be lowercase.dotted (rejects UPPERCASE)', () => {
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, eventType: 'GRANT_CREATED' }),
-    ).toThrow();
+  test("eventType must be lowercase.dotted (rejects UPPERCASE)", () => {
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, eventType: "GRANT_CREATED" })).toThrow();
   });
 
-  test('eventType allows underscores in segments (cross_tenant.violation)', () => {
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, eventType: 'cross_tenant.violation' }),
-    ).not.toThrow();
+  test("eventType allows underscores in segments (cross_tenant.violation)", () => {
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, eventType: "cross_tenant.violation" })).not.toThrow();
   });
 
-  test('eventSchema must match audit-{name}-v{N} pattern', () => {
+  test("eventSchema must match audit-{name}-v{N} pattern", () => {
     expect(() =>
       AuditLogEntrySchema.parse({
         ...validEntry,
-        eventSchema: 'invalid-schema',
+        eventSchema: "invalid-schema",
       }),
     ).toThrow();
   });
 
-  test('severity must be 1-4', () => {
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, severity: 5 }),
-    ).toThrow();
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, severity: 0 }),
-    ).toThrow();
+  test("severity must be 1-4", () => {
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, severity: 5 })).toThrow();
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, severity: 0 })).toThrow();
   });
 
-  test('outcome must be SUCCESS/FAILURE/DENIED/PARTIAL', () => {
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, outcome: 'UNKNOWN' }),
-    ).toThrow();
+  test("outcome must be SUCCESS/FAILURE/DENIED/PARTIAL", () => {
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, outcome: "UNKNOWN" })).toThrow();
   });
 
-  test('tenant=0 allowed for system events (audit_event)', () => {
-    expect(() =>
-      AuditLogEntrySchema.parse({ ...validEntry, tenant: 0 }),
-    ).not.toThrow();
+  test("tenant=0 allowed for system events (audit_event)", () => {
+    expect(() => AuditLogEntrySchema.parse({ ...validEntry, tenant: 0 })).not.toThrow();
   });
 
-  test('payloadJson accepts arbitrary camelCase metadata', () => {
+  test("payloadJson accepts arbitrary camelCase metadata", () => {
     expect(() =>
       AuditLogEntrySchema.parse({
         ...validEntry,
-        payloadJson: { grantId: '123', argsConstraint: { op: 'eq' } },
+        payloadJson: { argsConstraint: { op: "eq" }, grantId: "123" },
       }),
     ).not.toThrow();
   });

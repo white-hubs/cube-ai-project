@@ -1,93 +1,87 @@
-import { Inject, Injectable } from '@dangao/bun-server'
-import { APP_CONFIG_TOKEN, type AppConfig } from '../../../../config/app.config'
-import type { ParsedDocumentChunk, ParsedDocumentContent, ParserInput } from '../../../common/document-types'
+import { Inject, Injectable } from "@dangao/bun-server";
+
+import { APP_CONFIG_TOKEN, type AppConfig } from "../../../../config/app.config";
+import { type ParsedDocumentChunk, type ParsedDocumentContent, type ParserInput } from "../../../common/document-types";
 
 export interface DoclingClientOptions {
-  baseUrl: string
-  timeoutMs: number
-  apiKey?: string
-  enablePictureDescription: boolean
-  maxChunkTokens: number
+  baseUrl: string;
+  timeoutMs: number;
+  apiKey?: string;
+  enablePictureDescription: boolean;
+  maxChunkTokens: number;
 }
 
 interface DoclingChunkResponse {
-  chunks?: unknown
-  documents?: unknown
+  chunks?: unknown;
+  documents?: unknown;
 }
 
 interface DoclingDocumentResult {
-  content?: unknown
+  content?: unknown;
 }
 
 interface DoclingRequestOptions {
-  enablePictureDescription: boolean
-  maxChunkTokens: number
+  enablePictureDescription: boolean;
+  maxChunkTokens: number;
 }
 
 function normalizeStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim() !== '') : []
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
 }
 
 function pickFirstNumber(value: unknown): number | null {
   if (!Array.isArray(value)) {
-    return null
+    return null;
   }
-  const firstNumber = value.find((item): item is number => typeof item === 'number' && Number.isFinite(item))
-  return firstNumber ?? null
+  const firstNumber = value.find((item): item is number => typeof item === "number" && Number.isFinite(item));
+  return firstNumber ?? null;
 }
 
 function slugifySectionPart(value: string): string {
   return value
-    .normalize('NFKC')
+    .normalize("NFKC")
     .trim()
     .toLowerCase()
-    .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
+    .replaceAll(/[^\p{Letter}\p{Number}]+/gu, "-")
+    .replaceAll(/^-+|-+$/gu, "");
 }
 
 function buildSectionId(headingPath: string[], pageNo: number | null): string {
   if (headingPath.length > 0) {
-    const slug = slugifySectionPart(headingPath.join(' > '))
-    if (slug !== '') {
-      return `heading:${slug}`
+    const slug = slugifySectionPart(headingPath.join(" > "));
+    if (slug !== "") {
+      return `heading:${slug}`;
     }
   }
-  if (typeof pageNo === 'number') {
-    return `page:${pageNo}`
+  if (typeof pageNo === "number") {
+    return `page:${pageNo}`;
   }
-  return 'document-root'
+  return "document-root";
 }
 
-function inferChunkType(metadata: Record<string, unknown>, captionText: string | null): ParsedDocumentChunk['chunkType'] {
-  const candidates = [
-    metadata.chunk_type,
-    metadata.chunkType,
-    metadata.kind,
-    metadata.label,
-    metadata.doc_item_label,
-    metadata.item_type,
-  ]
+function inferChunkType(metadata: Record<string, unknown>, captionText: string | null): ParsedDocumentChunk["chunkType"] {
+  const candidates = [metadata.chunk_type, metadata.chunkType, metadata.kind, metadata.label, metadata.doc_item_label, metadata.item_type];
 
   for (const candidate of candidates) {
-    if (typeof candidate !== 'string') {
-      continue
+    if (typeof candidate !== "string") {
+      continue;
     }
-    const normalized = candidate.toLowerCase()
-    if (normalized.includes('table')) {
-      return 'table'
+    const normalized = candidate.toLowerCase();
+    if (normalized.includes("table")) {
+      return "table";
     }
-    if (normalized.includes('picture') || normalized.includes('image') || normalized.includes('figure')) {
-      return 'picture'
+    if (normalized.includes("picture") || normalized.includes("image") || normalized.includes("figure")) {
+      return "picture";
     }
-    if (normalized.includes('list')) {
-      return 'list'
+    if (normalized.includes("list")) {
+      return "list";
     }
-    if (normalized.includes('paragraph')) {
-      return 'paragraph'
+    if (normalized.includes("paragraph")) {
+      return "paragraph";
     }
   }
 
-  return captionText ? 'picture' : 'paragraph'
+  return captionText ? "picture" : "paragraph";
 }
 
 function extractPictureDescription(metadata: Record<string, unknown>): string | null {
@@ -97,50 +91,50 @@ function extractPictureDescription(metadata: Record<string, unknown>): string | 
     metadata.image_description,
     metadata.imageDescription,
     metadata.description,
-  ]
+  ];
 
   for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim() !== '') {
-      return candidate
+    if (typeof candidate === "string" && candidate.trim() !== "") {
+      return candidate;
     }
   }
 
-  return null
+  return null;
 }
 
 function normalizeParsedChunk(chunk: unknown, orderInSection: number): ParsedDocumentChunk {
-  const record = (chunk ?? {}) as Record<string, unknown>
-  const headingPath = normalizeStringArray(record.headings)
-  const pageNo = pickFirstNumber(record.page_numbers)
-  const captionText = normalizeStringArray(record.captions).join('\n').trim() || null
-  const metadata = typeof record.metadata === 'object' && record.metadata !== null ? record.metadata as Record<string, unknown> : {}
-  const embeddingText = typeof record.text === 'string' ? record.text : ''
-  const rawText = typeof record.raw_text === 'string' ? record.raw_text : ''
-  const displayText = rawText.trim() !== '' ? rawText : embeddingText
+  const record = (chunk ?? {}) as Record<string, unknown>;
+  const headingPath = normalizeStringArray(record.headings);
+  const pageNo = pickFirstNumber(record.page_numbers);
+  const captionText = normalizeStringArray(record.captions).join("\n").trim() || null;
+  const metadata = typeof record.metadata === "object" && record.metadata !== null ? (record.metadata as Record<string, unknown>) : {};
+  const embeddingText = typeof record.text === "string" ? record.text : "";
+  const rawText = typeof record.raw_text === "string" ? record.raw_text : "";
+  const displayText = rawText.trim() !== "" ? rawText : embeddingText;
 
   return {
-    chunkIndex: typeof record.chunk_index === 'number' ? record.chunk_index : 0,
+    captionText,
+    chunkIndex: typeof record.chunk_index === "number" ? record.chunk_index : 0,
+    chunkType: inferChunkType(metadata, captionText),
     displayText,
     embeddingText,
-    sectionId: buildSectionId(headingPath, pageNo),
     headingPath,
-    pageNo,
-    chunkType: inferChunkType(metadata, captionText),
     orderInSection,
-    captionText,
+    pageNo,
     pictureDescription: extractPictureDescription(metadata),
-  }
+    sectionId: buildSectionId(headingPath, pageNo),
+  };
 }
 
 function extractDocumentText(documents: unknown, chunks: ParsedDocumentChunk[]): string {
   if (Array.isArray(documents)) {
     for (const document of documents) {
-      const record = (document ?? {}) as DoclingDocumentResult
-      const content = typeof record.content === 'object' && record.content !== null ? record.content as Record<string, unknown> : {}
-      const candidates = [content.text_content, content.md_content, content.html_content, content.doctags_content]
+      const record = (document ?? {}) as DoclingDocumentResult;
+      const content = typeof record.content === "object" && record.content !== null ? (record.content as Record<string, unknown>) : {};
+      const candidates = [content.text_content, content.md_content, content.html_content, content.doctags_content];
       for (const candidate of candidates) {
-        if (typeof candidate === 'string' && candidate.trim() !== '') {
-          return candidate
+        if (typeof candidate === "string" && candidate.trim() !== "") {
+          return candidate;
         }
       }
     }
@@ -148,25 +142,23 @@ function extractDocumentText(documents: unknown, chunks: ParsedDocumentChunk[]):
 
   return chunks
     .map((chunk) => chunk.displayText)
-    .filter((text) => text.trim() !== '')
-    .join('\n\n')
+    .filter((text) => text.trim() !== "")
+    .join("\n\n");
 }
 
 function shouldRetryWithoutPictureDescription(status: number, message: string, enablePictureDescription: boolean): boolean {
   if (!enablePictureDescription) {
-    return false
+    return false;
   }
 
-  const normalizedMessage = message.toLowerCase()
+  const normalizedMessage = message.toLowerCase();
   return (
     status === 404 &&
-    (
-      normalizedMessage.includes('task result not found') ||
-      normalizedMessage.includes('artifacts_path') ||
-      normalizedMessage.includes('smolvlm') ||
-      normalizedMessage.includes('picture description')
-    )
-  )
+    (normalizedMessage.includes("task result not found") ||
+      normalizedMessage.includes("artifacts_path") ||
+      normalizedMessage.includes("smolvlm") ||
+      normalizedMessage.includes("picture description"))
+  );
 }
 
 @Injectable()
@@ -177,86 +169,89 @@ export class DoclingClient {
   ) {}
 
   private resolveOptions(input?: ParserInput): DoclingClientOptions {
-    const config = this.config
+    const config = this.config;
     return {
-      baseUrl: this.overrides.baseUrl ?? config.doclingBaseUrl,
-      timeoutMs: this.overrides.timeoutMs ?? config.doclingTimeoutMs,
       apiKey: this.overrides.apiKey ?? config.doclingApiKey,
-      enablePictureDescription:
-        this.overrides.enablePictureDescription ?? config.doclingEnablePictureDescription,
+      baseUrl: this.overrides.baseUrl ?? config.doclingBaseUrl,
+      enablePictureDescription: this.overrides.enablePictureDescription ?? config.doclingEnablePictureDescription,
       maxChunkTokens: input?.chunkingOptions?.chunkSize ?? this.overrides.maxChunkTokens ?? config.ingestionChunkSize,
-    }
+      timeoutMs: this.overrides.timeoutMs ?? config.doclingTimeoutMs,
+    };
   }
 
   private buildRequestForm(input: ParserInput, options: DoclingRequestOptions): FormData {
-    const form = new FormData()
-    form.append('files', input.file, input.filename)
-    form.set('target_type', 'inbody')
-    form.set('include_converted_doc', 'true')
-    form.set('convert_do_picture_description', String(options.enablePictureDescription))
-    form.set('chunking_include_raw_text', 'true')
-    form.set('chunking_merge_peers', 'true')
-    form.set('chunking_max_tokens', String(options.maxChunkTokens))
-    form.set('convert_do_table_structure', 'false') 
-    form.set('convert_do_ocr', 'false')
-    return form
+    const form = new FormData();
+    form.append("files", input.file, input.filename);
+    form.set("target_type", "inbody");
+    form.set("include_converted_doc", "true");
+    form.set("convert_do_picture_description", String(options.enablePictureDescription));
+    form.set("chunking_include_raw_text", "true");
+    form.set("chunking_merge_peers", "true");
+    form.set("chunking_max_tokens", String(options.maxChunkTokens));
+    form.set("convert_do_table_structure", "false");
+    form.set("convert_do_ocr", "false");
+    return form;
   }
 
-  private async requestDocling(input: ParserInput, options: DoclingClientOptions, enablePictureDescription: boolean): Promise<DoclingChunkResponse> {
-    const headers: Record<string, string> = {}
+  private async requestDocling(
+    input: ParserInput,
+    options: DoclingClientOptions,
+    enablePictureDescription: boolean,
+  ): Promise<DoclingChunkResponse> {
+    const headers: Record<string, string> = {};
     if (options.apiKey) {
-      headers.Authorization = `Bearer ${options.apiKey}`
+      headers.Authorization = `Bearer ${options.apiKey}`;
     }
 
-    const response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/v1/chunk/hybrid/file`, {
-      method: 'POST',
-      headers,
+    const response = await fetch(`${options.baseUrl.replace(/\/$/u, "")}/v1/chunk/hybrid/file`, {
       body: this.buildRequestForm(input, {
         enablePictureDescription,
         maxChunkTokens: options.maxChunkTokens,
       }),
+      headers,
+      method: "POST",
       signal: AbortSignal.timeout(options.timeoutMs),
-    })
+    });
 
     if (!response.ok) {
-      const message = await response.text()
+      const message = await response.text();
       if (shouldRetryWithoutPictureDescription(response.status, message, enablePictureDescription)) {
-        return this.requestDocling(input, options, false)
+        return this.requestDocling(input, options, false);
       }
-      throw new Error(`Docling 解析失败: ${response.status} ${message}`)
+      throw new Error(`Docling 解析失败: ${response.status} ${message}`);
     }
 
-    return await response.json() as DoclingChunkResponse
+    return (await response.json()) as DoclingChunkResponse;
   }
 
   public async parseAndChunk(input: ParserInput): Promise<ParsedDocumentContent> {
-    const options = this.resolveOptions(input)
-    const payload = await this.requestDocling(input, options, options.enablePictureDescription)
-    const sourceType = input.mimeType || 'docling'
-    const sectionOrderMap = new Map<string, number>()
+    const options = this.resolveOptions(input);
+    const payload = await this.requestDocling(input, options, options.enablePictureDescription);
+    const sourceType = input.mimeType || "docling";
+    const sectionOrderMap = new Map<string, number>();
     const chunks = Array.isArray(payload.chunks)
       ? payload.chunks.map((chunk) => {
-          const record = (chunk ?? {}) as Record<string, unknown>
-          const headingPath = normalizeStringArray(record.headings)
-          const pageNo = pickFirstNumber(record.page_numbers)
-          const sectionId = buildSectionId(headingPath, pageNo)
-          const orderInSection = sectionOrderMap.get(sectionId) ?? 0
-          sectionOrderMap.set(sectionId, orderInSection + 1)
+          const record = (chunk ?? {}) as Record<string, unknown>;
+          const headingPath = normalizeStringArray(record.headings);
+          const pageNo = pickFirstNumber(record.page_numbers);
+          const sectionId = buildSectionId(headingPath, pageNo);
+          const orderInSection = sectionOrderMap.get(sectionId) ?? 0;
+          sectionOrderMap.set(sectionId, orderInSection + 1);
 
-          const normalized = normalizeParsedChunk(chunk, orderInSection)
+          const normalized = normalizeParsedChunk(chunk, orderInSection);
           return {
             ...normalized,
             sectionId,
-          }
+          };
         })
-      : []
-    const documentText = extractDocumentText(payload.documents, chunks)
+      : [];
+    const documentText = extractDocumentText(payload.documents, chunks);
 
     return {
-      text: documentText,
-      sourceType,
-      fileName: input.filename,
       chunks,
-    }
+      fileName: input.filename,
+      sourceType,
+      text: documentText,
+    };
   }
 }

@@ -15,7 +15,7 @@
 #
 # ref: docs/technical-design/plans/2026-05-12-engine-ghcloud-chat-loop-handoff.zh.md §4
 kind: agent
-name: '1934000000000000001'
+name: "1934000000000000001"
 version: 0.1.0
 displayName: 安全智能体
 description: 聚焦安全规范、风险识别和事件处置建议（dev 占位，仅本机联调使用）

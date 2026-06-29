@@ -1,5 +1,6 @@
-import type { EmbeddingPort, EmbeddingPurpose, EmbeddingContext, EmbeddingVector } from '@cube-ai/contracts/platform';
-import type { EmbeddingProvider as EmbeddingProviderContract } from './embedding-provider';
+import type { EmbeddingContext, EmbeddingPort, EmbeddingPurpose, EmbeddingVector } from "@cube-ai/contracts/platform";
+
+import type { EmbeddingProvider as EmbeddingProviderContract } from "./embedding-provider";
 
 /** Bridges contracts EmbeddingPort → kb EmbeddingProvider symbol. */
 export class EmbeddingProviderAdapter implements EmbeddingProviderContract {
@@ -9,11 +10,7 @@ export class EmbeddingProviderAdapter implements EmbeddingProviderContract {
     return this.embeddingPort.dimension;
   }
 
-  embed(
-    input: string[],
-    purpose?: EmbeddingPurpose,
-    contexts?: EmbeddingContext[],
-  ): Promise<EmbeddingVector[]> {
+  embed(input: string[], purpose?: EmbeddingPurpose, contexts?: EmbeddingContext[]): Promise<EmbeddingVector[]> {
     return this.embeddingPort.embed(input, purpose, contexts);
   }
 }

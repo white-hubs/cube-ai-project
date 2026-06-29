@@ -1,3 +1,21 @@
+import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+
+import {
+  type EngineIntegrationProcess,
+  type MysqlRedisQdrantStack,
+  type OtelCollectorStack,
+  applyMinimalMysqlSchema,
+  getFreePort,
+  registerProcessShutdown,
+  resolveMonorepoRootFromImporter,
+  resolveShouldRunTestcontainers,
+  startEngineIntegrationProcess,
+  startMysqlRedisQdrant,
+  startOtelCollector,
+  stopTrackedOtelCollectorIfAny,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
 /**
  * Observability — OTel Collector Testcontainer 接收侧验证（迁自
  * `observability.integration.test.ts` 的 6 个 `test.skip`）。
@@ -30,30 +48,6 @@
  * 镜像：`otel/opentelemetry-collector-contrib:0.94.0`（固定版本，避免 latest 漂移）
  * 权威：docs/detailed-design/11-observability/README.md §3.3 / §3.4
  */
-import { join } from 'node:path';
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  setDefaultTimeout,
-} from 'bun:test';
-import {
-  applyMinimalMysqlSchema,
-  getFreePort,
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startEngineIntegrationProcess,
-  startMysqlRedisQdrant,
-  startOtelCollector,
-  stopTrackedTestcontainersIfAny,
-  stopTrackedOtelCollectorIfAny,
-  type EngineIntegrationProcess,
-  type MysqlRedisQdrantStack,
-  type OtelCollectorStack,
-  resolveMonorepoRootFromImporter,
-} from '@cube-ai/test-infra';
 
 const run = await resolveShouldRunTestcontainers();
 
@@ -86,137 +80,115 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)(
-  '[testcontainers] observability — OTel collector reception',
-  () => {
-    beforeAll(async () => {
-      const stack = await startMysqlRedisQdrant();
-      try {
-        await applyMinimalMysqlSchema(stack.mysqlUrl);
-        stackHolder.current = stack;
-      } catch (e) {
-        await stack.stop();
-        throw e;
-      }
+(run ? describe : describe.skip)("[testcontainers] observability — OTel collector reception", () => {
+  beforeAll(async () => {
+    const stack = await startMysqlRedisQdrant();
+    try {
+      await applyMinimalMysqlSchema(stack.mysqlUrl);
+      stackHolder.current = stack;
+    } catch (e) {
+      await stack.stop();
+      throw e;
+    }
 
-      let collector: OtelCollectorStack;
-      try {
-        collector = await startOtelCollector();
-        collectorHolder.current = collector;
-      } catch (e) {
-        await stack.stop();
-        stackHolder.current = null;
-        throw e;
-      }
+    let collector: OtelCollectorStack;
+    try {
+      collector = await startOtelCollector();
+      collectorHolder.current = collector;
+    } catch (e) {
+      await stack.stop();
+      stackHolder.current = null;
+      throw e;
+    }
 
-      try {
-        const port = await getFreePort();
-        const repoRoot = resolveMonorepoRootFromImporter(import.meta.dir);
-        const engine = await startEngineIntegrationProcess({
-          stack,
-          port,
-          repoRoot,
-          extraEnv: {
-            OTEL_EXPORTER_OTLP_ENDPOINT: collector.endpoint,
-            /** 加快 metric 导出，缩短测试等待 */
-            OTEL_METRIC_EXPORT_INTERVAL_MS: '500',
-          },
-        });
-        engineHolder.current = engine;
-      } catch (e) {
-        await collector.stop().catch(() => {});
-        collectorHolder.current = null;
-        await stack.stop();
-        stackHolder.current = null;
-        throw e;
-      }
-    }, HOOK_MS);
+    try {
+      const port = await getFreePort();
+      const repoRoot = resolveMonorepoRootFromImporter(import.meta.dir);
+      const engine = await startEngineIntegrationProcess({
+        extraEnv: {
+          OTEL_EXPORTER_OTLP_ENDPOINT: collector.endpoint,
+          /** 加快 metric 导出，缩短测试等待 */
+          OTEL_METRIC_EXPORT_INTERVAL_MS: "500",
+        },
+        port,
+        repoRoot,
+        stack,
+      });
+      engineHolder.current = engine;
+    } catch (e) {
+      await collector.stop().catch(() => {});
+      collectorHolder.current = null;
+      await stack.stop();
+      stackHolder.current = null;
+      throw e;
+    }
+  }, HOOK_MS);
 
-    afterAll(async () => {
-      if (engineHolder.current) {
-        await engineHolder.current.stop().catch(() => {});
-        engineHolder.current = null;
-      }
-      if (collectorHolder.current) {
-        await collectorHolder.current.stop().catch(() => {});
-        collectorHolder.current = null;
-      }
-      if (stackHolder.current) {
-        await stackHolder.current.stop().catch(() => {});
-        stackHolder.current = null;
-      }
-      await stopTrackedOtelCollectorIfAny();
-      await stopTrackedTestcontainersIfAny();
-    });
+  afterAll(async () => {
+    if (engineHolder.current) {
+      await engineHolder.current.stop().catch(() => {});
+      engineHolder.current = null;
+    }
+    if (collectorHolder.current) {
+      await collectorHolder.current.stop().catch(() => {});
+      collectorHolder.current = null;
+    }
+    if (stackHolder.current) {
+      await stackHolder.current.stop().catch(() => {});
+      stackHolder.current = null;
+    }
+    await stopTrackedOtelCollectorIfAny();
+    await stopTrackedTestcontainersIfAny();
+  });
 
-    it(
-      'engine boots successfully when OTEL_EXPORTER_OTLP_ENDPOINT is set',
-      async () => {
-        // engine 子进程在 beforeAll 已等待 /health/live OK；这里再多请求一次确认稳定
-        const res = await fetch(`${engineHolder.current!.baseUrl}/health/live`);
-        expect(res.ok).toBe(true);
-        const j = (await res.json()) as { status: string };
-        expect(j.status).toBe('UP');
-      },
-      120_000,
-    );
+  it("engine boots successfully when OTEL_EXPORTER_OTLP_ENDPOINT is set", async () => {
+    // engine 子进程在 beforeAll 已等待 /health/live OK；这里再多请求一次确认稳定
+    const res = await fetch(`${engineHolder.current!.baseUrl}/health/live`);
+    expect(res.ok).toBe(true);
+    const j = (await res.json()) as { status: string };
+    expect(j.status).toBe("UP");
+  }, 120_000);
 
-    it(
-      'OTel collector receives telemetry from engine (debug exporter shows Span / Resource)',
-      async () => {
-        const base = engineHolder.current!.baseUrl;
+  it("OTel collector receives telemetry from engine (debug exporter shows Span / Resource)", async () => {
+    const base = engineHolder.current!.baseUrl;
 
-        // 多次触发请求让 trace + metric 都能产生
-        for (let i = 0; i < 5; i++) {
-          await fetch(`${base}/health/live`);
-        }
-        // 等导出周期：metric 至少 1×500ms，trace BatchSpanProcessor 默认 5s
-        await new Promise((r) => setTimeout(r, 6_500));
+    // 多次触发请求让 trace + metric 都能产生
+    for (let i = 0; i < 5; i++) {
+      await fetch(`${base}/health/live`);
+    }
+    // 等导出周期：metric 至少 1×500ms，trace BatchSpanProcessor 默认 5s
+    await new Promise((r) => setTimeout(r, 6_500));
 
-        // 再读取容器 stdout 快照（等 1.5s 让流稳定）
-        const logsText = await collectorHolder.current!.snapshotLogs(1_500);
-
-        /**
-         * debug exporter `verbosity: detailed` 输出至少包含以下关键字（任一出现即视为通过）：
-         *   - "Span"（trace 记录）
-         *   - "ResourceSpans" / "ResourceMetrics" / "ResourceLogs"
-         *   - "ScopeSpans" / "ScopeMetrics"
-         *
-         * 软断言：未必每次 trace 都先于 metric/log 落盘；只要任一类 telemetry 抵达即可。
-         * 若无任一关键字命中，输出前 1KB 帮助定位。
-         */
-        const matched =
-          /\bSpan(s)?\b|Resource(Spans|Metrics|Logs)?|ScopeSpans|ScopeMetrics/i.test(
-            logsText,
-          );
-        if (!matched) {
-          // 失败时附诊断（截断 1KB 防过长）
-          const head = logsText.slice(0, 1024).replace(/\n/g, '\\n');
-          throw new Error(
-            `Collector did not log any Span/Resource within window. logs[head]="${head}"`,
-          );
-        }
-        expect(matched).toBe(true);
-      },
-      180_000,
-    );
+    // 再读取容器 stdout 快照（等 1.5s 让流稳定）
+    const logsText = await collectorHolder.current!.snapshotLogs(1_500);
 
     /**
-     * Jaeger UI / Prometheus 后端验证 — 依赖独立服务栈（Jaeger all-in-one + Prometheus），
-     * 不在单容器集成范围；建议在部署级 e2e（Phase 4+）覆盖。
+     * debug exporter `verbosity: detailed` 输出至少包含以下关键字（任一出现即视为通过）：
+     *   - "Span"（trace 记录）
+     *   - "ResourceSpans" / "ResourceMetrics" / "ResourceLogs"
+     *   - "ScopeSpans" / "ScopeMetrics"
+     *
+     * 软断言：未必每次 trace 都先于 metric/log 落盘；只要任一类 telemetry 抵达即可。
+     * 若无任一关键字命中，输出前 1KB 帮助定位。
      */
-    it.skip(
-      'Engine HTTP request → trace visible in Jaeger UI [Phase 4 follow-up: Jaeger stack]',
-      async () => {
-        expect(true).toBe(true);
-      },
-    );
+    const matched = /\bSpan(s)?\b|Resource(Spans|Metrics|Logs)?|ScopeSpans|ScopeMetrics/iu.test(logsText);
+    if (!matched) {
+      // 失败时附诊断（截断 1KB 防过长）
+      const head = logsText.slice(0, 1024).replaceAll(/\n/gu, String.raw`\n`);
+      throw new Error(`Collector did not log any Span/Resource within window. logs[head]="${head}"`);
+    }
+    expect(matched).toBe(true);
+  }, 180_000);
 
-    it.skip(
-      'Engine metric agentic_engine_http_requests_total appears in Prometheus [Phase 4 follow-up: Prometheus stack]',
-      async () => {
-        expect(true).toBe(true);
-      },
-    );
-  },
-);
+  /**
+   * Jaeger UI / Prometheus 后端验证 — 依赖独立服务栈（Jaeger all-in-one + Prometheus），
+   * 不在单容器集成范围；建议在部署级 e2e（Phase 4+）覆盖。
+   */
+  it.skip("Engine HTTP request → trace visible in Jaeger UI [Phase 4 follow-up: Jaeger stack]", async () => {
+    expect(true).toBe(true);
+  });
+
+  it.skip("Engine metric agentic_engine_http_requests_total appears in Prometheus [Phase 4 follow-up: Prometheus stack]", async () => {
+    expect(true).toBe(true);
+  });
+});
