@@ -1,15 +1,16 @@
-import { defineComponent, ref, computed, onMounted, type PropType } from 'vue';
-import type { CapabilityEntry } from './types';
-import manifest from '../generated/capabilities.json';
+import { type PropType, computed, defineComponent, onMounted, ref } from "vue";
+
+import manifest from "../generated/capabilities.json";
+import { type CapabilityEntry } from "./types";
 
 export const CapabilityTree = defineComponent({
-  name: 'CapabilityTree',
+  emits: ["select"],
+  name: "CapabilityTree",
   props: {
-    selectedId: { type: String as PropType<string | null>, default: null },
+    selectedId: { default: null, type: String as PropType<string | null> },
   },
-  emits: ['select'],
   setup(props, { emit }) {
-    const filter = ref('');
+    const filter = ref("");
     const entries = manifest.entries as CapabilityEntry[];
 
     const grouped = computed(() => {
@@ -24,12 +25,12 @@ export const CapabilityTree = defineComponent({
         list.push(entry);
         map.set(key, list);
       }
-      return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+      return [...map.entries()].toSorted(([a], [b]) => a.localeCompare(b));
     });
 
     onMounted(() => {
       if (!props.selectedId && entries[0]) {
-        emit('select', entries[0].id);
+        emit("select", entries[0].id);
       }
     });
 
@@ -49,11 +50,7 @@ export const CapabilityTree = defineComponent({
             <ul>
               {items.map((item) => (
                 <li key={item.id}>
-                  <button
-                    type="button"
-                    class={props.selectedId === item.id ? 'is-active' : ''}
-                    onClick={() => emit('select', item.id)}
-                  >
+                  <button type="button" class={props.selectedId === item.id ? "is-active" : ""} onClick={() => emit("select", item.id)}>
                     <span class="cap-tree__kind">{item.kind}</span>
                     {item.id}
                   </button>

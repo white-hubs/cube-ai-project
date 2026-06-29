@@ -1,23 +1,24 @@
-import type { InMemoryCatalogSeed } from '../../packages/llm/core/src/catalog/in-memory-catalog.store';
+import { type LlmEndpointType } from "@cube-ai/contracts";
+
+import {
+  type SystemLlmModelEntity,
+  type SystemLlmModelMatchRuleEntity,
+  type SystemLlmProviderEntity,
+  type SystemLlmProviderTypeEntity,
+  type TenantLlmModelEntity,
+  type TenantLlmProviderEntity,
+} from "../../packages/llm/core/src/catalog/entities";
+import { type InMemoryCatalogSeed } from "../../packages/llm/core/src/catalog/in-memory-catalog.store";
 import {
   type CatalogMysqlPool,
   type MatchRuleRow,
+  SYSTEM_AUDIT,
   type SystemModelRow,
   type SystemProviderRow,
   type SystemTypeRow,
-  SYSTEM_AUDIT,
   sqlParams,
   upsertSystemCatalogMysql,
-} from '../../packages/llm/core/src/catalog/repositories';
-import type {
-  SystemLlmModelEntity,
-  SystemLlmModelMatchRuleEntity,
-  SystemLlmProviderEntity,
-  SystemLlmProviderTypeEntity,
-  TenantLlmModelEntity,
-  TenantLlmProviderEntity,
-} from '../../packages/llm/core/src/catalog/entities';
-import type { LlmEndpointType } from '@cube-ai/contracts';
+} from "../../packages/llm/core/src/catalog/repositories";
 
 /** Raw ghcloud export row shapes (cube_base_ai_application). */
 export interface GhcloudSystemLlmProviderTypeRow {
@@ -59,7 +60,7 @@ export interface GhcloudSystemLlmModelMatchRuleRow {
   id: number | string;
   provider_type_code?: string | null;
   provider_code?: string | null;
-  match_type: 'exact' | 'prefix' | 'contains' | 'regex';
+  match_type: "exact" | "prefix" | "contains" | "regex";
   pattern: string;
   normalized_name?: string | null;
   native_family?: string | null;
@@ -122,7 +123,7 @@ export interface GhcloudCatalogSource {
   tenantModels?: GhcloudTenantLlmModelRow[];
 }
 
-export type CatalogMigrateTarget = 'memory' | 'mysql';
+export type CatalogMigrateTarget = "memory" | "mysql";
 
 export interface CatalogMigrateOptions {
   source: GhcloudCatalogSource;
@@ -152,18 +153,26 @@ function asId(value: number | string): string {
 }
 
 function asBool(value: boolean | number | undefined, fallback = true): boolean {
-  if (value === undefined) return fallback;
-  if (typeof value === 'boolean') return value;
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
   return value !== 0;
 }
 
 function asEndpointType(raw: string | null | undefined): LlmEndpointType | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   return raw as LlmEndpointType;
 }
 
-function asCsv(raw: string | null | undefined, fallback = ''): string {
-  if (raw == null || raw === '') return fallback;
+function asCsv(raw: string | null | undefined, fallback = ""): string {
+  if (raw === null || raw === undefined || raw === "") {
+    return fallback;
+  }
   return raw;
 }
 
@@ -174,101 +183,101 @@ export function mapGhcloudCatalogToLlmCore(source: GhcloudCatalogSource): {
   const warnings: string[] = [];
 
   const systemTypes: SystemLlmProviderTypeEntity[] = (source.systemTypes ?? []).map((row) => ({
-    id: asId(row.id),
     code: row.code,
-    name: row.display_name ?? row.name ?? row.code,
     enabled: asBool(row.enabled),
+    id: asId(row.id),
+    name: row.display_name ?? row.name ?? row.code,
   }));
 
   const systemProviders: SystemLlmProviderEntity[] = (source.systemProviders ?? []).map((row) => ({
-    id: asId(row.id),
-    provider_code: row.provider_code,
-    type_code: row.type_code,
-    name: row.name,
-    icon_url: row.icon_url ?? row.icon ?? null,
     default_remark: row.default_remark ?? null,
     enabled: asBool(row.enabled),
+    icon_url: row.icon_url ?? row.icon ?? null,
+    id: asId(row.id),
+    name: row.name,
+    provider_code: row.provider_code,
+    type_code: row.type_code,
   }));
 
   const systemModels: SystemLlmModelEntity[] = (source.systemModels ?? []).map((row) => ({
-    id: asId(row.id),
-    system_provider_id: asId(row.system_provider_id),
-    model_code: row.model_code,
+    api_base_url: row.api_base_url ?? null,
     display_name: row.display_name,
+    endpoint_type: asEndpointType(row.endpoint_type),
     group_name: row.group_name ?? row.display_name,
     icon_url: row.icon_url ?? row.icon ?? null,
-    api_base_url: row.api_base_url ?? null,
-    endpoint_type: asEndpointType(row.endpoint_type),
-    model_types: asCsv(row.model_types),
+    id: asId(row.id),
     is_free: asBool(row.is_free, false),
+    model_code: row.model_code,
+    model_types: asCsv(row.model_types),
     supports_test: asBool(row.supports_test, true),
+    system_provider_id: asId(row.system_provider_id),
   }));
 
   const matchRules: SystemLlmModelMatchRuleEntity[] = (source.matchRules ?? []).map((row) => ({
-    id: asId(row.id),
-    provider_type_code: row.provider_type_code ?? null,
-    provider_code: row.provider_code ?? null,
-    match_type: row.match_type,
-    pattern: row.pattern,
-    normalized_name: row.normalized_name ?? null,
-    native_family: row.native_family ?? null,
+    api_base_url: row.api_base_url ?? null,
     display_name_template: row.display_name_template ?? null,
+    dsl_schema_json: row.dsl_schema_json ?? null,
+    endpoint_type: asEndpointType(row.endpoint_type),
     group_name: row.group_name ?? null,
     icon_url: row.icon_url ?? null,
-    api_base_url: row.api_base_url ?? null,
-    endpoint_type: asEndpointType(row.endpoint_type),
+    id: asId(row.id),
+    is_free: asBool(row.is_free, false),
+    match_type: row.match_type,
+    model_types: asCsv(row.model_types),
+    native_family: row.native_family ?? null,
+    normalized_name: row.normalized_name ?? null,
+    pattern: row.pattern,
+    priority: row.priority !== null && row.priority !== undefined ? String(row.priority) : "0",
+    provider_code: row.provider_code ?? null,
+    provider_type_code: row.provider_type_code ?? null,
     request_schema_json: row.request_schema_json ?? null,
     response_schema_json: row.response_schema_json ?? null,
-    dsl_schema_json: row.dsl_schema_json ?? null,
-    model_types: asCsv(row.model_types),
-    is_free: asBool(row.is_free, false),
-    priority: row.priority != null ? String(row.priority) : '0',
   }));
 
   const tenantProviders: TenantLlmProviderEntity[] = (source.tenantProviders ?? []).map((row) => ({
-    id: asId(row.id),
-    tenant: row.tenant,
-    system_provider_id: row.system_provider_id != null ? asId(row.system_provider_id) : null,
-    provider_code: row.provider_code,
-    type_code: row.type_code,
-    name: row.name,
-    icon_url: row.icon_url ?? row.icon ?? null,
     api_base_url: row.api_base_url ?? null,
     api_key: row.api_key ?? null,
     enabled: asBool(row.enabled),
+    icon_url: row.icon_url ?? row.icon ?? null,
+    id: asId(row.id),
     is_custom: asBool(row.is_custom, false),
+    name: row.name,
+    provider_code: row.provider_code,
     remark: row.remark ?? null,
+    system_provider_id: row.system_provider_id !== null && row.system_provider_id !== undefined ? asId(row.system_provider_id) : null,
+    tenant: row.tenant,
+    type_code: row.type_code,
   }));
 
   const tenantModels: TenantLlmModelEntity[] = (source.tenantModels ?? []).map((row) => {
-    if (row.endpoint_type === 'ollama' || row.endpoint_type === 'jina_rerank') {
+    if (row.endpoint_type === "ollama" || row.endpoint_type === "jina_rerank") {
       warnings.push(`tenant model ${row.model_code}: endpoint_type ${row.endpoint_type} is contracts-only`);
     }
     return {
-      id: asId(row.id),
-      tenant: row.tenant,
-      tenant_provider_id: asId(row.tenant_provider_id),
-      system_model_id: row.system_model_id != null ? asId(row.system_model_id) : null,
-      model_code: row.model_code,
+      api_base_url: row.api_base_url ?? null,
       display_name: row.display_name,
+      enabled: asBool(row.enabled),
+      endpoint_type: asEndpointType(row.endpoint_type),
       group_name: row.group_name ?? row.display_name,
       icon_url: row.icon_url ?? row.icon ?? null,
-      api_base_url: row.api_base_url ?? null,
-      endpoint_type: asEndpointType(row.endpoint_type),
-      model_types: asCsv(row.model_types),
+      id: asId(row.id),
       is_free: asBool(row.is_free, false),
-      enabled: asBool(row.enabled),
+      model_code: row.model_code,
+      model_types: asCsv(row.model_types),
+      system_model_id: row.system_model_id !== null && row.system_model_id !== undefined ? asId(row.system_model_id) : null,
+      tenant: row.tenant,
+      tenant_provider_id: asId(row.tenant_provider_id),
     };
   });
 
   return {
     seed: {
-      systemTypes,
-      systemProviders,
-      systemModels,
       matchRules,
-      tenantProviders,
+      systemModels,
+      systemProviders,
+      systemTypes,
       tenantModels,
+      tenantProviders,
     },
     warnings,
   };
@@ -276,88 +285,155 @@ export function mapGhcloudCatalogToLlmCore(source: GhcloudCatalogSource): {
 
 /** 映射 ghcloud 导出到真实列式系统目录行。 */
 export function mapGhcloudSystemCatalogToMysql(source: GhcloudCatalogSource): {
-  types: Array<Pick<SystemTypeRow, 'code' | 'display_name' | 'description' | 'sort_order' | 'enabled'>>;
+  types: Pick<SystemTypeRow, "code" | "display_name" | "description" | "sort_order" | "enabled">[];
   providers: SystemProviderRow[];
   models: SystemModelRow[];
   matchRules: MatchRuleRow[];
 } {
   const types = (source.systemTypes ?? []).map((row) => ({
     code: row.code,
-    display_name: row.display_name ?? row.name ?? row.code,
     description: null,
-    sort_order: String(row.sort ?? 0),
+    display_name: row.display_name ?? row.name ?? row.code,
     enabled: asBool(row.enabled),
+    sort_order: String(row.sort ?? 0),
   }));
   const providers: SystemProviderRow[] = (source.systemProviders ?? []).map((row) => ({
+    default_remark: row.default_remark ?? null,
+    icon_url: row.icon_url ?? row.icon ?? null,
     id: asId(row.id),
+    name: row.name,
     provider_code: row.provider_code,
     type_code: row.type_code,
-    name: row.name,
-    icon_url: row.icon_url ?? row.icon ?? null,
-    default_remark: row.default_remark ?? null,
   }));
   const models: SystemModelRow[] = (source.systemModels ?? []).map((row) => ({
-    id: asId(row.id),
-    system_provider_id: asId(row.system_provider_id),
-    model_code: row.model_code,
-    display_name: row.display_name,
-    group_name: row.group_name ?? row.display_name,
-    sort_order: '0',
-    icon_url: row.icon_url ?? row.icon ?? null,
     api_base_url: row.api_base_url ?? null,
+    display_name: row.display_name,
     endpoint_type: row.endpoint_type ?? null,
-    model_types: asCsv(row.model_types),
+    group_name: row.group_name ?? row.display_name,
+    icon_url: row.icon_url ?? row.icon ?? null,
+    id: asId(row.id),
     is_free: asBool(row.is_free, false),
+    model_code: row.model_code,
+    model_types: asCsv(row.model_types),
+    sort_order: "0",
     supports_test: asBool(row.supports_test, true),
+    system_provider_id: asId(row.system_provider_id),
   }));
   const matchRules: MatchRuleRow[] = (source.matchRules ?? []).map((row) => ({
-    id: asId(row.id),
-    provider_type_code: row.provider_type_code ?? null,
-    provider_code: row.provider_code ?? null,
-    match_type: row.match_type,
-    pattern: row.pattern,
-    normalized_name: row.normalized_name ?? null,
-    native_family: row.native_family ?? null,
+    adapter_key: null,
+    api_base_url: row.api_base_url ?? null,
+    channel_profile: null,
     display_name_template: row.display_name_template ?? null,
+    dsl_schema_json: row.dsl_schema_json ?? null,
+    endpoint_type: row.endpoint_type ?? null,
     group_name: row.group_name ?? null,
     icon_url: row.icon_url ?? null,
-    api_base_url: row.api_base_url ?? null,
-    endpoint_type: row.endpoint_type ?? null,
-    channel_profile: null,
-    adapter_key: null,
+    id: asId(row.id),
+    is_free: asBool(row.is_free, false),
+    match_type: row.match_type,
+    model_types: asCsv(row.model_types),
+    native_family: row.native_family ?? null,
+    normalized_name: row.normalized_name ?? null,
+    pattern: row.pattern,
+    priority: row.priority !== null && row.priority !== undefined ? String(row.priority) : "0",
+    provider_code: row.provider_code ?? null,
+    provider_type_code: row.provider_type_code ?? null,
     request_schema_json: row.request_schema_json ?? null,
     response_schema_json: row.response_schema_json ?? null,
-    dsl_schema_json: row.dsl_schema_json ?? null,
-    model_types: asCsv(row.model_types),
-    is_free: asBool(row.is_free, false),
-    priority: row.priority != null ? String(row.priority) : '0',
   }));
-  return { types, providers, models, matchRules };
+  return { matchRules, models, providers, types };
 }
 
 function upsertTenantProviderSql(): string {
   const cols = [
-    'id', 'tenant', 'system_provider_id', 'provider_code', 'type_code', 'name', 'icon_url',
-    'api_key', 'api_base_url', 'enabled', 'is_custom', 'remark',
-    'create_by', 'creator_id', 'creator_type', 'create_time', 'update_by', 'updater_id', 'updater_type', 'update_time', 'deleted',
+    "id",
+    "tenant",
+    "system_provider_id",
+    "provider_code",
+    "type_code",
+    "name",
+    "icon_url",
+    "api_key",
+    "api_base_url",
+    "enabled",
+    "is_custom",
+    "remark",
+    "create_by",
+    "creator_id",
+    "creator_type",
+    "create_time",
+    "update_by",
+    "updater_id",
+    "updater_type",
+    "update_time",
+    "deleted",
   ];
-  const update = ['provider_code', 'type_code', 'name', 'icon_url', 'api_key', 'api_base_url', 'enabled', 'is_custom', 'remark', 'update_time']
+  const update = [
+    "provider_code",
+    "type_code",
+    "name",
+    "icon_url",
+    "api_key",
+    "api_base_url",
+    "enabled",
+    "is_custom",
+    "remark",
+    "update_time",
+  ]
     .map((c) => `${c} = VALUES(${c})`)
-    .join(', ');
-  return `INSERT INTO ai_application_tenant_llm_provider (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${update}, deleted = 0`;
+    .join(", ");
+  return `INSERT INTO ai_application_tenant_llm_provider (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")}) ON DUPLICATE KEY UPDATE ${update}, deleted = 0`;
 }
 
 function upsertTenantModelSql(): string {
   const cols = [
-    'id', 'tenant', 'tenant_provider_id', 'system_model_id', 'model_code', 'display_name', 'group_name', 'sort_order',
-    'remark', 'icon_url', 'api_base_url', 'endpoint_type', 'request_schema_json', 'response_schema_json', 'dsl_schema_json',
-    'model_types', 'is_free', 'supports_test',
-    'create_by', 'creator_id', 'creator_type', 'create_time', 'update_by', 'updater_id', 'updater_type', 'update_time', 'deleted',
+    "id",
+    "tenant",
+    "tenant_provider_id",
+    "system_model_id",
+    "model_code",
+    "display_name",
+    "group_name",
+    "sort_order",
+    "remark",
+    "icon_url",
+    "api_base_url",
+    "endpoint_type",
+    "request_schema_json",
+    "response_schema_json",
+    "dsl_schema_json",
+    "model_types",
+    "is_free",
+    "supports_test",
+    "create_by",
+    "creator_id",
+    "creator_type",
+    "create_time",
+    "update_by",
+    "updater_id",
+    "updater_type",
+    "update_time",
+    "deleted",
   ];
-  const update = ['display_name', 'group_name', 'sort_order', 'remark', 'icon_url', 'api_base_url', 'endpoint_type', 'request_schema_json', 'response_schema_json', 'dsl_schema_json', 'model_types', 'is_free', 'supports_test', 'update_time']
+  const update = [
+    "display_name",
+    "group_name",
+    "sort_order",
+    "remark",
+    "icon_url",
+    "api_base_url",
+    "endpoint_type",
+    "request_schema_json",
+    "response_schema_json",
+    "dsl_schema_json",
+    "model_types",
+    "is_free",
+    "supports_test",
+    "update_time",
+  ]
     .map((c) => `${c} = VALUES(${c})`)
-    .join(', ');
-  return `INSERT INTO ai_application_tenant_llm_model (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) ON DUPLICATE KEY UPDATE ${update}, deleted = 0`;
+    .join(", ");
+  return `INSERT INTO ai_application_tenant_llm_model (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")}) ON DUPLICATE KEY UPDATE ${update}, deleted = 0`;
 }
 
 /** 把 ghcloud 导出写入真实列式表（系统目录 + 租户副本，保留原 id/tenant/凭据）。 */
@@ -367,47 +443,91 @@ export async function writeCatalogToMysql(pool: CatalogMysqlPool, source: Ghclou
 
   const now = new Date();
   for (const row of source.tenantProviders ?? []) {
-    await pool.query(upsertTenantProviderSql(), sqlParams([
-      asId(row.id), row.tenant, row.system_provider_id != null ? asId(row.system_provider_id) : null,
-      row.provider_code, row.type_code, row.name, row.icon_url ?? row.icon ?? null,
-      row.api_key ?? null, row.api_base_url ?? null, asBool(row.enabled), asBool(row.is_custom, false), row.remark ?? null,
-      SYSTEM_AUDIT.by, SYSTEM_AUDIT.id, SYSTEM_AUDIT.type, now, SYSTEM_AUDIT.by, SYSTEM_AUDIT.id, SYSTEM_AUDIT.type, now, '0',
-    ]));
+    await pool.query(
+      upsertTenantProviderSql(),
+      sqlParams([
+        asId(row.id),
+        row.tenant,
+        row.system_provider_id !== null && row.system_provider_id !== undefined ? asId(row.system_provider_id) : null,
+        row.provider_code,
+        row.type_code,
+        row.name,
+        row.icon_url ?? row.icon ?? null,
+        row.api_key ?? null,
+        row.api_base_url ?? null,
+        asBool(row.enabled),
+        asBool(row.is_custom, false),
+        row.remark ?? null,
+        SYSTEM_AUDIT.by,
+        SYSTEM_AUDIT.id,
+        SYSTEM_AUDIT.type,
+        now,
+        SYSTEM_AUDIT.by,
+        SYSTEM_AUDIT.id,
+        SYSTEM_AUDIT.type,
+        now,
+        "0",
+      ]),
+    );
   }
   for (const row of source.tenantModels ?? []) {
-    await pool.query(upsertTenantModelSql(), sqlParams([
-      asId(row.id), row.tenant, asId(row.tenant_provider_id), row.system_model_id != null ? asId(row.system_model_id) : null,
-      row.model_code, row.display_name, row.group_name ?? row.display_name, '0',
-      null, row.icon_url ?? row.icon ?? null, row.api_base_url ?? null, row.endpoint_type ?? null,
-      row.request_schema_json ?? null, row.response_schema_json ?? null, row.dsl_schema_json ?? null,
-      asCsv(row.model_types), asBool(row.is_free, false), asBool(row.supports_test, true),
-      SYSTEM_AUDIT.by, SYSTEM_AUDIT.id, SYSTEM_AUDIT.type, now, SYSTEM_AUDIT.by, SYSTEM_AUDIT.id, SYSTEM_AUDIT.type, now, '0',
-    ]));
+    await pool.query(
+      upsertTenantModelSql(),
+      sqlParams([
+        asId(row.id),
+        row.tenant,
+        asId(row.tenant_provider_id),
+        row.system_model_id !== null && row.system_model_id !== undefined ? asId(row.system_model_id) : null,
+        row.model_code,
+        row.display_name,
+        row.group_name ?? row.display_name,
+        "0",
+        null,
+        row.icon_url ?? row.icon ?? null,
+        row.api_base_url ?? null,
+        row.endpoint_type ?? null,
+        row.request_schema_json ?? null,
+        row.response_schema_json ?? null,
+        row.dsl_schema_json ?? null,
+        asCsv(row.model_types),
+        asBool(row.is_free, false),
+        asBool(row.supports_test, true),
+        SYSTEM_AUDIT.by,
+        SYSTEM_AUDIT.id,
+        SYSTEM_AUDIT.type,
+        now,
+        SYSTEM_AUDIT.by,
+        SYSTEM_AUDIT.id,
+        SYSTEM_AUDIT.type,
+        now,
+        "0",
+      ]),
+    );
   }
 }
 
 export async function migrateCatalog(options: CatalogMigrateOptions): Promise<CatalogMigrateResult> {
   const dryRun = options.dryRun ?? false;
-  const target = options.target ?? 'memory';
+  const target = options.target ?? "memory";
   const { seed, warnings } = mapGhcloudCatalogToLlmCore(options.source);
 
   const counts = {
-    systemTypes: seed.systemTypes?.length ?? 0,
-    systemProviders: seed.systemProviders?.length ?? 0,
-    systemModels: seed.systemModels?.length ?? 0,
     matchRules: seed.matchRules?.length ?? 0,
-    tenantProviders: seed.tenantProviders?.length ?? 0,
+    systemModels: seed.systemModels?.length ?? 0,
+    systemProviders: seed.systemProviders?.length ?? 0,
+    systemTypes: seed.systemTypes?.length ?? 0,
     tenantModels: seed.tenantModels?.length ?? 0,
+    tenantProviders: seed.tenantProviders?.length ?? 0,
   };
 
-  if (!dryRun && target === 'mysql') {
-    const url = options.mysqlUrl ?? process.env['AGENTIC_ENGINE_MYSQL_URL']?.trim();
+  if (!dryRun && target === "mysql") {
+    const url = options.mysqlUrl ?? process.env["AGENTIC_ENGINE_MYSQL_URL"]?.trim();
     if (!url) {
-      throw new Error('catalog-migrate --target mysql 需要 --mysql-url 或环境变量 AGENTIC_ENGINE_MYSQL_URL');
+      throw new Error("catalog-migrate --target mysql 需要 --mysql-url 或环境变量 AGENTIC_ENGINE_MYSQL_URL");
     }
     // 动态 import，避免 dry-run / memory 路径加载 mysql2。
-    const mysql = (await import('mysql2/promise')).default;
-    const pool = mysql.createPool({ uri: url, supportBigNumbers: true, bigNumberStrings: true });
+    const mysql = (await import("mysql2/promise")).default;
+    const pool = mysql.createPool({ bigNumberStrings: true, supportBigNumbers: true, uri: url });
     try {
       await writeCatalogToMysql(pool as unknown as CatalogMysqlPool, options.source);
     } finally {
@@ -415,7 +535,7 @@ export async function migrateCatalog(options: CatalogMigrateOptions): Promise<Ca
     }
   }
 
-  return { dryRun, target, counts, seed, warnings };
+  return { counts, dryRun, seed, target, warnings };
 }
 
 export async function loadGhcloudCatalogSourceFromFile(path: string): Promise<GhcloudCatalogSource> {
@@ -431,42 +551,48 @@ export function parseCatalogMigrateCliArgs(argv: string[]): {
 } {
   let sourcePath: string | null = null;
   let dryRun = false;
-  let target: CatalogMigrateTarget = 'memory';
+  let target: CatalogMigrateTarget = "memory";
   let mysqlUrl: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--dry-run') {
+    if (arg === "--dry-run") {
       dryRun = true;
-    } else if (arg === '--target' && argv[i + 1]) {
+    } else if (arg === "--target" && argv[i + 1]) {
       const raw = argv[++i];
-      if (raw === 'memory' || raw === 'mysql') target = raw;
-    } else if (arg === '--mysql-url' && argv[i + 1]) {
+      if (raw === "memory" || raw === "mysql") {
+        target = raw;
+      }
+    } else if (arg === "--mysql-url" && argv[i + 1]) {
       mysqlUrl = argv[++i];
-    } else if (arg === '--source' && argv[i + 1]) {
+    } else if (arg === "--source" && argv[i + 1]) {
       sourcePath = argv[++i] ?? null;
     }
   }
 
-  return { sourcePath, dryRun, target, mysqlUrl };
+  return { dryRun, mysqlUrl, sourcePath, target };
 }
 
 async function main(): Promise<void> {
   const { sourcePath, dryRun, target, mysqlUrl } = parseCatalogMigrateCliArgs(process.argv.slice(2));
   if (!sourcePath) {
-    console.error('Usage: bun tools/migration/catalog-migrate.ts --source <export.json> [--dry-run] [--target memory|mysql] [--mysql-url mysql://user:pass@host:3306/db]');
+    console.error(
+      "Usage: bun tools/migration/catalog-migrate.ts --source <export.json> [--dry-run] [--target memory|mysql] [--mysql-url mysql://user:pass@host:3306/db]",
+    );
     process.exit(1);
   }
 
   const source = await loadGhcloudCatalogSourceFromFile(sourcePath);
-  const result = await migrateCatalog({ source, dryRun, target, mysqlUrl });
+  const result = await migrateCatalog({ dryRun, mysqlUrl, source, target });
 
   console.log(JSON.stringify({ counts: result.counts, dryRun: result.dryRun, target: result.target, warnings: result.warnings }, null, 2));
 }
 
 if (import.meta.main) {
-  main().catch((err: unknown) => {
+  try {
+    await main();
+  } catch (err: unknown) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
-  });
+  }
 }

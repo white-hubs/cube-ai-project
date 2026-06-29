@@ -20,7 +20,7 @@ export async function fetchProxyRequestLog(limit = 50): Promise<ProxyRequestReco
 }
 
 export async function clearProxyRequestLog(): Promise<void> {
-  const res = await fetch('/__playground/proxy-log', { method: 'DELETE' });
+  const res = await fetch("/__playground/proxy-log", { method: "DELETE" });
   if (!res.ok) {
     throw new Error(`proxy-log DELETE failed: HTTP ${res.status}`);
   }

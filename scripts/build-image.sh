@@ -38,9 +38,11 @@
 #   BUILDKIT_CONFIG    buildkitd.toml 路径（传给 buildx create --config）
 #   EXTRA_TAGS         追加 tag（空格分隔），如 EXTRA_TAGS="latest stable"
 #   CACHE_FROM         覆写 --cache-from
-#   CACHE_TO           覆写 --cache-to
+#   CACHE_TO           覆写 --cache-to（未含 ignore-error 时自动追加 ignore-error=true）
 #   NO_CACHE_FROM      设为 1 时不传 --cache-from
 #   NO_CACHE_TO        设为 1 时不传 --cache-to
+#
+# push 成功判定：发布镜像已在 registry 可达即 exit 0；cache 导出等非关键步骤失败仅 WARN。
 #
 # 退出码：
 #   0  成功
@@ -180,6 +182,20 @@ canonical_path() {
   fi
 }
 
+# cache 导出失败（如 Nexus Disable redeploy）不应导致发布失败
+append_cache_to_ignore_error() {
+  local cache_to="$1"
+  if [[ "${cache_to}" != *"ignore-error="* ]]; then
+    printf '%s,ignore-error=true' "${cache_to}"
+  else
+    printf '%s' "${cache_to}"
+  fi
+}
+
+image_ref_in_registry() {
+  docker buildx imagetools inspect "$1" >/dev/null 2>&1
+}
+
 ensure_builder() {
   resolve_buildkit_config
 
@@ -277,9 +293,10 @@ fi
 
 if [ "${OUTPUT_MODE}" = "push" ] && [ "${NO_CACHE}" != "1" ]; then
   CACHE_FROM_DEFAULT="type=registry,ref=${IMAGE_FQN}:buildcache-binary"
-  CACHE_TO_DEFAULT="type=registry,ref=${IMAGE_FQN}:buildcache-binary,mode=max"
+  CACHE_TO_DEFAULT="type=registry,ref=${IMAGE_FQN}:buildcache-binary,mode=max,ignore-error=true"
   CACHE_FROM="${CACHE_FROM:-${CACHE_FROM_DEFAULT}}"
   CACHE_TO="${CACHE_TO:-${CACHE_TO_DEFAULT}}"
+  CACHE_TO="$(append_cache_to_ignore_error "${CACHE_TO}")"
   if [ "${NO_CACHE_FROM:-0}" != "1" ]; then BUILD_ARGS+=(--cache-from "${CACHE_FROM}"); fi
   if [ "${NO_CACHE_TO:-0}"   != "1" ]; then BUILD_ARGS+=(--cache-to   "${CACHE_TO}"); fi
 fi
@@ -310,7 +327,22 @@ if [ "${DRY_RUN}" = "1" ]; then
 fi
 
 echo "[build-image] running: docker buildx build ${BUILD_ARGS[*]}"
+BUILD_EXIT=0
 if ! docker buildx build "${BUILD_ARGS[@]}"; then
+  BUILD_EXIT=4
+fi
+
+if [ "${OUTPUT_MODE}" = "push" ]; then
+  if image_ref_in_registry "${PRIMARY_REF}"; then
+    if [ "${BUILD_EXIT}" != "0" ]; then
+      echo "[build-image] WARN: buildx exited ${BUILD_EXIT} but release image is in registry: ${PRIMARY_REF}" >&2
+      echo "[build-image] WARN: a non-critical step likely failed (e.g. cache export); treating push as success." >&2
+    fi
+  else
+    echo "[build-image] FAILED: release image not found in registry: ${PRIMARY_REF}" >&2
+    exit 4
+  fi
+elif [ "${BUILD_EXIT}" != "0" ]; then
   echo "[build-image] FAILED" >&2
   exit 4
 fi

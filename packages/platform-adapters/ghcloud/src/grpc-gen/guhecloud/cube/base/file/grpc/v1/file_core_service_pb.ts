@@ -6,14 +6,32 @@ import type { GenFile, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_empty } from "@bufbuild/protobuf/wkt";
-import type { BusinessKeysSchema, FileBase64Schema, FileBytesSchema, FileGenerateSchema, FileIdsQuerySchema, FileModifySchema, FileVoByBusinessKeyMapSchema, FileVoListSchema, GetByBusinessKeyRequestSchema, GetByBusinessKeyWithTagRequestSchema, GetByIdRequestSchema, OptionalBoolSchema, OptionalFileVoSchema, ResourceBundleRequestSchema } from "./file_types_pb";
+
+import type {
+  BusinessKeysSchema,
+  FileBase64Schema,
+  FileBytesSchema,
+  FileGenerateSchema,
+  FileIdsQuerySchema,
+  FileModifySchema,
+  FileVoByBusinessKeyMapSchema,
+  FileVoListSchema,
+  GetByBusinessKeyRequestSchema,
+  GetByBusinessKeyWithTagRequestSchema,
+  GetByIdRequestSchema,
+  OptionalBoolSchema,
+  OptionalFileVoSchema,
+  ResourceBundleRequestSchema,
+} from "./file_types_pb";
 import { file_guhecloud_cube_base_file_grpc_v1_file_types } from "./file_types_pb";
 
 /**
  * Describes the file guhecloud/cube/base/file/grpc/v1/file_core_service.proto.
  */
-export const file_guhecloud_cube_base_file_grpc_v1_file_core_service: GenFile = /*@__PURE__*/
-  fileDesc("CjhndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX2NvcmVfc2VydmljZS5wcm90bxIiZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MTKZDAoPRmlsZUNvcmVTZXJ2aWNlEngKEEdldFVwbG9hZERldGFpbHMSMC5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVHZW5lcmF0ZRoyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxGaWxlVm8ScQoHR2V0QnlJZBIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEmwKCEdldEJ5SWRzEjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSWRzUXVlcnkaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0xpc3QSfwoQR2V0QnlCdXNpbmVzc0tleRI7Lmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlCdXNpbmVzc0tleVJlcXVlc3QaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0xpc3QSgQEKEUdldEJ5QnVzaW5lc3NLZXlzEjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5CdXNpbmVzc0tleXMaOi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0J5QnVzaW5lc3NLZXlNYXASbwoLR2V0RmlsZUxpc3QSMC5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVJZHNRdWVyeRouLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvTGlzdBKNAQoXR2V0QnlCdXNpbmVzc0tleVdpdGhUYWcSQi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkdldEJ5QnVzaW5lc3NLZXlXaXRoVGFnUmVxdWVzdBouLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvTGlzdBJsCgZVcGxvYWQSLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVNb2RpZnkaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEnAKC0dldEZpbGVCeXRlEjIuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5HZXRCeUlkUmVxdWVzdBotLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUJ5dGVzElQKBlJlbW92ZRIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaFi5nb29nbGUucHJvdG9idWYuRW1wdHkSeQoTUGh5c2ljYWxEZWxldGVCeUlkcxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUlkc1F1ZXJ5GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wScwoNR2V0RmlsZUJhc2U2NBIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVCYXNlNjQSfwoOUmVzb3VyY2VCdW5kbGUSOS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJlc291cmNlQnVuZGxlUmVxdWVzdBoyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxGaWxlVm9CQAomY29tLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjFCFEZpbGVDb3JlU2VydmljZVByb3RvUAFiBnByb3RvMw", [file_google_protobuf_empty, file_guhecloud_cube_base_file_grpc_v1_file_types]);
+export const file_guhecloud_cube_base_file_grpc_v1_file_core_service: GenFile /*@__PURE__*/ = fileDesc(
+  "CjhndWhlY2xvdWQvY3ViZS9iYXNlL2ZpbGUvZ3JwYy92MS9maWxlX2NvcmVfc2VydmljZS5wcm90bxIiZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MTKZDAoPRmlsZUNvcmVTZXJ2aWNlEngKEEdldFVwbG9hZERldGFpbHMSMC5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVHZW5lcmF0ZRoyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxGaWxlVm8ScQoHR2V0QnlJZBIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEmwKCEdldEJ5SWRzEjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5GaWxlSWRzUXVlcnkaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0xpc3QSfwoQR2V0QnlCdXNpbmVzc0tleRI7Lmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlCdXNpbmVzc0tleVJlcXVlc3QaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0xpc3QSgQEKEUdldEJ5QnVzaW5lc3NLZXlzEjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5CdXNpbmVzc0tleXMaOi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVWb0J5QnVzaW5lc3NLZXlNYXASbwoLR2V0RmlsZUxpc3QSMC5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVJZHNRdWVyeRouLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvTGlzdBKNAQoXR2V0QnlCdXNpbmVzc0tleVdpdGhUYWcSQi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkdldEJ5QnVzaW5lc3NLZXlXaXRoVGFnUmVxdWVzdBouLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZVZvTGlzdBJsCgZVcGxvYWQSLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVNb2RpZnkaMi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLk9wdGlvbmFsRmlsZVZvEnAKC0dldEZpbGVCeXRlEjIuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5HZXRCeUlkUmVxdWVzdBotLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUJ5dGVzElQKBlJlbW92ZRIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaFi5nb29nbGUucHJvdG9idWYuRW1wdHkSeQoTUGh5c2ljYWxEZWxldGVCeUlkcxIwLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuRmlsZUlkc1F1ZXJ5GjAuZ3VoZWNsb3VkLmN1YmUuYmFzZS5maWxlLmNsaWVudC52MS5PcHRpb25hbEJvb2wScwoNR2V0RmlsZUJhc2U2NBIyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuR2V0QnlJZFJlcXVlc3QaLi5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLkZpbGVCYXNlNjQSfwoOUmVzb3VyY2VCdW5kbGUSOS5ndWhlY2xvdWQuY3ViZS5iYXNlLmZpbGUuY2xpZW50LnYxLlJlc291cmNlQnVuZGxlUmVxdWVzdBoyLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjEuT3B0aW9uYWxGaWxlVm9CQAomY29tLmd1aGVjbG91ZC5jdWJlLmJhc2UuZmlsZS5jbGllbnQudjFCFEZpbGVDb3JlU2VydmljZVByb3RvUAFiBnByb3RvMw",
+  [file_google_protobuf_empty, file_guhecloud_cube_base_file_grpc_v1_file_types],
+);
 
 /**
  * 对应 com.guhecloud.cube.base.file.client.FileClient
@@ -28,7 +46,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof FileGenerateSchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetById
    */
@@ -36,7 +54,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByIdRequestSchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetByIds
    */
@@ -44,7 +62,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof FileIdsQuerySchema;
     output: typeof FileVoListSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetByBusinessKey
    */
@@ -52,7 +70,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByBusinessKeyRequestSchema;
     output: typeof FileVoListSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetByBusinessKeys
    */
@@ -60,7 +78,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof BusinessKeysSchema;
     output: typeof FileVoByBusinessKeyMapSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetFileList
    */
@@ -68,7 +86,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof FileIdsQuerySchema;
     output: typeof FileVoListSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetByBusinessKeyWithTag
    */
@@ -76,7 +94,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByBusinessKeyWithTagRequestSchema;
     output: typeof FileVoListSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.Upload
    */
@@ -84,7 +102,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof FileModifySchema;
     output: typeof OptionalFileVoSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetFileByte
    */
@@ -92,7 +110,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByIdRequestSchema;
     output: typeof FileBytesSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.Remove
    */
@@ -100,7 +118,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByIdRequestSchema;
     output: typeof EmptySchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.PhysicalDeleteByIds
    */
@@ -108,7 +126,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof FileIdsQuerySchema;
     output: typeof OptionalBoolSchema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.GetFileBase64
    */
@@ -116,7 +134,7 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof GetByIdRequestSchema;
     output: typeof FileBase64Schema;
-  },
+  };
   /**
    * @generated from rpc guhecloud.cube.base.file.client.v1.FileCoreService.ResourceBundle
    */
@@ -124,7 +142,5 @@ export const FileCoreService: GenService<{
     methodKind: "unary";
     input: typeof ResourceBundleRequestSchema;
     output: typeof OptionalFileVoSchema;
-  },
-}> = /*@__PURE__*/
-  serviceDesc(file_guhecloud_cube_base_file_grpc_v1_file_core_service, 0);
-
+  };
+}> /*@__PURE__*/ = serviceDesc(file_guhecloud_cube_base_file_grpc_v1_file_core_service, 0);

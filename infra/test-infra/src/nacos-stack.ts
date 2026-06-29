@@ -1,17 +1,19 @@
-import { readFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
-import { testInfraLog, withProgressLog } from './log';
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
+
+import { testInfraLog, withProgressLog } from "./log";
 
 /** 与 Engine DescriptorLoader、docker-compose 示例一致 */
-export const NACOS_DESCRIPTOR_GROUP_DEFAULT = 'agentic-engine-tools';
+export const NACOS_DESCRIPTOR_GROUP_DEFAULT = "agentic-engine-tools";
 
 let nacosTracked: StartedTestContainer[] | null = null;
 
 export async function stopTrackedNacosIfAny(): Promise<void> {
   const arr = nacosTracked;
-  if (!arr?.length) return;
+  if (!arr?.length) {
+    return;
+  }
   testInfraLog(`Stopping ${arr.length} Nacos Testcontainer(s)…`);
   await Promise.all(
     arr.map((c) =>
@@ -20,7 +22,9 @@ export async function stopTrackedNacosIfAny(): Promise<void> {
       }),
     ),
   );
-  if (nacosTracked === arr) nacosTracked = null;
+  if (nacosTracked === arr) {
+    nacosTracked = null;
+  }
 }
 
 export interface NacosServerStack {
@@ -40,36 +44,32 @@ export async function startNacosServer(): Promise<NacosServerStack> {
   const started: StartedTestContainer[] = [];
   nacosTracked = started;
 
-  const image = 'nacos/nacos-server:v3.1.0';
+  const image = "nacos/nacos-server:v3.1.0";
 
   try {
     testInfraLog(`Starting Nacos (${image}) standalone…`);
     const t0 = Date.now();
 
     const container = await withProgressLog(
-      'Nacos GenericContainer.start()',
+      "Nacos GenericContainer.start()",
       new GenericContainer(image)
         .withEnvironment({
-          MODE: 'standalone',
-          PREFER_HOST_MODE: 'hostname',
-          NACOS_AUTH_ENABLE: 'false',
+          JVM_XMS: "256m",
+          JVM_XMX: "512m",
+          MODE: "standalone",
+          NACOS_AUTH_ENABLE: "false",
+          NACOS_AUTH_IDENTITY_KEY: "serverIdentity",
+          NACOS_AUTH_IDENTITY_VALUE: "security",
           /** v3.1 镜像在关闭鉴权时仍要求 token / identity 存在（与 nacos-docker example 一致） */
-          NACOS_AUTH_TOKEN: 'VGhpc0lzTXlDdXN0b21TZWNyZXRLZXkwMTIzNDU2Nzg=',
-          NACOS_AUTH_IDENTITY_KEY: 'serverIdentity',
-          NACOS_AUTH_IDENTITY_VALUE: 'security',
+          NACOS_AUTH_TOKEN: "VGhpc0lzTXlDdXN0b21TZWNyZXRLZXkwMTIzNDU2Nzg=",
           /** 允许使用既有 `/nacos/v2/cs/config` 发布（便于集成测试种子数据） */
-          NACOS_CORE_API_COMPATIBILITY_ADMIN_ENABLED: 'true',
-          JVM_XMS: '256m',
-          JVM_XMX: '512m',
+          NACOS_CORE_API_COMPATIBILITY_ADMIN_ENABLED: "true",
+          PREFER_HOST_MODE: "hostname",
         })
         .withExposedPorts(8848, 9848, 8080)
         /** 镜像拉取 + JVM 启动常超过 Testcontainers 默认 10s */
         .withStartupTimeout(300_000)
-        .withWaitStrategy(
-          Wait.forHttp('/nacos/v3/admin/core/state/readiness', 8848)
-            .forStatusCode(200)
-            .withStartupTimeout(300_000),
-        )
+        .withWaitStrategy(Wait.forHttp("/nacos/v3/admin/core/state/readiness", 8848).forStatusCode(200).withStartupTimeout(300_000))
         .start(),
     );
 
@@ -82,7 +82,9 @@ export async function startNacosServer(): Promise<NacosServerStack> {
       baseUrl,
       stop: async () => {
         await container.stop().catch(() => {});
-        if (nacosTracked === started) nacosTracked = null;
+        if (nacosTracked === started) {
+          nacosTracked = null;
+        }
       },
     };
   } catch (e) {
@@ -93,7 +95,9 @@ export async function startNacosServer(): Promise<NacosServerStack> {
         }),
       ),
     );
-    if (nacosTracked === started) nacosTracked = null;
+    if (nacosTracked === started) {
+      nacosTracked = null;
+    }
     throw e;
   }
 }
@@ -119,8 +123,8 @@ export async function waitForNacosConfigReadable(opts: {
   timeoutMs?: number;
   intervalMs?: number;
 }): Promise<void> {
-  const root = opts.baseUrl.replace(/\/$/, '');
-  const ns = opts.namespaceId ?? '';
+  const root = opts.baseUrl.replace(/\/$/u, "");
+  const ns = opts.namespaceId ?? "";
   const deadline = Date.now() + (opts.timeoutMs ?? 120_000);
   const interval = opts.intervalMs ?? 400;
   const q = new URLSearchParams({
@@ -141,15 +145,15 @@ export async function waitForNacosConfigReadable(opts: {
         await new Promise((r) => setTimeout(r, interval));
         continue;
       }
-      if (parsed.code === 0) return;
+      if (parsed.code === 0) {
+        return;
+      }
     } catch {
       /* retry */
     }
     await new Promise((r) => setTimeout(r, interval));
   }
-  throw new Error(
-    `waitForNacosConfigReadable timeout (${opts.dataId} group=${opts.group} namespaceId=${JSON.stringify(ns)})`,
-  );
+  throw new Error(`waitForNacosConfigReadable timeout (${opts.dataId} group=${opts.group} namespaceId=${JSON.stringify(ns)})`);
 }
 
 /**
@@ -158,19 +162,19 @@ export async function waitForNacosConfigReadable(opts: {
  * ref: https://nacos.io/en/docs/latest/guide/user/open-api/
  */
 export async function publishNacosConfig(opts: PublishNacosConfigOpts): Promise<void> {
-  const root = opts.baseUrl.replace(/\/$/, '');
+  const root = opts.baseUrl.replace(/\/$/u, "");
   const url = `${root}/nacos/v2/cs/config`;
 
   const body = new URLSearchParams();
-  body.set('dataId', opts.dataId);
-  body.set('group', opts.group);
-  body.set('content', opts.content);
-  body.set('namespaceId', opts.namespaceId ?? '');
+  body.set("dataId", opts.dataId);
+  body.set("group", opts.group);
+  body.set("content", opts.content);
+  body.set("namespaceId", opts.namespaceId ?? "");
 
   const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method: "POST",
   });
 
   const text = await res.text();
@@ -182,21 +186,16 @@ export async function publishNacosConfig(opts: PublishNacosConfigOpts): Promise<
   }
 
   if (!res.ok || parsed.code !== 0) {
-    throw new Error(
-      `publishNacosConfig failed: ${res.status} ${parsed.message ?? text.slice(0, 300)}`,
-    );
+    throw new Error(`publishNacosConfig failed: ${res.status} ${parsed.message ?? text.slice(0, 300)}`);
   }
 }
 
-const FIXTURE_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../fixtures/nacos-seed',
-);
+const FIXTURE_DIR = join(import.meta.dirname, "../fixtures/nacos-seed");
 
 /** Nacos descriptor 集成测试种子文件（v6：`infra/test-infra/fixtures/nacos-seed`）。 */
 export const NACOS_SEED_FIXTURE_DIR = FIXTURE_DIR;
-export const NACOS_SEED_ECHO_FIXTURE = join(FIXTURE_DIR, 'echo.json');
-export const NACOS_SEED_INDEX_FIXTURE = join(FIXTURE_DIR, 'descriptor-index.yaml');
+export const NACOS_SEED_ECHO_FIXTURE = join(FIXTURE_DIR, "echo.json");
+export const NACOS_SEED_INDEX_FIXTURE = join(FIXTURE_DIR, "descriptor-index.yaml");
 
 /** 工具 descriptor 本地扫描样例目录（源仓 `docs/.../sample-descriptors` 收编落点）。 */
 export const INTEGRATION_TOOL_DESCRIPTOR_SAMPLE_DIR = NACOS_SEED_FIXTURE_DIR;
@@ -204,34 +203,31 @@ export const INTEGRATION_TOOL_DESCRIPTOR_SAMPLE_DIR = NACOS_SEED_FIXTURE_DIR;
 /**
  * 写入 `descriptor-index.yaml` + `echo.json`（group {@link NACOS_DESCRIPTOR_GROUP_DEFAULT}）。
  */
-export async function seedAgenticDescriptorNacosFixtures(
-  baseUrl: string,
-  opts?: { group?: string },
-): Promise<void> {
+export async function seedAgenticDescriptorNacosFixtures(baseUrl: string, opts?: { group?: string }): Promise<void> {
   const group = opts?.group ?? NACOS_DESCRIPTOR_GROUP_DEFAULT;
 
   const [indexYaml, echoJson] = await Promise.all([
-    readFile(join(FIXTURE_DIR, 'descriptor-index.yaml'), 'utf-8'),
-    readFile(join(FIXTURE_DIR, 'echo.json'), 'utf-8'),
+    readFile(join(FIXTURE_DIR, "descriptor-index.yaml"), "utf8"),
+    readFile(join(FIXTURE_DIR, "echo.json"), "utf8"),
   ]);
 
   await publishNacosConfig({
     baseUrl,
-    group,
-    dataId: 'echo.json',
     content: echoJson,
+    dataId: "echo.json",
+    group,
   });
 
   await publishNacosConfig({
     baseUrl,
-    group,
-    dataId: 'descriptor-index.yaml',
     content: indexYaml,
+    dataId: "descriptor-index.yaml",
+    group,
   });
 
   await waitForNacosConfigReadable({
     baseUrl,
+    dataId: "descriptor-index.yaml",
     group,
-    dataId: 'descriptor-index.yaml',
   });
 }

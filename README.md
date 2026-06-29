@@ -41,14 +41,14 @@ deploy/docker-compose/  # 本地 MySQL / Redis / Qdrant
 
 ## 文档导航
 
-| 想了解 | 看 |
-|---|---|
-| AI 开发入口（渐进式披露） | [AGENTS.md](./AGENTS.md) |
-| 领域术语 | [CONTEXT.md](./CONTEXT.md) |
-| 架构决策（ADR-0001 … 0015） | [docs/adr/](./docs/adr/README.md) |
-| 目录布局与包依赖图 | [docs/architecture/repo-layout-and-dependencies.md](./docs/architecture/repo-layout-and-dependencies.md) |
-| 生产切换 runbook | [docs/operations/cutover-runbook.md](./docs/operations/cutover-runbook.md) |
-| 未关闭事项 | [docs/backlog.md](./docs/backlog.md) |
+| 想了解                      | 看                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| AI 开发入口（渐进式披露）   | [AGENTS.md](./AGENTS.md)                                                                                 |
+| 领域术语                    | [CONTEXT.md](./CONTEXT.md)                                                                               |
+| 架构决策（ADR-0001 … 0015） | [docs/adr/](./docs/adr/README.md)                                                                        |
+| 目录布局与包依赖图          | [docs/architecture/repo-layout-and-dependencies.md](./docs/architecture/repo-layout-and-dependencies.md) |
+| 生产切换 runbook            | [docs/operations/cutover-runbook.md](./docs/operations/cutover-runbook.md)                               |
+| 未关闭事项                  | [docs/backlog.md](./docs/backlog.md)                                                                     |
 
 ## 测试
 

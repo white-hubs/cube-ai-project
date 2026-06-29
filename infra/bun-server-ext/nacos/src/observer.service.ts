@@ -1,10 +1,6 @@
-import { Injectable } from '@dangao/bun-server';
-import type {
-  NacosChangeHandler,
-  NacosConfigObserver,
-  NacosConfigSnapshot,
-  NacosObserverOptions,
-} from './types';
+import { Injectable } from "@dangao/bun-server";
+
+import { type NacosChangeHandler, type NacosConfigObserver, type NacosConfigSnapshot, type NacosObserverOptions } from "./types";
 
 /**
  * In-memory skeleton Observer.
@@ -40,10 +36,7 @@ export class NacosConfigObserverService implements NacosConfigObserver {
     this.handlers.clear();
   }
 
-  async subscribe<T>(
-    dataId: string,
-    handler: NacosChangeHandler<T>,
-  ): Promise<() => Promise<void>> {
+  async subscribe<T>(dataId: string, handler: NacosChangeHandler<T>): Promise<() => Promise<void>> {
     const set = this.handlers.get(dataId) ?? new Set<NacosChangeHandler>();
     set.add(handler as NacosChangeHandler);
     this.handlers.set(dataId, set);
@@ -52,9 +45,7 @@ export class NacosConfigObserverService implements NacosConfigObserver {
     };
   }
 
-  async getSnapshot<T>(
-    dataId: string,
-  ): Promise<NacosConfigSnapshot<T> | null> {
+  async getSnapshot<T>(dataId: string): Promise<NacosConfigSnapshot<T> | null> {
     const snap = this.snapshots.get(dataId);
     return (snap as NacosConfigSnapshot<T> | undefined) ?? null;
   }
@@ -66,8 +57,12 @@ export class NacosConfigObserverService implements NacosConfigObserver {
   async __publishForTest<T>(snapshot: NacosConfigSnapshot<T>): Promise<void> {
     this.snapshots.set(snapshot.dataId, snapshot as NacosConfigSnapshot);
     const set = this.handlers.get(snapshot.dataId);
-    if (!set) return;
-    for (const h of set) await h(snapshot);
+    if (!set) {
+      return;
+    }
+    for (const h of set) {
+      await h(snapshot);
+    }
   }
 
   isRunning(): boolean {

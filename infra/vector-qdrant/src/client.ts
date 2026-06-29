@@ -9,7 +9,10 @@ export interface QdrantRestClientLike {
   getCollection(collectionName: string): Promise<Record<string, unknown>>;
   count(collectionName: string, payload: Record<string, unknown>): Promise<{ count?: number }>;
   delete(collectionName: string, payload: Record<string, unknown>): Promise<unknown>;
-  query(collectionName: string, payload: Record<string, unknown>): Promise<{ points: Array<{ id: unknown; score: number; payload?: Record<string, unknown> }> }>;
+  query(
+    collectionName: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ points: { id: unknown; score: number; payload?: Record<string, unknown> }[] }>;
   createCollection(name: string, payload: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -30,11 +33,11 @@ export class QdrantClient implements QdrantClientLike {
   }
 
   private async createClient(): Promise<QdrantRestClientLike> {
-    const { QdrantClient: QdrantRestClient } = await import('@qdrant/js-client-rest');
+    const { QdrantClient: QdrantRestClient } = await import("@qdrant/js-client-rest");
     return new QdrantRestClient({
-      url: this.config.url,
       apiKey: this.config.apiKey,
       checkCompatibility: false,
+      url: this.config.url,
     }) as unknown as QdrantRestClientLike;
   }
 }

@@ -7,11 +7,12 @@
 
 ## Context
 
-ghcloud 前端 `cube/apps/ai-application/app`（qiankun 子应用，x6 流程编辑器）经 gateway façade `@ghcloud/cube-ai-application-service` 消费 ai-application 后端的 `/ai/flows` **editor-model 控制面**：以 `editorFlowJson`（高层 `componentKey` 画布：`agent`/`smart-router`/`language-model`/`image-generation`/`knowledge-retrieval`/`chat-input`）为创作模型，保存时由后端 `FlowService`（~2400 行）**编译**成 cube.lf.* 的 `CubeFlowGraph` 再推送给 cube-ai。编译期承担：伴侣语言模型节点注入（smart-router/agent）、agent 的 MCP 合成节点、多模态 message-merge 展开、语义端口 `cube.sp/...`、smart-router routes 补行、租户模型→运行时 URL 解析 + custom-component-template DSL upsert、校验、draft/compiled/linked/published 生命周期、资源引用追踪、发布快照。
+ghcloud 前端 `cube/apps/ai-application/app`（qiankun 子应用，x6 流程编辑器）经 gateway façade `@ghcloud/cube-ai-application-service` 消费 ai-application 后端的 `/ai/flows` **editor-model 控制面**：以 `editorFlowJson`（高层 `componentKey` 画布：`agent`/`smart-router`/`language-model`/`image-generation`/`knowledge-retrieval`/`chat-input`）为创作模型，保存时由后端 `FlowService`（~2400 行）**编译**成 cube.lf.\* 的 `CubeFlowGraph` 再推送给 cube-ai。编译期承担：伴侣语言模型节点注入（smart-router/agent）、agent 的 MCP 合成节点、多模态 message-merge 展开、语义端口 `cube.sp/...`、smart-router routes 补行、租户模型→运行时 URL 解析 + custom-component-template DSL upsert、校验、draft/compiled/linked/published 生命周期、资源引用追踪、发布快照。
 
-收编后，本仓库已迁入的是 cube-ai **引擎侧**：`flow-core` 直接以**已编译的 `CubeFlowGraph`（schemaVersion=1）** 为输入，并自带 DSL v2 custom-component（含 `message_merge` 算子）+ custom-component-templates 控制器。**但 ai-application 的"高层 componentKey 编辑器 → cube.lf.* 图"投影/编译层在本仓库无等价物**。
+收编后，本仓库已迁入的是 cube-ai **引擎侧**：`flow-core` 直接以**已编译的 `CubeFlowGraph`（schemaVersion=1）** 为输入，并自带 DSL v2 custom-component（含 `message_merge` 算子）+ custom-component-templates 控制器。**但 ai-application 的"高层 componentKey 编辑器 → cube.lf.\* 图"投影/编译层在本仓库无等价物**。
 
 `CONTEXT.md` 现有领域语言明确排斥这层：
+
 - 「**Flow 运行时**」 _Avoid_: `ghcloud flow.service, DSL 映射层`
 - 「**DSL 编译**」 _Avoid_: `ghcloud DSL 映射层, 跨 cube-ai/ghcloud 切两半的编译`
 - inventory 定性：ai-application 是「**第二个 DSL v2 作者**」「收编后 flow-core 原生 DSL v2 承担、整层投影/转发消失」。
@@ -33,6 +34,7 @@ ghcloud 前端 `cube/apps/ai-application/app`（qiankun 子应用，x6 流程编
 ### D3 — 横切换源：不复制已收编的权威
 
 复刻须把原仓的本地横切**换源**到本仓库既有权威，**不得**在 studio 重建第二份：
+
 - **运行时模型解析**：studio **直接读 `llm-core` catalog 仓储/admin service**（按 `tenant`+`modelId` 取全字段实体：endpointType / apiBaseUrl / apiKey / dslSchema(nodeKind) / request·response schema / modelTypes / typeCode），原样复刻 `resolveLanguageModelRuntimeForModelId` / `resolveImageGenerationRuntimeForModelId`；**不改 llm-core**、不走 thin `LlmCatalogPort`（其字段不足）。
 - **身份/租户**：经 host `platform-adapter-ghcloud` 注入（ADR-0012），studio 不自管鉴权。
 - **执行/检索**：经 `flow-core`（推 `CubeFlowGraph` + custom-component-templates）与 `kb-core`，studio 不内嵌引擎。
@@ -56,7 +58,7 @@ ghcloud 前端 `cube/apps/ai-application/app`（qiankun 子应用，x6 流程编
 
 ## Options Considered
 
-- **A 低层原生编辑器**（前端直编 cube.lf.*，弃高层抽象）：符合词条、最省，但**非 1:1**（用户失去 agent/smart-router 自动伴侣等 UX）。**否**——本期要 1:1。
+- **A 低层原生编辑器**（前端直编 cube.lf.\*，弃高层抽象）：符合词条、最省，但**非 1:1**（用户失去 agent/smart-router 自动伴侣等 UX）。**否**——本期要 1:1。
 - **C 高层抽象下沉为 flow-core 原生组件**（北极星）：既 1:1 又无独立投影层，但需重做 flow-core 原生能力 + 新编辑器，本期不具备条件。**推迟**为目标态。
 - **B 复刻投影层（本 ADR）**：1:1 最快，代价是临时偏离词条。**采纳（本期）**。
 - **塞进 flow-core**：最省事但把临时层焊进能力核，违词条且 C 难拆。**否**。

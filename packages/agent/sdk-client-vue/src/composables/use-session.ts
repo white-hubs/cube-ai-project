@@ -1,7 +1,7 @@
-import { ref, watch, toValue, type Ref, type MaybeRefOrGetter } from 'vue';
-import type { AgenticClient } from '@cube-ai/agent-sdk-client';
-import { AgenticClientError } from '@cube-ai/agent-sdk-client';
-import type { Session } from '@cube-ai/contracts';
+import { type MaybeRefOrGetter, type Ref, ref, toValue, watch } from "vue";
+
+import { type AgenticClient, AgenticClientError } from "@cube-ai/agent-sdk-client";
+import { type Session } from "@cube-ai/contracts";
 
 /**
  * Reactive accessor for a single session's **metadata** (title/status/...).
@@ -40,10 +40,7 @@ export function useSession(
     try {
       session.value = await client.sessions.get(id);
     } catch (e) {
-      error.value =
-        e instanceof AgenticClientError
-          ? e
-          : new AgenticClientError(null, null, String(e), null, null, Date.now());
+      error.value = e instanceof AgenticClientError ? e : new AgenticClientError(null, null, String(e), null, null, Date.now());
     } finally {
       loading.value = false;
     }
@@ -58,9 +55,9 @@ export function useSession(
   );
 
   return {
-    session: session as Ref<Session | null>,
-    loading,
     error,
+    loading,
     refetch,
+    session: session as Ref<Session | null>,
   };
 }

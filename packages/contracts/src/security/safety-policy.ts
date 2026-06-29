@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Safety policy result schema.
@@ -9,10 +9,10 @@ import { z } from 'zod';
  * - deny:  input is blocked (reason required)
  * - mask:  input is rewritten to remove sensitive content
  */
-export const SafetyResultSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('allow') }),
-  z.object({ kind: z.literal('deny'), reason: z.string().min(1) }),
-  z.object({ kind: z.literal('mask'), masked: z.string() }),
+export const SafetyResultSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("allow") }),
+  z.object({ kind: z.literal("deny"), reason: z.string().min(1) }),
+  z.object({ kind: z.literal("mask"), masked: z.string() }),
 ]);
 
 export type SafetyResult = z.infer<typeof SafetyResultSchema>;
@@ -22,8 +22,8 @@ export type SafetyResult = z.infer<typeof SafetyResultSchema>;
  * `text` is the raw content to check; metadata carries context (tenant, tool, etc.).
  */
 export const SafetyInputSchema = z.object({
-  text: z.string(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  text: z.string(),
 });
 
 export type SafetyInput = z.infer<typeof SafetyInputSchema>;
@@ -42,9 +42,9 @@ export interface SafetyPolicy {
  * Each policy can be enabled/disabled at runtime via Nacos.
  */
 export const SafetyPolicyConfigSchema = z.object({
+  enabled: z.boolean().default(true),
   /** Policy identifier name (e.g. 'pii-scan', 'length-check', 'shell-blacklist') */
   name: z.string(),
-  enabled: z.boolean().default(true),
   options: z.record(z.string(), z.unknown()).optional(),
 });
 

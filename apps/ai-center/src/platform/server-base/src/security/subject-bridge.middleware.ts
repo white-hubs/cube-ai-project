@@ -1,5 +1,6 @@
-import type { Context, Middleware, NextFunction } from '@dangao/bun-server'
-import { authenticatedUserAls } from '@cube-ai/ai-center/platform/server-shared'
+import type { Context, Middleware, NextFunction } from "@dangao/bun-server";
+
+import { authenticatedUserAls } from "@cube-ai/ai-center/platform/server-shared";
 
 /**
  * Bridges the ghcloud-authenticated principal (carried in `authenticatedUserAls`,
@@ -17,22 +18,22 @@ import { authenticatedUserAls } from '@cube-ai/ai-center/platform/server-shared'
  */
 export function createSubjectUserBridgeMiddleware(): Middleware {
   return async (ctx: Context, next: NextFunction) => {
-    const user = authenticatedUserAls.getStore()
+    const user = authenticatedUserAls.getStore();
     if (user) {
       const state = (
         ctx as unknown as {
-          state?: { subject?: { user?: Record<string, unknown> } }
+          state?: { subject?: { user?: Record<string, unknown> } };
         }
-      ).state
-      const subject = state?.subject
+      ).state;
+      const subject = state?.subject;
       if (subject?.user) {
         subject.user = {
           ...subject.user,
-          userId: user.userId,
           displayName: user.username,
-        }
+          userId: user.userId,
+        };
       }
     }
-    return next()
-  }
+    return next();
+  };
 }

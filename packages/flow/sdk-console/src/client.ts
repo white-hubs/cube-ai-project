@@ -1,4 +1,4 @@
-import { flowConsoleRequestJson, type FlowConsoleConfig } from './http';
+import { type FlowConsoleConfig, flowConsoleRequestJson } from "./http";
 
 export interface FlowListItem {
   id: string;
@@ -63,70 +63,65 @@ export interface FlowMonitorQuery {
 
 export type FlowMonitorResponse = Record<string, unknown>;
 
-function studioPath(suffix = ''): string {
+function studioPath(suffix = ""): string {
   return `/studio${suffix}`;
 }
 
 function monitorQueryString(query?: FlowMonitorQuery): string {
   const params = new URLSearchParams();
-  if (query?.page != null) params.set('page', String(query.page));
-  if (query?.size != null) params.set('size', String(query.size));
+  if (query?.page !== null && query?.page !== undefined) {
+    params.set("page", String(query.page));
+  }
+  if (query?.size !== null && query?.size !== undefined) {
+    params.set("size", String(query.size));
+  }
   const s = params.toString();
-  return s ? `?${s}` : '';
+  return s ? `?${s}` : "";
 }
 
 export class FlowConsoleClient {
   constructor(private readonly config: FlowConsoleConfig) {}
 
   listFlows(): Promise<FlowListResponse> {
-    return flowConsoleRequestJson<FlowListResponse>(this.config, 'GET', '/flows');
+    return flowConsoleRequestJson<FlowListResponse>(this.config, "GET", "/flows");
   }
 
   getFlow(flowId: string): Promise<FlowListItem> {
-    return flowConsoleRequestJson<FlowListItem>(
-      this.config,
-      'GET',
-      `/flows/${encodeURIComponent(flowId)}`,
-    );
+    return flowConsoleRequestJson<FlowListItem>(this.config, "GET", `/flows/${encodeURIComponent(flowId)}`);
   }
 
   // --- flow-studio editor-model management surface (/flow/studio/*) ---
 
-  listStudioFlows(query?: { pageNumber: number; pageSize: number; keyword?: string }): Promise<
-    StudioFlowSummaryVo[] | StudioFlowListPageVo
-  > {
+  listStudioFlows(query?: {
+    pageNumber: number;
+    pageSize: number;
+    keyword?: string;
+  }): Promise<StudioFlowSummaryVo[] | StudioFlowListPageVo> {
     if (query) {
       const params = new URLSearchParams({
         pageNumber: String(query.pageNumber),
         pageSize: String(query.pageSize),
       });
-      if (query.keyword != null && query.keyword !== '') params.set('keyword', query.keyword);
-      return flowConsoleRequestJson<StudioFlowListPageVo>(this.config, 'GET', studioPath(`/?${params.toString()}`));
+      if (query.keyword !== null && query.keyword !== undefined && query.keyword !== "") {
+        params.set("keyword", query.keyword);
+      }
+      return flowConsoleRequestJson<StudioFlowListPageVo>(this.config, "GET", studioPath(`/?${params.toString()}`));
     }
-    return flowConsoleRequestJson<StudioFlowSummaryVo[]>(this.config, 'GET', studioPath('/'));
+    return flowConsoleRequestJson<StudioFlowSummaryVo[]>(this.config, "GET", studioPath("/"));
   }
 
   getStudioFlow(flowId: string): Promise<Record<string, unknown>> {
-    return flowConsoleRequestJson<Record<string, unknown>>(
-      this.config,
-      'GET',
-      studioPath(`/${encodeURIComponent(flowId)}`),
-    );
+    return flowConsoleRequestJson<Record<string, unknown>>(this.config, "GET", studioPath(`/${encodeURIComponent(flowId)}`));
   }
 
   publishFlow(flowId: string, body: { releaseNote?: string | null } = {}): Promise<StudioPublishResult> {
-    return flowConsoleRequestJson<StudioPublishResult>(
-      this.config,
-      'POST',
-      studioPath(`/${encodeURIComponent(flowId)}/publish`),
-      body,
-    );
+    return flowConsoleRequestJson<StudioPublishResult>(this.config, "POST", studioPath(`/${encodeURIComponent(flowId)}/publish`), body);
   }
 
   getFlowMonitorTraces(flowId: string, query?: FlowMonitorQuery): Promise<FlowMonitorResponse> {
     return flowConsoleRequestJson<FlowMonitorResponse>(
       this.config,
-      'GET',
+      "GET",
       studioPath(`/${encodeURIComponent(flowId)}/monitor/traces${monitorQueryString(query)}`),
     );
   }
@@ -134,7 +129,7 @@ export class FlowConsoleClient {
   getFlowMonitorBuilds(flowId: string, query?: FlowMonitorQuery): Promise<FlowMonitorResponse> {
     return flowConsoleRequestJson<FlowMonitorResponse>(
       this.config,
-      'GET',
+      "GET",
       studioPath(`/${encodeURIComponent(flowId)}/monitor/builds${monitorQueryString(query)}`),
     );
   }
@@ -142,18 +137,14 @@ export class FlowConsoleClient {
   listFlowReferences(flowId: string): Promise<StudioFlowResourceReferenceVo[]> {
     return flowConsoleRequestJson<StudioFlowResourceReferenceVo[]>(
       this.config,
-      'GET',
+      "GET",
       studioPath(`/${encodeURIComponent(flowId)}/references`),
     );
   }
 
   listFlowsByResource(resourceType: string, resourceId: string): Promise<StudioFlowSummaryVo[]> {
-    const params = new URLSearchParams({ resourceType, resourceId });
-    return flowConsoleRequestJson<StudioFlowSummaryVo[]>(
-      this.config,
-      'GET',
-      studioPath(`/references/by-resource?${params.toString()}`),
-    );
+    const params = new URLSearchParams({ resourceId, resourceType });
+    return flowConsoleRequestJson<StudioFlowSummaryVo[]>(this.config, "GET", studioPath(`/references/by-resource?${params.toString()}`));
   }
 }
 

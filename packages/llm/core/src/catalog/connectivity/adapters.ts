@@ -6,13 +6,13 @@ export interface ConnectivityTestResult {
 export interface LlmConnectivityAdapter {
   readonly endpointType: string;
   testConnection(apiBaseUrl: string, apiKey: string, signal?: AbortSignal): Promise<ConnectivityTestResult>;
-  fetchModels?(apiBaseUrl: string, apiKey: string, signal?: AbortSignal): Promise<Array<{ modelCode: string; displayName: string }>>;
+  fetchModels?(apiBaseUrl: string, apiKey: string, signal?: AbortSignal): Promise<{ modelCode: string; displayName: string }[]>;
 }
 
 type FetchLike = typeof fetch;
 
 function trimBase(apiBaseUrl: string): string {
-  return apiBaseUrl.replace(/\/+$/, '');
+  return apiBaseUrl.replace(/\/+$/u, "");
 }
 
 class HttpConnectivityAdapter implements LlmConnectivityAdapter {
@@ -29,14 +29,12 @@ class HttpConnectivityAdapter implements LlmConnectivityAdapter {
       headers: this.buildHeaders(apiKey),
       signal,
     });
-    return response.ok
-      ? { ok: true, message: 'reachable' }
-      : { ok: false, message: `HTTP ${response.status}` };
+    return response.ok ? { message: "reachable", ok: true } : { message: `HTTP ${response.status}`, ok: false };
   }
 }
 
 export class OpenAiCompatibleConnectivityAdapter implements LlmConnectivityAdapter {
-  readonly endpointType = 'openai';
+  readonly endpointType = "openai";
 
   constructor(private readonly fetchImpl: FetchLike = globalThis.fetch) {}
 
@@ -46,9 +44,7 @@ export class OpenAiCompatibleConnectivityAdapter implements LlmConnectivityAdapt
       headers: { Authorization: `Bearer ${apiKey}` },
       signal,
     });
-    return response.ok
-      ? { ok: true, message: 'models listed' }
-      : { ok: false, message: `HTTP ${response.status}` };
+    return response.ok ? { message: "models listed", ok: true } : { message: `HTTP ${response.status}`, ok: false };
   }
 
   async fetchModels(apiBaseUrl: string, apiKey: string, signal?: AbortSignal) {
@@ -57,46 +53,46 @@ export class OpenAiCompatibleConnectivityAdapter implements LlmConnectivityAdapt
       headers: { Authorization: `Bearer ${apiKey}` },
       signal,
     });
-    if (!response.ok) return [];
-    const body = (await response.json()) as { data?: Array<{ id?: string }> };
+    if (!response.ok) {
+      return [];
+    }
+    const body = (await response.json()) as { data?: { id?: string }[] };
     return (body.data ?? []).map((row) => ({
-      modelCode: row.id ?? 'unknown',
-      displayName: row.id ?? 'unknown',
+      displayName: row.id ?? "unknown",
+      modelCode: row.id ?? "unknown",
     }));
   }
 }
 
-export function createDefaultConnectivityAdapters(
-  fetchImpl: FetchLike = globalThis.fetch,
-): LlmConnectivityAdapter[] {
+export function createDefaultConnectivityAdapters(fetchImpl: FetchLike = globalThis.fetch): LlmConnectivityAdapter[] {
   return [
     new OpenAiCompatibleConnectivityAdapter(fetchImpl),
     new HttpConnectivityAdapter(
-      'anthropic',
+      "anthropic",
       (base) => `${base}/v1/models`,
-      (apiKey) => ({ 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }),
+      (apiKey) => ({ "anthropic-version": "2023-06-01", "x-api-key": apiKey }),
       fetchImpl,
     ),
     new HttpConnectivityAdapter(
-      'gemini',
+      "gemini",
       (base) => `${base}/v1beta/models`,
-      (apiKey) => ({ 'x-goog-api-key': apiKey }),
+      (apiKey) => ({ "x-goog-api-key": apiKey }),
       fetchImpl,
     ),
     new HttpConnectivityAdapter(
-      'azure_openai',
+      "azure_openai",
       (base) => `${base}/openai/models?api-version=2024-02-01`,
-      (apiKey) => ({ 'api-key': apiKey }),
+      (apiKey) => ({ "api-key": apiKey }),
       fetchImpl,
     ),
     new HttpConnectivityAdapter(
-      'ollama',
+      "ollama",
       (base) => `${base}/api/tags`,
       () => ({}),
       fetchImpl,
     ),
     new HttpConnectivityAdapter(
-      'dashscope',
+      "dashscope",
       (base) => `${base}/compatible-mode/v1/models`,
       (apiKey) => ({ Authorization: `Bearer ${apiKey}` }),
       fetchImpl,

@@ -8,7 +8,7 @@
  * - `finalize`  — engine has entered final shutdown window; clients should
  *                 reconnect via `Last-Event-ID` to the replacement replica.
  */
-export type DrainMode = 'running' | 'paused' | 'finalize';
+export type DrainMode = "running" | "paused" | "finalize";
 
 /**
  * Replay buffer entry produced by the SSE decorator when a stream emits an
@@ -51,11 +51,7 @@ export interface ReplayBufferStore {
    * `GET /v1/sessions/:sessionId/events?turnId=...` so per-turn SSE
    * streams aren't flooded with cross-turn history (ADR-0022 §D5.1.v2).
    */
-  since(
-    scope: ReplayBufferScope,
-    lastEventId: string | null,
-    turnId?: string,
-  ): Promise<ReplayBufferEntry[]>;
+  since(scope: ReplayBufferScope, lastEventId: string | null, turnId?: string): Promise<ReplayBufferEntry[]>;
   clear(scope: ReplayBufferScope): Promise<void>;
   /**
    * After session close: Redis key TTL 24h then auto-delete (P3-06).

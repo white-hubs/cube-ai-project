@@ -1,24 +1,21 @@
-import { defineComponent, ref, onMounted, onUnmounted, watch } from 'vue';
-import {
-  clearProxyRequestLog,
-  fetchProxyRequestLog,
-  type ProxyRequestRecord,
-} from './proxy-request-log';
+import { defineComponent, onMounted, onUnmounted, ref, watch } from "vue";
+
+import { type ProxyRequestRecord, clearProxyRequestLog, fetchProxyRequestLog } from "./proxy-request-log";
 
 export const ProxyRequestLogPanel = defineComponent({
-  name: 'ProxyRequestLogPanel',
+  name: "ProxyRequestLogPanel",
   props: {
-    refreshToken: { type: Number, default: 0 },
+    refreshToken: { default: 0, type: Number },
   },
   setup(props) {
     const items = ref<ProxyRequestRecord[]>([]);
-    const error = ref('');
+    const error = ref("");
     let timer: ReturnType<typeof setInterval> | undefined;
 
     async function reload() {
       try {
         items.value = await fetchProxyRequestLog(30);
-        error.value = '';
+        error.value = "";
       } catch (e) {
         error.value = e instanceof Error ? e.message : String(e);
       }
@@ -35,7 +32,9 @@ export const ProxyRequestLogPanel = defineComponent({
     });
 
     onUnmounted(() => {
-      if (timer) clearInterval(timer);
+      if (timer) {
+        clearInterval(timer);
+      }
     });
 
     watch(
@@ -86,8 +85,8 @@ export const ProxyRequestLogPanel = defineComponent({
                         {item.upstreamMethod} {item.upstreamUrl}
                       </code>
                     </td>
-                    <td>{item.error ? `ERR ${item.error}` : (item.statusCode ?? '…')}</td>
-                    <td>{item.durationMs ?? '…'}</td>
+                    <td>{item.error ? `ERR ${item.error}` : (item.statusCode ?? "…")}</td>
+                    <td>{item.durationMs ?? "…"}</td>
                   </tr>
                 ))}
               </tbody>

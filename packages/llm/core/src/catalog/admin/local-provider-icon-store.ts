@@ -1,4 +1,4 @@
-import type { LlmProviderIconStorePort, ProviderIconPersistInput } from '@cube-ai/contracts/platform';
+import type { LlmProviderIconStorePort, ProviderIconPersistInput } from "@cube-ai/contracts/platform";
 
 /**
  * 本地回退图标存储：无 cube2 文件服务时，忽略 iconFileId，直接透传 fallbackIconUrl。

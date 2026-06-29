@@ -7,8 +7,8 @@
  *   - `createIndexedDbReasoningStore({ dbName, storeName? })`：浏览器实现；
  *     ghcloud 迁移时**必须**注入此 store 才能延续旧数据（dbName='ai-application-assistant-reasoning'）。
  */
-import type { PersistedTokenUsage, ReasoningTree } from '../types';
-import { hasVisibleReasoning } from '../utils/reasoning';
+import type { PersistedTokenUsage, ReasoningTree } from "../types";
+import { hasVisibleReasoning } from "../utils/reasoning";
 
 /**
  * 客户端 message 元数据持久化（v2 起同时承载 reasoning + tokenUsage）。
@@ -32,17 +32,9 @@ export interface ReasoningStore {
    * 写入。空 reasoning + 空 tokenUsage 双空时 no-op，避免占库。
    * tokenUsage 可选；只写 reasoning 仍按 v2 行结构保存（兼容老调用方）。
    */
-  put(
-    sessionId: string,
-    messageId: string,
-    tree: ReasoningTree,
-    tokenUsage?: PersistedTokenUsage,
-  ): Promise<void>;
+  put(sessionId: string, messageId: string, tree: ReasoningTree, tokenUsage?: PersistedTokenUsage): Promise<void>;
   /** 批量取（openSession 后回填）。实现可串行调用 `get`，但推荐独立优化。 */
-  bulkGet(
-    sessionId: string,
-    messageIds: string[],
-  ): Promise<Map<string, MessageMetaRow>>;
+  bulkGet(sessionId: string, messageIds: string[]): Promise<Map<string, MessageMetaRow>>;
 }
 
 /** 进程内 Map 实现；SSR 安全。 */
@@ -50,24 +42,28 @@ export function createMemoryReasoningStore(): ReasoningStore {
   const inner = new Map<string, MessageMetaRow>();
   const key = (s: string, m: string): string => `${s}::${m}`;
   return {
+    async bulkGet(sessionId, messageIds) {
+      const out = new Map<string, MessageMetaRow>();
+      for (const mid of messageIds) {
+        const v = inner.get(key(sessionId, mid));
+        if (v) {
+          out.set(mid, v);
+        }
+      }
+      return out;
+    },
     async get(sessionId, messageId) {
       return inner.get(key(sessionId, messageId)) ?? null;
     },
     async put(sessionId, messageId, tree, tokenUsage) {
-      if (!hasVisibleReasoning(tree) && tokenUsage === undefined) return;
+      if (!hasVisibleReasoning(tree) && tokenUsage === undefined) {
+        return;
+      }
       const row: MessageMetaRow = {
         tree: structuredClone(tree),
         ...(tokenUsage !== undefined ? { tokenUsage: structuredClone(tokenUsage) } : {}),
       };
       inner.set(key(sessionId, messageId), row);
-    },
-    async bulkGet(sessionId, messageIds) {
-      const out = new Map<string, MessageMetaRow>();
-      for (const mid of messageIds) {
-        const v = inner.get(key(sessionId, mid));
-        if (v) out.set(mid, v);
-      }
-      return out;
     },
   };
 }
@@ -85,20 +81,18 @@ export interface IndexedDbReasoningStoreOptions {
  * IndexedDB 实现（浏览器）。SSR 环境下若无 indexedDB，会在每次方法调用时 no-op
  * （`get` 返回 null / `put` 静默 / `bulkGet` 返回空 Map），不抛错。
  */
-export function createIndexedDbReasoningStore(
-  options: IndexedDbReasoningStoreOptions,
-): ReasoningStore {
+export function createIndexedDbReasoningStore(options: IndexedDbReasoningStoreOptions): ReasoningStore {
   const dbName = options.dbName;
-  const storeName = options.storeName ?? 'reasoning';
-  const factory =
-    options.indexedDBFactory ??
-    (typeof indexedDB !== 'undefined' ? indexedDB : undefined);
+  const storeName = options.storeName ?? "reasoning";
+  const factory = options.indexedDBFactory ?? (typeof indexedDB !== "undefined" ? indexedDB : undefined);
 
   const openDb = (): Promise<IDBDatabase | null> => {
-    if (!factory) return Promise.resolve(null);
+    if (!factory) {
+      return Promise.resolve(null);
+    }
     return new Promise((resolve, reject) => {
       const req = factory.open(dbName, 1);
-      req.onerror = (): void => reject(req.error ?? new Error('idb_open_failed'));
+      req.onerror = (): void => reject(req.error ?? new Error("idb_open_failed"));
       req.onupgradeneeded = (): void => {
         const db = req.result;
         if (!db.objectStoreNames.contains(storeName)) {
@@ -109,14 +103,12 @@ export function createIndexedDbReasoningStore(
     });
   };
 
-  const makeKey = (sessionId: string, messageId: string): string =>
-    `${sessionId}::${messageId}`;
+  const makeKey = (sessionId: string, messageId: string): string => `${sessionId}::${messageId}`;
 
-  const toPlain = (tree: ReasoningTree): ReasoningTree =>
-    JSON.parse(JSON.stringify(tree)) as ReasoningTree;
+  const toPlain = (tree: ReasoningTree): ReasoningTree => JSON.parse(JSON.stringify(tree)) as ReasoningTree;
 
   const isReasoningTree = (value: unknown): value is ReasoningTree => {
-    if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
       return false;
     }
     const steps = (value as { steps?: unknown }).steps;
@@ -128,75 +120,45 @@ export function createIndexedDbReasoningStore(
    * v 字段不再做严格断言：只要 `tree` 是合法 ReasoningTree 即视为有效行。
    */
   const parseRow = (raw: unknown): MessageMetaRow | null => {
-    if (raw == null || typeof raw !== 'object') return null;
+    if (raw === null || raw === undefined || typeof raw !== "object") {
+      return null;
+    }
     const obj = raw as { tree?: unknown; tokenUsage?: unknown };
-    if (!isReasoningTree(obj.tree)) return null;
+    if (!isReasoningTree(obj.tree)) {
+      return null;
+    }
     const out: MessageMetaRow = { tree: obj.tree };
-    if (obj.tokenUsage != null && typeof obj.tokenUsage === 'object') {
+    if (obj.tokenUsage !== null && obj.tokenUsage !== undefined && typeof obj.tokenUsage === "object") {
       out.tokenUsage = obj.tokenUsage as PersistedTokenUsage;
     }
     return out;
   };
 
-  const toPlainTokenUsage = (u: PersistedTokenUsage): PersistedTokenUsage =>
-    JSON.parse(JSON.stringify(u)) as PersistedTokenUsage;
+  const toPlainTokenUsage = (u: PersistedTokenUsage): PersistedTokenUsage => JSON.parse(JSON.stringify(u)) as PersistedTokenUsage;
 
   return {
-    async get(sessionId, messageId) {
-      const db = await openDb();
-      if (!db) return null;
-      try {
-        return await new Promise<MessageMetaRow | null>((resolve, reject) => {
-          const tx = db.transaction(storeName, 'readonly');
-          const r = tx.objectStore(storeName).get(makeKey(sessionId, messageId));
-          r.onerror = (): void =>
-            reject(r.error ?? new Error('idb_get_failed'));
-          r.onsuccess = (): void => resolve(parseRow(r.result));
-        });
-      } finally {
-        db.close();
-      }
-    },
-    async put(sessionId, messageId, tree, tokenUsage) {
-      if (!hasVisibleReasoning(tree) && tokenUsage === undefined) return;
-      const db = await openDb();
-      if (!db) return;
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction(storeName, 'readwrite');
-          const store = tx.objectStore(storeName);
-          const row: { v: 2; tree: ReasoningTree; tokenUsage?: PersistedTokenUsage } = {
-            v: 2,
-            tree: toPlain(tree),
-            ...(tokenUsage !== undefined ? { tokenUsage: toPlainTokenUsage(tokenUsage) } : {}),
-          };
-          store.put(row, makeKey(sessionId, messageId));
-          tx.oncomplete = (): void => resolve();
-          tx.onerror = (): void =>
-            reject(tx.error ?? new Error('idb_put_failed'));
-          tx.onabort = (): void =>
-            reject(tx.error ?? new Error('idb_put_aborted'));
-        });
-      } finally {
-        db.close();
-      }
-    },
     async bulkGet(sessionId, messageIds) {
       const out = new Map<string, MessageMetaRow>();
-      if (messageIds.length === 0) return out;
+      if (messageIds.length === 0) {
+        return out;
+      }
       const db = await openDb();
-      if (!db) return out;
+      if (!db) {
+        return out;
+      }
       try {
         await Promise.all(
           messageIds.map(
             (mid) =>
               new Promise<void>((resolve) => {
-                const tx = db.transaction(storeName, 'readonly');
+                const tx = db.transaction(storeName, "readonly");
                 const r = tx.objectStore(storeName).get(makeKey(sessionId, mid));
                 r.onerror = (): void => resolve();
                 r.onsuccess = (): void => {
                   const row = parseRow(r.result);
-                  if (row) out.set(mid, row);
+                  if (row) {
+                    out.set(mid, row);
+                  }
                   resolve();
                 };
               }),
@@ -206,6 +168,48 @@ export function createIndexedDbReasoningStore(
         db.close();
       }
       return out;
+    },
+    async get(sessionId, messageId) {
+      const db = await openDb();
+      if (!db) {
+        return null;
+      }
+      try {
+        return await new Promise<MessageMetaRow | null>((resolve, reject) => {
+          const tx = db.transaction(storeName, "readonly");
+          const r = tx.objectStore(storeName).get(makeKey(sessionId, messageId));
+          r.onerror = (): void => reject(r.error ?? new Error("idb_get_failed"));
+          r.onsuccess = (): void => resolve(parseRow(r.result));
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async put(sessionId, messageId, tree, tokenUsage) {
+      if (!hasVisibleReasoning(tree) && tokenUsage === undefined) {
+        return;
+      }
+      const db = await openDb();
+      if (!db) {
+        return;
+      }
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(storeName, "readwrite");
+          const store = tx.objectStore(storeName);
+          const row: { v: 2; tree: ReasoningTree; tokenUsage?: PersistedTokenUsage } = {
+            v: 2,
+            tree: toPlain(tree),
+            ...(tokenUsage !== undefined ? { tokenUsage: toPlainTokenUsage(tokenUsage) } : {}),
+          };
+          store.put(row, makeKey(sessionId, messageId));
+          tx.oncomplete = (): void => resolve();
+          tx.onerror = (): void => reject(tx.error ?? new Error("idb_put_failed"));
+          tx.onabort = (): void => reject(tx.error ?? new Error("idb_put_aborted"));
+        });
+      } finally {
+        db.close();
+      }
     },
   };
 }

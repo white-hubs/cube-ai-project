@@ -12,11 +12,13 @@ export {
   developerApiAls,
   type DeveloperApiContext,
   type DeveloperApiAccessLevel,
-} from '@cube-ai/tenant-context'
-export { authenticatedUserAls, type AuthenticatedUserContext } from './auth-context'
+} from "@cube-ai/tenant-context";
+export { authenticatedUserAls, type AuthenticatedUserContext } from "./auth-context";
 
 export function assertNonEmptyString(value: string, name: string): string {
-  const t = value.trim()
-  if (!t) throw new Error(`${name} is required`)
-  return t
+  const t = value.trim();
+  if (!t) {
+    throw new Error(`${name} is required`);
+  }
+  return t;
 }

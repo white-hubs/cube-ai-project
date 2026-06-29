@@ -1,6 +1,6 @@
-import type { RetrievalProfile } from '../../../common/document-types';
+import type { RetrievalProfile } from "../../../common/document-types";
 
-export type EmbeddingPurpose = 'query' | 'document';
+export type EmbeddingPurpose = "query" | "document";
 
 export interface SparseVector {
   indices: number[];
@@ -20,11 +20,7 @@ export interface EmbeddingContext {
 
 export interface EmbeddingProvider {
   readonly dimension?: number;
-  embed(
-    input: string[],
-    purpose?: EmbeddingPurpose,
-    contexts?: EmbeddingContext[],
-  ): Promise<EmbeddingVector[]>;
+  embed(input: string[], purpose?: EmbeddingPurpose, contexts?: EmbeddingContext[]): Promise<EmbeddingVector[]>;
 }
 
-export const EmbeddingProvider = Symbol('EmbeddingProvider');
+export const EmbeddingProvider = Symbol("EmbeddingProvider");

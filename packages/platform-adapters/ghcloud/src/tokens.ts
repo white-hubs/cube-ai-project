@@ -9,4 +9,4 @@ export {
   AGENTIC_PLATFORM_FLOW_CATALOG_TOKEN,
   AGENTIC_PLATFORM_KNOWLEDGE_QUERY_TOKEN,
   AGENTIC_PLATFORM_LLM_CATALOG_TOKEN,
-} from '@cube-ai/contracts';
+} from "@cube-ai/contracts";

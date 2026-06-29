@@ -1,71 +1,67 @@
-import { describe, expect, it } from 'bun:test';
-import {
-  AvailableToolViewSchema,
-  InstallToolRequestSchema,
-  LibraryItemViewSchema,
-  PluginCatalogItemViewSchema,
-} from './index';
+import { describe, expect, it } from "bun:test";
 
-describe('library item schemas', () => {
-  it('allows tenant library items to expose shared content', () => {
+import { AvailableToolViewSchema, InstallToolRequestSchema, LibraryItemViewSchema, PluginCatalogItemViewSchema } from "./index";
+
+describe("library item schemas", () => {
+  it("allows tenant library items to expose shared content", () => {
     const parsed = LibraryItemViewSchema.parse({
-      ref: 'agt_123',
-      kind: 'agent',
-      tier: 'tenant',
-      displayName: 'Support Agent',
-      description: 'Helps support users',
-      tags: ['support'],
+      content: { prompt: "Help support users." },
+      description: "Helps support users",
+      displayName: "Support Agent",
+      kind: "agent",
+      ref: "agt_123",
       sharedVersionNo: 3,
-      content: { prompt: 'Help support users.' },
+      tags: ["support"],
+      tier: "tenant",
     });
 
-    expect(parsed.tier).toBe('tenant');
-    expect(parsed.content).toEqual({ prompt: 'Help support users.' });
+    expect(parsed.tier).toBe("tenant");
+    expect(parsed.content).toEqual({ prompt: "Help support users." });
   });
 
-  it('keeps system library items opaque', () => {
+  it("keeps system library items opaque", () => {
     const parsed = LibraryItemViewSchema.parse({
-      ref: 'system-support-agent',
-      kind: 'agent',
-      tier: 'system',
-      displayName: 'System Support Agent',
-      description: 'Built-in capability summary',
-      tags: ['system'],
+      description: "Built-in capability summary",
+      displayName: "System Support Agent",
+      kind: "agent",
+      ref: "system-support-agent",
+      tags: ["system"],
+      tier: "system",
     });
 
-    expect(parsed.tier).toBe('system');
-    expect('content' in parsed).toBe(false);
+    expect(parsed.tier).toBe("system");
+    expect("content" in parsed).toBe(false);
     expect(
       LibraryItemViewSchema.safeParse({
-        ref: 'system-support-agent',
-        kind: 'agent',
-        tier: 'system',
-        content: { prompt: 'hidden' },
+        content: { prompt: "hidden" },
+        kind: "agent",
+        ref: "system-support-agent",
+        tier: "system",
       }).success,
     ).toBe(false);
   });
 });
 
-describe('plugin catalog schemas', () => {
-  it('projects plugin catalog items with installed state', () => {
+describe("plugin catalog schemas", () => {
+  it("projects plugin catalog items with installed state", () => {
     const parsed = PluginCatalogItemViewSchema.parse({
-      toolName: 'currentDate',
-      displayName: 'Current Date',
-      description: 'Returns current date',
-      tags: ['builtin'],
+      description: "Returns current date",
+      displayName: "Current Date",
       installed: false,
+      tags: ["builtin"],
+      toolName: "currentDate",
     });
 
     expect(parsed.installed).toBe(false);
   });
 
-  it('validates user available tools and install requests', () => {
-    expect(AvailableToolViewSchema.parse({ toolName: 'currentDate', enabled: true })).toEqual({
-      toolName: 'currentDate',
+  it("validates user available tools and install requests", () => {
+    expect(AvailableToolViewSchema.parse({ enabled: true, toolName: "currentDate" })).toEqual({
       enabled: true,
+      toolName: "currentDate",
     });
-    expect(InstallToolRequestSchema.parse({ toolName: 'currentDate' })).toEqual({
-      toolName: 'currentDate',
+    expect(InstallToolRequestSchema.parse({ toolName: "currentDate" })).toEqual({
+      toolName: "currentDate",
     });
     expect(InstallToolRequestSchema.safeParse({}).success).toBe(false);
   });

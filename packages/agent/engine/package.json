@@ -2,8 +2,8 @@
   "name": "@cube-ai/agent-engine",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Agent runtime BC host (session/turn/tools/tachu) — M2 anchor package.",
+  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

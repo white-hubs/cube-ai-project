@@ -1,11 +1,16 @@
-import 'reflect-metadata';
+import "reflect-metadata";
 
 /** 与 MockInterceptor 在 InterceptorRegistry 中注册的 metadataKey 一致 */
-export const MOCK_METADATA_KEY = Symbol('@cube-ai/ai-center/platform/server-mock:mock-endpoint');
+export const MOCK_METADATA_KEY = Symbol("@cube-ai/ai-center/platform/server-mock:mock-endpoint");
 
 export type MockHandlerFn = (...args: unknown[]) => unknown;
-export type MockEndpointMeta = { key: string };
-export type MockRegistryEntry = { key: string; handler: MockHandlerFn };
+export interface MockEndpointMeta {
+  key: string;
+}
+export interface MockRegistryEntry {
+  key: string;
+  handler: MockHandlerFn;
+}
 
 export function MockableEndpoint(key: string): MethodDecorator {
   return (target, propertyKey, descriptor) => {
@@ -38,8 +43,10 @@ export class MockRegistry {
   }
 }
 
-export class MockInterceptor {}
+export class MockInterceptor {
+  intercept(): void {}
+}
 
 export function registerMockInterceptor(_app: unknown): void {}
 
-export const INTERCEPTOR_REGISTRY_TOKEN = Symbol('MockInterceptorRegistry');
+export const INTERCEPTOR_REGISTRY_TOKEN = Symbol("MockInterceptorRegistry");

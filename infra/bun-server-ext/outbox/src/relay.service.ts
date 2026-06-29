@@ -1,3 +1,13 @@
+import { Inject, Injectable } from "@dangao/bun-server";
+import { type RowDataPacket } from "mysql2";
+import { type Pool, type PoolConnection, createPool } from "mysql2/promise";
+
+import { type OutboxEventRow } from "@cube-ai/contracts";
+
+import { OUTBOX_DISPATCHER_TOKEN, type OutboxDispatcherI } from "./dispatcher";
+import { LeaderElection } from "./leader-election";
+import { type OutboxRelayOptions } from "./types";
+
 /**
  * Outbox Relay Service — leader-election + poll loop + dispatch (P3-07 + P3-08).
  *
@@ -19,16 +29,6 @@
  *   - docs/technical-design/prompts/phase-3/P3-07-outbox-writer-relay.md
  *   - docs/technical-design/prompts/phase-3/P3-08-outbox-leader-dispatch.md
  */
-import { Inject, Injectable } from '@dangao/bun-server';
-import { createPool, type Pool, type PoolConnection } from 'mysql2/promise';
-import type { RowDataPacket } from 'mysql2';
-import type { OutboxEventRow } from '@cube-ai/contracts';
-import { LeaderElection } from './leader-election';
-import {
-  OUTBOX_DISPATCHER_TOKEN,
-  type OutboxDispatcherI,
-} from './dispatcher';
-import type { OutboxRelayOptions } from './types';
 
 export interface OutboxRelayServiceOptions {
   /** Polling interval in ms (default 200 — P3-07). */
@@ -50,50 +50,54 @@ export interface OutboxRelayServiceOptions {
   skipLeaderElection?: boolean;
 }
 
-export const DEFAULT_RELAY_OPTIONS: Required<
-  Omit<OutboxRelayServiceOptions, 'mysqlPool' | 'isRelayLeader' | 'skipLeaderElection'>
-> = {
+export const DEFAULT_RELAY_OPTIONS: Required<Omit<OutboxRelayServiceOptions, "mysqlPool" | "isRelayLeader" | "skipLeaderElection">> = {
+  batchSize: 100,
   pollIntervalMs: 200,
-  batchSize:      100,
 };
 
 export interface OutboxRelayMetricsSnapshot {
-  dispatchTotal:   number;
+  dispatchTotal: number;
   dispatchSuccess: number;
   dispatchFailure: number;
-  deadTotal:       number;
-  lastDispatchMs:  number;
+  deadTotal: number;
+  lastDispatchMs: number;
 }
 
 function envSkipLeaderElection(options?: OutboxRelayServiceOptions): boolean {
-  if (options?.skipLeaderElection === true) return true;
-  if (options?.skipLeaderElection === false) return false;
-  if (process.env['AGENTIC_OUTBOX_LEADER_IN_TEST'] === '1') return false;
-  return process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+  if (options?.skipLeaderElection === true) {
+    return true;
+  }
+  if (options?.skipLeaderElection === false) {
+    return false;
+  }
+  if (process.env["AGENTIC_OUTBOX_LEADER_IN_TEST"] === "1") {
+    return false;
+  }
+  return process.env.NODE_ENV === "test" || process.env.BUN_ENV === "test";
 }
 
 function toEpochMs(v: unknown): number {
-  if (v instanceof Date) return v.getTime();
-  if (typeof v === 'number') return v;
-  if (typeof v === 'string') return Number(v);
+  if (v instanceof Date) {
+    return v.getTime();
+  }
+  if (typeof v === "number") {
+    return v;
+  }
+  if (typeof v === "string") {
+    return Number(v);
+  }
   return 0;
 }
 
 function isTransientRelayErr(e: unknown): boolean {
-  const code =
-    typeof e === 'object' && e && 'code' in e
-      ? String((e as { code: unknown }).code)
-      : '';
-  const errno =
-    typeof e === 'object' && e && 'errno' in e
-      ? Number((e as { errno: unknown }).errno)
-      : 0;
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
+  const errno = typeof e === "object" && e && "errno" in e ? Number((e as { errno: unknown }).errno) : 0;
   const msg = e instanceof Error ? e.message : String(e);
   return (
-    code === 'PROTOCOL_CONNECTION_LOST' ||
-    code === 'ER_NO_SUCH_TABLE' ||
+    code === "PROTOCOL_CONNECTION_LOST" ||
+    code === "ER_NO_SUCH_TABLE" ||
     errno === 1146 ||
-    msg.includes('PROTOCOL_CONNECTION_LOST') ||
+    msg.includes("PROTOCOL_CONNECTION_LOST") ||
     msg.includes("doesn't exist")
   );
 }
@@ -105,13 +109,15 @@ function truncateErr(e: unknown): string {
 
 /** Exponential backoff (seconds): 1s, 4s, 16s, 64s… → `4^(attempts-1)` seconds after increment. */
 export function backoffMsAfterFailure(nextAttempts: number): number {
-  if (nextAttempts <= 0) return 1_000;
-  return Math.pow(4, nextAttempts - 1) * 1000;
+  if (nextAttempts <= 0) {
+    return 1_000;
+  }
+  return 4 ** (nextAttempts - 1) * 1000;
 }
 
 function mapDbRow(r: RowDataPacket): OutboxEventRow {
   let payloadJson: unknown = r.payload_json;
-  if (typeof payloadJson === 'string') {
+  if (typeof payloadJson === "string") {
     try {
       payloadJson = JSON.parse(payloadJson) as unknown;
     } catch {
@@ -119,61 +125,61 @@ function mapDbRow(r: RowDataPacket): OutboxEventRow {
     }
   }
 
-  const id = typeof r.id === 'bigint' || typeof r.id === 'number' ? String(r.id) : String(r.id);
+  const id = typeof r.id === "bigint" || typeof r.id === "number" ? String(r.id) : String(r.id);
 
   return {
+    attempts: Number(r.attempts),
+    channel: r.channel,
+    createBy: r.create_by,
+    createTime: toEpochMs(r.create_time),
+    creatorId: r.creator_id ?? null,
+    creatorType: r.creator_type ?? null,
+    deleted: typeof r.deleted === "bigint" ? Number(r.deleted) : Number(r.deleted),
+    eventType: r.event_type,
     id,
-    tenant:           Number(r.tenant),
-    channel:          r.channel,
-    eventType:        r.event_type,
+    lastError: r.last_error ?? null,
+    nextAttemptTime: r.next_attempt_time ? toEpochMs(r.next_attempt_time) : null,
     payloadJson,
-    target:           r.target ?? null,
-    status:           r.status,
-    attempts:         Number(r.attempts),
-    lastError:        r.last_error ?? null,
-    scheduleTime:     toEpochMs(r.schedule_time),
-    publishTime:      r.publish_time ? toEpochMs(r.publish_time) : null,
-    nextAttemptTime:  r.next_attempt_time ? toEpochMs(r.next_attempt_time) : null,
-    deleted:          typeof r.deleted === 'bigint' ? Number(r.deleted) : Number(r.deleted),
-    createBy:         r.create_by,
-    creatorId:        r.creator_id ?? null,
-    creatorType:      r.creator_type ?? null,
-    createTime:       toEpochMs(r.create_time),
-    updateBy:         r.update_by,
-    updaterId:        r.updater_id ?? null,
-    updaterType:      r.updater_type ?? null,
-    updateTime:       toEpochMs(r.update_time),
+    publishTime: r.publish_time ? toEpochMs(r.publish_time) : null,
+    scheduleTime: toEpochMs(r.schedule_time),
+    status: r.status,
+    target: r.target ?? null,
+    tenant: Number(r.tenant),
+    updateBy: r.update_by,
+    updateTime: toEpochMs(r.update_time),
+    updaterId: r.updater_id ?? null,
+    updaterType: r.updater_type ?? null,
   };
 }
 
 function createPoolFromEnv(): Pool {
-  const url = process.env['AGENTIC_ENGINE_MYSQL_URL']?.trim();
+  const url = process.env["AGENTIC_ENGINE_MYSQL_URL"]?.trim();
   if (url) {
     return createPool({
-      uri: url,
-      waitForConnections: true,
+      bigNumberStrings: true,
       connectionLimit: 10,
       supportBigNumbers: true,
-      bigNumberStrings: true,
+      uri: url,
+      waitForConnections: true,
     });
   }
   return createPool({
-    host:     process.env.AGENTIC_ENGINE_MYSQL_HOST ?? '127.0.0.1',
-    port:     Number(process.env.AGENTIC_ENGINE_MYSQL_PORT ?? 3306),
-    user:     process.env.AGENTIC_ENGINE_MYSQL_USER ?? 'root',
-    password: process.env.AGENTIC_ENGINE_MYSQL_PASSWORD ?? '',
-    database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? 'cube_ai_center',
+    connectionLimit: 10,
+    database: process.env.AGENTIC_ENGINE_MYSQL_DB ?? "cube_ai_center",
+    host: process.env.AGENTIC_ENGINE_MYSQL_HOST ?? "127.0.0.1",
+    password: process.env.AGENTIC_ENGINE_MYSQL_PASSWORD ?? "",
+    port: Number(process.env.AGENTIC_ENGINE_MYSQL_PORT ?? 3306),
+    user: process.env.AGENTIC_ENGINE_MYSQL_USER ?? "root",
     waitForConnections: true,
-    connectionLimit:    10,
   });
 }
 
 @Injectable()
 export class OutboxRelayService {
-  private _leader = false;
+  private leader = false;
   private shuttingDown = false;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private _dispatcher: OutboxDispatcherI | null = null;
+  private dispatcher: OutboxDispatcherI | null = null;
   private readonly pollIntervalMs: number;
   private readonly batchSize: number;
   private readonly skipLeaderElection: boolean;
@@ -182,11 +188,11 @@ export class OutboxRelayService {
   private inflightTimer: Promise<void> = Promise.resolve();
 
   private readonly metrics = {
-    dispatchTotal:   0,
-    dispatchSuccess: 0,
+    deadTotal: 0,
     dispatchFailure: 0,
-    deadTotal:       0,
-    lastDispatchMs:  0,
+    dispatchSuccess: 0,
+    dispatchTotal: 0,
+    lastDispatchMs: 0,
   };
 
   constructor(
@@ -194,13 +200,13 @@ export class OutboxRelayService {
     @Inject(OUTBOX_DISPATCHER_TOKEN) private readonly defaultDispatcher: OutboxDispatcherI,
     private readonly options: OutboxRelayServiceOptions = {},
   ) {
-    this.pollIntervalMs     = options.pollIntervalMs ?? DEFAULT_RELAY_OPTIONS.pollIntervalMs;
-    this.batchSize          = options.batchSize      ?? DEFAULT_RELAY_OPTIONS.batchSize;
+    this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_RELAY_OPTIONS.pollIntervalMs;
+    this.batchSize = options.batchSize ?? DEFAULT_RELAY_OPTIONS.batchSize;
     this.skipLeaderElection = envSkipLeaderElection(options);
   }
 
   isLeader(): boolean {
-    return this._leader;
+    return this.leader;
   }
 
   getRelayMetrics(): Readonly<OutboxRelayMetricsSnapshot> {
@@ -211,36 +217,40 @@ export class OutboxRelayService {
    * Begin relay: leader election (unless skipped in test) + poll interval when leader.
    */
   async start(dispatcher?: OutboxDispatcherI): Promise<void> {
-    this._dispatcher  = dispatcher ?? this.defaultDispatcher;
+    this.dispatcher = dispatcher ?? this.defaultDispatcher;
     this.shuttingDown = false;
 
     // P3-07 explicit override: caller-provided isRelayLeader bypasses LeaderElection.
     if (this.options.isRelayLeader) {
-      this._leader = await Promise.resolve(this.options.isRelayLeader());
-      if (this._leader) this.startRelayTimer();
+      this.leader = await Promise.resolve(this.options.isRelayLeader());
+      if (this.leader) {
+        this.startRelayTimer();
+      }
       return;
     }
 
     if (this.skipLeaderElection) {
-      this._leader = true;
+      this.leader = true;
       this.startRelayTimer();
       return;
     }
 
     await this.leaderElection.start({
       onBecomeLeader: async () => {
-        this._leader = true;
+        this.leader = true;
         this.startRelayTimer();
       },
       onLoseLeadership: async () => {
-        this._leader = false;
+        this.leader = false;
         this.stopRelayTimer();
       },
     });
   }
 
   private startRelayTimer(): void {
-    if (this.timer) return;
+    if (this.timer) {
+      return;
+    }
     this.timer = setInterval(() => {
       this.inflightTimer = this.inflightTimer.then(() => this.onTimerTick());
     }, this.pollIntervalMs);
@@ -254,14 +264,18 @@ export class OutboxRelayService {
   }
 
   private async onTimerTick(): Promise<void> {
-    if (this.shuttingDown) return;
-    if (this.relayLock) return;
+    if (this.shuttingDown) {
+      return;
+    }
+    if (this.relayLock) {
+      return;
+    }
     this.relayLock = true;
     try {
       await this.relayOnce();
     } catch (e) {
       if (!isTransientRelayErr(e)) {
-        console.error('[OutboxRelayService] relay tick error', e);
+        console.error("[OutboxRelayService] relay tick error", e);
       }
     } finally {
       this.relayLock = false;
@@ -272,7 +286,7 @@ export class OutboxRelayService {
     this.shuttingDown = true;
     this.stopRelayTimer();
     await this.inflightTimer;
-    this._leader = false;
+    this.leader = false;
     try {
       await this.leaderElection.stop();
     } catch {
@@ -281,21 +295,29 @@ export class OutboxRelayService {
   }
 
   async emit(row: OutboxEventRow): Promise<void> {
-    if (!this._dispatcher) {
-      throw new Error('OutboxRelayService.emit: relay not started (call start() first)');
+    if (!this.dispatcher) {
+      throw new Error("OutboxRelayService.emit: relay not started (call start() first)");
     }
-    await this._dispatcher.dispatch(row);
+    await this.dispatcher.dispatch(row);
   }
 
   private pool(): Pool {
-    if (this.options.mysqlPool) return this.options.mysqlPool;
-    if (!this.lazyPool) this.lazyPool = createPoolFromEnv();
+    if (this.options.mysqlPool) {
+      return this.options.mysqlPool;
+    }
+    if (!this.lazyPool) {
+      this.lazyPool = createPoolFromEnv();
+    }
     return this.lazyPool;
   }
 
   async relayOnce(): Promise<void> {
-    if (!this._dispatcher) return;
-    if (!this._leader) return;
+    if (!this.dispatcher) {
+      return;
+    }
+    if (!this.leader) {
+      return;
+    }
 
     const pool = this.pool();
     const conn = await pool.getConnection();
@@ -328,7 +350,7 @@ export class OutboxRelayService {
         return;
       }
 
-      const pending: OutboxEventRow[] = rows.map(mapDbRow);
+      const pending: OutboxEventRow[] = rows.map((value) => mapDbRow(value));
 
       const byChannel = new Map<string, OutboxEventRow[]>();
       for (const row of pending) {
@@ -363,7 +385,7 @@ export class OutboxRelayService {
     for (const row of rows) {
       const t0 = performance.now();
       try {
-        await this._dispatcher!.dispatch(row);
+        await this.dispatcher!.dispatch(row);
         await this.markPublishedConn(conn, row);
         this.metrics.dispatchTotal += 1;
         this.metrics.dispatchSuccess += 1;
@@ -396,7 +418,7 @@ export class OutboxRelayService {
 
   private async markFailedConn(conn: PoolConnection, row: OutboxEventRow, err: unknown): Promise<void> {
     const nextAttempts = row.attempts + 1;
-    const lastErr      = truncateErr(err);
+    const lastErr = truncateErr(err);
 
     if (nextAttempts >= 10) {
       await conn.query(

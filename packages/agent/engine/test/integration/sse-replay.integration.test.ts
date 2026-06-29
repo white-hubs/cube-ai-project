@@ -7,27 +7,27 @@
  *
  * ref: docs/technical-design/prompts/phase-3/P3-06-session-sse.md §6
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, expect, test } from "bun:test";
 
 const PORT = Number(process.env.TEST_PORT ?? 4006);
 const BASE = `http://127.0.0.1:${PORT}`;
 
-describe.skip('SSE replay + heartbeat + drain (live stack)', () => {
-  test('GET /events with Last-Event-ID replays buffered events newer than anchor id', async () => {
+describe.skip("SSE replay + heartbeat + drain (live stack)", () => {
+  test("GET /events with Last-Event-ID replays buffered events newer than anchor id", async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const lastId = process.env.TEST_LAST_EVENT_ID!;
     const res = await fetch(`${BASE}/sessions/${sid}/events`, {
-      headers: { 'Last-Event-ID': lastId },
+      headers: { "Last-Event-ID": lastId },
     });
     expect(res.ok).toBe(true);
-    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+    expect(res.headers.get("Content-Type")).toContain("text/event-stream");
     const txt = await res.text();
     expect(txt.length).toBeGreaterThan(20);
-    expect(txt).toMatch(/id:\s*\d{1,20}:\d{6}/);
+    expect(txt).toMatch(/id:\s*\d{1,20}:\d{6}/u);
     expect(txt).not.toContain(lastId);
   });
 
-  test('heartbeat emits ping with schema ping-v1 within ~30s window', async () => {
+  test("heartbeat emits ping with schema ping-v1 within ~30s window", async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const ac = new AbortController();
     const p = fetch(`${BASE}/sessions/${sid}/events`, { signal: ac.signal });
@@ -35,36 +35,44 @@ describe.skip('SSE replay + heartbeat + drain (live stack)', () => {
     expect(res.ok).toBe(true);
     const reader = res.body!.getReader();
     const dec = new TextDecoder();
-    let buf = '';
+    let buf = "";
     const deadline = Date.now() + 35_000;
     while (Date.now() < deadline) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buf += dec.decode(value);
-      if (buf.includes('"schema":"ping-v1"') || buf.includes('"schema": "ping-v1"')) break;
+      if (buf.includes('"schema":"ping-v1"') || buf.includes('"schema": "ping-v1"')) {
+        break;
+      }
     }
     ac.abort();
-    expect(buf).toContain('ping-v1');
+    expect(buf).toContain("ping-v1");
   });
 
-  test('after SIGTERM on engine, active SSE reads drain.mode with drain-mode-v1 before close', async () => {
+  test("after SIGTERM on engine, active SSE reads drain.mode with drain-mode-v1 before close", async () => {
     const sid = process.env.TEST_SESSION_ID!;
     const ac = new AbortController();
     const res = await fetch(`${BASE}/sessions/${sid}/events`, { signal: ac.signal });
     expect(res.ok).toBe(true);
     const reader = res.body!.getReader();
     const dec = new TextDecoder();
-    let buf = '';
+    let buf = "";
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buf += dec.decode(value);
-      if (buf.includes('drain-mode-v1')) break;
+      if (buf.includes("drain-mode-v1")) {
+        break;
+      }
       await new Promise((r) => setTimeout(r, 400));
     }
     ac.abort();
-    expect(buf).toContain('drain.mode');
-    expect(buf).toContain('drain-mode-v1');
+    expect(buf).toContain("drain.mode");
+    expect(buf).toContain("drain-mode-v1");
   });
 });

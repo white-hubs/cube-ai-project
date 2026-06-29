@@ -1,21 +1,19 @@
-import type {
-  LlmCatalogPort,
-  LlmEndpointType,
-  LlmModelRuntimeConfig,
-  LlmProviderSummary,
-} from '@cube-ai/contracts';
+import { type LlmCatalogPort, type LlmEndpointType, type LlmModelRuntimeConfig, type LlmProviderSummary } from "@cube-ai/contracts";
+
+import { createMysqlCatalogProvisioning } from "./create-mysql-catalog-provisioning";
 import {
-  ensureCatalogTables,
-  seedAuthoritativeSystemCatalogMysql,
+  type CatalogMysqlPool,
   TenantLlmModelRepository,
   TenantLlmProviderRepository,
-  type CatalogMysqlPool,
-} from './repositories';
-import { createMysqlCatalogProvisioning } from './create-mysql-catalog-provisioning';
-import { splitModelTypes } from './schema/llm-schema';
+  ensureCatalogTables,
+  seedAuthoritativeSystemCatalogMysql,
+} from "./repositories";
+import { splitModelTypes } from "./schema/llm-schema";
 
 function asEndpointType(value: string | null | undefined): LlmEndpointType | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   return value as LlmEndpointType;
 }
 
@@ -35,7 +33,7 @@ export class MysqlLlmCatalogPort implements LlmCatalogPort {
 
   private ensure(): Promise<void> {
     if (!this.tablesReady) {
-      const doSeed = (process.env['CUBE_AI_CATALOG_SEED_SYSTEM'] ?? '1') !== '0';
+      const doSeed = (process.env["CUBE_AI_CATALOG_SEED_SYSTEM"] ?? "1") !== "0";
       this.tablesReady = ensureCatalogTables(this.pool).then(() => {
         if (doSeed) {
           return seedAuthoritativeSystemCatalogMysql(this.pool);
@@ -56,41 +54,43 @@ export class MysqlLlmCatalogPort implements LlmCatalogPort {
       rows = await providerRepo.listByTenant();
     }
     return rows.map((row) => ({
+      apiBaseUrl: row.api_base_url,
+      enabled: Boolean(row.enabled),
       id: String(row.id),
       providerCode: row.provider_code,
       typeCode: row.type_code,
-      apiBaseUrl: row.api_base_url,
-      enabled: Boolean(row.enabled),
     }));
   }
 
-  async resolveModelRuntime(
-    tenant: number,
-    modelCode: string,
-    _signal: AbortSignal,
-  ): Promise<LlmModelRuntimeConfig | null> {
+  async resolveModelRuntime(tenant: number, modelCode: string, _signal: AbortSignal): Promise<LlmModelRuntimeConfig | null> {
     await this.ensure();
     const modelRepo = new TenantLlmModelRepository(this.pool, () => tenant);
     const model = await modelRepo.findByCodeForTenant(modelCode);
-    if (!model) return null;
+    if (!model) {
+      return null;
+    }
 
     const providerRepo = new TenantLlmProviderRepository(this.pool, () => tenant);
     const provider = await providerRepo.findByIdForTenant(model.tenant_provider_id.toString());
-    if (!provider || !provider.enabled) return null;
+    if (!provider || !provider.enabled) {
+      return null;
+    }
 
     const apiBaseUrl = model.api_base_url ?? provider.api_base_url;
     const apiKey = provider.api_key;
     const endpointType = asEndpointType(model.endpoint_type) ?? asEndpointType(provider.type_code);
-    if (!apiBaseUrl || !apiKey || !endpointType) return null;
+    if (!apiBaseUrl || !apiKey || !endpointType) {
+      return null;
+    }
 
     return {
-      modelCode: model.model_code,
-      displayName: model.display_name,
-      endpointType,
       apiBaseUrl,
       apiKey,
-      modelTypes: splitModelTypes(model.model_types),
+      displayName: model.display_name,
+      endpointType,
       isFree: Boolean(model.is_free),
+      modelCode: model.model_code,
+      modelTypes: splitModelTypes(model.model_types),
       providerCode: provider.provider_code,
     };
   }

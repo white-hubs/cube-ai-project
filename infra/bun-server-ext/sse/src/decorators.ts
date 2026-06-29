@@ -6,7 +6,7 @@
  * into `@dangao/bun-server`'s route machinery once an officially-supported
  * `text/event-stream` handler extension lands.
  */
-export const SSE_ROUTE_METADATA_KEY = Symbol.for('@cube-ai/bun-server-ext-sse:route');
+export const SSE_ROUTE_METADATA_KEY = Symbol.for("@cube-ai/bun-server-ext-sse:route");
 
 export interface SseRouteOptions {
   /** Default SSE keep-alive comment interval in ms (default 15_000 per bun-server). */

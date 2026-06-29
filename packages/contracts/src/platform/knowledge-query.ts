@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * KnowledgeQueryPort
@@ -9,11 +9,11 @@ import { z } from 'zod';
  */
 
 export const KnowledgeQueryRequestSchema = z.object({
-  tenant: z.number().int().min(0).max(2_147_483_647),
-  query: z.string().min(2).max(512),
   kbIds: z.array(z.string().min(1)).max(10).optional(),
-  topK: z.number().int().min(1).max(20).default(5),
+  query: z.string().min(2).max(512),
   scoreThreshold: z.number().min(0).max(1).default(0.3),
+  tenant: z.number().int().min(0).max(2_147_483_647),
+  topK: z.number().int().min(1).max(20).default(5),
   traceId: z.string().min(1),
   userToken: z.string().min(1).optional(),
 });
@@ -22,10 +22,10 @@ export type KnowledgeQueryRequest = z.infer<typeof KnowledgeQueryRequestSchema>;
 export const KnowledgeHitSchema = z.object({
   docId: z.string().min(1),
   kbId: z.string().min(1).optional(),
-  title: z.string().optional(),
-  snippet: z.string(),
-  score: z.number().min(0).max(1),
   link: z.string().optional(),
+  score: z.number().min(0).max(1),
+  snippet: z.string(),
+  title: z.string().optional(),
 });
 export type KnowledgeHit = z.infer<typeof KnowledgeHitSchema>;
 

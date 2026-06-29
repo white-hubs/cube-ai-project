@@ -1,33 +1,33 @@
-import type { ServiceInstance, ServiceRegistry } from "@dangao/bun-server";
+import { type ServiceInstance, type ServiceRegistry } from "@dangao/bun-server";
 import { describe, expect, mock, test } from "bun:test";
 
-import { NacosServiceRegistrationService, type NacosRegistrationOptions } from "./service-registration.service";
+import { type NacosRegistrationOptions, NacosServiceRegistrationService } from "./service-registration.service";
 
 function fakeRegistry() {
-  const calls = { register: [] as ServiceInstance[], deregister: 0, close: 0 };
+  const calls = { close: 0, deregister: 0, register: [] as ServiceInstance[] };
   const registry: ServiceRegistry = {
-    register: mock(async (i: ServiceInstance) => {
-      calls.register.push(i);
+    close: mock(async () => {
+      calls.close += 1;
     }),
     deregister: mock(async () => {
       calls.deregister += 1;
     }),
-    renew: mock(async () => {}),
-    close: mock(async () => {
-      calls.close += 1;
-    }),
     getInstances: mock(async () => []),
+    register: mock(async (i: ServiceInstance) => {
+      calls.register.push(i);
+    }),
+    renew: mock(async () => {}),
     watchInstances: mock(() => () => {}),
   } as unknown as ServiceRegistry;
-  return { registry, calls };
+  return { calls, registry };
 }
 
 const opts: NacosRegistrationOptions = {
-  serviceName: "aiCenter",
+  grpcPort: 3110,
   ip: "127.0.0.1",
   port: 3210,
-  grpcPort: 3110,
   refreshTtlMs: 0, // disable periodic refresh timer in tests
+  serviceName: "aiCenter",
 };
 
 describe("NacosServiceRegistrationService", () => {
@@ -45,13 +45,13 @@ describe("NacosServiceRegistrationService", () => {
 
   test("survives registry failure (connected=false, no throw)", async () => {
     const registry = {
+      close: mock(async () => {}),
+      deregister: mock(async () => {}),
+      getInstances: mock(async () => []),
       register: mock(async () => {
         throw new Error("nacos down");
       }),
-      deregister: mock(async () => {}),
       renew: mock(async () => {}),
-      close: mock(async () => {}),
-      getInstances: mock(async () => []),
       watchInstances: mock(() => () => {}),
     } as unknown as ServiceRegistry;
     const svc = new NacosServiceRegistrationService(registry, opts);

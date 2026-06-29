@@ -1,21 +1,19 @@
-import type {
-  LlmCatalogPort,
-  LlmChatRequest,
-  LlmChatResponse,
-  LlmEmbedRequest,
-  LlmEmbedResult,
-  LlmModelRuntimeConfig,
-  LlmProviderPort,
-  LlmStreamChunk,
-} from '@cube-ai/contracts';
-import { DoubaoMultimodalEmbedProvider } from './doubao-multimodal-embed';
-import { LlmProviderError, OpenAiCompatProvider } from './openai-compat-provider';
-import { AnthropicProvider } from './anthropic-provider';
 import {
-  isDoubaoMultimodalEmbed,
-  normalizeDashscopeOpenAiBaseUrl,
-} from './catalog-provider-routing';
-import { llmDebug } from './debug-log';
+  type LlmCatalogPort,
+  type LlmChatRequest,
+  type LlmChatResponse,
+  type LlmEmbedRequest,
+  type LlmEmbedResult,
+  type LlmModelRuntimeConfig,
+  type LlmProviderPort,
+  type LlmStreamChunk,
+} from "@cube-ai/contracts";
+
+import { AnthropicProvider } from "./anthropic-provider";
+import { isDoubaoMultimodalEmbed, normalizeDashscopeOpenAiBaseUrl } from "./catalog-provider-routing";
+import { llmDebug } from "./debug-log";
+import { DoubaoMultimodalEmbedProvider } from "./doubao-multimodal-embed";
+import { LlmProviderError, OpenAiCompatProvider } from "./openai-compat-provider";
 
 interface CacheEntry<T> {
   value: T;
@@ -32,7 +30,9 @@ class TtlLruCache<T> {
 
   get(key: string): T | undefined {
     const entry = this.map.get(key);
-    if (!entry) return undefined;
+    if (!entry) {
+      return undefined;
+    }
     if (entry.expiresAt <= Date.now()) {
       this.map.delete(key);
       return undefined;
@@ -43,10 +43,12 @@ class TtlLruCache<T> {
   }
 
   set(key: string, value: T): void {
-    this.map.set(key, { value, expiresAt: Date.now() + this.ttlMs });
+    this.map.set(key, { expiresAt: Date.now() + this.ttlMs, value });
     while (this.map.size > this.maxEntries) {
       const oldest = this.map.keys().next().value;
-      if (!oldest) break;
+      if (!oldest) {
+        break;
+      }
       this.map.delete(oldest);
     }
   }
@@ -59,80 +61,78 @@ export interface InnerLlmProvider extends LlmProviderPort {
 export function createInnerProviderFromCatalogRuntimeConfig(cfg: LlmModelRuntimeConfig): InnerLlmProvider {
   if (isDoubaoMultimodalEmbed(cfg)) {
     const embedder = new DoubaoMultimodalEmbedProvider({
-      baseURL: cfg.apiBaseUrl,
       apiKey: cfg.apiKey,
+      baseURL: cfg.apiBaseUrl,
       model: cfg.modelCode,
     });
     return {
-      id: 'doubao-multimodal-embed',
       chat: async () => {
-        throw new LlmProviderError('UPSTREAM_LLM_UNAVAILABLE', 'Doubao embed model does not support chat');
+        throw new LlmProviderError("UPSTREAM_LLM_UNAVAILABLE", "Doubao embed model does not support chat");
       },
       chatStream: async function* () {
-        throw new LlmProviderError('UPSTREAM_LLM_UNAVAILABLE', 'Doubao embed model does not support chatStream');
+        yield await Promise.reject(new LlmProviderError("UPSTREAM_LLM_UNAVAILABLE", "Doubao embed model does not support chatStream"));
       },
       embed: (req, signal) => embedder.embed(req, signal),
+      id: "doubao-multimodal-embed",
     };
   }
 
-  const baseURL =
-    cfg.endpointType === 'dashscope'
-      ? normalizeDashscopeOpenAiBaseUrl(cfg.apiBaseUrl)
-      : cfg.apiBaseUrl;
+  const baseURL = cfg.endpointType === "dashscope" ? normalizeDashscopeOpenAiBaseUrl(cfg.apiBaseUrl) : cfg.apiBaseUrl;
 
   const openai = new OpenAiCompatProvider({
-    baseURL,
     apiKey: cfg.apiKey,
+    baseURL,
     model: cfg.modelCode,
   });
 
   switch (cfg.endpointType) {
-    case 'openai':
-    case 'openai_response':
-    case 'azure_openai':
-    case 'new_api':
-    case 'ollama':
-    case 'dashscope':
-    case 'volcengine_ark':
+    case "openai":
+    case "openai_response":
+    case "azure_openai":
+    case "new_api":
+    case "ollama":
+    case "dashscope":
+    case "volcengine_ark": {
       return {
-        id: 'openai-compat',
+        id: "openai-compat",
         chat: (req, signal) => openai.chat(req, signal),
         chatStream: (req, signal) => openai.chatStream(req, signal),
         embed: (req, signal) => openai.embed(req, signal),
       };
-    case 'anthropic': {
+    }
+    case "anthropic": {
       const anthropic = new AnthropicProvider({
-        baseURL: cfg.apiBaseUrl,
         apiKey: cfg.apiKey,
+        baseURL: cfg.apiBaseUrl,
         model: cfg.modelCode,
       });
       return {
-        id: 'anthropic',
         chat: (req, signal) => anthropic.chat(req, signal),
         chatStream: (req, signal) => anthropic.chatStream(req, signal),
         embed: (req, signal) => anthropic.embed(req, signal),
+        id: "anthropic",
       };
     }
-    case 'openai_image':
-    case 'dashscope_text2image':
+    case "openai_image":
+    case "dashscope_text2image": {
       throw new LlmProviderError(
-        'UPSTREAM_LLM_UNAVAILABLE',
+        "UPSTREAM_LLM_UNAVAILABLE",
         `image generation endpointType '${cfg.endpointType}' must use ImageGenerationPort, not chat provider`,
       );
-    case 'gemini':
-    case 'jina_rerank':
+    }
+    case "gemini":
+    case "jina_rerank": {
       throw new LlmProviderError(
-        'UPSTREAM_LLM_UNAVAILABLE',
+        "UPSTREAM_LLM_UNAVAILABLE",
         `endpointType ${cfg.endpointType} not yet supported (out of scope for current workstream)`,
       );
-    case 'geekai':
-      throw new LlmProviderError(
-        'UPSTREAM_LLM_UNAVAILABLE',
-        `endpointType 'geekai' is an image-only provider; use ImageGenerationPort`,
-      );
+    }
+    case "geekai": {
+      throw new LlmProviderError("UPSTREAM_LLM_UNAVAILABLE", `endpointType 'geekai' is an image-only provider; use ImageGenerationPort`);
+    }
     default: {
       const exhaustive: never = cfg.endpointType;
-      throw new LlmProviderError('UPSTREAM_LLM_UNAVAILABLE', `unknown endpointType ${String(exhaustive)}`);
+      throw new LlmProviderError("UPSTREAM_LLM_UNAVAILABLE", `unknown endpointType ${String(exhaustive)}`);
     }
   }
 }
@@ -145,7 +145,7 @@ function runtimeConfigHash(cfg: LlmModelRuntimeConfig): string {
     cfg.apiKey,
     cfg.providerCode,
     cfg.isFree,
-    [...cfg.modelTypes].sort(),
+    [...cfg.modelTypes].toSorted(),
   ]);
 }
 
@@ -160,7 +160,7 @@ export interface CatalogDrivenProviderOpts {
 export class CatalogDrivenProvider implements LlmProviderPort {
   private readonly cache: TtlLruCache<InnerLlmProvider>;
   private readonly factory: (cfg: LlmModelRuntimeConfig) => InnerLlmProvider;
-  private readonly onLegacyKeyFallback?: CatalogDrivenProviderOpts['onLegacyKeyFallback'];
+  private readonly onLegacyKeyFallback?: CatalogDrivenProviderOpts["onLegacyKeyFallback"];
 
   constructor(private readonly opts: CatalogDrivenProviderOpts) {
     this.factory = opts.providerFactory ?? createInnerProviderFromCatalogRuntimeConfig;
@@ -169,30 +169,18 @@ export class CatalogDrivenProvider implements LlmProviderPort {
   }
 
   chat(req: LlmChatRequest, signal?: AbortSignal): Promise<LlmChatResponse> {
-    return this.resolve(req.tenant, req.modelCode, req.legacyApiKey, req.legacyApiBaseUrl, signal).then(
-      (inner) => inner.chat(req, signal),
-    );
+    return this.resolve(req.tenant, req.modelCode, req.legacyApiKey, req.legacyApiBaseUrl, signal).then((inner) => inner.chat(req, signal));
   }
 
   async *chatStream(req: LlmChatRequest, signal?: AbortSignal): AsyncIterable<LlmStreamChunk> {
-    const inner = await this.resolve(
-      req.tenant,
-      req.modelCode,
-      req.legacyApiKey,
-      req.legacyApiBaseUrl,
-      signal,
-    );
+    const inner = await this.resolve(req.tenant, req.modelCode, req.legacyApiKey, req.legacyApiBaseUrl, signal);
     yield* inner.chatStream(req, signal);
   }
 
   embed(req: LlmEmbedRequest, signal?: AbortSignal): Promise<LlmEmbedResult[]> {
-    return this.resolve(
-      req.tenant,
-      req.modelCode,
-      req.legacyApiKey,
-      req.legacyApiBaseUrl,
-      signal,
-    ).then((inner) => inner.embed(req, signal));
+    return this.resolve(req.tenant, req.modelCode, req.legacyApiKey, req.legacyApiBaseUrl, signal).then((inner) =>
+      inner.embed(req, signal),
+    );
   }
 
   async listAvailableModels(tenant: number, signal?: AbortSignal): Promise<string[]> {
@@ -207,37 +195,33 @@ export class CatalogDrivenProvider implements LlmProviderPort {
     legacyApiBaseUrl?: string,
     signal?: AbortSignal,
   ): Promise<InnerLlmProvider> {
-    const cfg = await this.opts.catalog.resolveModelRuntime(
-      tenant,
-      modelCode,
-      signal ?? new AbortController().signal,
-    );
+    const cfg = await this.opts.catalog.resolveModelRuntime(tenant, modelCode, signal ?? new AbortController().signal);
 
     if (!cfg && legacyApiKey) {
-      this.onLegacyKeyFallback?.({ tenant, modelCode });
+      this.onLegacyKeyFallback?.({ modelCode, tenant });
       const fallbackCfg: LlmModelRuntimeConfig = {
-        modelCode,
-        displayName: modelCode,
-        endpointType: 'openai',
-        apiBaseUrl: legacyApiBaseUrl ?? 'https://api.openai.com/v1',
+        apiBaseUrl: legacyApiBaseUrl ?? "https://api.openai.com/v1",
         apiKey: legacyApiKey,
-        modelTypes: [],
+        displayName: modelCode,
+        endpointType: "openai",
         isFree: false,
-        providerCode: 'legacy-inline-key',
-      };
-      llmDebug('catalog.resolve.legacyFallback', {
-        tenant,
         modelCode,
+        modelTypes: [],
+        providerCode: "legacy-inline-key",
+      };
+      llmDebug("catalog.resolve.legacyFallback", {
         apiBaseUrl: fallbackCfg.apiBaseUrl,
         endpointType: fallbackCfg.endpointType,
+        modelCode,
+        tenant,
       });
       return this.factory(fallbackCfg);
     }
 
     if (!cfg) {
-      llmDebug('catalog.resolve.miss', { tenant, modelCode });
+      llmDebug("catalog.resolve.miss", { modelCode, tenant });
       throw new LlmProviderError(
-        'UPSTREAM_LLM_UNAVAILABLE',
+        "UPSTREAM_LLM_UNAVAILABLE",
         `CatalogDrivenProvider: no catalog entry for tenant=${tenant} model=${modelCode}`,
       );
     }
@@ -245,23 +229,23 @@ export class CatalogDrivenProvider implements LlmProviderPort {
     const key = `${tenant}:${modelCode}:${runtimeConfigHash(cfg)}`;
     const cached = this.cache.get(key);
     if (cached) {
-      llmDebug('catalog.resolve.hit', {
-        tenant,
-        modelCode,
-        providerCode: cfg.providerCode,
-        endpointType: cfg.endpointType,
+      llmDebug("catalog.resolve.hit", {
         apiBaseUrl: cfg.apiBaseUrl,
         cached: true,
+        endpointType: cfg.endpointType,
+        modelCode,
+        providerCode: cfg.providerCode,
+        tenant,
       });
       return cached;
     }
-    llmDebug('catalog.resolve.hit', {
-      tenant,
-      modelCode,
-      providerCode: cfg.providerCode,
-      endpointType: cfg.endpointType,
+    llmDebug("catalog.resolve.hit", {
       apiBaseUrl: cfg.apiBaseUrl,
       cached: false,
+      endpointType: cfg.endpointType,
+      modelCode,
+      providerCode: cfg.providerCode,
+      tenant,
     });
     const inner = this.factory(cfg);
     this.cache.set(key, inner);

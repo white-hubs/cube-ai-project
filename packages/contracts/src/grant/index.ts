@@ -1,1 +1,1 @@
-export * from './grant-response';
+export * from "./grant-response";

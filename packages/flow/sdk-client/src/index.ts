@@ -1,5 +1,5 @@
-export * from './client';
-export type { FlowSdkConfig } from './http';
+export * from "./client";
+export type { FlowSdkConfig } from "./http";
 export type {
   FlowEditorNode,
   FlowEditorEdge,
@@ -21,4 +21,4 @@ export type {
   ListFlowsPageQuery,
   FlowExportVo,
   FlowRunResult,
-} from './editor-model';
+} from "./editor-model";

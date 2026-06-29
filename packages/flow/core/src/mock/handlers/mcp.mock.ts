@@ -1,13 +1,9 @@
-import { MockRegistry } from '@cube-ai/ai-center/platform/server-mock'
+import { MockRegistry } from "@cube-ai/ai-center/platform/server-mock";
 
-MockRegistry.getInstance().define(
-  'mcp.toolsList',
-  false,
-  () => ({
-    ok: true as const,
-    toolNames: [] as string[],
-    tools: [] as { name: string; description: string; inputSchema: unknown | null }[],
-    attemptedUrl: 'mock://mcp',
-    transport: 'streamable-http' as const,
-  }),
-)
+MockRegistry.getInstance().define("mcp.toolsList", false, () => ({
+  attemptedUrl: "mock://mcp",
+  ok: true as const,
+  toolNames: [] as string[],
+  tools: [] as { name: string; description: string; inputSchema: unknown | null }[],
+  transport: "streamable-http" as const,
+}));

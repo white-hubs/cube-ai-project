@@ -1,21 +1,22 @@
-import { defineComponent, ref, onMounted, watch } from 'vue';
+import { defineComponent, onMounted, ref, watch } from "vue";
+
 import {
   DEFAULT_CONNECTION_PROFILE,
-  loadConnectionProfile,
-  saveConnectionProfile,
+  applyConnectionSettings,
   fetchProxyTarget,
   fetchSdkPathPrefix,
-  applyConnectionSettings,
-} from './connection-profile';
+  loadConnectionProfile,
+  saveConnectionProfile,
+} from "./connection-profile";
 
 export const ConnectionProfilePanel = defineComponent({
-  name: 'ConnectionProfilePanel',
-  emits: ['change'],
+  emits: ["change"],
+  name: "ConnectionProfilePanel",
   setup(_, { emit }) {
     const profile = ref(loadConnectionProfile());
-    const serverProxyTarget = ref('');
-    const serverSdkPathPrefix = ref('');
-    const status = ref('');
+    const serverProxyTarget = ref("");
+    const serverSdkPathPrefix = ref("");
+    const status = ref("");
 
     async function refreshServerState() {
       const [target, prefix] = await Promise.all([fetchProxyTarget(), fetchSdkPathPrefix()]);
@@ -26,11 +27,11 @@ export const ConnectionProfilePanel = defineComponent({
     onMounted(async () => {
       try {
         if (profile.value.proxyTarget.trim() || profile.value.sdkPathPrefix.trim()) {
-          status.value = 'Restoring saved connection…';
+          status.value = "Restoring saved connection…";
           profile.value = await applyConnectionSettings(profile.value);
           await refreshServerState();
-          status.value = `Upstream ${profile.value.proxyTarget || '(none)'} · prefix ${profile.value.sdkPathPrefix || '(none)'}`;
-          emit('change', profile.value);
+          status.value = `Upstream ${profile.value.proxyTarget || "(none)"} · prefix ${profile.value.sdkPathPrefix || "(none)"}`;
+          emit("change", profile.value);
           return;
         }
         await refreshServerState();
@@ -43,18 +44,18 @@ export const ConnectionProfilePanel = defineComponent({
       profile,
       (next) => {
         saveConnectionProfile(next);
-        emit('change', next);
+        emit("change", next);
       },
       { deep: true },
     );
 
     async function applyConnection() {
-      status.value = 'Applying connection…';
+      status.value = "Applying connection…";
       try {
         profile.value = await applyConnectionSettings(profile.value);
         await refreshServerState();
         status.value = `Saved · upstream ${profile.value.proxyTarget} · prefix ${profile.value.sdkPathPrefix}`;
-        emit('change', profile.value);
+        emit("change", profile.value);
       } catch (e) {
         status.value = e instanceof Error ? e.message : String(e);
       }
@@ -73,7 +74,7 @@ export const ConnectionProfilePanel = defineComponent({
             SDK path prefix
             <input
               value={profile.value.sdkPathPrefix}
-              placeholder={serverSdkPathPrefix.value || '/your-prefix'}
+              placeholder={serverSdkPathPrefix.value || "/your-prefix"}
               onInput={(e) => {
                 profile.value.sdkPathPrefix = (e.target as HTMLInputElement).value;
               }}
@@ -83,7 +84,7 @@ export const ConnectionProfilePanel = defineComponent({
             Upstream origin
             <input
               value={profile.value.proxyTarget}
-              placeholder={serverProxyTarget.value || 'http://host:port'}
+              placeholder={serverProxyTarget.value || "http://host:port"}
               onInput={(e) => {
                 profile.value.proxyTarget = (e.target as HTMLInputElement).value;
               }}
@@ -92,7 +93,7 @@ export const ConnectionProfilePanel = defineComponent({
           <label>
             tenant
             <input
-              value={profile.value.headers.tenant ?? ''}
+              value={profile.value.headers.tenant ?? ""}
               onInput={(e) => {
                 profile.value.headers.tenant = (e.target as HTMLInputElement).value;
               }}
@@ -101,7 +102,7 @@ export const ConnectionProfilePanel = defineComponent({
           <label>
             terminal
             <input
-              value={profile.value.headers.terminal ?? ''}
+              value={profile.value.headers.terminal ?? ""}
               onInput={(e) => {
                 profile.value.headers.terminal = (e.target as HTMLInputElement).value;
               }}
@@ -110,7 +111,7 @@ export const ConnectionProfilePanel = defineComponent({
           <label class="profile__wide">
             authorization
             <input
-              value={profile.value.headers.authorization ?? ''}
+              value={profile.value.headers.authorization ?? ""}
               onInput={(e) => {
                 profile.value.headers.authorization = (e.target as HTMLInputElement).value;
               }}

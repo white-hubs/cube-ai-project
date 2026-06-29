@@ -1,26 +1,29 @@
-/**
- * AuthZ — MySQL（grants 表）+ Redis Testcontainers。
- *
- *   USE_TESTCONTAINERS=1 bun test packages/agent/engine/test/integration/authz.testcontainers.test.ts
- *   bun run test:containers
- */
-import { afterAll, beforeAll, describe, expect, test, setDefaultTimeout } from 'bun:test';
-import { createPool } from 'mysql2/promise';
-import { RedisKeys } from '@cube-ai/contracts';
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { createPool } from "mysql2/promise";
+
+import { createTestRedisClient } from "@cube-ai/bun-server-ext-outbox";
+import { RedisKeys } from "@cube-ai/contracts";
 import {
+  type MysqlRedisStack,
   applyGrantsMysqlSchema,
   applyMinimalMysqlSchema,
   registerProcessShutdown,
   resolveShouldRunTestcontainers,
   startMysqlRedis,
   stopTrackedTestcontainersIfAny,
-  type MysqlRedisStack,
-} from '@cube-ai/test-infra';
-import { createTestRedisClient } from '@cube-ai/bun-server-ext-outbox';
-import { GrantService, createGrantRepository } from '../../src/bc/authz/grant.service';
-import { AuthzGatewayService } from '../../src/bc/authz/authz-gateway.service';
-import { ConsentPolicyEngine } from '../../src/bc/authz/consent-policy.engine';
-import { SfidService } from '../../src/infra/sfid/sfid.service';
+} from "@cube-ai/test-infra";
+
+import { AuthzGatewayService } from "../../src/bc/authz/authz-gateway.service";
+import { ConsentPolicyEngine } from "../../src/bc/authz/consent-policy.engine";
+import { GrantService, createGrantRepository } from "../../src/bc/authz/grant.service";
+import { SfidService } from "../../src/infra/sfid/sfid.service";
+
+/**
+ * AuthZ — MySQL（grants 表）+ Redis Testcontainers。
+ *
+ *   USE_TESTCONTAINERS=1 bun test packages/agent/engine/test/integration/authz.testcontainers.test.ts
+ *   bun run test:containers
+ */
 
 const run = await resolveShouldRunTestcontainers();
 const stackHolder: { current: MysqlRedisStack | null } = { current: null };
@@ -40,7 +43,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('AuthZ integration [testcontainers]', () => {
+(run ? describe : describe.skip)("AuthZ integration [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startMysqlRedis();
     try {
@@ -61,78 +64,78 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test('G-B：user-level grant → check 允许 user_default', async () => {
+  test("G-B：user-level grant → check 允许 user_default", async () => {
     const s = stackHolder.current!;
     const pool = createPool({
-      uri: s.mysqlUrl,
+      bigNumberStrings: true,
       connectionLimit: 2,
       supportBigNumbers: true,
-      bigNumberStrings: true,
+      uri: s.mysqlUrl,
     });
     const redis = createTestRedisClient(s.redisUrl);
     const sfid = new SfidService();
     const grantService = new GrantService({
-      repository: createGrantRepository(pool),
       redis,
+      repository: createGrantRepository(pool),
       sfid,
     });
     const gateway = new AuthzGatewayService(grantService, new ConsentPolicyEngine());
     const tenant = 1001;
-    const userId = 'u_integ_gb';
+    const userId = "u_integ_gb";
     grantService._l1Set(`user:${tenant}:${userId}`, [
       {
-        id: sfid.next(),
-        tenant,
-        form: 'G_B',
-        grantorType: 'USER',
-        subject: { userId },
-        scope: { toolName: 'platform.api.invoke', action: 'ALLOW' },
-        origin: 'USER_CENTER',
-        deleted: 0,
         createTime: Date.now(),
+        deleted: 0,
+        form: "G_B",
+        grantorType: "USER",
+        id: sfid.next(),
+        origin: "USER_CENTER",
+        scope: { action: "ALLOW", toolName: "platform.api.invoke" },
+        subject: { userId },
+        tenant,
         updateTime: Date.now(),
       },
     ]);
     const d = await gateway.check({
-      tenant,
-      userId,
-      toolName: 'platform.api.invoke',
       args: {},
-      consentPolicy: 'EACH_CALL',
+      consentPolicy: "EACH_CALL",
+      tenant,
+      toolName: "platform.api.invoke",
+      userId,
     });
-    expect(d.kind).toBe('ALLOW');
-    expect(d.reason).toBe('user_default');
+    expect(d.kind).toBe("ALLOW");
+    expect(d.reason).toBe("user_default");
     await pool.end();
     await redis.quit();
   });
 
-  test('NEVER：无 grant → policy_never', async () => {
+  test("NEVER：无 grant → policy_never", async () => {
     const grantService = new GrantService({
-      repository: createGrantRepository(null),
       redis: null,
+      repository: createGrantRepository(null),
       sfid: new SfidService(),
     });
     const gateway = new AuthzGatewayService(grantService, new ConsentPolicyEngine());
     const out = await gateway.check({
-      tenant: 2002,
-      userId: 'u_never',
-      toolName: 'platform.apps.list',
       args: {},
-      consentPolicy: 'NEVER',
+      consentPolicy: "NEVER",
+      tenant: 2002,
+      toolName: "platform.apps.list",
+      userId: "u_never",
     });
-    expect(out.kind).toBe('ALLOW');
-    expect(out.reason).toBe('policy_never');
+    expect(out.kind).toBe("ALLOW");
+    expect(out.reason).toBe("policy_never");
   });
 
-  test('L2：Redis authzGrantActiveTool round-trip', async () => {
+  test("L2：Redis authzGrantActiveTool round-trip", async () => {
     const s = stackHolder.current!;
     const redis = createTestRedisClient(s.redisUrl);
     const tenant = 1001;
-    const userId = 'u_l2';
-    const tool = 't.roundtrip';
+    const userId = "u_l2";
+    const tool = "t.roundtrip";
     const key = RedisKeys.authzGrantActiveTool(tenant, userId, tool);
-    const payload = { id: '1', tenant, check: 'l2' };
-    await redis.set(key, JSON.stringify(payload), 'EX', 30);
+    const payload = { check: "l2", id: "1", tenant };
+    await redis.set(key, JSON.stringify(payload), "EX", 30);
     const raw = await redis.get(key);
     expect(JSON.parse(raw!)).toEqual(payload);
     await redis.del(key);

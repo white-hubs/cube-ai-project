@@ -1,4 +1,4 @@
-import { threadId } from 'node:worker_threads';
+import { threadId } from "node:worker_threads";
 
 /** Twitter Snowflake 起始纪元（毫秒）。移植自 ghcloud ai-application util/generate-id。 */
 const EPOCH_MS = 1288834974657;
@@ -8,17 +8,21 @@ const WORKER_MASK = 0x1f;
 const MYSQL_BIGINT_SIGNED_MAX = 9223372036854775807n;
 
 function readEnvUInt(key: string, fallback: number): number {
-  const raw = typeof process !== 'undefined' ? process.env[key] : undefined;
-  if (raw == null || raw === '') return fallback;
+  const raw = typeof process !== "undefined" ? process.env[key] : undefined;
+  if (raw === null || raw === undefined || raw === "") {
+    return fallback;
+  }
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) ? n : fallback;
 }
 
-const DATACENTER_ID = readEnvUInt('SNOWFLAKE_DATACENTER_ID', 0) & WORKER_MASK;
+const DATACENTER_ID = readEnvUInt("SNOWFLAKE_DATACENTER_ID", 0) & WORKER_MASK;
 const WORKER_ID = (() => {
-  const fromEnv = readEnvUInt('SNOWFLAKE_WORKER_ID', Number.NaN);
-  if (Number.isFinite(fromEnv)) return fromEnv & WORKER_MASK;
-  const pid = typeof process !== 'undefined' ? process.pid : 0;
+  const fromEnv = readEnvUInt("SNOWFLAKE_WORKER_ID", Number.NaN);
+  if (Number.isFinite(fromEnv)) {
+    return fromEnv & WORKER_MASK;
+  }
+  const pid = typeof process !== "undefined" ? process.pid : 0;
   return (pid ^ (threadId * 31)) & WORKER_MASK;
 })();
 
@@ -27,7 +31,9 @@ let sequence = 0;
 
 function tilNextMillis(last: number): number {
   let t = Date.now();
-  while (t <= last) t = Date.now();
+  while (t <= last) {
+    t = Date.now();
+  }
   return t;
 }
 
@@ -39,7 +45,9 @@ export function generateNumericId(): string {
   }
   if (timestamp === lastTimestamp) {
     sequence = (sequence + 1) & SEQUENCE_MASK;
-    if (sequence === 0) timestamp = tilNextMillis(lastTimestamp);
+    if (sequence === 0) {
+      timestamp = tilNextMillis(lastTimestamp);
+    }
   } else {
     sequence = 0;
   }

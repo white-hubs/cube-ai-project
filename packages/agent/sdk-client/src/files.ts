@@ -1,20 +1,20 @@
-import { z } from 'zod';
-import type { AgenticClient } from './client';
-import type { AgenticClientConfig } from './client';
+import { z } from "zod";
+
+import { type AgenticClient, type AgenticClientConfig } from "./client";
 
 export const UploadFileRequestSchema = z.object({
+  base64: z.string().min(1),
   fileName: z.string().min(1).max(255).optional(),
   mimeType: z.string().min(1).max(128),
-  base64: z.string().min(1),
 });
 
 export const UploadedFileSchema = z.object({
   fileId: z.string().min(1),
-  status: z.enum(['UNBOUND', 'BOUND']).optional(),
   mimeType: z.string().min(1),
-  size: z.number().int().nonnegative().optional(),
-  sha256: z.string().optional(),
   previewUrl: z.string().min(1),
+  sha256: z.string().optional(),
+  size: z.number().int().nonnegative().optional(),
+  status: z.enum(["UNBOUND", "BOUND"]).optional(),
 });
 
 export type UploadFileRequest = z.infer<typeof UploadFileRequestSchema>;
@@ -37,14 +37,14 @@ export class FilesApi {
 
   async upload(input: UploadFileInput): Promise<UploadedFile> {
     const body = UploadFileRequestSchema.parse({
-      mimeType: input.mimeType,
       base64: input.base64,
+      mimeType: input.mimeType,
       ...(input.fileName !== undefined ? { fileName: input.fileName } : {}),
     });
     const raw = await this.client.requestJson<unknown>({
-      method: 'POST',
-      path: '/files',
       body,
+      method: "POST",
+      path: "/files",
     });
     return UploadedFileSchema.parse(raw);
   }

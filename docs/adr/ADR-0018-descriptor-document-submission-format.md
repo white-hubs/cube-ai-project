@@ -10,6 +10,7 @@
 ADR-0016 定义了 agent 管理面的结构化 CRUD 路径（`POST /agent/console/agents` 等，JSON body，`content` 字段为结构化对象）。上游平台（tachu 等）同时需要一种**文档驱动**的提交方式：直接将类似 `descriptors/skills/*/SKILL.md` 的原始文档内容 POST 到管理面，落库效果与结构化创建等价。
 
 背景约束：
+
 - 系统级 skill 已有 YAML frontmatter + markdown body 格式（`parseSkillMarkdown`），rule / agent 目前为纯 YAML。
 - `parseSkillMarkdown` 等解析函数是 `descriptor-loader.ts` 的私有模块函数，HTTP 层不可访问。
 - ADR-0016 §4 定义 draft/publish 两态；§6 规定 v1 不支持 skill 附属资源文件。
@@ -43,6 +44,7 @@ POST /agent/console/rules:fromDocument    Content-Type: text/plain
 ```
 
 独立端点，而非在 `POST /agent/console/agents` 同端点通过 `rawContent` 字段区分。理由：
+
 - raw 路径完全自包含（name 来自 frontmatter），与结构化路径（name 在请求体顶层）的语义根本不同；同端点多态会混淆契约。
 - 上游调用模式清晰：`createFromDocument(text)` vs `create({ name, content })`。
 

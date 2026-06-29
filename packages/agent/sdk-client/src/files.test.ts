@@ -1,50 +1,51 @@
-import { describe, expect, test } from 'bun:test';
-import { createAgenticClient } from './client';
+import { describe, expect, test } from "bun:test";
 
-describe('FilesApi', () => {
-  test('upload POSTs /files and parses response', async () => {
-    let path = '';
+import { createAgenticClient } from "./client";
+
+describe("FilesApi", () => {
+  test("upload POSTs /files and parses response", async () => {
+    let path = "";
     let body: unknown;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       path = new URL(url).pathname;
       body = init?.body ? JSON.parse(String(init.body)) : undefined;
       return Response.json(
         {
-          fileId: 'file_abc',
-          status: 'UNBOUND',
-          mimeType: 'image/png',
+          fileId: "file_abc",
+          mimeType: "image/png",
+          previewUrl: "/files/file_abc/preview",
+          sha256: "a".repeat(64),
           size: 8,
-          sha256: 'a'.repeat(64),
-          previewUrl: '/files/file_abc/preview',
+          status: "UNBOUND",
         },
         { status: 200 },
       );
     };
 
     const client = createAgenticClient({
-      baseUrl: 'http://engine.test',
-      auth: { provider: () => 'tok' },
+      auth: { provider: () => "tok" },
+      baseUrl: "http://engine.test",
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     const uploaded = await client.files.upload({
-      mimeType: 'image/png',
-      base64: 'iVBORw0KGgo=',
-      fileName: 'tiny.png',
+      base64: "iVBORw0KGgo=",
+      fileName: "tiny.png",
+      mimeType: "image/png",
     });
 
-    expect(path).toBe('/files');
+    expect(path).toBe("/files");
     expect(body).toEqual({
-      mimeType: 'image/png',
-      base64: 'iVBORw0KGgo=',
-      fileName: 'tiny.png',
+      base64: "iVBORw0KGgo=",
+      fileName: "tiny.png",
+      mimeType: "image/png",
     });
     expect(uploaded).toEqual({
-      fileId: 'file_abc',
-      status: 'UNBOUND',
-      mimeType: 'image/png',
+      fileId: "file_abc",
+      mimeType: "image/png",
+      previewUrl: "/files/file_abc/preview",
+      sha256: "a".repeat(64),
       size: 8,
-      sha256: 'a'.repeat(64),
-      previewUrl: '/files/file_abc/preview',
+      status: "UNBOUND",
     });
   });
 });

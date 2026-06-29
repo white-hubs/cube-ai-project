@@ -1,4 +1,4 @@
-import { AGENTIC_CONTRACTS_VERSION } from '@cube-ai/contracts';
+import { AGENTIC_CONTRACTS_VERSION } from "@cube-ai/contracts";
 
 /**
  * Protocol version sent as `X-Agentic-SDK-Version` (must be `{major}.{minor}`).
@@ -6,7 +6,7 @@ import { AGENTIC_CONTRACTS_VERSION } from '@cube-ai/contracts';
  * (today `1.0` accepts `1.0`…`1.99`). This is independent of the npm/package
  * semver in package.json (`0.0.1-alpha.0`, etc.).
  */
-export const SDK_VERSION = '1.0';
+export const SDK_VERSION = "1.0";
 
 /**
  * Inject versioning headers into an outgoing request.
@@ -15,10 +15,10 @@ export const SDK_VERSION = '1.0';
  */
 export function buildVersionHeaders(): Record<string, string> {
   return {
-    'x-agentic-sdk-version':       SDK_VERSION,
-    'x-agentic-contracts-version': AGENTIC_CONTRACTS_VERSION,
-    'x-client-name':               `agent-sdk-client@${SDK_VERSION}`,
-    'x-request-id':                crypto.randomUUID(),
+    "x-agentic-contracts-version": AGENTIC_CONTRACTS_VERSION,
+    "x-agentic-sdk-version": SDK_VERSION,
+    "x-client-name": `agent-sdk-client@${SDK_VERSION}`,
+    "x-request-id": crypto.randomUUID(),
   };
 }
 
@@ -31,7 +31,7 @@ export function readVersionResponseHeaders(headers: Headers): {
   engineVersion: string | null;
 } {
   return {
-    isDeprecated:  headers.get('x-agentic-sdk-deprecated') === 'true',
-    engineVersion: headers.get('x-agentic-engine-version'),
+    engineVersion: headers.get("x-agentic-engine-version"),
+    isDeprecated: headers.get("x-agentic-sdk-deprecated") === "true",
   };
 }

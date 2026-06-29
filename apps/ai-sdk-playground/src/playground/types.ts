@@ -1,21 +1,21 @@
-export type CapabilityKind = 'json' | 'sse' | 'form-data' | 'text-plain' | 'composable' | 'mock';
+export type CapabilityKind = "json" | "sse" | "form-data" | "text-plain" | "composable" | "mock";
 
 export interface CapabilityParam {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'json' | 'form-data' | 'file';
+  type: "string" | "number" | "boolean" | "json" | "form-data" | "file";
   required?: boolean;
   description?: string;
   /** Positional index when invoking the SDK method. */
   position?: number;
   /** HTTP placement hint for playground UI. */
-  placement?: 'path' | 'query' | 'body' | 'positional';
+  placement?: "path" | "query" | "body" | "positional";
 }
 
 export interface CapabilityEntry {
   id: string;
   package: string;
-  domain: 'agent' | 'flow' | 'kb' | 'llm';
-  face: 'client' | 'console' | 'vue' | 'assistant' | 'mock';
+  domain: "agent" | "flow" | "kb" | "llm";
+  face: "client" | "console" | "vue" | "assistant" | "mock";
   factory: string;
   /** Nested API on client, e.g. `sessions` for `sessions.list`. */
   apiPath?: string;
@@ -44,5 +44,5 @@ export interface InvokeResult {
   kind: CapabilityKind;
   data?: unknown;
   error?: string;
-  sseEvents?: Array<{ event: string; data: unknown }>;
+  sseEvents?: { event: string; data: unknown }[];
 }

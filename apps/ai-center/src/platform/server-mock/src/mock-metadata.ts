@@ -1,11 +1,11 @@
-import 'reflect-metadata'
+import "reflect-metadata";
 
 /** 与 {@link MockInterceptor} 在 {@link InterceptorRegistry} 中注册的 metadataKey 一致 */
-export const MOCK_METADATA_KEY = Symbol('@cube-ai/ai-center/platform/server-mock:mock-endpoint')
+export const MOCK_METADATA_KEY = Symbol("@cube-ai/ai-center/platform/server-mock:mock-endpoint");
 
 export interface MockEndpointMeta {
   /** 如 `api-keys.list`，用于 MockRegistry 与 CUBE_AI_MOCK_<GROUP> */
-  key: string
+  key: string;
 }
 
 /**
@@ -13,8 +13,8 @@ export interface MockEndpointMeta {
  */
 export function MockableEndpoint(key: string): MethodDecorator {
   return (target, propertyKey, descriptor) => {
-    const meta: MockEndpointMeta = { key }
-    Reflect.defineMetadata(MOCK_METADATA_KEY, meta, target, propertyKey)
-    return descriptor
-  }
+    const meta: MockEndpointMeta = { key };
+    Reflect.defineMetadata(MOCK_METADATA_KEY, meta, target, propertyKey);
+    return descriptor;
+  };
 }

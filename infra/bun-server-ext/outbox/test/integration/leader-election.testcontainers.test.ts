@@ -1,19 +1,22 @@
+import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+import Redis from "ioredis";
+
+import {
+  type RedisOnlyStack,
+  registerProcessShutdown,
+  resolveShouldRunTestcontainers,
+  startRedisOnly,
+  stopTrackedTestcontainersIfAny,
+} from "@cube-ai/test-infra";
+
+import { LeaderElection, createLeaderElectionRedis } from "../../src/leader-election";
+
 /**
  * Leader election — Redis Testcontainers。
  *
  *   USE_TESTCONTAINERS=1 bun test packages/bun-server-ext-outbox/test/integration/leader-election.testcontainers.test.ts
  *   bun run test:containers
  */
-import { afterAll, beforeAll, describe, expect, it, setDefaultTimeout } from 'bun:test';
-import Redis from 'ioredis';
-import {
-  registerProcessShutdown,
-  resolveShouldRunTestcontainers,
-  startRedisOnly,
-  stopTrackedTestcontainersIfAny,
-  type RedisOnlyStack,
-} from '@cube-ai/test-infra';
-import { LeaderElection, createLeaderElectionRedis } from '../../src/leader-election';
 
 const run = await resolveShouldRunTestcontainers();
 const stackHolder: { current: RedisOnlyStack | null } = { current: null };
@@ -33,7 +36,7 @@ if (run) {
   );
 }
 
-(run ? describe : describe.skip)('leader-election [testcontainers]', () => {
+(run ? describe : describe.skip)("leader-election [testcontainers]", () => {
   beforeAll(async () => {
     const s = await startRedisOnly();
     stackHolder.current = s;
@@ -47,21 +50,21 @@ if (run) {
     await stopTrackedTestcontainersIfAny();
   });
 
-  it('双实例竞争：同一时刻仅一个 leader（SET NX + TTL）', async () => {
+  it("双实例竞争：同一时刻仅一个 leader（SET NX + TTL）", async () => {
     const s = stackHolder.current!;
     const redis = new Redis(s.redisUrl, { maxRetriesPerRequest: null });
     const key = `agentic:engine:outbox:leader:test:${Date.now()}`;
 
     const leA = new LeaderElection({
-      nodeId: 'a',
-      nonce: '1111111111111111111',
       leaderKey: key,
+      nodeId: "a",
+      nonce: "1111111111111111111",
       redis: createLeaderElectionRedis(redis),
     });
     const leB = new LeaderElection({
-      nodeId: 'b',
-      nonce: '2222222222222222222',
       leaderKey: key,
+      nodeId: "b",
+      nonce: "2222222222222222222",
       redis: createLeaderElectionRedis(redis),
     });
 

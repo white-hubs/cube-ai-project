@@ -1,12 +1,12 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-export const EmbeddingPurposeSchema = z.enum(['query', 'document']);
+export const EmbeddingPurposeSchema = z.enum(["query", "document"]);
 export type EmbeddingPurpose = z.infer<typeof EmbeddingPurposeSchema>;
 
 export const EmbeddingContextSchema = z.object({
+  chunkType: z.string().optional(),
   retrievalProfile: z.string().min(1).optional(),
   sourceType: z.string().optional(),
-  chunkType: z.string().optional(),
 });
 export type EmbeddingContext = z.infer<typeof EmbeddingContextSchema>;
 
@@ -25,12 +25,7 @@ export type EmbeddingVector = z.infer<typeof EmbeddingVectorSchema>;
 /** Capability port: text → {dense, sparse} via LlmProviderPort.embed (ADR-0005). */
 export interface EmbeddingPort {
   readonly dimension: number;
-  embed(
-    input: string[],
-    purpose?: EmbeddingPurpose,
-    contexts?: EmbeddingContext[],
-    signal?: AbortSignal,
-  ): Promise<EmbeddingVector[]>;
+  embed(input: string[], purpose?: EmbeddingPurpose, contexts?: EmbeddingContext[], signal?: AbortSignal): Promise<EmbeddingVector[]>;
 }
 
-export const EMBEDDING_PORT_TOKEN = Symbol.for('agentic.capability.embedding');
+export const EMBEDDING_PORT_TOKEN = Symbol.for("agentic.capability.embedding");

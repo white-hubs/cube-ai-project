@@ -25,6 +25,7 @@
 ## M1 — contracts：wire schema 与 id 前缀
 
 **Files:**
+
 - Create: `packages/contracts/src/descriptor/tenant-descriptor.ts`（+ 同目录 `tenant-descriptor.test.ts`）
 - Modify: `packages/contracts/src/descriptor/index.ts`（re-export）
 
@@ -32,23 +33,24 @@
 
 ```ts
 export const TENANT_DESCRIPTOR_ID_PREFIXES = {
-  agent: 'agt_',
-  skill: 'skl_',
-  rule: 'rul_',
+  agent: "agt_",
+  skill: "skl_",
+  rule: "rul_",
 } as const;
 export type TenantDescriptorKind = keyof typeof TENANT_DESCRIPTOR_ID_PREFIXES;
 
 /** 'agt_123' -> { kind: 'agent', sfid: '123' }；裸 name 返回 null（= 系统级） */
-export function parseTenantDescriptorId(ref: string):
-  { kind: TenantDescriptorKind; sfid: string } | null;
+export function parseTenantDescriptorId(ref: string): { kind: TenantDescriptorKind; sfid: string } | null;
 
 export const TenantAgentContentSchema = TenantDescriptorMetaSchema.extend({
   prompt: z.string().min(1),
-  modelConfig: z.object({
-    provider: z.string().optional(),
-    model: z.string().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-  }).optional(),
+  modelConfig: z
+    .object({
+      provider: z.string().optional(),
+      model: z.string().optional(),
+      temperature: z.number().min(0).max(2).optional(),
+    })
+    .optional(),
   ruleRefs: z.array(z.string()).default([]),
   skillRefs: z.array(z.string()).default([]),
   availableTools: z.array(z.string()).default([]),
@@ -60,30 +62,30 @@ export const TenantAgentContentSchema = TenantDescriptorMetaSchema.extend({
 const TenantDescriptorMetaSchema = z.object({
   displayName: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  version: z.string().optional(),        // 内容语义版本，独立于 DB head_version_no
+  version: z.string().optional(), // 内容语义版本，独立于 DB head_version_no
 });
 
 export const TenantSkillContentSchema = TenantDescriptorMetaSchema.extend({
   description: z.string().min(1),
-  trigger: z.string().optional(),        // 对齐 SKILL.md frontmatter trigger 字段
-  instructions: z.string().min(1),       // markdown 文本
+  trigger: z.string().optional(), // 对齐 SKILL.md frontmatter trigger 字段
+  instructions: z.string().min(1), // markdown 文本
 });
 
 export const TenantRuleContentSchema = TenantDescriptorMetaSchema.extend({
-  description: z.string().optional(),    // 人类可读说明
-  content: z.string().min(1),            // 注入 system prompt 的规则文本
+  description: z.string().optional(), // 人类可读说明
+  content: z.string().min(1), // 注入 system prompt 的规则文本
 });
 
-export const TenantDescriptorStatusSchema = z.enum(['draft', 'published']);
+export const TenantDescriptorStatusSchema = z.enum(["draft", "published"]);
 
 export const TenantDescriptorViewSchema = z.object({
-  id: z.string(),                        // 带前缀
-  kind: z.enum(['agent', 'skill', 'rule']),
+  id: z.string(), // 带前缀
+  kind: z.enum(["agent", "skill", "rule"]),
   name: z.string(),
   status: TenantDescriptorStatusSchema,
   headVersionNo: z.number().int(),
   publishedVersionNo: z.number().int().nullable(),
-  content: z.unknown(),                  // head 版本内容（按 kind 再 parse）
+  content: z.unknown(), // head 版本内容（按 kind 再 parse）
   createTime: z.number(),
   updateTime: z.number(),
 });
@@ -101,6 +103,7 @@ export const TenantDescriptorViewSchema = z.object({
 ## M2 — engine：`bc/tenant-descriptor` 持久化与服务
 
 **Files:**
+
 - Create: `packages/agent/engine/src/bc/descriptor/descriptor-document-parser.ts`（+ `descriptor-document-parser.test.ts`）
 - Modify: `packages/agent/engine/src/bc/descriptor/descriptor-loader.ts`（内部改用 DescriptorDocumentParser）
 - Create: `packages/agent/engine/src/bc/tenant-descriptor/`
@@ -114,14 +117,11 @@ export const TenantDescriptorViewSchema = z.object({
 
 ```ts
 // packages/agent/engine/src/bc/descriptor/descriptor-document-parser.ts
-export function parseSkillDocument(raw: string):
-  { name: string; content: TenantSkillContent }
+export function parseSkillDocument(raw: string): { name: string; content: TenantSkillContent };
 
-export function parseRuleDocument(raw: string):
-  { name: string; content: TenantRuleContent }
+export function parseRuleDocument(raw: string): { name: string; content: TenantRuleContent };
 
-export function parseAgentDocument(raw: string):
-  { name: string; content: TenantAgentContent }
+export function parseAgentDocument(raw: string): { name: string; content: TenantAgentContent };
 ```
 
 - 三者统一：YAML frontmatter 提取 `name`（必填）+ schema 字段（`displayName / tags / version` + kind 特定字段），markdown body 作为主文本内容（skill→`instructions`，rule→`content`，agent→`prompt`）。
@@ -158,6 +158,7 @@ CREATE TABLE tenant_descriptor_versions (
 ```
 
 **Service 行为（每条都要有测试）：**
+
 - `create(kind, name, content)`：content 按 kind schema 校验 → 引用校验 → 插 head 行（draft, v1）+ 版本行；name 撞 `uk_tenant_kind_name` 报 409 语义错误。
 - `upsertFromDocument(kind, rawText)`：调 `DescriptorDocumentParser.parseXxxDocument(rawText)` 提取 `{name, content}` → 按 `(tenant, kind, name)` 查找；不存在则 `create()`，已存在则 `update(id, content, currentHeadVersionNo)`（跳过乐观锁冲突检查，直接用当前 head_version_no）→ 返回 `{ id, name, action: 'created' | 'updated', headVersionNo, status: 'draft' }`。结果始终为 draft，需显式 publish 才对运行时可见。
 - `update(id, content, expectedHeadVersionNo)`：乐观锁不符报 409；写新版本行、head_version_no+1、status 回 `draft`（已发布的资产被编辑 = published_version_no 不动、运行时继续解析旧发布版）。
@@ -174,6 +175,7 @@ CREATE TABLE tenant_descriptor_versions (
 ## M3 — HTTP：`/agent/*` 控制器与 ai-center 装配
 
 **Files:**
+
 - Create: `packages/agent/engine/src/bc/tenant-descriptor/tenant-descriptor.controller.ts`（+ controller 测试，模式对齐既有 `*controller.ts`）
 - Create: `packages/agent/engine/src/bc/tenant-descriptor/system-descriptor.controller.ts`
 - Modify: `apps/ai-center/src/routes/ai-center-domain-http.module.ts`（挂模块）
@@ -183,24 +185,26 @@ CREATE TABLE tenant_descriptor_versions (
 
 > **注**：以下路由描述已被「四域两轴前缀规整」方案取代。管理面实际挂载于 `/agent/console/*`（如 `/agent/console/agents`），`domain-path-rewrite.middleware` 已删除，前缀由 ai-center 装配期 helper 统一施加。见 ADR-0008 addendum。
 
-| Method | Path（对外） | Content-Type | 行为 |
-|---|---|---|---|
-| POST | `/agent/agents` | application/json | create（skills/rules 同构） |
-| GET | `/agent/agents` | — | list（仅本租户，含 draft/published 状态） |
-| GET | `/agent/agents/:id` | — | detail（head 内容） |
-| GET | `/agent/agents/:id/versions` | — | 版本历史 |
-| PUT | `/agent/agents/:id` | application/json | update（新草稿版本） |
-| POST | `/agent/agents/:id/publish` | application/json | publish（body 可带 versionNo 做回滚） |
-| DELETE | `/agent/agents/:id` | — | 软删 |
-| POST | `/agent/agents:fromDocument` | text/plain | **Descriptor Document upsert**（skill/rule 同构，路径换 `:fromDocument`） |
-| GET | `/agent/system/agents` `/agent/system/skills` `/agent/system/rules` | — | 系统级只读列表 |
+| Method | Path（对外）                                                        | Content-Type     | 行为                                                                      |
+| ------ | ------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------- |
+| POST   | `/agent/agents`                                                     | application/json | create（skills/rules 同构）                                               |
+| GET    | `/agent/agents`                                                     | —                | list（仅本租户，含 draft/published 状态）                                 |
+| GET    | `/agent/agents/:id`                                                 | —                | detail（head 内容）                                                       |
+| GET    | `/agent/agents/:id/versions`                                        | —                | 版本历史                                                                  |
+| PUT    | `/agent/agents/:id`                                                 | application/json | update（新草稿版本）                                                      |
+| POST   | `/agent/agents/:id/publish`                                         | application/json | publish（body 可带 versionNo 做回滚）                                     |
+| DELETE | `/agent/agents/:id`                                                 | —                | 软删                                                                      |
+| POST   | `/agent/agents:fromDocument`                                        | text/plain       | **Descriptor Document upsert**（skill/rule 同构，路径换 `:fromDocument`） |
+| GET    | `/agent/system/agents` `/agent/system/skills` `/agent/system/rules` | —                | 系统级只读列表                                                            |
 
 **`:fromDocument` 端点行为：**
+
 - 读取 `text/plain` request body → 调 `service.upsertFromDocument(kind, rawText)`。
 - 响应：`{ id, name, action: 'created'|'updated', headVersionNo, status: 'draft' }`，HTTP 200（created/updated 均如此，调用方按 `action` 字段区分）。
 - parse 失败（缺 frontmatter、name 为空、content 不合 schema）→ 422。
 
 **注意：**
+
 - 复用既有 tenant-context / 鉴权中间件链（与 `/sessions` 同链路），不加任何新鉴权概念。
 - 响应不回 `tenant` 字段（对齐 session 的 §API-4 约定）。
 - `/agents` 与消费面无路径冲突（engine 现有 `/sessions /files /grants /jobs /health`）。
@@ -238,6 +242,7 @@ CREATE TABLE tenant_descriptor_versions (
 ## M5 — SDK：`@cube-ai/agent-sdk-console`
 
 **Files:**
+
 - Create: `packages/agent/sdk-console/`（package.json `"@cube-ai/agent-sdk-console"`、tsconfig、`src/{index,client,http}.ts`、`src/client.test.ts`）——整体结构、构建与测试模式**照抄 `packages/llm/sdk-console`**。
 - Modify: 根 `package.json` workspaces 若用显式列表则追加（glob 匹配则不用动）。
 

@@ -2,8 +2,8 @@
   "name": "@cube-ai/bun-server-ext-sse",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Engine-side SSE drain + replay-buffer extension for @dangao/bun-server.",
+  "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -21,12 +21,12 @@
     "@dangao/bun-server": "catalog:bun-server",
     "ioredis": "catalog:queue"
   },
-  "peerDependencies": {
-    "@dangao/bun-server": "catalog:bun-server"
-  },
   "devDependencies": {
     "@dangao/bun-server": "catalog:bun-server",
     "reflect-metadata": "catalog:",
     "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "@dangao/bun-server": "catalog:bun-server"
   }
 }

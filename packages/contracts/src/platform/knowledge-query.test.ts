@@ -1,58 +1,55 @@
-import { describe, expect, it } from 'bun:test';
-import {
-  KnowledgeQueryRequestSchema,
-  KnowledgeQueryResponseSchema,
-  type KnowledgeQueryPort,
-} from './knowledge-query';
+import { describe, expect, it } from "bun:test";
 
-describe('KnowledgeQueryPort contracts', () => {
-  it('Request: applies defaults topK=5 and scoreThreshold=0.3', () => {
+import { type KnowledgeQueryPort, KnowledgeQueryRequestSchema, KnowledgeQueryResponseSchema } from "./knowledge-query";
+
+describe("KnowledgeQueryPort contracts", () => {
+  it("Request: applies defaults topK=5 and scoreThreshold=0.3", () => {
     const ok = KnowledgeQueryRequestSchema.parse({
+      query: "how to reset password",
       tenant: 1,
-      query: 'how to reset password',
-      traceId: 'trace-1',
+      traceId: "trace-1",
     });
     expect(ok.topK).toBe(5);
     expect(ok.scoreThreshold).toBe(0.3);
   });
 
-  it('Request: rejects topK > 20', () => {
+  it("Request: rejects topK > 20", () => {
     expect(() =>
       KnowledgeQueryRequestSchema.parse({
+        query: "x",
         tenant: 1,
-        query: 'x',
         topK: 21,
-        traceId: 't',
+        traceId: "t",
       }),
     ).toThrow();
   });
 
-  it('Request: rejects query shorter than 2 chars', () => {
+  it("Request: rejects query shorter than 2 chars", () => {
     expect(() =>
       KnowledgeQueryRequestSchema.parse({
+        query: "a",
         tenant: 1,
-        query: 'a',
-        traceId: 't',
+        traceId: "t",
       }),
     ).toThrow();
   });
 
-  it('Request: kbIds.maxItems = 10', () => {
+  it("Request: kbIds.maxItems = 10", () => {
     expect(() =>
       KnowledgeQueryRequestSchema.parse({
-        tenant: 1,
-        query: 'something',
-        traceId: 't',
         kbIds: Array.from({ length: 11 }, (_, i) => `kb${i}`),
+        query: "something",
+        tenant: 1,
+        traceId: "t",
       }),
     ).toThrow();
   });
 
-  it('Response: parses hits and truncated', () => {
+  it("Response: parses hits and truncated", () => {
     const ok = KnowledgeQueryResponseSchema.parse({
       hits: [
-        { docId: 'd1', snippet: 'abc', score: 0.9, kbId: 'kb1', title: 'T', link: 'https://x' },
-        { docId: 'd2', snippet: 'def', score: 0.7 },
+        { docId: "d1", kbId: "kb1", link: "https://x", score: 0.9, snippet: "abc", title: "T" },
+        { docId: "d2", score: 0.7, snippet: "def" },
       ],
       truncated: true,
     });
@@ -60,13 +57,13 @@ describe('KnowledgeQueryPort contracts', () => {
     expect(ok.truncated).toBe(true);
   });
 
-  it('Response: defaults truncated to false when omitted', () => {
+  it("Response: defaults truncated to false when omitted", () => {
     const ok = KnowledgeQueryResponseSchema.parse({ hits: [] });
     expect(ok.truncated).toBe(false);
   });
 
-  it('exports the KnowledgeQueryPort type', () => {
+  it("exports the KnowledgeQueryPort type", () => {
     const fake: KnowledgeQueryPort = { query: async () => ({ hits: [], truncated: false }) };
-    expect(typeof fake.query).toBe('function');
+    expect(typeof fake.query).toBe("function");
   });
 });

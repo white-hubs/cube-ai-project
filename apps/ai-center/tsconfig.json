@@ -10,7 +10,7 @@
       "@cube-ai/ai-center/platform/server-shared": ["./apps/ai-center/src/platform/server-shared/src/index.ts"],
       "@cube-ai/ai-center/platform/server-shared/*": ["./apps/ai-center/src/platform/server-shared/src/*"],
       "@cube-ai/ai-center/platform/server-mock": ["./apps/ai-center/src/platform/server-mock/src/index.ts"],
-      "@cube-ai/ai-center/platform/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"],
+      "@cube-ai/ai-center/platform/server-mock/*": ["./apps/ai-center/src/platform/server-mock/src/*"]
     }
   },
   "include": ["src/**/*"],
