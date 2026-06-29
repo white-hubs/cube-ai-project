@@ -1,11 +1,4 @@
 import type {
-  LlmChatRequest,
-  LlmEmbedRequest,
-  LlmProviderPort,
-  LlmStreamChunk,
-  LlmUsage,
-} from '@cube-ai/contracts';
-import type {
   AdapterCallContext,
   ChatFinishReason,
   ChatRequest,
@@ -18,10 +11,14 @@ import type {
   ModelInfo,
   ProviderAdapter,
   ToolCallRequest,
-} from '@tachu/core';
+} from "@tachu/core";
+
+import type { LlmChatRequest, LlmEmbedRequest, LlmProviderPort, LlmStreamChunk, LlmUsage } from "@cube-ai/contracts";
+
+import { debugBodyField } from "../../infra/observability/turn-debug-log";
 
 function tenantFromCtx(ctx: AdapterCallContext): number {
-  if (typeof ctx.tenant === 'number' && Number.isFinite(ctx.tenant)) {
+  if (typeof ctx.tenant === "number" && Number.isFinite(ctx.tenant)) {
     return ctx.tenant;
   }
   const raw = ctx.subject?.tenant;
@@ -29,15 +26,34 @@ function tenantFromCtx(ctx: AdapterCallContext): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function correlationFields(ctx: AdapterCallContext): Record<string, string | null> {
+  return {
+    traceId: ctx.correlation?.traceId ?? null,
+    sessionId: ctx.correlation?.sessionId ?? null,
+    turnId: ctx.correlation?.turnId ?? null,
+  };
+}
+
+function requestBodyForDebug(request: ChatRequest): Record<string, unknown> {
+  return {
+    model: request.model,
+    messages: mapMessages(request.messages),
+    toolNames: request.tools?.map((t) => t.name) ?? [],
+    toolCount: request.tools?.length ?? 0,
+    temperature: request.temperature ?? null,
+    maxTokens: request.maxTokens ?? null,
+  };
+}
+
 function mapFinishReason(reason: string | undefined): ChatFinishReason {
   switch (reason) {
-    case 'stop':
-    case 'length':
-    case 'tool_calls':
-    case 'content_filter':
+    case "stop":
+    case "length":
+    case "tool_calls":
+    case "content_filter":
       return reason;
     default:
-      return 'stop';
+      return "stop";
   }
 }
 
@@ -50,10 +66,10 @@ function mapUsage(usage: LlmUsage | undefined): ChatUsage | undefined {
   };
 }
 
-function mapMessages(messages: Message[]): LlmChatRequest['messages'] {
+function mapMessages(messages: Message[]): LlmChatRequest["messages"] {
   return messages.map((m) => ({
-    role: m.role as LlmChatRequest['messages'][number]['role'],
-    content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+    role: m.role as LlmChatRequest["messages"][number]["role"],
+    content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
     ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
     ...(m.toolCalls?.length
       ? {
@@ -79,36 +95,36 @@ export interface BridgeLogger {
 
 function mapStreamChunk(chunk: LlmStreamChunk): ChatStreamChunk {
   switch (chunk.type) {
-    case 'text-delta':
-      return { type: 'text-delta', delta: chunk.delta };
-    case 'reasoning-delta':
-      return { type: 'reasoning-delta', delta: chunk.delta };
-    case 'tool-call-delta':
+    case "text-delta":
+      return { type: "text-delta", delta: chunk.delta };
+    case "reasoning-delta":
+      return { type: "reasoning-delta", delta: chunk.delta };
+    case "tool-call-delta":
       return {
-        type: 'tool-call-delta',
+        type: "tool-call-delta",
         index: chunk.index,
         ...(chunk.id !== undefined ? { id: chunk.id } : {}),
         ...(chunk.name !== undefined ? { name: chunk.name } : {}),
         ...(chunk.argumentsDelta !== undefined ? { argumentsDelta: chunk.argumentsDelta } : {}),
       };
-    case 'tool-call-complete':
+    case "tool-call-complete":
       return {
-        type: 'tool-call-complete',
+        type: "tool-call-complete",
         call: {
           id: chunk.call.id,
           name: chunk.call.name,
           arguments: chunk.call.arguments,
         },
       };
-    case 'finish':
+    case "finish":
       return {
-        type: 'finish',
+        type: "finish",
         finishReason: mapFinishReason(chunk.finishReason),
         ...(chunk.usage !== undefined ? { usage: mapUsage(chunk.usage) } : {}),
       };
     default: {
-      const _exhaustive: never = chunk;
-      return _exhaustive;
+      const exhaustive: never = chunk;
+      return exhaustive;
     }
   }
 }
@@ -117,8 +133,8 @@ function mapStreamChunk(chunk: LlmStreamChunk): ChatStreamChunk {
  * Bridges contracts {@link LlmProviderPort} (llm-core) to tachu {@link ProviderAdapter}.
  */
 export class LlmProviderPortBridge implements ProviderAdapter {
-  readonly id = 'cube-ai-llm-provider-port-bridge';
-  readonly name = 'LlmProviderPortBridge';
+  readonly id = "cube-ai-llm-provider-port-bridge";
+  readonly name = "LlmProviderPortBridge";
 
   constructor(
     private readonly inner: LlmProviderPort,
@@ -131,31 +147,29 @@ export class LlmProviderPortBridge implements ProviderAdapter {
 
   async listAvailableModels(): Promise<ModelInfo[]> {
     if (!this.inner.listAvailableModels) {
-      return [{ modelName: 'noop', capabilities: defaultCapabilities() }];
+      return [{ modelName: "noop", capabilities: defaultCapabilities() }];
     }
     const codes = await this.inner.listAvailableModels(0);
     return codes.map((modelName) => ({ modelName, capabilities: defaultCapabilities() }));
   }
 
-  async chat(
-    request: ChatRequest,
-    ctx: AdapterCallContext,
-    signal?: AbortSignal,
-  ): Promise<ChatResponse> {
+  async chat(request: ChatRequest, ctx: AdapterCallContext, signal?: AbortSignal): Promise<ChatResponse> {
     const tenant = tenantFromCtx(ctx);
     const toolCount = request.tools?.length ?? 0;
     const startedAt = Date.now();
     this.logger?.debug(
       {
+        ...correlationFields(ctx),
         tenant,
         model: request.model,
-        mode: 'chat',
+        mode: "chat",
         msgCount: request.messages.length,
         toolCount,
+        ...debugBodyField("requestBody", requestBodyForDebug(request)),
       },
-      'llm.bridge.chat.start',
+      "llm.bridge.chat.start",
     );
-    let response: Awaited<ReturnType<LlmProviderPort['chat']>>;
+    let response: Awaited<ReturnType<LlmProviderPort["chat"]>>;
     try {
       response = await this.inner.chat(
         {
@@ -177,11 +191,11 @@ export class LlmProviderPortBridge implements ProviderAdapter {
         {
           tenant,
           model: request.model,
-          mode: 'chat',
+          mode: "chat",
           elapsedMs: Date.now() - startedAt,
           err: err instanceof Error ? err.message : String(err),
         },
-        'llm.bridge.chat.failed',
+        "llm.bridge.chat.failed",
       );
       throw err;
     }
@@ -199,51 +213,58 @@ export class LlmProviderPortBridge implements ProviderAdapter {
     };
     this.logger?.debug(
       {
+        ...correlationFields(ctx),
         tenant,
         model: request.model,
-        mode: 'chat',
+        mode: "chat",
         elapsedMs: Date.now() - startedAt,
         finishReason: mapFinishReason(response.finishReason),
         toolCallCount: toolCalls?.length ?? 0,
         usage,
+        ...debugBodyField("responseBody", {
+          content: response.content,
+          ...(response.reasoningContent !== undefined ? { reasoningContent: response.reasoningContent } : {}),
+          ...(toolCalls?.length ? { toolCalls } : {}),
+          finishReason: mapFinishReason(response.finishReason),
+          usage,
+        }),
       },
-      'llm.bridge.chat.done',
+      "llm.bridge.chat.done",
     );
 
     return {
       content: response.content,
-      ...(response.reasoningContent !== undefined
-        ? { reasoningContent: response.reasoningContent }
-        : {}),
+      ...(response.reasoningContent !== undefined ? { reasoningContent: response.reasoningContent } : {}),
       ...(toolCalls?.length ? { toolCalls } : {}),
       finishReason: mapFinishReason(response.finishReason),
       usage,
     };
   }
 
-  async *chatStream(
-    request: ChatRequest,
-    ctx: AdapterCallContext,
-    signal?: AbortSignal,
-  ): AsyncIterable<ChatStreamChunk> {
+  async *chatStream(request: ChatRequest, ctx: AdapterCallContext, signal?: AbortSignal): AsyncIterable<ChatStreamChunk> {
     const tenant = tenantFromCtx(ctx);
     const toolCount = request.tools?.length ?? 0;
     const startedAt = Date.now();
     this.logger?.debug(
       {
+        ...correlationFields(ctx),
         tenant,
         model: request.model,
-        mode: 'chatStream',
+        mode: "chatStream",
         msgCount: request.messages.length,
         toolCount,
+        ...debugBodyField("requestBody", requestBodyForDebug(request)),
       },
-      'llm.bridge.chatStream.start',
+      "llm.bridge.chatStream.start",
     );
     let chunkCount = 0;
     let toolCallChunks = 0;
     let finishReason: ChatFinishReason | undefined;
     let usage: ChatUsage | undefined;
     let firstChunkMs: number | undefined;
+    let textAcc = "";
+    let reasoningAcc = "";
+    const toolCallsAcc: ToolCallRequest[] = [];
     try {
       for await (const chunk of this.inner.chatStream(
         {
@@ -262,10 +283,21 @@ export class LlmProviderPortBridge implements ProviderAdapter {
       )) {
         chunkCount += 1;
         if (firstChunkMs === undefined) firstChunkMs = Date.now() - startedAt;
-        if (chunk.type === 'tool-call-delta' || chunk.type === 'tool-call-complete') {
+        if (chunk.type === "text-delta") {
+          textAcc += chunk.delta;
+        } else if (chunk.type === "reasoning-delta") {
+          reasoningAcc += chunk.delta;
+        } else if (chunk.type === "tool-call-complete") {
+          toolCallChunks += 1;
+          toolCallsAcc.push({
+            id: chunk.call.id,
+            name: chunk.call.name,
+            arguments: chunk.call.arguments,
+          });
+        } else if (chunk.type === "tool-call-delta") {
           toolCallChunks += 1;
         }
-        if (chunk.type === 'finish') {
+        if (chunk.type === "finish") {
           finishReason = mapFinishReason(chunk.finishReason);
           usage = mapUsage(chunk.usage);
         }
@@ -276,43 +308,45 @@ export class LlmProviderPortBridge implements ProviderAdapter {
         {
           tenant,
           model: request.model,
-          mode: 'chatStream',
+          mode: "chatStream",
           elapsedMs: Date.now() - startedAt,
           chunkCount,
           err: err instanceof Error ? err.message : String(err),
         },
-        'llm.bridge.chatStream.failed',
+        "llm.bridge.chatStream.failed",
       );
       throw err;
     }
     this.logger?.debug(
       {
+        ...correlationFields(ctx),
         tenant,
         model: request.model,
-        mode: 'chatStream',
+        mode: "chatStream",
         elapsedMs: Date.now() - startedAt,
         firstChunkMs: firstChunkMs ?? null,
         chunkCount,
         toolCallChunks,
         finishReason: finishReason ?? null,
         usage: usage ?? null,
+        ...debugBodyField("responseBody", {
+          content: textAcc,
+          ...(reasoningAcc ? { reasoningContent: reasoningAcc } : {}),
+          ...(toolCallsAcc.length ? { toolCalls: toolCallsAcc } : {}),
+          finishReason: finishReason ?? null,
+          usage: usage ?? null,
+        }),
       },
-      'llm.bridge.chatStream.done',
+      "llm.bridge.chatStream.done",
     );
   }
 
-  async embed(
-    request: EmbeddingRequest,
-    ctx: AdapterCallContext,
-    signal?: AbortSignal,
-  ): Promise<EmbeddingResponse> {
+  async embed(request: EmbeddingRequest, ctx: AdapterCallContext, signal?: AbortSignal): Promise<EmbeddingResponse> {
     const tenant = tenantFromCtx(ctx);
     const embedReq: LlmEmbedRequest = {
       tenant,
       modelCode: request.model,
-      input: request.inputs.map((item) =>
-        typeof item === 'string' ? item : JSON.stringify(item),
-      ),
+      input: request.inputs.map((item) => (typeof item === "string" ? item : JSON.stringify(item))),
     };
     const rows = await this.inner.embed(embedReq, signal);
     return {
@@ -322,15 +356,15 @@ export class LlmProviderPortBridge implements ProviderAdapter {
 
   async countTokens(messages: Message[], _model: string): Promise<number> {
     return messages.reduce((acc, m) => {
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+      const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
       return acc + Math.ceil(content.length / 4);
     }, 0);
   }
 }
 
-function defaultCapabilities(): ModelInfo['capabilities'] {
+function defaultCapabilities(): ModelInfo["capabilities"] {
   return {
-    supportedModalities: ['text'],
+    supportedModalities: ["text"],
     maxContextTokens: 32_000,
     supportsStreaming: true,
     supportsFunctionCalling: true,

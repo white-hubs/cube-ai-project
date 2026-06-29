@@ -1,4 +1,5 @@
-import type { EngineOutput, EnginePhase, StreamChunkPayload } from '@tachu/core';
+import type { EngineOutput, EnginePhase, StreamChunkPayload } from "@tachu/core";
+
 import {
   type MessageCompletedEvent,
   type MessageDeltaEvent,
@@ -9,7 +10,7 @@ import {
   type TurnCompletedEvent,
   type TurnFailedEvent,
   type UsageDeltaEvent,
-} from '@cube-ai/contracts';
+} from "@cube-ai/contracts";
 
 /**
  * Tachu StreamChunk → 本仓 SSE 事件协议的纯函数映射。
@@ -32,33 +33,33 @@ import {
  * 服务端永远发一份默认值，避免协议消费者还得自己维护翻译表。
  */
 const PHASE_LABELS: Record<EnginePhase, string> = {
-  session:       '会话准备',
-  safety:        '安全检查',
-  intent:        '意图识别',
-  precheck:      '前置检查',
-  planning:      '任务规划',
-  'graph-check': '计划校验',
-  execution:     '执行中',
-  validation:    '结果验证',
-  output:        '生成答案',
+  session: "会话准备",
+  safety: "安全检查",
+  intent: "意图识别",
+  precheck: "前置检查",
+  planning: "任务规划",
+  "graph-check": "计划校验",
+  execution: "执行中",
+  validation: "结果验证",
+  output: "生成答案",
 };
 
 /** Model reasoning 子 step 的默认标签。 */
-const MODEL_REASONING_LABEL = '模型思考';
-const TOOL_LOOP_LABEL_PREFIX = '工具循环';
+const MODEL_REASONING_LABEL = "模型思考";
+const TOOL_LOOP_LABEL_PREFIX = "工具循环";
 
 /**
  * tachu chunk 不携带 execution/consent；与 `McpBridgeService` 对 `web-search` 的 NEVER 对齐。
  * 其余工具默认安全档：LOCAL + ON_FIRST_USE。
  */
 function toolCallStartedMeta(toolName: string): {
-  execution: 'LOCAL' | 'REMOTE';
-  consent: 'NEVER' | 'ON_FIRST_USE';
+  execution: "LOCAL" | "REMOTE";
+  consent: "NEVER" | "ON_FIRST_USE";
 } {
-  if (toolName.startsWith('mcp.web-search.')) {
-    return { execution: 'REMOTE', consent: 'NEVER' };
+  if (toolName.startsWith("mcp.web-search.")) {
+    return { execution: "REMOTE", consent: "NEVER" };
   }
-  return { execution: 'LOCAL', consent: 'ON_FIRST_USE' };
+  return { execution: "LOCAL", consent: "ON_FIRST_USE" };
 }
 
 export interface TachuSseMapperState {
@@ -137,15 +138,15 @@ export function createTachuSseMapperState(input: {
 }
 
 export type SseEventDescriptor =
-  | { sseEvent: 'message.delta'; payload: MessageDeltaEvent }
-  | { sseEvent: 'usage.delta'; payload: UsageDeltaEvent }
-  | { sseEvent: 'tool.call.started'; payload: ToolCallStartedEvent }
-  | { sseEvent: 'tool.call.completed'; payload: ToolCallCompletedEvent }
-  | { sseEvent: 'message.completed'; payload: MessageCompletedEvent }
-  | { sseEvent: 'turn.completed'; payload: TurnCompletedEvent }
-  | { sseEvent: 'turn.failed'; payload: TurnFailedEvent }
-  | { sseEvent: 'reasoning.step'; payload: ReasoningStepEvent }
-  | { sseEvent: 'reasoning.delta'; payload: ReasoningDeltaEvent };
+  | { sseEvent: "message.delta"; payload: MessageDeltaEvent }
+  | { sseEvent: "usage.delta"; payload: UsageDeltaEvent }
+  | { sseEvent: "tool.call.started"; payload: ToolCallStartedEvent }
+  | { sseEvent: "tool.call.completed"; payload: ToolCallCompletedEvent }
+  | { sseEvent: "message.completed"; payload: MessageCompletedEvent }
+  | { sseEvent: "turn.completed"; payload: TurnCompletedEvent }
+  | { sseEvent: "turn.failed"; payload: TurnFailedEvent }
+  | { sseEvent: "reasoning.step"; payload: ReasoningStepEvent }
+  | { sseEvent: "reasoning.delta"; payload: ReasoningDeltaEvent };
 
 /**
  * 把单个 tachu StreamChunk 映射成 0~多个 SSE 事件。
@@ -165,7 +166,7 @@ function parseArgumentsPreview(preview: string): Record<string, unknown> {
   if (!preview) return {};
   try {
     const parsed = JSON.parse(preview) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>;
     }
   } catch {
@@ -182,16 +183,14 @@ function flushPendingToolCalls(
   state: TachuSseMapperState,
   events: SseEventDescriptor[],
   now: () => number,
-  outcome:
-    | { ok: true }
-    | { ok: false; error: { code: string; message: string; retryable: boolean } },
+  outcome: { ok: true } | { ok: false; error: { code: string; message: string; retryable: boolean } },
 ): void {
   if (state.pendingToolCalls.size === 0) return;
-  for (const [callId, meta] of [...state.pendingToolCalls.entries()]) {
+  for (const [callId, meta] of Array.from(state.pendingToolCalls.entries())) {
     const parentStepId = state.toolCallParentStepIds.get(callId) ?? null;
     const durationMs = Math.max(0, Math.round(now() - meta.startedAt));
     const payload: ToolCallCompletedEvent = {
-      schema: 'tool-call-completed-v1',
+      schema: "tool-call-completed-v1",
       turnId: state.turnId,
       ...(parentStepId !== null ? { parentStepId } : {}),
       toolCallId: callId,
@@ -200,7 +199,7 @@ function flushPendingToolCalls(
       ok: outcome.ok,
       ...(outcome.ok === false ? { error: outcome.error } : {}),
     };
-    events.push({ sseEvent: 'tool.call.completed', payload });
+    events.push({ sseEvent: "tool.call.completed", payload });
     state.pendingToolCalls.delete(callId);
     state.toolCallParentStepIds.delete(callId);
   }
@@ -225,20 +224,18 @@ function closeActiveModelReasoning(
   if (!stepId) return;
   const parentStepId = state.activeToolLoopStepId ?? state.activePhaseStepId;
   const payload: ReasoningStepEvent = {
-    schema: 'reasoning-step-v1',
+    schema: "reasoning-step-v1",
     turnId: state.turnId,
     stepId,
     ...(parentStepId !== null ? { parentStepId } : {}),
-    kind: 'model-reasoning',
-    event: 'END',
+    kind: "model-reasoning",
+    event: "END",
     label: MODEL_REASONING_LABEL,
     ok: outcome.ok,
-    ...(outcome.ok === false
-      ? { error: { code: outcome.code, message: outcome.message } }
-      : {}),
+    ...(outcome.ok === false ? { error: { code: outcome.code, message: outcome.message } } : {}),
     time: now(),
   };
-  events.push({ sseEvent: 'reasoning.step', payload });
+  events.push({ sseEvent: "reasoning.step", payload });
   state.activeModelReasoningStepId = null;
 }
 
@@ -252,20 +249,18 @@ function closeActiveToolLoop(
   const stepNumber = state.activeToolLoopStepNumber;
   if (!stepId || stepNumber === null) return;
   const payload: ReasoningStepEvent = {
-    schema: 'reasoning-step-v1',
+    schema: "reasoning-step-v1",
     turnId: state.turnId,
     stepId,
     ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
-    kind: 'tool-loop',
-    event: 'END',
+    kind: "tool-loop",
+    event: "END",
     label: `${TOOL_LOOP_LABEL_PREFIX}第 ${stepNumber} 轮`,
     ok: outcome.ok,
-    ...(outcome.ok === false
-      ? { error: { code: outcome.code, message: outcome.message } }
-      : {}),
+    ...(outcome.ok === false ? { error: { code: outcome.code, message: outcome.message } } : {}),
     time: now(),
   };
-  events.push({ sseEvent: 'reasoning.step', payload });
+  events.push({ sseEvent: "reasoning.step", payload });
   state.activeToolLoopStepId = null;
   state.activeToolLoopStepNumber = null;
 }
@@ -287,20 +282,18 @@ function closeActivePhase(
   if (!stepId || !phase) return;
   closeActiveToolLoop(state, events, now, outcome);
   const payload: ReasoningStepEvent = {
-    schema: 'reasoning-step-v1',
+    schema: "reasoning-step-v1",
     turnId: state.turnId,
     stepId,
-    kind: 'phase',
-    event: 'END',
+    kind: "phase",
+    event: "END",
     label: PHASE_LABELS[phase],
     phase,
     ok: outcome.ok,
-    ...(outcome.ok === false
-      ? { error: { code: outcome.code, message: outcome.message } }
-      : {}),
+    ...(outcome.ok === false ? { error: { code: outcome.code, message: outcome.message } } : {}),
     time: now(),
   };
-  events.push({ sseEvent: 'reasoning.step', payload });
+  events.push({ sseEvent: "reasoning.step", payload });
   state.activePhaseStepId = null;
   state.activePhase = null;
 }
@@ -319,47 +312,43 @@ function nextSeqInStep(state: TachuSseMapperState, stepId: string): number {
  * 逻辑与 `TurnService.engineOutputToPersistedContent` 的 string / array 分支一致，但只
  * 拼接 `type==='text'` 块，避免把非文本块 stringify 进用户气泡。
  */
-function extractUserVisibleAnswerText(output: EngineOutput): string {
+export function extractUserVisibleAnswerText(output: EngineOutput): string {
   const raw = output.content;
-  if (typeof raw === 'string') return raw;
+  if (typeof raw === "string") return raw;
   if (Array.isArray(raw)) {
-    let acc = '';
+    let acc = "";
     for (const block of raw) {
-      if (block && typeof block === 'object' && !Array.isArray(block)) {
+      if (block && typeof block === "object" && !Array.isArray(block)) {
         const b = block as { type?: unknown; text?: unknown };
-        if (b.type === 'text' && typeof b.text === 'string') acc += b.text;
+        if (b.type === "text" && typeof b.text === "string") acc += b.text;
       }
     }
     return acc;
   }
-  if (raw != null && typeof raw === 'object' && 'text' in raw) {
+  if (raw != null && typeof raw === "object" && "text" in raw) {
     const t = (raw as { text: unknown }).text;
-    if (typeof t === 'string') return t;
+    if (typeof t === "string") return t;
   }
-  return '';
+  return "";
 }
 
 /**
  * 若本轮从未发过 `message-delta-v1`，但 `done` 里已有非空正文，在终态前补一条 delta，
  * 保证客户端仅靠 SSE 也能拼出与 listMessages 一致的可见答复（契约：message.completed 不含正文）。
  */
-function pushSyntheticFinalMessageDeltaIfNeeded(
-  state: TachuSseMapperState,
-  events: SseEventDescriptor[],
-  output: EngineOutput,
-): void {
+function pushSyntheticFinalMessageDeltaIfNeeded(state: TachuSseMapperState, events: SseEventDescriptor[], output: EngineOutput): void {
   if (state.seqInTurn !== 1) return;
   const text = extractUserVisibleAnswerText(output).trim();
   if (text.length === 0) return;
   const payload: MessageDeltaEvent = {
-    schema:    'message-delta-v1',
-    turnId:    state.turnId,
+    schema: "message-delta-v1",
+    turnId: state.turnId,
     messageId: state.messageId,
     seqInTurn: state.seqInTurn,
-    delta:     { type: 'text', text },
+    delta: { type: "text", text },
   };
   state.seqInTurn += 1;
-  events.push({ sseEvent: 'message.delta', payload });
+  events.push({ sseEvent: "message.delta", payload });
 }
 
 export function mapStreamChunkToSseEvents(
@@ -368,23 +357,23 @@ export function mapStreamChunkToSseEvents(
   now: () => number = Date.now,
 ): SseEventDescriptor[] {
   switch (chunk.type) {
-    case 'delta': {
+    case "delta": {
       if (!chunk.content) return [];
       // 用户正文增量 → 隐含「模型已停止吐 reasoning」，关掉子 step（Q5 状态机 B）。
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       const payload: MessageDeltaEvent = {
-        schema: 'message-delta-v1',
+        schema: "message-delta-v1",
         turnId: state.turnId,
         messageId: state.messageId,
         seqInTurn: state.seqInTurn,
-        delta: { type: 'text', text: chunk.content },
+        delta: { type: "text", text: chunk.content },
       };
       state.seqInTurn += 1;
-      events.push({ sseEvent: 'message.delta', payload });
+      events.push({ sseEvent: "message.delta", payload });
       return events;
     }
-    case 'reasoning-delta': {
+    case "reasoning-delta": {
       if (!chunk.content) return [];
       const events: SseEventDescriptor[] = [];
       // 首次 reasoning-delta：开启 model-reasoning 子 step，parent = 当前 phase。
@@ -394,30 +383,30 @@ export function mapStreamChunkToSseEvents(
         state.activeModelReasoningStepId = stepId;
         const parentStepId = state.activeToolLoopStepId ?? state.activePhaseStepId;
         const startPayload: ReasoningStepEvent = {
-          schema: 'reasoning-step-v1',
+          schema: "reasoning-step-v1",
           turnId: state.turnId,
           stepId,
           ...(parentStepId !== null ? { parentStepId } : {}),
-          kind: 'model-reasoning',
-          event: 'START',
+          kind: "model-reasoning",
+          event: "START",
           label: MODEL_REASONING_LABEL,
           time: now(),
         };
-        events.push({ sseEvent: 'reasoning.step', payload: startPayload });
+        events.push({ sseEvent: "reasoning.step", payload: startPayload });
       }
       const seq = nextSeqInStep(state, stepId);
       const deltaPayload: ReasoningDeltaEvent = {
-        schema: 'reasoning-delta-v1',
+        schema: "reasoning-delta-v1",
         turnId: state.turnId,
         stepId,
         seqInStep: seq,
         text: chunk.content,
-        source: 'model',
+        source: "model",
       };
-      events.push({ sseEvent: 'reasoning.delta', payload: deltaPayload });
+      events.push({ sseEvent: "reasoning.delta", payload: deltaPayload });
       return events;
     }
-    case 'phase-enter': {
+    case "phase-enter": {
       // 进入新 phase 前若仍有活跃 phase（理论不应有），强制关闭做防御。
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
@@ -427,19 +416,19 @@ export function mapStreamChunkToSseEvents(
       state.activePhaseStepId = stepId;
       state.activePhase = chunk.phase;
       const startPayload: ReasoningStepEvent = {
-        schema: 'reasoning-step-v1',
+        schema: "reasoning-step-v1",
         turnId: state.turnId,
         stepId,
-        kind: 'phase',
-        event: 'START',
+        kind: "phase",
+        event: "START",
         label: PHASE_LABELS[chunk.phase],
         phase: chunk.phase,
         time: now(),
       };
-      events.push({ sseEvent: 'reasoning.step', payload: startPayload });
+      events.push({ sseEvent: "reasoning.step", payload: startPayload });
       return events;
     }
-    case 'phase-exit': {
+    case "phase-exit": {
       const events: SseEventDescriptor[] = [];
       // phase 退出前先关子 step（model-reasoning 总是 phase 的子项，且短于 phase）。
       closeActiveModelReasoning(state, events, now, { ok: true });
@@ -447,42 +436,37 @@ export function mapStreamChunkToSseEvents(
       // 仅在 chunk.phase 与当前活跃 phase 对齐时正常 END；否则做防御性 close。
       if (state.activePhaseStepId !== null && state.activePhase === chunk.phase) {
         const endPayload: ReasoningStepEvent = {
-          schema: 'reasoning-step-v1',
+          schema: "reasoning-step-v1",
           turnId: state.turnId,
           stepId: state.activePhaseStepId,
-          kind: 'phase',
-          event: 'END',
+          kind: "phase",
+          event: "END",
           label: PHASE_LABELS[chunk.phase],
           phase: chunk.phase,
           ok: chunk.ok,
           ...(chunk.ok === false && chunk.error
             ? {
                 error: {
-                  code: chunk.error.code ?? 'PHASE_FAILED',
-                  message: chunk.error.message ?? 'phase exited with ok=false',
+                  code: chunk.error.code ?? "PHASE_FAILED",
+                  message: chunk.error.message ?? "phase exited with ok=false",
                 },
               }
             : {}),
           time: now(),
         };
-        events.push({ sseEvent: 'reasoning.step', payload: endPayload });
+        events.push({ sseEvent: "reasoning.step", payload: endPayload });
         state.activePhaseStepId = null;
         state.activePhase = null;
       }
       return events;
     }
-    case 'usage': {
-      if (
-        chunk.usage === undefined ||
-        chunk.cumulative === undefined ||
-        chunk.attribution === undefined ||
-        chunk.accuracy === undefined
-      ) {
+    case "usage": {
+      if (chunk.usage === undefined || chunk.cumulative === undefined || chunk.attribution === undefined || chunk.accuracy === undefined) {
         // Legacy tachu UsageChunk only has cumulative `tokens`; keep ignoring it.
         return [];
       }
       const payload: UsageDeltaEvent = {
-        schema: 'usage-delta-v2',
+        schema: "usage-delta-v2",
         turnId: state.turnId,
         cumulative: {
           input: chunk.cumulative.input,
@@ -498,9 +482,9 @@ export function mapStreamChunkToSseEvents(
         accuracy: chunk.accuracy,
         ...(chunk.terminal !== undefined ? { terminal: chunk.terminal } : {}),
       };
-      return [{ sseEvent: 'usage.delta', payload }];
+      return [{ sseEvent: "usage.delta", payload }];
     }
-    case 'tool-loop-step': {
+    case "tool-loop-step": {
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       closeActiveToolLoop(state, events, now, { ok: true });
@@ -509,43 +493,41 @@ export function mapStreamChunkToSseEvents(
       state.activeToolLoopStepNumber = chunk.step;
       state.toolLoopStepIds.set(chunk.step, stepId);
       const payload: ReasoningStepEvent = {
-        schema: 'reasoning-step-v1',
+        schema: "reasoning-step-v1",
         turnId: state.turnId,
         stepId,
         ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
-        kind: 'tool-loop',
-        event: 'START',
+        kind: "tool-loop",
+        event: "START",
         label: `${TOOL_LOOP_LABEL_PREFIX}第 ${chunk.step} 轮`,
         time: now(),
         meta: { step: chunk.step, maxSteps: chunk.maxSteps },
       };
-      events.push({ sseEvent: 'reasoning.step', payload });
+      events.push({ sseEvent: "reasoning.step", payload });
       return events;
     }
-    case 'tool-loop-delta': {
+    case "tool-loop-delta": {
       if (!chunk.content) return [];
       const stepId =
         chunk.stepId ??
         state.toolLoopStepIds.get(chunk.step) ??
-        (state.activeToolLoopStepNumber === chunk.step
-          ? state.activeToolLoopStepId
-          : null);
+        (state.activeToolLoopStepNumber === chunk.step ? state.activeToolLoopStepId : null);
       if (!stepId) return [];
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       const seq = nextSeqInStep(state, stepId);
       const payload: ReasoningDeltaEvent = {
-        schema: 'reasoning-delta-v1',
+        schema: "reasoning-delta-v1",
         turnId: state.turnId,
         stepId,
         seqInStep: seq,
         text: chunk.content,
-        source: 'tool-loop',
+        source: "tool-loop",
       };
-      events.push({ sseEvent: 'reasoning.delta', payload });
+      events.push({ sseEvent: "reasoning.delta", payload });
       return events;
     }
-    case 'tool-loop-step-end': {
+    case "tool-loop-step-end": {
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       if (state.activeToolLoopStepNumber === chunk.step) {
@@ -557,8 +539,8 @@ export function mapStreamChunkToSseEvents(
             ? { ok: true }
             : {
                 ok: false,
-                code: chunk.error?.code ?? 'TOOL_LOOP_STEP_FAILED',
-                message: chunk.error?.message ?? chunk.reason ?? 'tool loop step failed',
+                code: chunk.error?.code ?? "TOOL_LOOP_STEP_FAILED",
+                message: chunk.error?.message ?? chunk.reason ?? "tool loop step failed",
               },
         );
         return events;
@@ -566,28 +548,28 @@ export function mapStreamChunkToSseEvents(
       const stepId = chunk.stepId ?? state.toolLoopStepIds.get(chunk.step);
       if (!stepId) return events;
       const payload: ReasoningStepEvent = {
-        schema: 'reasoning-step-v1',
+        schema: "reasoning-step-v1",
         turnId: state.turnId,
         stepId,
         ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
-        kind: 'tool-loop',
-        event: 'END',
+        kind: "tool-loop",
+        event: "END",
         label: `${TOOL_LOOP_LABEL_PREFIX}第 ${chunk.step} 轮`,
         ok: chunk.success,
         ...(chunk.success === false
           ? {
               error: {
-                code: chunk.error?.code ?? 'TOOL_LOOP_STEP_FAILED',
-                message: chunk.error?.message ?? chunk.reason ?? 'tool loop step failed',
+                code: chunk.error?.code ?? "TOOL_LOOP_STEP_FAILED",
+                message: chunk.error?.message ?? chunk.reason ?? "tool loop step failed",
               },
             }
           : {}),
         time: now(),
       };
-      events.push({ sseEvent: 'reasoning.step', payload });
+      events.push({ sseEvent: "reasoning.step", payload });
       return events;
     }
-    case 'tool-loop-final': {
+    case "tool-loop-final": {
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       closeActiveToolLoop(
@@ -598,13 +580,13 @@ export function mapStreamChunkToSseEvents(
           ? { ok: true }
           : {
               ok: false,
-              code: 'TOOL_LOOP_FAILED',
-              message: 'tool loop ended without a complete result',
+              code: "TOOL_LOOP_FAILED",
+              message: "tool loop ended without a complete result",
             },
       );
       return events;
     }
-    case 'tool-call-start': {
+    case "tool-call-start": {
       const events: SseEventDescriptor[] = [];
       // 工具调用开始 → 模型在写工具参数而非推理，关掉 reasoning 子 step。
       closeActiveModelReasoning(state, events, now, { ok: true });
@@ -612,13 +594,12 @@ export function mapStreamChunkToSseEvents(
         toolName: chunk.tool,
         startedAt: now(),
       });
-      const parentStepId =
-        chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activePhaseStepId;
+      const parentStepId = chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activePhaseStepId;
       if (parentStepId !== null) {
         state.toolCallParentStepIds.set(chunk.callId, parentStepId);
       }
       const payload: ToolCallStartedEvent = {
-        schema: 'tool-call-started-v1',
+        schema: "tool-call-started-v1",
         turnId: state.turnId,
         ...(parentStepId !== null ? { parentStepId } : {}),
         toolCallId: chunk.callId,
@@ -626,10 +607,10 @@ export function mapStreamChunkToSseEvents(
         args: parseArgumentsPreview(chunk.argumentsPreview),
         meta: toolCallStartedMeta(chunk.tool),
       };
-      events.push({ sseEvent: 'tool.call.started', payload });
+      events.push({ sseEvent: "tool.call.started", payload });
       return events;
     }
-    case 'done': {
+    case "done": {
       if (state.turnFailedEmitted) return [];
       // 兜底关掉所有活跃 step（理论上 phase-exit 已经收尾，这里防御异常路径）。
       const events: SseEventDescriptor[] = [];
@@ -643,12 +624,12 @@ export function mapStreamChunkToSseEvents(
       const endTime = now();
       const durationMs = endTime - state.startTime;
       const messageCompleted: MessageCompletedEvent = {
-        schema: 'message-completed-v1',
+        schema: "message-completed-v1",
         turnId: state.turnId,
         messageId: state.messageId,
       };
       const usageDelta: UsageDeltaEvent = {
-        schema: 'usage-delta-v2',
+        schema: "usage-delta-v2",
         turnId: state.turnId,
         // 唯一权威来源：output.metadata.tokenUsage。usage == cumulative（一次性 emit）。
         usage: { input: tokenUsage.input, output: tokenUsage.output, total: tokenUsage.total },
@@ -659,7 +640,7 @@ export function mapStreamChunkToSseEvents(
         },
       };
       const turnCompleted: TurnCompletedEvent = {
-        schema: 'turn-completed-v1',
+        schema: "turn-completed-v1",
         turnId: state.turnId,
         finalMessageId: state.messageId,
         tokenUsage: {
@@ -671,13 +652,13 @@ export function mapStreamChunkToSseEvents(
         endTime,
       };
       events.push(
-        { sseEvent: 'message.completed', payload: messageCompleted },
-        { sseEvent: 'usage.delta', payload: usageDelta },
-        { sseEvent: 'turn.completed', payload: turnCompleted },
+        { sseEvent: "message.completed", payload: messageCompleted },
+        { sseEvent: "usage.delta", payload: usageDelta },
+        { sseEvent: "turn.completed", payload: turnCompleted },
       );
       return events;
     }
-    case 'error': {
+    case "error": {
       if (state.turnFailedEmitted) return [];
       state.turnFailedEmitted = true;
       const events: SseEventDescriptor[] = [];
@@ -693,21 +674,21 @@ export function mapStreamChunkToSseEvents(
       const e = chunk.error;
       closeActiveModelReasoning(state, events, now, {
         ok: false,
-        code: 'TURN_INTERRUPTED',
+        code: "TURN_INTERRUPTED",
         message: e.message,
       });
       closeActiveToolLoop(state, events, now, {
         ok: false,
-        code: 'TURN_INTERRUPTED',
+        code: "TURN_INTERRUPTED",
         message: e.message,
       });
       closeActivePhase(state, events, now, {
         ok: false,
-        code: 'TURN_INTERRUPTED',
+        code: "TURN_INTERRUPTED",
         message: e.message,
       });
       const payload: TurnFailedEvent = {
-        schema: 'turn-failed-v1',
+        schema: "turn-failed-v1",
         turnId: state.turnId,
         error: {
           code: e.code,
@@ -716,39 +697,34 @@ export function mapStreamChunkToSseEvents(
         },
         endTime: now(),
       };
-      events.push({ sseEvent: 'turn.failed', payload });
+      events.push({ sseEvent: "turn.failed", payload });
       return events;
     }
-    case 'tool-call-end': {
+    case "tool-call-end": {
       state.pendingToolCalls.delete(chunk.callId);
       const parentStepId =
-        state.toolCallParentStepIds.get(chunk.callId) ??
-        chunk.parentStepId ??
-        state.activeToolLoopStepId ??
-        state.activePhaseStepId;
+        state.toolCallParentStepIds.get(chunk.callId) ?? chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activePhaseStepId;
       const payload: ToolCallCompletedEvent = {
-        schema: 'tool-call-completed-v1',
+        schema: "tool-call-completed-v1",
         turnId: state.turnId,
         ...(parentStepId !== null ? { parentStepId } : {}),
         toolCallId: chunk.callId,
         toolName: chunk.tool,
         durationMs: chunk.durationMs,
         ok: chunk.success,
-        ...(Object.prototype.hasOwnProperty.call(chunk, 'output')
-          ? { output: chunk.output }
-          : {}),
+        ...(Object.prototype.hasOwnProperty.call(chunk, "output") ? { output: chunk.output } : {}),
         ...(chunk.success === false
           ? {
               error: {
-                code: chunk.error?.code ?? 'TOOL_EXECUTION_FAILED',
-                message: chunk.error?.message ?? 'Tool execution failed without message',
+                code: chunk.error?.code ?? "TOOL_EXECUTION_FAILED",
+                message: chunk.error?.message ?? "Tool execution failed without message",
                 retryable: chunk.error?.retryable ?? false,
               },
             }
           : {}),
       };
       state.toolCallParentStepIds.delete(chunk.callId);
-      return [{ sseEvent: 'tool.call.completed', payload }];
+      return [{ sseEvent: "tool.call.completed", payload }];
     }
     default: {
       // 已知但暂未映射的类型：progress / plan-preview / artifact。

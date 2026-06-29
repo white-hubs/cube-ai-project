@@ -1,7 +1,10 @@
-import { Inject, Injectable } from '@dangao/bun-server';
-import { SessionSseEmitter } from '@cube-ai/bun-server-ext-sse';
-import type Redis from 'ioredis';
-import type pino from 'pino';
+import { Inject, Injectable } from "@dangao/bun-server";
+import type { EngineOutput } from "@tachu/core";
+import type Redis from "ioredis";
+import type pino from "pino";
+
+import { OUTBOX_WRITER_TOKEN, type OutboxWriter, type TransactionContext } from "@cube-ai/bun-server-ext-outbox";
+import { SessionSseEmitter } from "@cube-ai/bun-server-ext-sse";
 import {
   EffectiveRouteResolvedEventSchema,
   TurnCancelledEventSchema,
@@ -11,38 +14,23 @@ import {
   IntentRoutingEventSchema,
   type ImageAttachment,
   type MessageContentV1,
-} from '@cube-ai/contracts';
-import type { RuntimeRefs } from '@cube-ai/contracts';
-import {
-  OUTBOX_WRITER_TOKEN,
-  type OutboxWriter,
-  type TransactionContext,
-} from '@cube-ai/bun-server-ext-outbox';
-import type { EngineOutput } from '@tachu/core';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import { LoggerFactory } from '../../infra/observability/logger.factory';
-import { SfidService } from '../../infra/sfid/sfid.service';
-import { TurnLockService } from './turn-lock.service';
-import { TurnRepository } from './turn.repository';
-import { EngineFactory, type AgentSnapshotShape } from '../tachu/engine-factory';
-import type { SessionRepository } from './repository/session.repository';
-import {
-  createTachuSseMapperState,
-  forceCloseActiveReasoning,
-  mapStreamChunkToSseEvents,
-} from './tachu-sse-mapper';
-import {
-  computeIntentToolRouting,
-  type IntentRoutingBlock,
-} from '../tool-activation';
-import {
-  REDIS_CLIENT_TOKEN,
-  SESSION_REPO_TOKEN,
-  TURN_LOCK_SERVICE_TOKEN,
-  TURN_REPO_TOKEN,
-} from './session.tokens';
-import { JobDataService } from '../jobs/job-data.service';
-import { LocalFileService } from '../files/local-file.service';
+} from "@cube-ai/contracts";
+import type { RuntimeRefs } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { LoggerFactory } from "../../infra/observability/logger.factory";
+import { debugBodyField } from "../../infra/observability/turn-debug-log";
+import { SfidService } from "../../infra/sfid/sfid.service";
+import { LocalFileService } from "../files/local-file.service";
+import { JobDataService } from "../jobs/job-data.service";
+import { EngineFactory, type AgentSnapshotShape } from "../tachu/engine-factory";
+import { computeIntentToolRouting, type IntentRoutingBlock } from "../tool-activation";
+import type { SessionRepository } from "./repository/session.repository";
+import { REDIS_CLIENT_TOKEN, SESSION_REPO_TOKEN, TURN_LOCK_SERVICE_TOKEN, TURN_REPO_TOKEN } from "./session.tokens";
+import { extractUserVisibleAnswerText } from "./tachu-sse-mapper";
+import { createTachuSseMapperState, forceCloseActiveReasoning, mapStreamChunkToSseEvents } from "./tachu-sse-mapper";
+import { TurnLockService } from "./turn-lock.service";
+import { TurnRepository } from "./turn.repository";
 
 const DEFAULT_LOCK_TTL_SEC = 30;
 const IDEMPOTENCY_TTL_SEC = 86_400;
@@ -50,19 +38,19 @@ const IDEMPOTENCY_TTL_SEC = 86_400;
 /** 将 tachu `EngineOutput.content` 规范为 `messages.content_json` blocks 数组（与 worker finalizeSuccess 一致）。 */
 function engineOutputToPersistedContent(output: EngineOutput): unknown {
   const raw = output.content;
-  if (typeof raw === 'string') {
-    return [{ type: 'text', text: raw }];
+  if (typeof raw === "string") {
+    return [{ type: "text", text: raw }];
   }
   if (Array.isArray(raw)) {
     return raw;
   }
-  if (raw != null && typeof raw === 'object') {
+  if (raw != null && typeof raw === "object") {
     return [raw];
   }
-  return [{ type: 'text', text: '' }];
+  return [{ type: "text", text: "" }];
 }
 
-/** 供 pino 结构化输出；避免把整段 prompt 打进日志（PII + 体积）。 */
+/** 供 pino 结构化输出。 */
 function serializeUnknownError(e: unknown): Record<string, unknown> {
   if (e instanceof AgenticEngineError) {
     return {
@@ -78,14 +66,10 @@ function serializeUnknownError(e: unknown): Record<string, unknown> {
   if (e instanceof Error) {
     return { name: e.name, message: e.message, stack: e.stack };
   }
-  return { name: 'NonError', message: String(e) };
+  return { name: "NonError", message: String(e) };
 }
 
-export type TurnCancelReason =
-  | 'USER_REQUEST'
-  | 'CLIENT_DISCONNECT'
-  | 'TIMEOUT'
-  | 'ADMINISTRATIVE';
+export type TurnCancelReason = "USER_REQUEST" | "CLIENT_DISCONNECT" | "TIMEOUT" | "ADMINISTRATIVE";
 
 export interface StartTurnOptions {
   idempotencyKey?: string;
@@ -126,7 +110,7 @@ export class TurnService {
     @Inject(OUTBOX_WRITER_TOKEN) private readonly outbox: OutboxWriter,
     private readonly loggerFactory: LoggerFactory,
   ) {
-    this.log = this.loggerFactory.getLogger('agentic.engine.session.turn');
+    this.log = this.loggerFactory.getLogger("agentic.engine.session.turn");
   }
 
   private idemKey(tenant: number, key: string): string {
@@ -136,12 +120,7 @@ export class TurnService {
   /**
    * Start Turn: acquire lock → optional idempotent replay → INSERT RUNNING → SSE → background LLM.
    */
-  async startTurn(
-    sessionId: string,
-    tenant: number,
-    prompt: string,
-    options: StartTurnOptions = {},
-  ): Promise<string> {
+  async startTurn(sessionId: string, tenant: number, prompt: string, options: StartTurnOptions = {}): Promise<string> {
     const turnId = this.sfid.next();
 
     let lockHeld = false;
@@ -149,20 +128,11 @@ export class TurnService {
       lockHeld = await this.turnLock.tryAcquire(sessionId, turnId, DEFAULT_LOCK_TTL_SEC);
     } catch (e: unknown) {
       if (e instanceof AgenticEngineError && e.httpStatus === 503) throw e;
-      throw new AgenticEngineError(
-        503,
-        'UNAVAILABLE_LOCK_SERVICE',
-        `Turn lock unavailable: ${String(e)}`,
-        { sessionId },
-      );
+      throw new AgenticEngineError(503, "UNAVAILABLE_LOCK_SERVICE", `Turn lock unavailable: ${String(e)}`, { sessionId });
     }
 
     if (!lockHeld) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_CONFLICT_SESSION_BUSY',
-        `Session ${sessionId} already has a running turn`,
-        { sessionId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_CONFLICT_SESSION_BUSY", `Session ${sessionId} already has a running turn`, { sessionId });
     }
 
     const idem = options.idempotencyKey?.trim();
@@ -178,12 +148,7 @@ export class TurnService {
         }
       } catch {
         await this.turnLock.release(sessionId, turnId);
-        throw new AgenticEngineError(
-          503,
-          'UNAVAILABLE_LOCK_SERVICE',
-          'Redis idempotency check failed',
-          { sessionId },
-        );
+        throw new AgenticEngineError(503, "UNAVAILABLE_LOCK_SERVICE", "Redis idempotency check failed", { sessionId });
       }
     }
 
@@ -191,20 +156,14 @@ export class TurnService {
       this.turns.requirePool();
     } catch {
       await this.turnLock.release(sessionId, turnId);
-      throw new AgenticEngineError(
-        503,
-        'UNAVAILABLE_DATABASE',
-        'MySQL not configured (AGENTIC_ENGINE_MYSQL_URL)',
-        { sessionId },
-      );
+      throw new AgenticEngineError(503, "UNAVAILABLE_DATABASE", "MySQL not configured (AGENTIC_ENGINE_MYSQL_URL)", { sessionId });
     }
 
     const userMessageId = this.sfid.next();
-    const userContent =
-      options.content ?? {
-        schema: 'message-content-v1',
-        blocks: [{ type: 'text', text: prompt }],
-      };
+    const userContent = options.content ?? {
+      schema: "message-content-v1",
+      blocks: [{ type: "text", text: prompt }],
+    };
     const attachments = options.attachments ?? [];
 
     let turnNo = 1;
@@ -215,7 +174,7 @@ export class TurnService {
         sessionId,
         idempotencyKey: idem ?? null,
         inputEnvelope: {
-          schema: 'input-envelope-v1',
+          schema: "input-envelope-v1",
           text: prompt,
           content: userContent,
           attachments,
@@ -241,7 +200,7 @@ export class TurnService {
       throw e;
     }
     const started = TurnStartedEventSchema.parse({
-      schema: 'turn-started-v1',
+      schema: "turn-started-v1",
       turnId,
       turnNo,
       startTime: Date.now(),
@@ -249,7 +208,7 @@ export class TurnService {
     });
 
     await this.sseEmitter.emit({ tenant, sessionId }, turnId, {
-      sseEvent: 'turn.started',
+      sseEvent: "turn.started",
       payload: started,
     });
 
@@ -260,23 +219,16 @@ export class TurnService {
         turnId,
         turnNo,
         modelCode: options.modelCode ?? null,
-        skillEmbeddingModelCode:
-          options.skillEmbeddingModelCode ??
-          process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'] ??
-          null,
+        skillEmbeddingModelCode: options.skillEmbeddingModelCode ?? process.env["AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL"] ?? null,
         idempotencyKey: idem ?? null,
         promptCharCount: prompt.length,
+        ...debugBodyField("promptBody", prompt),
       },
-      'turn.started',
+      "turn.started",
     );
 
     if (idem && this.redis) {
-      await this.redis.set(
-        this.idemKey(tenant, idem),
-        JSON.stringify({ turnId }),
-        'EX',
-        IDEMPOTENCY_TTL_SEC,
-      );
+      await this.redis.set(this.idemKey(tenant, idem), JSON.stringify({ turnId }), "EX", IDEMPOTENCY_TTL_SEC);
     }
 
     void this.runLlmPhase({
@@ -301,7 +253,7 @@ export class TurnService {
           turnId,
           err: serializeUnknownError(err),
         },
-        'turn.llm.phase.unhandledRejection',
+        "turn.llm.phase.unhandledRejection",
       );
     });
 
@@ -361,11 +313,9 @@ export class TurnService {
     });
     const resolvedModel = route.effectiveModelCode;
 
-    const acContent = agentSnapshot?.agent?.content as
-      | { toolRefs?: unknown; intentRouting?: unknown }
-      | undefined;
+    const acContent = agentSnapshot?.agent?.content as { toolRefs?: unknown; intentRouting?: unknown } | undefined;
     const toolRefs = Array.isArray(acContent?.toolRefs)
-      ? acContent.toolRefs.filter((x): x is string => typeof x === 'string' && x.length > 0)
+      ? acContent.toolRefs.filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
     const routing = computeIntentToolRouting({
       prompt: arg.prompt,
@@ -373,18 +323,17 @@ export class TurnService {
       intentBlock: (acContent?.intentRouting ?? null) as IntentRoutingBlock | null,
     });
 
-    if (process.env['AGENTIC_INTENT_ROUTING_SSE'] !== '0') {
+    if (process.env["AGENTIC_INTENT_ROUTING_SSE"] !== "0") {
       const irPayload = IntentRoutingEventSchema.parse({
-        schema: 'intent-routing-v1',
+        schema: "intent-routing-v1",
         turnId: arg.turnId,
         state: routing.state,
         ...(routing.multiMatch ? { multiMatch: true } : {}),
       });
-      await this.sseEmitter.emit(
-        { tenant: arg.tenant, sessionId: arg.sessionId },
-        arg.turnId,
-        { sseEvent: 'intent.routing', payload: irPayload as unknown as Record<string, unknown> },
-      );
+      await this.sseEmitter.emit({ tenant: arg.tenant, sessionId: arg.sessionId }, arg.turnId, {
+        sseEvent: "intent.routing",
+        payload: irPayload as unknown as Record<string, unknown>,
+      });
     }
 
     this.log.debug(
@@ -392,18 +341,21 @@ export class TurnService {
         sessionId: arg.sessionId,
         tenant: arg.tenant,
         turnId: arg.turnId,
+        traceId: arg.turnId,
         resolvedModel,
         requestedModelCode: route.requestedModelCode,
         routeReason: route.reason,
         hasSnapshot: agentSnapshot !== null,
         hasUserId: Boolean(arg.userId),
         promptCharCount: arg.prompt.length,
+        ...debugBodyField("promptBody", arg.prompt),
+        ...debugBodyField("intentRoutingBody", routing),
       },
-      'turn.llm.phase.start',
+      "turn.llm.phase.start",
     );
 
     const routeResolved = EffectiveRouteResolvedEventSchema.parse({
-      schema: 'effective-route-resolved-v1',
+      schema: "effective-route-resolved-v1",
       turnId: arg.turnId,
       requested: {
         ...(arg.modelCode !== undefined ? { modelCode: arg.modelCode } : {}),
@@ -417,17 +369,14 @@ export class TurnService {
       },
       reason: route.reason,
     });
-    await this.sseEmitter.emit(
-      { tenant: arg.tenant, sessionId: arg.sessionId },
-      arg.turnId,
-      { sseEvent: 'turn.route.resolved', payload: routeResolved as unknown as Record<string, unknown> },
-    );
+    await this.sseEmitter.emit({ tenant: arg.tenant, sessionId: arg.sessionId }, arg.turnId, {
+      sseEvent: "turn.route.resolved",
+      payload: routeResolved as unknown as Record<string, unknown>,
+    });
 
     let finalOutput: EngineOutput | undefined;
     let errorEmittedByMapper = false;
-    let errorPayload:
-      | { code: string; message: string; retryable: boolean }
-      | undefined;
+    let errorPayload: { code: string; message: string; retryable: boolean } | undefined;
 
     try {
       for await (const chunk of this.tachuEngine.runStream({
@@ -441,9 +390,7 @@ export class TurnService {
         ...(arg.attachments !== undefined ? { attachments: arg.attachments } : {}),
         ...(arg.runtimeRefs !== undefined ? { runtimeRefs: arg.runtimeRefs } : {}),
         ...(resolvedModel !== undefined ? { turnModelCode: resolvedModel } : {}),
-        ...(arg.skillEmbeddingModelCode !== undefined
-          ? { skillEmbeddingModelCode: arg.skillEmbeddingModelCode }
-          : {}),
+        ...(arg.skillEmbeddingModelCode !== undefined ? { skillEmbeddingModelCode: arg.skillEmbeddingModelCode } : {}),
         ...(agentSnapshot !== null ? { agentSnapshot } : {}),
         nextStreamId: () => this.sfid.next(),
       })) {
@@ -458,9 +405,9 @@ export class TurnService {
           );
         }
         // 2. 追踪关键状态
-        if (chunk.type === 'done') {
+        if (chunk.type === "done") {
           finalOutput = chunk.output;
-        } else if (chunk.type === 'error') {
+        } else if (chunk.type === "error") {
           errorEmittedByMapper = true;
           errorPayload = {
             code: chunk.error.code,
@@ -471,7 +418,7 @@ export class TurnService {
       }
     } catch (e: unknown) {
       // 外层 throw —— tachu 自身崩溃（罕见，例如 Engine 已 dispose）。手工补发 turn.failed。
-      const failCode = e instanceof AgenticEngineError ? e.code : 'INTERNAL_LLM_FAILED';
+      const failCode = e instanceof AgenticEngineError ? e.code : "INTERNAL_LLM_FAILED";
       const failMessage = e instanceof AgenticEngineError ? e.message : String(e);
       this.log.error(
         {
@@ -482,20 +429,19 @@ export class TurnService {
           failCode,
           err: serializeUnknownError(e),
         },
-        'turn.llm.phase.failed',
+        "turn.llm.phase.failed",
       );
       // ADR-0021 Q11a：runStream 抛错时强制把所有活跃 reasoning step END，
       // 让前端 reasoning 树永远闭合。在 turn.failed 之前发，保持事件先后逻辑一致。
       const closureEvents = forceCloseActiveReasoning(mapperState, {
-        code: 'TURN_INTERRUPTED',
+        code: "TURN_INTERRUPTED",
         message: failMessage,
       });
       for (const ev of closureEvents) {
-        await this.sseEmitter.emit(
-          { tenant: arg.tenant, sessionId: arg.sessionId },
-          arg.turnId,
-          { sseEvent: ev.sseEvent, payload: ev.payload as unknown as Record<string, unknown> },
-        );
+        await this.sseEmitter.emit({ tenant: arg.tenant, sessionId: arg.sessionId }, arg.turnId, {
+          sseEvent: ev.sseEvent,
+          payload: ev.payload as unknown as Record<string, unknown>,
+        });
       }
       try {
         await this.turns.markTurnError({
@@ -505,13 +451,10 @@ export class TurnService {
           message: failMessage,
         });
       } catch (dbErr: unknown) {
-        this.log.warn(
-          { err: serializeUnknownError(dbErr), turnId: arg.turnId },
-          'turn.llm.phase.markTurnError.failed',
-        );
+        this.log.warn({ err: serializeUnknownError(dbErr), turnId: arg.turnId }, "turn.llm.phase.markTurnError.failed");
       }
       const failed = TurnFailedEventSchema.parse({
-        schema: 'turn-failed-v1',
+        schema: "turn-failed-v1",
         turnId: arg.turnId,
         error: {
           code: failCode,
@@ -520,11 +463,10 @@ export class TurnService {
         },
         endTime: Date.now(),
       });
-      await this.sseEmitter.emit(
-        { tenant: arg.tenant, sessionId: arg.sessionId },
-        arg.turnId,
-        { sseEvent: 'turn.failed', payload: failed },
-      );
+      await this.sseEmitter.emit({ tenant: arg.tenant, sessionId: arg.sessionId }, arg.turnId, {
+        sseEvent: "turn.failed",
+        payload: failed,
+      });
       await this.turnLock.release(arg.sessionId, arg.turnId);
       return;
     }
@@ -574,38 +516,37 @@ export class TurnService {
             sessionId: arg.sessionId,
             tenant: arg.tenant,
             turnId: arg.turnId,
+            traceId: arg.turnId,
             resolvedModel,
             usage: tokenUsage,
+            ...debugBodyField("answerBody", extractUserVisibleAnswerText(finalOutput)),
+            ...debugBodyField("engineOutputBody", finalOutput),
           },
-          'turn.llm.phase.completed',
+          "turn.llm.phase.completed",
         );
       } else {
         // tachu 既没 yield done 也没 yield error —— 异常通路，按 INTERNAL 失败处理。
-        this.log.warn(
-          { sessionId: arg.sessionId, turnId: arg.turnId },
-          'turn.llm.phase.noTerminalChunk',
-        );
+        this.log.warn({ sessionId: arg.sessionId, turnId: arg.turnId }, "turn.llm.phase.noTerminalChunk");
         await this.turns.markTurnError({
           turnId: arg.turnId,
           tenant: arg.tenant,
-          errorCode: 'INTERNAL_LLM_FAILED',
-          message: 'engine.runStream finished without done or error',
+          errorCode: "INTERNAL_LLM_FAILED",
+          message: "engine.runStream finished without done or error",
         });
         const failed = TurnFailedEventSchema.parse({
-          schema: 'turn-failed-v1',
+          schema: "turn-failed-v1",
           turnId: arg.turnId,
           error: {
-            code: 'INTERNAL_LLM_FAILED',
-            message: 'engine.runStream finished without done or error',
+            code: "INTERNAL_LLM_FAILED",
+            message: "engine.runStream finished without done or error",
             retryable: false,
           },
           endTime: Date.now(),
         });
-        await this.sseEmitter.emit(
-          { tenant: arg.tenant, sessionId: arg.sessionId },
-          arg.turnId,
-          { sseEvent: 'turn.failed', payload: failed },
-        );
+        await this.sseEmitter.emit({ tenant: arg.tenant, sessionId: arg.sessionId }, arg.turnId, {
+          sseEvent: "turn.failed",
+          payload: failed,
+        });
       }
     } finally {
       await this.turnLock.release(arg.sessionId, arg.turnId);
@@ -616,23 +557,17 @@ export class TurnService {
    * 把 SessionRow 里的 `agent_snapshot_json` 解析成 EngineFactory 期望的 shape。
    * 读不到 / 解析失败时返回 null，不抛错——会话功能仍可降级到默认 prompt + 默认 model。
    */
-  private async loadAgentSnapshot(
-    sessionId: string,
-    tenant: number,
-  ): Promise<AgentSnapshotShape | null> {
+  private async loadAgentSnapshot(sessionId: string, tenant: number): Promise<AgentSnapshotShape | null> {
     try {
       const row = await this.sessions.findById(tenant, sessionId);
       if (!row) return null;
       const snap = row.agentSnapshotJson;
-      if (snap && typeof snap === 'object' && !Array.isArray(snap)) {
+      if (snap && typeof snap === "object" && !Array.isArray(snap)) {
         return snap as AgentSnapshotShape;
       }
       return null;
     } catch (e: unknown) {
-      this.log.warn(
-        { err: serializeUnknownError(e), sessionId, tenant },
-        'turn.llm.phase.loadAgentSnapshot.failed',
-      );
+      this.log.warn({ err: serializeUnknownError(e), sessionId, tenant }, "turn.llm.phase.loadAgentSnapshot.failed");
       return null;
     }
   }
@@ -644,28 +579,17 @@ export class TurnService {
    * 取消信号通过 tachu.Engine.cancel(sessionId) 注入；这是 tachu 内部
    * `runtimeState` 维护的、与 sessionId 严格 1:1 的 cancel hook。
    */
-  async cancelTurn(
-    turnId: string,
-    tenant: number,
-    reason: TurnCancelReason,
-  ): Promise<void> {
+  async cancelTurn(turnId: string, tenant: number, reason: TurnCancelReason): Promise<void> {
     const row = await this.turns.getTurnRow(turnId, tenant);
-    if (!row || row.status !== 'RUNNING') {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_SESSION',
-        `Turn ${turnId} not running`,
-        { turnId },
-      );
+    if (!row || row.status !== "RUNNING") {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Turn ${turnId} not running`, { turnId });
     }
 
     // 通知 tachu 中断该 sessionId 上的活跃 run；幂等、最坏情况 no-op。
     try {
       this.tachuEngine.cancel(row.sessionId, `cancelled-by-user:${reason}`);
     } catch (e: unknown) {
-      this.log.warn(
-        { err: serializeUnknownError(e), turnId, sessionId: row.sessionId },
-        'turn.cancel.engine.cancel.failed',
-      );
+      this.log.warn({ err: serializeUnknownError(e), turnId, sessionId: row.sessionId }, "turn.cancel.engine.cancel.failed");
     }
 
     await this.turns.cancelTurn({
@@ -674,14 +598,14 @@ export class TurnService {
     });
 
     const cancelled = TurnCancelledEventSchema.parse({
-      schema: 'turn-cancelled-v1',
+      schema: "turn-cancelled-v1",
       turnId,
       reason,
       endTime: Date.now(),
     });
 
     await this.sseEmitter.emit({ tenant, sessionId: row.sessionId }, turnId, {
-      sseEvent: 'turn.cancelled',
+      sseEvent: "turn.cancelled",
       payload: cancelled,
     });
   }
@@ -695,11 +619,7 @@ export class TurnService {
   ): Promise<void> {
     const row = await this.turns.getTurnRow(turnId, tenant);
     if (!row) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_SESSION',
-        `Turn ${turnId} not found`,
-        { turnId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Turn ${turnId} not found`, { turnId });
     }
 
     await this.turns.completeTurn({
@@ -710,7 +630,7 @@ export class TurnService {
     });
 
     const completed = TurnCompletedEventSchema.parse({
-      schema: 'turn-completed-v1',
+      schema: "turn-completed-v1",
       turnId,
       finalMessageId,
       tokenUsage,
@@ -719,7 +639,7 @@ export class TurnService {
     });
 
     await this.sseEmitter.emit({ tenant, sessionId: row.sessionId }, turnId, {
-      sseEvent: 'turn.completed',
+      sseEvent: "turn.completed",
       payload: completed,
     });
   }
@@ -748,8 +668,8 @@ export class TurnService {
     try {
       await this.outbox.append(null as unknown as TransactionContext, {
         tenant: arg.tenant,
-        channel: 'usage_event',
-        eventType: 'usage.llm_call',
+        channel: "usage_event",
+        eventType: "usage.llm_call",
         payloadJson: {
           sessionId: arg.sessionId,
           turnId: arg.turnId,
@@ -759,14 +679,11 @@ export class TurnService {
           costUsd: arg.costUsd ?? 0,
           timestamp: Date.now(),
         },
-        target: 'agentic-usage-events',
+        target: "agentic-usage-events",
         scheduleTime: Date.now(),
       });
     } catch (e: unknown) {
-      this.log.warn(
-        { err: serializeUnknownError(e), sessionId: arg.sessionId, turnId: arg.turnId },
-        'usage.llm_call.outbox.append.failed',
-      );
+      this.log.warn({ err: serializeUnknownError(e), sessionId: arg.sessionId, turnId: arg.turnId }, "usage.llm_call.outbox.append.failed");
     }
   }
 }
