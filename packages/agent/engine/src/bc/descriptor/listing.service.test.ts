@@ -231,6 +231,26 @@ describe('LibraryService', () => {
     expect((await svc.browse(7, 'agent', { q: 'ops' })).map((i) => i.ref)).toEqual(['builtin-agent']);
   });
 
+  test('hides engine-internal system agents and skills from library browse', async () => {
+    const svc = new LibraryService(fakeListingRepo(), {
+      systemAgents: async () => [
+        { name: 'cube-default', displayName: 'CUBE Default Agent' },
+        { name: '1934000000000000001', displayName: '安全智能体' },
+      ],
+      systemSkills: () => [
+        { name: 'default-reasoning', displayName: '默认推理' },
+        { name: 'chart-output', displayName: '图表输出' },
+        { name: 'custom-skill', displayName: 'Custom Skill' },
+      ],
+    });
+
+    expect((await svc.browse(7, 'agent', { tier: 'system' })).map((i) => i.ref)).toEqual(['1934000000000000001']);
+    expect((await svc.browse(7, 'skill')).map((i) => i.ref)).toEqual(['custom-skill']);
+    await expect(svc.get(7, 'agent', 'cube-default')).rejects.toMatchObject({
+      code: 'RESOURCE_NOT_FOUND_DESCRIPTOR',
+    });
+  });
+
   test('gets tenant and system library details with correct opacity', async () => {
     const svc = new LibraryService(fakeListingRepo(), {
       systemAgents: async () => [

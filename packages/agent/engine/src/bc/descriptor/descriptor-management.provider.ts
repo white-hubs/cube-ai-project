@@ -16,6 +16,7 @@ import type { Pool } from "mysql2/promise";
 
 import { OUTBOX_WRITER_TOKEN, type OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
 import type { LlmProviderPort } from "@cube-ai/contracts";
+import { isEngineInternalAgentRef, isEngineInternalSkillRef } from "@cube-ai/contracts";
 import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN } from "@cube-ai/contracts/platform";
 
 import { MYSQL_POOL_TOKEN } from "../../infra/mysql/mysql.tokens";
@@ -46,11 +47,13 @@ function buildCandidateSource(c: Container): ProposeCandidateSource {
   const tools = tryResolve<DescriptorRegistryService>(c, DescriptorRegistryService);
   return {
     systemSkills: (): ProposeCandidate[] =>
-      (skills?.list() ?? []).map((s) => ({
-        kind: "skill",
-        ref: s.name,
-        ...(s.description ? { description: s.description } : {}),
-      })),
+      (skills?.list() ?? [])
+        .filter((s) => !isEngineInternalSkillRef(s.name))
+        .map((s) => ({
+          kind: "skill",
+          ref: s.name,
+          ...(s.description ? { description: s.description } : {}),
+        })),
     systemRules: (): ProposeCandidate[] =>
       (rules?.list() ?? []).map((r) => ({
         kind: "rule",

@@ -1,5 +1,5 @@
 import type { OutboxWriter, TransactionContext } from "@cube-ai/bun-server-ext-outbox";
-import { type DescriptorListingView, type LibraryItemView, type TenantDescriptorKind } from "@cube-ai/contracts";
+import { type DescriptorListingView, type LibraryItemView, type TenantDescriptorKind, filterUserVisibleLibraryItems, isEngineInternalLibraryRef } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import { assertDescriptorOwner, assertDescriptorOwnerOrAdmin } from "./descriptor-owner";
@@ -150,10 +150,13 @@ export class LibraryService {
         return haystack.includes(q);
       });
     }
-    return items;
+    return filterUserVisibleLibraryItems(items);
   }
 
   async get(tenant: number, kind: Exclude<TenantDescriptorKind, "rule">, ref: string): Promise<LibraryItemView> {
+    if (isEngineInternalLibraryRef(kind, ref)) {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Library item not found: ${ref}`, { ref, kind });
+    }
     const item = (await this.browse(tenant, kind)).find((candidate) => candidate.ref === ref);
     if (!item) {
       throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Library item not found: ${ref}`, { ref, kind });

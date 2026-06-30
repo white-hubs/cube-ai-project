@@ -5,9 +5,16 @@ import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import type { OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
 import { type TransactionContext } from "@cube-ai/bun-server-ext-outbox";
 import type { CreateSessionInput, SessionRow, SessionRowStatus, CreateSessionRequest as CreateSessionBody } from "@cube-ai/contracts";
-import { parseTenantDescriptorId } from "@cube-ai/contracts";
+import {
+  filterUserVisibleSkillRefs,
+  filterUserVisibleSubAgentRefs,
+  parseTenantDescriptorId,
+  stripEngineInternalRefsFromAgentContent,
+  type TenantAgentContent,
+} from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { assertUserSessionAgentId } from "../descriptor/engine-internal-guard";
 import { SfidService } from "../../infra/sfid/sfid.service";
 import type { RuleDescriptor } from "../descriptor/rule-registry.service";
 import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
@@ -124,6 +131,7 @@ async function buildSnapshots(params: {
   tenantResolver?: TenantDescriptorResolver;
   runnableAgentResolver?: RunnableAgentResolver;
 }): Promise<{ agent: Record<string, unknown>; user: Record<string, unknown>; agentVersionNo: number }> {
+  assertUserSessionAgentId(params.agentId);
   const frozen = Date.now();
   const globalPrompt = params.descriptorLoader?.getGlobalPrompt?.()?.trim() ?? "";
   // 前缀 id（agt_）→ 租户持久层（仅已发布）；裸 name → 系统级文件/registry（ADR-0016 §5）。
@@ -151,12 +159,31 @@ async function buildSnapshots(params: {
     });
   }
   const agentVersionNo = runnableResolution?.versionNo ?? 1;
+  const sanitizedDescriptor =
+    agentDescriptor && typeof agentDescriptor === "object"
+      ? (() => {
+          const record = { ...(agentDescriptor as Record<string, unknown>) };
+          if (agentIsTenantRef) {
+            const content = stripEngineInternalRefsFromAgentContent({
+              skillRefs: Array.isArray(record["skillRefs"])
+                ? (record["skillRefs"] as string[])
+                : [],
+              subAgentRefs: Array.isArray(record["subAgentRefs"])
+                ? (record["subAgentRefs"] as string[])
+                : [],
+            } satisfies Pick<TenantAgentContent, "skillRefs" | "subAgentRefs">);
+            record["skillRefs"] = content.skillRefs;
+            record["subAgentRefs"] = content.subAgentRefs;
+          }
+          return record;
+        })()
+      : agentDescriptor;
   // 系统级文件用 `instructions`，租户级 agent content 用 `prompt`：两者择一。
   const agentInstructions =
-    agentDescriptor && typeof agentDescriptor["instructions"] === "string"
-      ? (agentDescriptor["instructions"] as string).trim()
-      : agentDescriptor && typeof agentDescriptor["prompt"] === "string"
-        ? (agentDescriptor["prompt"] as string).trim()
+    sanitizedDescriptor && typeof sanitizedDescriptor["instructions"] === "string"
+      ? (sanitizedDescriptor["instructions"] as string).trim()
+      : sanitizedDescriptor && typeof sanitizedDescriptor["prompt"] === "string"
+        ? (sanitizedDescriptor["prompt"] as string).trim()
         : "";
   // TODO(prompt-injection): sessionSuffix is currently injected verbatim into
   // the system prompt with the same trust level as agentInstructions, but it
@@ -169,23 +196,25 @@ async function buildSnapshots(params: {
   const sessionSuffix =
     params.context && typeof params.context["systemSuffix"] === "string" ? String(params.context["systemSuffix"]).trim() : "";
   const requestedToolRefs =
-    agentDescriptor && Array.isArray(agentDescriptor["availableTools"])
-      ? (agentDescriptor["availableTools"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+    sanitizedDescriptor && Array.isArray(sanitizedDescriptor["availableTools"])
+      ? (sanitizedDescriptor["availableTools"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
   const toolRefs = params.toolRegistry ? requestedToolRefs.filter((name) => params.toolRegistry?.resolve(name)) : requestedToolRefs;
   const ruleRefs =
-    agentDescriptor && Array.isArray(agentDescriptor["ruleRefs"])
-      ? (agentDescriptor["ruleRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+    sanitizedDescriptor && Array.isArray(sanitizedDescriptor["ruleRefs"])
+      ? (sanitizedDescriptor["ruleRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
-  const skillRefs =
-    agentDescriptor && Array.isArray(agentDescriptor["skillRefs"])
-      ? (agentDescriptor["skillRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+  const rawSkillRefs =
+    sanitizedDescriptor && Array.isArray(sanitizedDescriptor["skillRefs"])
+      ? (sanitizedDescriptor["skillRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
-  const subAgentRefs =
-    agentDescriptor && Array.isArray(agentDescriptor["subAgentRefs"])
-      ? (agentDescriptor["subAgentRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
+  const skillRefs = agentIsTenantRef ? filterUserVisibleSkillRefs(rawSkillRefs) : rawSkillRefs;
+  const rawSubAgentRefs =
+    sanitizedDescriptor && Array.isArray(sanitizedDescriptor["subAgentRefs"])
+      ? (sanitizedDescriptor["subAgentRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
-  const maxDepth = agentDescriptor && typeof agentDescriptor["maxDepth"] === "number" ? Number(agentDescriptor["maxDepth"]) : undefined;
+  const subAgentRefs = agentIsTenantRef ? filterUserVisibleSubAgentRefs(rawSubAgentRefs) : rawSubAgentRefs;
+  const maxDepth = sanitizedDescriptor && typeof sanitizedDescriptor["maxDepth"] === "number" ? Number(sanitizedDescriptor["maxDepth"]) : undefined;
   const requestedModel = params.modelCode?.trim() ?? "";
   // 前缀 ref（skl_/rul_）经 tenantResolver 预取（仅已发布），与系统 registry 合并成同构 resolve()；
   // 未发布 / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。

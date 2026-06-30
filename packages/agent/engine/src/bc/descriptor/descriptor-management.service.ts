@@ -22,9 +22,11 @@ import {
   type ProposeRequest,
   type ProposeResult,
   type ProposeSuggestion,
+  isEngineInternalAgentRef,
 } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { assertUserDescriptorContentIsolated } from "./engine-internal-guard";
 import { parseAgentDocument, parseRuleDocument, parseSkillDocument } from "./descriptor-document-parser";
 import { assertDescriptorOwner, assertDescriptorOwnerOrAdmin } from "./descriptor-owner";
 import type { ShelfService } from "./shelf.service";
@@ -267,6 +269,7 @@ export class DescriptorManagementService {
         { kind },
       );
     }
+    assertUserDescriptorContentIsolated(kind, res.data);
     return res.data;
   }
 
@@ -343,6 +346,9 @@ export class DescriptorManagementService {
   async publish(tenant: number, id: string, actor?: string): Promise<TenantDescriptorView> {
     const existing = await this.getOwnedDescriptor(tenant, id);
     assertDescriptorOwner(existing.ownerUserId, actor);
+    if (existing.kind === "agent") {
+      assertUserDescriptorContentIsolated(existing.kind, existing.content);
+    }
     const published = await this.repo.publish(tenant, id, actor);
     await this.appendDescriptorReload(tenant, id);
     return published;
@@ -512,6 +518,7 @@ export class DescriptorManagementService {
       }
       for (const v of views) {
         if (v.status !== "published") continue;
+        if (kind === "agent" && isEngineInternalAgentRef(v.id)) continue;
         const meta = (v.content ?? {}) as { displayName?: unknown; description?: unknown };
         const description =
           typeof meta.description === "string" ? meta.description : typeof meta.displayName === "string" ? meta.displayName : v.name;

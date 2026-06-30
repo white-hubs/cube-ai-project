@@ -216,4 +216,24 @@ describe("ShelfService", () => {
 
     expect(shelfRepo.upsertAuthored).toHaveBeenCalledWith(7, "alice", "agt_1", "agent");
   });
+
+  test("rejects installing engine-internal refs and hides them from shelf list", async () => {
+    const shelfRepo = fakeShelfRepo({
+      listByUser: mock(async () => [
+        fakeEntry({ targetId: "cube-default", displayName: "CUBE Default Agent" }),
+        fakeEntry({ targetId: "1934000000000000001", displayName: "安全智能体" }),
+      ]),
+    });
+    const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo());
+
+    await expect(svc.install(7, "bob", "agent", { ref: "cube-default" })).rejects.toMatchObject({
+      code: "FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR",
+    });
+    await expect(svc.install(7, "bob", "skill", { ref: "chart-output" })).rejects.toMatchObject({
+      code: "FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR",
+    });
+
+    const listed = await svc.list(7, "bob", "agent");
+    expect(listed.map((entry) => entry.targetId)).toEqual(["1934000000000000001"]);
+  });
 });

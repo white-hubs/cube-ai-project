@@ -116,6 +116,21 @@ describe('DescriptorManagementService — validation + lifecycle orchestration',
     ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT_DESCRIPTOR_CONTENT' });
   });
 
+  test('create rejects engine-internal refs in tenant agent content', async () => {
+    const repo = fakeRepo();
+    const svc = new DescriptorManagementService(repo);
+    await expect(
+      svc.create(7, 'agent', {
+        name: 'leak',
+        content: {
+          prompt: 'hello',
+          skillRefs: ['default-reasoning'],
+          subAgentRefs: ['cube-researcher'],
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR' });
+  });
+
   test('create persists validated content (zod defaults applied) and returns view', async () => {
     const repo = fakeRepo();
     const svc = new DescriptorManagementService(repo);

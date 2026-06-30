@@ -1,6 +1,7 @@
-import { parseTenantDescriptorId, type InstallRequest, type ShelfEntryView, type ShelfPatch } from "@cube-ai/contracts";
+import { parseTenantDescriptorId, type InstallRequest, type ShelfEntryView, type ShelfPatch, filterUserVisibleShelfEntries } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { assertUserShelfInstallAllowed } from "./engine-internal-guard";
 import type { DescriptorListingRepository } from "./listing.service";
 import type { TenantDescriptorRepository } from "./tenant-descriptor.repository";
 
@@ -38,7 +39,7 @@ export class ShelfService {
   ) {}
 
   async list(tenant: number, userId: string, kind: "agent" | "skill", opts: ShelfListOptions = {}): Promise<ShelfEntryView[]> {
-    const entries = await this.shelves.listByUser(tenant, userId, kind);
+    const entries = filterUserVisibleShelfEntries(await this.shelves.listByUser(tenant, userId, kind));
     return entries
       .filter((entry) => opts.enabled === undefined || entry.enabled === opts.enabled)
       .filter((entry) => opts.source === undefined || entry.source === opts.source)
@@ -46,6 +47,7 @@ export class ShelfService {
   }
 
   async install(tenant: number, userId: string, kind: "agent" | "skill", req: InstallRequest): Promise<ShelfEntryView> {
+    assertUserShelfInstallAllowed(kind, req.ref);
     if (req.mode === "copy") {
       throw AgenticEngineError.fromCode("UNIMPLEMENTED_COPY_DESCRIPTOR", "Copy install is not implemented in marketplace v1", {
         ref: req.ref,
