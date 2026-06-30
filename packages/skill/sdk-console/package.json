@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/skill-sdk-console",
-  "version": "0.0.1-alpha.11",
+  "version": "0.0.1-alpha.12",
   "type": "module",
   "description": "Skill management console SDK for AI skill center.",
   "sideEffects": false,
