@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 import { ToolDescriptor } from '@cube-ai/contracts';
 import type { LlmProviderPort } from '@cube-ai/contracts';
 import type {
@@ -16,6 +16,8 @@ import { InMemoryStore } from '@cube-ai/agent-engine/adapters/memory';
 import { EngineFactory } from './engine-factory';
 import { createTurnContextHolder } from './turn-context-holder';
 import { SkillRegistryService } from '../descriptor/skill-registry.service';
+import { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
+import type { TenantDescriptorView } from '@cube-ai/contracts';
 
 function testEngineFactory(
   provider: ProviderAdapter,
@@ -25,6 +27,7 @@ function testEngineFactory(
   skillRegistry?: SkillRegistryService,
   localFiles?: ConstructorParameters<typeof EngineFactory>[7],
   llmProvider?: LlmProviderPort,
+  tenantResolver?: TenantDescriptorResolver,
 ): EngineFactory {
   const resolvedLlm =
     llmProvider ?? (provider as CaptureProvider).llmProvider;
@@ -39,6 +42,8 @@ function testEngineFactory(
     localFiles,
     undefined,
     resolvedLlm,
+    undefined,
+    tenantResolver,
   );
 }
 
@@ -630,6 +635,55 @@ describe('EngineFactory', () => {
           JSON.stringify(c.output).includes('chart-output'),
       ),
     ).toBe(true);
+  });
+
+  test('runStream resolves tenant skl_ runtime skill refs via TenantDescriptorResolver', async () => {
+    const provider = createCaptureProvider();
+    const TENANT_SKILL_MARKER = 'TENANT-ONLY-REPLY-I-DONT-KNOW';
+    const tenantSkillId = 'skl_runtime_test';
+    const repo = {
+      resolvePublished: mock(async (_tenant: number, id: string): Promise<TenantDescriptorView | null> => {
+        if (id !== tenantSkillId) return null;
+        return {
+          id: tenantSkillId,
+          kind: 'skill',
+          name: 'only-dont-know',
+          status: 'published',
+          headVersionNo: 1,
+          publishedVersionNo: 1,
+          hasUnpublishedChanges: false,
+          ownerUserId: 'u-1',
+          createTime: 1,
+          updateTime: 1,
+          content: {
+            description: 'Only reply I do not know',
+            instructions: `You must only reply:\n${TENANT_SKILL_MARKER}`,
+          },
+        };
+      }),
+    };
+    const tenantResolver = new TenantDescriptorResolver(repo as never);
+    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, undefined, tenantResolver);
+
+    await drain(
+      factory.runStream({
+        sessionId: 'SESSION-RUNTIME-TENANT-SKILL-1',
+        turnId: 'TURN-RUNTIME-TENANT-SKILL-1',
+        tenant: 42,
+        prompt: '随便问点什么',
+        runtimeRefs: {
+          userSkills: [{ skillId: tenantSkillId, displayName: '我不知道技能' }],
+        },
+      }),
+    );
+
+    expect(repo.resolvePublished).toHaveBeenCalledWith(42, tenantSkillId);
+
+    const systems = provider.capturedMessages.flatMap((msgs) =>
+      msgs.filter((m) => m.role === 'system' && typeof m.content === 'string').map((m) => m.content as string),
+    );
+    const hasTenantSkillInSystem = systems.some((content) => content.includes(TENANT_SKILL_MARKER));
+    expect(hasTenantSkillInSystem).toBe(true);
   });
 
   test('runStream injects inline snapshot skills into system prompt via additionalSkills', async () => {

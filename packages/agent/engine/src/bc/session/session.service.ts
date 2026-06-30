@@ -1,5 +1,4 @@
 import { Injectable } from "@dangao/bun-server";
-import type { SkillDescriptor } from "@tachu/core";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 
 import type { OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
@@ -15,9 +14,9 @@ import {
 } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
-import { assertUserSessionAgentId } from "../descriptor/engine-internal-guard";
 import { SfidService } from "../../infra/sfid/sfid.service";
-import type { RuleDescriptor } from "../descriptor/rule-registry.service";
+import { assertUserSessionAgentId } from "../descriptor/engine-internal-guard";
+import { mergeTenantRules, mergeTenantSkills } from "../descriptor/merge-tenant-registry";
 import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
 import { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import { appendEngineUtcClockBlock } from "../tools/engine-utc";
@@ -70,53 +69,6 @@ function toHttpView(row: SessionRow): SessionHttpView {
   };
 }
 
-/**
- * 把 ruleRefs 里的前缀 id 经 tenantResolver 预取，合并成与系统 registry 同构的同步 resolve()。
- * 无前缀 ref 或无 resolver 时直接返回系统 registry，零额外查询。
- */
-async function mergeTenantRules(
-  refs: readonly string[],
-  base: RuleRegistryResolveLike | undefined,
-  resolver: TenantDescriptorResolver | undefined,
-  tenant: number,
-): Promise<RuleRegistryResolveLike | undefined> {
-  if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "rule");
-  if (!hasTenantRef) return base;
-  const tenantRules = new Map<string, RuleDescriptor>();
-  for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== "rule") continue;
-    const rule = await resolver.getRule(tenant, ref);
-    if (rule) tenantRules.set(ref, rule);
-  }
-  // 即便预取为空（全部未发布）也返回 wrapper：让 hydrate 逐 ref 抛 not-found，
-  // 而非命中「registry 缺失」的内部错误。
-  return {
-    resolve: (name: string, version?: string) => tenantRules.get(name) ?? base?.resolve(name, version),
-  };
-}
-
-/** 同 {@link mergeTenantRules}，skill 版本。 */
-async function mergeTenantSkills(
-  refs: readonly string[],
-  base: SkillRegistryResolveLike | undefined,
-  resolver: TenantDescriptorResolver | undefined,
-  tenant: number,
-): Promise<SkillRegistryResolveLike | undefined> {
-  if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "skill");
-  if (!hasTenantRef) return base;
-  const tenantSkills = new Map<string, SkillDescriptor>();
-  for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== "skill") continue;
-    const skill = await resolver.getSkill(tenant, ref);
-    if (skill) tenantSkills.set(ref, skill);
-  }
-  return {
-    resolve: (name: string, version?: string) => tenantSkills.get(name) ?? base?.resolve(name, version),
-  };
-}
-
 async function buildSnapshots(params: {
   tenant: number;
   userId: string;
@@ -166,12 +118,8 @@ async function buildSnapshots(params: {
           const record = { ...(agentDescriptor as Record<string, unknown>) };
           if (agentIsTenantRef) {
             const content = stripEngineInternalRefsFromAgentContent({
-              skillRefs: Array.isArray(record["skillRefs"])
-                ? (record["skillRefs"] as string[])
-                : [],
-              subAgentRefs: Array.isArray(record["subAgentRefs"])
-                ? (record["subAgentRefs"] as string[])
-                : [],
+              skillRefs: Array.isArray(record["skillRefs"]) ? (record["skillRefs"] as string[]) : [],
+              subAgentRefs: Array.isArray(record["subAgentRefs"]) ? (record["subAgentRefs"] as string[]) : [],
             } satisfies Pick<TenantAgentContent, "skillRefs" | "subAgentRefs">);
             record["skillRefs"] = content.skillRefs;
             record["subAgentRefs"] = content.subAgentRefs;
@@ -219,7 +167,8 @@ async function buildSnapshots(params: {
       ? (sanitizedDescriptor["subAgentRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
   const subAgentRefs = agentIsTenantRef ? filterUserVisibleSubAgentRefs(rawSubAgentRefs) : rawSubAgentRefs;
-  const maxDepth = sanitizedDescriptor && typeof sanitizedDescriptor["maxDepth"] === "number" ? Number(sanitizedDescriptor["maxDepth"]) : undefined;
+  const maxDepth =
+    sanitizedDescriptor && typeof sanitizedDescriptor["maxDepth"] === "number" ? Number(sanitizedDescriptor["maxDepth"]) : undefined;
   const requestedModel = params.modelCode?.trim() ?? "";
   // 前缀 ref（skl_/rul_）经 tenantResolver 预取（仅已发布），与系统 registry 合并成同构 resolve()；
   // 未发布 / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。

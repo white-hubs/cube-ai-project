@@ -426,16 +426,6 @@
         "typescript": "catalog:",
       },
     },
-    "packages/skill/sdk-console": {
-      "name": "@cube-ai/skill-sdk-console",
-      "version": "0.0.1-alpha.12",
-      "dependencies": {
-        "@cube-ai/contracts": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "catalog:",
-      },
-    },
   },
   "overrides": {
     "ioredis": "5.11.1",
@@ -684,8 +674,6 @@
     "@cube-ai/mysql-migration": ["@cube-ai/mysql-migration@workspace:infra/mysql-migration"],
 
     "@cube-ai/platform-adapter-ghcloud": ["@cube-ai/platform-adapter-ghcloud@workspace:packages/platform-adapters/ghcloud"],
-
-    "@cube-ai/skill-sdk-console": ["@cube-ai/skill-sdk-console@workspace:packages/skill/sdk-console"],
 
     "@cube-ai/tenant-context": ["@cube-ai/tenant-context@workspace:infra/tenant-context"],
 

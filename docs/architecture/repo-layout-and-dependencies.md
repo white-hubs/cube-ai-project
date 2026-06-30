@@ -45,9 +45,10 @@ cube-ai-project/
 │   │       │                           #   LlmProviderPort · EmbeddingPort（向量存储无 port，是 infra）
 │   │       └── (wire schema · 不变量常量)
 │   │
-│   ├── agent/                          # 领域分组目录（无 package.json）
-│   │   ├── engine/                     # @cube-ai/agent-engine —— 活跃运行时
-│   │   │   └── src/bc/                 #   session · tools(+mcp-bridge) · jobs · safety · authz · usage …
+│   ├── agent/                          # 领域分组目录（无 package.json）；agent/skill/rule 管理面统一在此
+│   │   ├── engine/                     # @cube-ai/agent-engine —— 活跃运行时（含 descriptor BC：agent/skill/rule）
+│   │   │   └── src/bc/                 #   session · tools · jobs · safety · skill-activation …
+│   │   ├── sdk-console/                # @cube-ai/agent-sdk-console —— agent/skill/rule 管理面（ADR-0016）
 │   │   ├── sdk-client/                 # @cube-ai/agent-sdk-client（框架无关消费面）
 │   │   ├── sdk-client-vue/             # @cube-ai/agent-sdk-client-vue
 │   │   ├── sdk-client-assistant/       # @cube-ai/agent-sdk-client-assistant
@@ -95,6 +96,7 @@ cube-ai-project/
 | ------------------------------------ | ----------------------------------- | -------------------------------------------- |
 | `packages/contracts`                 | `@cube-ai/contracts`                | 单包扁平                                     |
 | `packages/agent/engine`              | `@cube-ai/agent-engine`             | 活跃运行时（`engine` 非 `core`）             |
+| `packages/agent/sdk-console`         | `@cube-ai/agent-sdk-console`        | agent/skill/rule 管理面（无独立 skill 包）   |
 | `packages/agent/sdk-client-vue`      | `@cube-ai/agent-sdk-client-vue`     | client 面 + 框架后缀                         |
 | `packages/llm/core`                  | `@cube-ai/llm-core`                 | provider + catalog 两 BC                     |
 | `packages/llm/sdk-console`           | `@cube-ai/llm-sdk-console`          | console 面                                   |

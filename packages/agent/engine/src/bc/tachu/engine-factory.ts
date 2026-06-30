@@ -15,7 +15,7 @@ import {
   type MemorySystem,
 } from "@tachu/core";
 
-import { RuntimeRefsSchema } from "@cube-ai/contracts";
+import { RuntimeRefsSchema, DEFAULT_USER_SESSION_SKILL_REFS } from "@cube-ai/contracts";
 import type { LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
 import type { ImageAttachment, MessageContentV1 } from "@cube-ai/contracts";
 
@@ -25,6 +25,9 @@ import { SkillRegistryService } from "../descriptor/skill-registry.service";
 import { LocalFileService } from "../files/local-file.service";
 import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session/snapshot-skill-hydration";
 import { appendSkillDiscoveryHint } from "../skill-activation/skill-activation-bridge";
+import { mergeTenantSkills } from "../descriptor/merge-tenant-registry";
+import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
+import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
 import { type IntentRoutingBlock } from "../tool-activation";
 import type { ToolHandlerCtx } from "../tools/tool-context";
 import { ToolService } from "../tools/tool.service";
@@ -40,6 +43,8 @@ import type { TurnContextHolder } from "./turn-context-holder";
 
 const RUNTIME_SKILL_REFS_TOOL_NAME = "runtime.skill.refs";
 const RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME = "platform.knowledge.query";
+/** Session-default skills dropped from Active Skills when the user @-pins skills this turn. */
+const DEFERRABLE_SESSION_SKILL_NAMES = new Set<string>(DEFAULT_USER_SESSION_SKILL_REFS);
 
 type RuntimeKnowledgeRef = NonNullable<RuntimeRefs["knowledgeBases"]>[number];
 type RuntimeSkillRef = NonNullable<RuntimeRefs["userSkills"]>[number];
@@ -93,11 +98,37 @@ function appendRuntimeSkillRefsHint(systemInstruction: string, runtimeRefs: Runt
 
   const hint = [
     "## Runtime Skill References",
-    "The user explicitly attached these skills for this turn. Treat them as pinned current-turn skills when their instructions are available.",
+    "The user explicitly @-attached these skills for this turn. Their full instructions appear under **User @-Pinned Skills** at the end of this system message and override agent role / default skills when they conflict.",
     ...lines,
   ].join("\n");
   return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join("\n\n");
 }
+
+function resolveRuntimeUserSkills(
+  runtimeRefs: RuntimeRefs | undefined,
+  skillResolver: SkillRegistryResolveLike | undefined,
+): SkillDescriptor[] {
+  if (!skillResolver) return [];
+  const out: SkillDescriptor[] = [];
+  for (const ref of uniqueRuntimeSkillRefs(runtimeRefs)) {
+    const skill = skillResolver.resolve(ref.skillId);
+    if (skill) out.push(skill);
+  }
+  return out;
+}
+
+/** Inline @-pinned skill contracts at the end of systemInstruction (survives skill-budget trimming). */
+function appendRuntimeSkillPriorityOverride(
+  systemInstruction: string,
+  runtimeRefs: RuntimeRefs | undefined,
+  skills: readonly SkillDescriptor[],
+): string {
+  if (skills.length === 0) return systemInstruction;
+
+  const sections: string[] = [];
+  for (const ref of uniqueRuntimeSkillRefs(runtimeRefs)) {
+    const skill = skills.find((item) => item.name === skills.find((s) => s)?.name && skillResolverMatch(skill, ref, skills));
+  }
 
 function uniqueRuntimeKnowledgeRefs(runtimeRefs: RuntimeRefs | undefined): RuntimeKnowledgeRef[] {
   const out: RuntimeKnowledgeRef[] = [];
@@ -312,6 +343,7 @@ export class EngineFactory {
   private readonly defaultModel: string;
   private readonly descriptorRegistry?: DescriptorRegistryService;
   private readonly skillRegistry?: SkillRegistryService;
+  private readonly tenantResolver?: TenantDescriptorResolver;
   /** 与 DescriptorRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 tool 表。 */
   private toolsMirrorSig = "";
   /** 与 SkillRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 skill 表。 */
@@ -344,9 +376,11 @@ export class EngineFactory {
      * 该时机陷阱；解析失败也会显式抛错而非伪造成功。
      */
     private readonly toolServiceProvider?: () => ToolService | undefined,
+    tenantResolver?: TenantDescriptorResolver,
   ) {
     this.descriptorRegistry = descriptorRegistry;
     this.skillRegistry = skillRegistry;
+    this.tenantResolver = tenantResolver;
     this.providerId = provider.id;
     this.defaultModel = resolveNonEmptyModel(process.env["AGENTIC_ENGINE_MODEL"], "gpt-4o-mini");
 
@@ -409,7 +443,15 @@ export class EngineFactory {
       yield chunk;
     }
     const input = await this.buildInputEnvelope(arg);
-    const scope = this.buildSessionScope(arg, knowledgePrefetch.promptContext);
+    const runtimeSkillIds = uniqueRuntimeSkillRefs(arg.runtimeRefs).map((ref) => ref.skillId);
+    const runtimeSkillResolver = await mergeTenantSkills(
+      runtimeSkillIds,
+      this.skillRegistry,
+      this.tenantResolver,
+      arg.tenant,
+    );
+    await this.mirrorRuntimeSkillsToTachuIfNeeded(runtimeSkillResolver, arg.runtimeRefs);
+    const scope = this.buildSessionScope(arg, knowledgePrefetch.promptContext, runtimeSkillResolver);
     this.turnContext.embeddingModelCode = arg.skillEmbeddingModelCode;
     this.turnContext.intentRoutingBlock = (arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined) ?? null;
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
@@ -752,6 +794,21 @@ export class EngineFactory {
     this.skillsMirrorSig = sig;
   }
 
+  /** Register per-turn @-mentioned skills (incl. tenant `skl_*`) so tachu can render Active Skills. */
+  private async mirrorRuntimeSkillsToTachuIfNeeded(
+    skillResolver: SkillRegistryResolveLike | undefined,
+    runtimeRefs: RuntimeRefs | undefined,
+  ): Promise<void> {
+    if (!skillResolver) return;
+    for (const ref of uniqueRuntimeSkillRefs(runtimeRefs)) {
+      const skill = skillResolver.resolve(ref.skillId);
+      if (!skill) continue;
+      const existing = this.tachuRegistry.list("skill").some((entry) => entry.name === skill.name);
+      if (existing) continue;
+      await this.tachuRegistry.register(skill);
+    }
+  }
+
   /**
    * 构造 SessionScope —— 本类的核心翻译逻辑。
    *
@@ -763,7 +820,11 @@ export class EngineFactory {
    * - additionalSkills：快照内联 skill 名称列表（ADR-0007：作为 snapshot-refs 输入，T0 pinned）。
    * - keyword 候选由 tachu `SkillActivator` + `KeywordCandidateStrategy` 处理。
    */
-  private buildSessionScope(arg: TurnRunStreamInput, retrievedKnowledgeContext?: string): SessionScope {
+  private buildSessionScope(
+    arg: TurnRunStreamInput,
+    retrievedKnowledgeContext?: string,
+    skillResolver?: SkillRegistryResolveLike,
+  ): SessionScope {
     const rawPrompt = arg.agentSnapshot?.agent?.content?.prompt;
     const model =
       resolveNonEmptyModel(arg.turnModelCode) ||
@@ -775,7 +836,7 @@ export class EngineFactory {
     const scope: SessionScope = {
       modelOverride: { all: { provider: this.providerId, model } },
       additionalRules: [],
-      additionalSkills: this.resolvePinnedSkillsForTurn(arg),
+      additionalSkills: this.resolvePinnedSkillsForTurn(arg, skillResolver),
       additionalTools: [],
       ...(arg.nextStreamId !== undefined ? { idFactory: arg.nextStreamId } : {}),
       ...(intentRouting?.enabled === false ? { toolRoutingDisabled: true } : {}),
@@ -831,9 +892,10 @@ export class EngineFactory {
     const registeredToolNames = registeredTools.map((tool) => tool.name);
     const registeredSkillNames = registeredSkills.map((skill) => skill.name);
     const explicitToolNames = new Set(findExplicitToolMentions(arg.prompt, registeredToolNames));
+    const resolveSkill = skillResolver ?? this.skillRegistry;
     const explicitSkillNames = new Set(findExplicitSkillMentions(arg.prompt, registeredSkillNames));
     for (const ref of uniqueRuntimeSkillRefs(arg.runtimeRefs)) {
-      const resolved = this.skillRegistry?.resolve(ref.skillId);
+      const resolved = resolveSkill?.resolve(ref.skillId);
       if (resolved?.name) explicitSkillNames.add(resolved.name);
     }
     if (explicitToolNames.size > 0) {
@@ -849,7 +911,10 @@ export class EngineFactory {
   /**
    * Snapshot skills[] first; legacy sessions with only skillRefs fall back to live registry.
    */
-  private resolvePinnedSkillsForTurn(arg: TurnRunStreamInput): SkillDescriptor[] {
+  private resolvePinnedSkillsForTurn(
+    arg: TurnRunStreamInput,
+    skillResolver?: SkillRegistryResolveLike,
+  ): SkillDescriptor[] {
     const out: SkillDescriptor[] = [];
     const seen = new Set<string>();
     const push = (skill: SkillDescriptor | undefined): void => {
@@ -858,9 +923,10 @@ export class EngineFactory {
       out.push(skill);
     };
 
-    if (this.skillRegistry) {
+    const resolveSkill = skillResolver ?? this.skillRegistry;
+    if (resolveSkill) {
       for (const ref of uniqueRuntimeSkillRefs(arg.runtimeRefs)) {
-        push(this.skillRegistry.resolve(ref.skillId));
+        push(resolveSkill.resolve(ref.skillId));
       }
     }
 

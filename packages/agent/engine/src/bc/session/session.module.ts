@@ -154,6 +154,12 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           llmProvider = undefined;
         }
+        let tenantResolver: TenantDescriptorResolver | undefined;
+        try {
+          tenantResolver = c.resolve(TenantDescriptorResolver) as TenantDescriptorResolver;
+        } catch {
+          tenantResolver = undefined;
+        }
         return new EngineFactory(
           provider,
           observability,
@@ -166,6 +172,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           projectionRelay,
           llmProvider,
           toolServiceProvider,
+          tenantResolver,
         );
       },
     },
