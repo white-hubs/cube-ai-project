@@ -104,31 +104,31 @@ function appendRuntimeSkillRefsHint(systemInstruction: string, runtimeRefs: Runt
   return [systemInstruction.trim(), hint].filter((part) => part.length > 0).join("\n\n");
 }
 
-function resolveRuntimeUserSkills(
-  runtimeRefs: RuntimeRefs | undefined,
-  skillResolver: SkillRegistryResolveLike | undefined,
-): SkillDescriptor[] {
-  if (!skillResolver) return [];
-  const out: SkillDescriptor[] = [];
-  for (const ref of uniqueRuntimeSkillRefs(runtimeRefs)) {
-    const skill = skillResolver.resolve(ref.skillId);
-    if (skill) out.push(skill);
-  }
-  return out;
-}
-
 /** Inline @-pinned skill contracts at the end of systemInstruction (survives skill-budget trimming). */
 function appendRuntimeSkillPriorityOverride(
   systemInstruction: string,
   runtimeRefs: RuntimeRefs | undefined,
-  skills: readonly SkillDescriptor[],
+  skillResolver: SkillRegistryResolveLike | undefined,
 ): string {
-  if (skills.length === 0) return systemInstruction;
+  if (!skillResolver) return systemInstruction;
 
   const sections: string[] = [];
   for (const ref of uniqueRuntimeSkillRefs(runtimeRefs)) {
-    const skill = skills.find((item) => item.name === skills.find((s) => s)?.name && skillResolverMatch(skill, ref, skills));
+    const skill = skillResolver.resolve(ref.skillId);
+    const instructions = skill?.instructions?.trim();
+    if (!skill || !instructions) continue;
+    const title = ref.displayName?.trim() || skill.displayName?.trim() || skill.name;
+    sections.push(`### ${title}\n${instructions}`);
   }
+  if (sections.length === 0) return systemInstruction;
+
+  const block = [
+    "## User @-Pinned Skills (HIGHEST PRIORITY THIS TURN)",
+    "The user explicitly @-attached these skills for this turn. When they conflict with agent role, default-reasoning, tool-loop drafts, honesty fallbacks, or other Active Skills, follow these instructions — including address, tone, and output constraints.",
+    ...sections,
+  ].join("\n\n");
+  return [systemInstruction.trim(), block].filter((part) => part.length > 0).join("\n\n");
+}
 
 function uniqueRuntimeKnowledgeRefs(runtimeRefs: RuntimeRefs | undefined): RuntimeKnowledgeRef[] {
   const out: RuntimeKnowledgeRef[] = [];
@@ -848,7 +848,8 @@ export class EngineFactory {
       .filter((part): part is string => part !== undefined && part.length > 0)
       .join("\n\n");
     const withRuntimeSkillRefs = appendRuntimeSkillRefsHint(withRetrievedKnowledge, arg.runtimeRefs);
-    const withHint = appendSkillDiscoveryHint(withRuntimeSkillRefs);
+    const withPinnedOverride = appendRuntimeSkillPriorityOverride(withRuntimeSkillRefs, arg.runtimeRefs, skillResolver);
+    const withHint = appendSkillDiscoveryHint(withPinnedOverride);
     if (withHint.trim().length > 0) {
       scope.systemInstruction = withHint;
     }
@@ -924,25 +925,38 @@ export class EngineFactory {
     };
 
     const resolveSkill = skillResolver ?? this.skillRegistry;
-    if (resolveSkill) {
-      for (const ref of uniqueRuntimeSkillRefs(arg.runtimeRefs)) {
+    const runtimeRefs = uniqueRuntimeSkillRefs(arg.runtimeRefs);
+    const hasRuntimeUserSkills = runtimeRefs.length > 0;
+
+    const pushSnapshotSkills = (skills: SkillDescriptor[]): void => {
+      for (const skill of skills) {
+        if (hasRuntimeUserSkills && DEFERRABLE_SESSION_SKILL_NAMES.has(skill.name)) continue;
+        push(skill);
+      }
+    };
+
+    const pushRuntimeSkills = (): void => {
+      if (!resolveSkill) return;
+      for (const ref of runtimeRefs) {
         push(resolveSkill.resolve(ref.skillId));
       }
-    }
+    };
 
     const fromSnapshot = snapshotSkillsToDescriptors(arg.agentSnapshot?.skills);
     if (fromSnapshot.length > 0) {
-      for (const skill of fromSnapshot) push(skill);
+      pushSnapshotSkills(fromSnapshot);
+      pushRuntimeSkills();
       return out;
     }
 
     const refs = arg.agentSnapshot?.agent?.content?.skillRefs;
-    if (!refs || refs.length === 0 || !this.skillRegistry) {
-      return out;
+    if (refs && refs.length > 0 && this.skillRegistry) {
+      for (const name of refs) {
+        if (hasRuntimeUserSkills && DEFERRABLE_SESSION_SKILL_NAMES.has(name)) continue;
+        push(this.skillRegistry.resolve(name));
+      }
     }
-    for (const name of refs) {
-      push(this.skillRegistry.resolve(name));
-    }
+    pushRuntimeSkills();
     return out;
   }
 

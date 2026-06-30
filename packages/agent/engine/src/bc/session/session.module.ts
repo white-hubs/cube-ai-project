@@ -1,51 +1,38 @@
-import { Module } from '@dangao/bun-server';
-import type { Pool } from 'mysql2/promise';
-import {
-  AGENTIC_OBSERVABILITY_TOKEN,
-  AGENTIC_PROVIDER_TOKEN,
-  AGENTIC_MEMORY_SYSTEM_TOKEN,
-} from '@cube-ai/agent-engine/adapters';
-import {
-  AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN,
-  type LlmProviderPort,
-} from '@cube-ai/contracts/platform';
-import {
-  TURN_CONTEXT_HOLDER_TOKEN,
-  MEMORY_PROJECTION_RELAY_TOKEN,
-} from '../tachu/tachu.tokens';
-import { MemoryProjectionRelayService } from '../../infra/memory-projection/memory-projection-relay.service';
-import { OutboxWriterImpl, OUTBOX_WRITER_TOKEN } from '@cube-ai/bun-server-ext-outbox';
-import { SseExtModule } from '@cube-ai/bun-server-ext-sse';
-import { DescriptorModule } from '../descriptor/descriptor.module';
-import { DescriptorRegistryService } from '../descriptor/descriptor-registry.service';
-import { DescriptorLoader } from '../descriptor/descriptor-loader';
-import { SkillRegistryService } from '../descriptor/skill-registry.service';
-import { RuleRegistryService } from '../descriptor/rule-registry.service';
-import { TenantDescriptorRepositoryImpl } from '../descriptor/tenant-descriptor.repository';
-import { TenantDescriptorResolver } from '../descriptor/tenant-descriptor-resolver';
-import { DescriptorListingRepositoryImpl } from '../descriptor/descriptor-listing.repository';
-import { RunnableAgentResolver } from '../descriptor/runnable-agent-resolver';
-import { UserShelfRepositoryImpl } from '../descriptor/user-shelf.repository';
-import { sharedSfidService } from '../../infra/sfid/shared-sfid';
-import { SessionService } from './session.service';
-import { TurnService } from './turn.service';
-import { TurnLockService } from './turn-lock.service';
-import { SnapshotService } from './snapshot.service';
-import { SnapshotDecision } from './snapshot-decision';
-import { EngineFactory } from '../tachu/engine-factory';
-import { TachuRuntimeModule } from '../tachu/tachu-runtime.module';
-import { SessionController } from './session.controller';
-import { SessionRepositoryImpl } from './repository/session.repository';
-import { TurnRepository } from './turn.repository';
-import { createEngineMysqlPool } from './mysql-pool';
-import { createSessionRedis } from './session-redis';
-import { JobsModule } from '../jobs/jobs.module';
-import { ToolsModule } from '../tools/tools.module';
-import { ToolService } from '../tools/tool.service';
-import { LocalFileController } from '../files/local-file.controller';
-import { LocalFileGc } from '../files/local-file.gc';
-import { LocalFileRepository } from '../files/local-file.repository';
-import { LocalFileService } from '../files/local-file.service';
+import { Module } from "@dangao/bun-server";
+import type { Pool } from "mysql2/promise";
+
+import { AGENTIC_OBSERVABILITY_TOKEN, AGENTIC_PROVIDER_TOKEN, AGENTIC_MEMORY_SYSTEM_TOKEN } from "@cube-ai/agent-engine/adapters";
+import { OutboxWriterImpl, OUTBOX_WRITER_TOKEN } from "@cube-ai/bun-server-ext-outbox";
+import { SseExtModule } from "@cube-ai/bun-server-ext-sse";
+import { AGENTIC_PLATFORM_LLM_PROVIDER_TOKEN, type LlmProviderPort } from "@cube-ai/contracts/platform";
+
+import { MemoryProjectionRelayService } from "../../infra/memory-projection/memory-projection-relay.service";
+import { sharedSfidService } from "../../infra/sfid/shared-sfid";
+import { DescriptorListingRepositoryImpl } from "../descriptor/descriptor-listing.repository";
+import { DescriptorLoader } from "../descriptor/descriptor-loader";
+import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
+import { DescriptorModule } from "../descriptor/descriptor.module";
+import { RuleRegistryService } from "../descriptor/rule-registry.service";
+import { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
+import { SkillRegistryService } from "../descriptor/skill-registry.service";
+import { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
+import { TenantDescriptorRepositoryImpl } from "../descriptor/tenant-descriptor.repository";
+import { UserShelfRepositoryImpl } from "../descriptor/user-shelf.repository";
+import { LocalFileController } from "../files/local-file.controller";
+import { LocalFileGc } from "../files/local-file.gc";
+import { LocalFileRepository } from "../files/local-file.repository";
+import { LocalFileService } from "../files/local-file.service";
+import { JobsModule } from "../jobs/jobs.module";
+import { EngineFactory } from "../tachu/engine-factory";
+import { TachuRuntimeModule } from "../tachu/tachu-runtime.module";
+import { TURN_CONTEXT_HOLDER_TOKEN, MEMORY_PROJECTION_RELAY_TOKEN } from "../tachu/tachu.tokens";
+import { ToolService } from "../tools/tool.service";
+import { ToolsModule } from "../tools/tools.module";
+import { createEngineMysqlPool } from "./mysql-pool";
+import { SessionRepositoryImpl } from "./repository/session.repository";
+import { createSessionRedis } from "./session-redis";
+import { SessionController } from "./session.controller";
+import { SessionService } from "./session.service";
 import {
   TURN_LOCK_SERVICE_TOKEN,
   SNAPSHOT_SERVICE_TOKEN,
@@ -53,7 +40,12 @@ import {
   REDIS_CLIENT_TOKEN,
   MYSQL_POOL_TOKEN,
   TURN_REPO_TOKEN,
-} from './session.tokens';
+} from "./session.tokens";
+import { SnapshotDecision } from "./snapshot-decision";
+import { SnapshotService } from "./snapshot.service";
+import { TurnLockService } from "./turn-lock.service";
+import { TurnRepository } from "./turn.repository";
+import { TurnService } from "./turn.service";
 
 type DiContainer = { resolve: (token: unknown) => unknown };
 
@@ -76,8 +68,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
     },
     {
       provide: SESSION_REPO_TOKEN,
-      useFactory: () =>
-        new SessionRepositoryImpl(createEngineMysqlPool()),
+      useFactory: () => new SessionRepositoryImpl(createEngineMysqlPool()),
     },
     LocalFileRepository,
     LocalFileService,
@@ -105,12 +96,8 @@ type DiContainer = { resolve: (token: unknown) => unknown };
       useFactory: (c: DiContainer) => {
         // EngineFactory 仍以 tachu.Engine 为编排核心；tool-use 子流程通过
         // TaskExecutor 回调业务 ToolService，复用工具 BC 的鉴权/安全/审计/MCP。
-        const provider = c.resolve(AGENTIC_PROVIDER_TOKEN) as ConstructorParameters<
-          typeof EngineFactory
-        >[0];
-        const observability = c.resolve(
-          AGENTIC_OBSERVABILITY_TOKEN,
-        ) as ConstructorParameters<typeof EngineFactory>[1];
+        const provider = c.resolve(AGENTIC_PROVIDER_TOKEN) as ConstructorParameters<typeof EngineFactory>[0];
+        const observability = c.resolve(AGENTIC_OBSERVABILITY_TOKEN) as ConstructorParameters<typeof EngineFactory>[1];
         let descriptorRegistry: DescriptorRegistryService | undefined;
         try {
           descriptorRegistry = c.resolve(DescriptorRegistryService) as DescriptorRegistryService;
@@ -122,8 +109,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         // 异常吞成 undefined 并永久缓存，导致所有工具调用降级成 `[executed:tool]`
         // 桩输出。改为传入惰性 provider，ToolService 仅在真正执行工具（请求期、
         // 容器已完整装配）时解析。
-        const toolServiceProvider = (): ToolService | undefined =>
-          c.resolve(ToolService) as ToolService;
+        const toolServiceProvider = (): ToolService | undefined => c.resolve(ToolService) as ToolService;
         let skillRegistry: SkillRegistryService | undefined;
         try {
           skillRegistry = c.resolve(SkillRegistryService) as SkillRegistryService;
@@ -136,12 +122,8 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           localFiles = undefined;
         }
-        const memorySystem = c.resolve(AGENTIC_MEMORY_SYSTEM_TOKEN) as ConstructorParameters<
-          typeof EngineFactory
-        >[2];
-        const turnContext = c.resolve(TURN_CONTEXT_HOLDER_TOKEN) as ConstructorParameters<
-          typeof EngineFactory
-        >[3];
+        const memorySystem = c.resolve(AGENTIC_MEMORY_SYSTEM_TOKEN) as ConstructorParameters<typeof EngineFactory>[2];
+        const turnContext = c.resolve(TURN_CONTEXT_HOLDER_TOKEN) as ConstructorParameters<typeof EngineFactory>[3];
         let projectionRelay: MemoryProjectionRelayService | undefined;
         try {
           projectionRelay = c.resolve(MEMORY_PROJECTION_RELAY_TOKEN) as MemoryProjectionRelayService;
@@ -214,9 +196,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           descriptorRegistry = undefined;
         }
         // 租户级 descriptor 运行时解析器（前缀路由 + 已发布 head + 条目缓存，ADR-0016 §5）。
-        const tenantResolver = new TenantDescriptorResolver(
-          new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
-        );
+        const tenantResolver = new TenantDescriptorResolver(new TenantDescriptorRepositoryImpl(pool, sharedSfidService));
         const runnableAgentResolver = new RunnableAgentResolver(
           new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
           new DescriptorListingRepositoryImpl(pool),
@@ -247,12 +227,6 @@ type DiContainer = { resolve: (token: unknown) => unknown };
   //
   // Symbol aliases used by exported classes must be exported too, otherwise
   // cross-module / parent-container resolve fails with "Provider not found".
-  exports: [
-    REDIS_CLIENT_TOKEN,
-    MYSQL_POOL_TOKEN,
-    TURN_REPO_TOKEN,
-    TURN_LOCK_SERVICE_TOKEN,
-    SNAPSHOT_SERVICE_TOKEN,
-  ],
+  exports: [REDIS_CLIENT_TOKEN, MYSQL_POOL_TOKEN, TURN_REPO_TOKEN, TURN_LOCK_SERVICE_TOKEN, SNAPSHOT_SERVICE_TOKEN],
 })
 export class SessionModule {}

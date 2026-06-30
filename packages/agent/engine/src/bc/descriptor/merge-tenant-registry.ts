@@ -1,10 +1,11 @@
-import type { SkillDescriptor } from '@tachu/core';
-import { parseTenantDescriptorId } from '@cube-ai/contracts';
+import type { SkillDescriptor } from "@tachu/core";
 
-import type { RuleDescriptor } from './rule-registry.service';
-import type { TenantDescriptorResolver } from './tenant-descriptor-resolver';
-import type { RuleRegistryResolveLike } from '../session/snapshot-rule-hydration';
-import type { SkillRegistryResolveLike } from '../session/snapshot-skill-hydration';
+import { parseTenantDescriptorId } from "@cube-ai/contracts";
+
+import type { RuleRegistryResolveLike } from "../session/snapshot-rule-hydration";
+import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
+import type { RuleDescriptor } from "./rule-registry.service";
+import type { TenantDescriptorResolver } from "./tenant-descriptor-resolver";
 
 /**
  * Prefetch tenant `rul_*` refs and merge into a synchronous resolve() wrapper.
@@ -17,11 +18,11 @@ export async function mergeTenantRules(
   tenant: number,
 ): Promise<RuleRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'rule');
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "rule");
   if (!hasTenantRef) return base;
   const tenantRules = new Map<string, RuleDescriptor>();
   for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== 'rule') continue;
+    if (parseTenantDescriptorId(ref)?.kind !== "rule") continue;
     const rule = await resolver.getRule(tenant, ref);
     if (rule) tenantRules.set(ref, rule);
   }
@@ -41,11 +42,11 @@ export async function mergeTenantSkills(
   tenant: number,
 ): Promise<SkillRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
-  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === 'skill');
+  const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "skill");
   if (!hasTenantRef) return base;
   const tenantSkills = new Map<string, SkillDescriptor>();
   for (const ref of refs) {
-    if (parseTenantDescriptorId(ref)?.kind !== 'skill') continue;
+    if (parseTenantDescriptorId(ref)?.kind !== "skill") continue;
     const skill = await resolver.getSkill(tenant, ref);
     if (skill) tenantSkills.set(ref, skill);
   }
