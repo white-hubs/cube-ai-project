@@ -295,7 +295,23 @@ describe("SessionService — business flows", () => {
               instructions: "do work",
               trigger: { type: "semantic" as const },
             }
-          : undefined,
+          : name === "default-reasoning"
+            ? {
+                kind: "skill" as const,
+                name: "default-reasoning",
+                description: "reasoning",
+                instructions: "think step by step",
+                trigger: { type: "semantic" as const },
+              }
+            : name === "chart-output"
+              ? {
+                  kind: "skill" as const,
+                  name: "chart-output",
+                  description: "charts",
+                  instructions: "echarts fence",
+                  trigger: { type: "semantic" as const },
+                }
+              : undefined,
     };
     const svc = new SessionService(
       sfid,
@@ -314,9 +330,11 @@ describe("SessionService — business flows", () => {
 
     const snapshot = capturedInput?.agentSnapshotJson as {
       agent?: { content?: { skillRefs?: string[]; subAgentRefs?: string[] } };
+      skills?: Array<{ name: string }>;
     };
-    expect(snapshot.agent?.content?.skillRefs).toEqual(["my-skill"]);
+    expect(snapshot.agent?.content?.skillRefs).toEqual(["my-skill", "default-reasoning", "chart-output"]);
     expect(snapshot.agent?.content?.subAgentRefs).toEqual(["agt_child"]);
+    expect(snapshot.skills?.map((row) => row.name)).toEqual(["my-skill", "default-reasoning", "chart-output"]);
   });
 
   test("createSession freezes only currently registered MCP tool refs", async () => {

@@ -222,11 +222,16 @@ describe("ShelfService", () => {
       listByUser: mock(async () => [
         fakeEntry({ targetId: "cube-default", displayName: "CUBE Default Agent" }),
         fakeEntry({ targetId: "1934000000000000001", displayName: "安全智能体" }),
+        fakeEntry({ targetKind: "skill", targetId: "default-reasoning", displayName: "默认推理" }),
+        fakeEntry({ targetKind: "skill", targetId: "chart-output", displayName: "图表输出" }),
       ]),
     });
     const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo());
 
     await expect(svc.install(7, "bob", "agent", { ref: "cube-default" })).rejects.toMatchObject({
+      code: "FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR",
+    });
+    await expect(svc.install(7, "bob", "skill", { ref: "default-reasoning" })).rejects.toMatchObject({
       code: "FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR",
     });
     await expect(svc.install(7, "bob", "skill", { ref: "chart-output" })).rejects.toMatchObject({

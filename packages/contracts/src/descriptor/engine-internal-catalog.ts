@@ -12,10 +12,16 @@ export const ENGINE_INTERNAL_AGENT_REFS = [
 ] as const;
 
 /**
- * 引擎运行时内置 skill，由 semantic recall / turn policy 等内部激活。
- * 与用户技能资产隔离：不可安装、不可写入用户 agent.skillRefs。
+ * 引擎运行时内置 skill：技能库/货架不可见、不可安装、不可写入用户 agent.skillRefs。
+ * 租户会话仍会通过 {@link DEFAULT_USER_SESSION_SKILL_REFS} 默认注入。
  */
 export const ENGINE_INTERNAL_SKILL_REFS = ["default-reasoning", "chart-output"] as const;
+
+/**
+ * 租户用户会话默认挂载的系统 skill（ADR-0023）。
+ * 创建 session 时在用户可见 skillRefs 之上自动补齐（与 {@link ENGINE_INTERNAL_SKILL_REFS} 解耦）。
+ */
+export const DEFAULT_USER_SESSION_SKILL_REFS = ["default-reasoning", "chart-output"] as const;
 
 export type EngineInternalAgentRef = (typeof ENGINE_INTERNAL_AGENT_REFS)[number];
 export type EngineInternalSkillRef = (typeof ENGINE_INTERNAL_SKILL_REFS)[number];
@@ -91,4 +97,19 @@ export function filterUserVisibleSkillRefs(refs: readonly string[]): string[] {
 
 export function filterUserVisibleSubAgentRefs(refs: readonly string[]): string[] {
   return refs.filter((ref) => !isEngineInternalAgentRef(ref));
+}
+
+/** 租户用户 session：在 agent 已配置 skillRefs 之上补齐默认系统 skill。 */
+export function withDefaultUserSessionSkillRefs(
+  refs: readonly string[],
+  opts?: { resolvable?: (ref: string) => boolean },
+): string[] {
+  const merged = [...refs];
+  const canAdd = opts?.resolvable ?? (() => true);
+  for (const name of DEFAULT_USER_SESSION_SKILL_REFS) {
+    if (!merged.includes(name) && canAdd(name)) {
+      merged.push(name);
+    }
+  }
+  return merged;
 }

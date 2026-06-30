@@ -10,6 +10,7 @@ import {
   filterUserVisibleSubAgentRefs,
   parseTenantDescriptorId,
   stripEngineInternalRefsFromAgentContent,
+  withDefaultUserSessionSkillRefs,
   type TenantAgentContent,
 } from "@cube-ai/contracts";
 
@@ -208,7 +209,11 @@ async function buildSnapshots(params: {
     sanitizedDescriptor && Array.isArray(sanitizedDescriptor["skillRefs"])
       ? (sanitizedDescriptor["skillRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
-  const skillRefs = agentIsTenantRef ? filterUserVisibleSkillRefs(rawSkillRefs) : rawSkillRefs;
+  const skillRefs = agentIsTenantRef
+    ? withDefaultUserSessionSkillRefs(filterUserVisibleSkillRefs(rawSkillRefs), {
+        resolvable: (ref) => params.skillRegistry?.resolve(ref) != null,
+      })
+    : rawSkillRefs;
   const rawSubAgentRefs =
     sanitizedDescriptor && Array.isArray(sanitizedDescriptor["subAgentRefs"])
       ? (sanitizedDescriptor["subAgentRefs"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
