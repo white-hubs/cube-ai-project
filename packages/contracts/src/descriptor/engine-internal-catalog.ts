@@ -5,11 +5,7 @@ import type { TenantAgentContent } from "./tenant-descriptor";
  * 引擎运行时内置 agent（文件/registry），供 cube-default 编排、子智能体委托等内部链路使用。
  * 与用户租户资产、产品默认智能体（193400000000000000*）隔离：不可安装、不可会话、不可写入用户 descriptor。
  */
-export const ENGINE_INTERNAL_AGENT_REFS = [
-  "cube-default",
-  "cube-descriptor-manager",
-  "cube-researcher",
-] as const;
+export const ENGINE_INTERNAL_AGENT_REFS = ["cube-default", "cube-descriptor-manager", "cube-researcher"] as const;
 
 /**
  * 引擎运行时内置 skill：技能库/货架不可见、不可安装、不可写入用户 agent.skillRefs。
@@ -53,7 +49,9 @@ export interface EngineInternalRefViolation {
 }
 
 /** 扫描用户 agent content 是否引用了引擎内置资产。 */
-export function findEngineInternalRefsInAgentContent(content: Pick<TenantAgentContent, "skillRefs" | "subAgentRefs">): EngineInternalRefViolation[] {
+export function findEngineInternalRefsInAgentContent(
+  content: Pick<TenantAgentContent, "skillRefs" | "subAgentRefs">,
+): EngineInternalRefViolation[] {
   const violations: EngineInternalRefViolation[] = [];
   for (const ref of content.skillRefs ?? []) {
     if (isEngineInternalSkillRef(ref)) {
@@ -100,10 +98,7 @@ export function filterUserVisibleSubAgentRefs(refs: readonly string[]): string[]
 }
 
 /** 租户用户 session：在 agent 已配置 skillRefs 之上补齐默认系统 skill。 */
-export function withDefaultUserSessionSkillRefs(
-  refs: readonly string[],
-  opts?: { resolvable?: (ref: string) => boolean },
-): string[] {
+export function withDefaultUserSessionSkillRefs(refs: readonly string[], opts?: { resolvable?: (ref: string) => boolean }): string[] {
   const merged = [...refs];
   const canAdd = opts?.resolvable ?? (() => true);
   for (const name of DEFAULT_USER_SESSION_SKILL_REFS) {

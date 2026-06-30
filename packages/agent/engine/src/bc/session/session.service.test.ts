@@ -313,18 +313,7 @@ describe("SessionService — business flows", () => {
                 }
               : undefined,
     };
-    const svc = new SessionService(
-      sfid,
-      repo,
-      pool,
-      outbox,
-      undefined,
-      skillRegistry,
-      undefined,
-      undefined,
-      undefined,
-      runnable as never,
-    );
+    const svc = new SessionService(sfid, repo, pool, outbox, undefined, skillRegistry, undefined, undefined, undefined, runnable as never);
 
     await svc.createSession(7, "bob", "Bob", { agentId: "agt_1" });
 

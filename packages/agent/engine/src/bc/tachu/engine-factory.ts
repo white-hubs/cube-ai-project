@@ -21,13 +21,13 @@ import type { ImageAttachment, MessageContentV1 } from "@cube-ai/contracts";
 
 import { MemoryProjectionRelayService } from "../../infra/memory-projection/memory-projection-relay.service";
 import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
+import { mergeTenantSkills } from "../descriptor/merge-tenant-registry";
 import { SkillRegistryService } from "../descriptor/skill-registry.service";
+import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import { LocalFileService } from "../files/local-file.service";
 import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session/snapshot-skill-hydration";
-import { appendSkillDiscoveryHint } from "../skill-activation/skill-activation-bridge";
-import { mergeTenantSkills } from "../descriptor/merge-tenant-registry";
-import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
+import { appendSkillDiscoveryHint } from "../skill-activation/skill-activation-bridge";
 import { type IntentRoutingBlock } from "../tool-activation";
 import type { ToolHandlerCtx } from "../tools/tool-context";
 import { ToolService } from "../tools/tool.service";
@@ -444,12 +444,7 @@ export class EngineFactory {
     }
     const input = await this.buildInputEnvelope(arg);
     const runtimeSkillIds = uniqueRuntimeSkillRefs(arg.runtimeRefs).map((ref) => ref.skillId);
-    const runtimeSkillResolver = await mergeTenantSkills(
-      runtimeSkillIds,
-      this.skillRegistry,
-      this.tenantResolver,
-      arg.tenant,
-    );
+    const runtimeSkillResolver = await mergeTenantSkills(runtimeSkillIds, this.skillRegistry, this.tenantResolver, arg.tenant);
     await this.mirrorRuntimeSkillsToTachuIfNeeded(runtimeSkillResolver, arg.runtimeRefs);
     const scope = this.buildSessionScope(arg, knowledgePrefetch.promptContext, runtimeSkillResolver);
     this.turnContext.embeddingModelCode = arg.skillEmbeddingModelCode;
@@ -912,10 +907,7 @@ export class EngineFactory {
   /**
    * Snapshot skills[] first; legacy sessions with only skillRefs fall back to live registry.
    */
-  private resolvePinnedSkillsForTurn(
-    arg: TurnRunStreamInput,
-    skillResolver?: SkillRegistryResolveLike,
-  ): SkillDescriptor[] {
+  private resolvePinnedSkillsForTurn(arg: TurnRunStreamInput, skillResolver?: SkillRegistryResolveLike): SkillDescriptor[] {
     const out: SkillDescriptor[] = [];
     const seen = new Set<string>();
     const push = (skill: SkillDescriptor | undefined): void => {

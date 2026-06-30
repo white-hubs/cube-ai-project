@@ -75,11 +75,7 @@ describe("engine-internal-catalog", () => {
     expect(DEFAULT_USER_SESSION_SKILL_REFS).toEqual(["default-reasoning", "chart-output"]);
     expect(withDefaultUserSessionSkillRefs([])).toEqual(["default-reasoning", "chart-output"]);
     expect(withDefaultUserSessionSkillRefs(["my-skill"])).toEqual(["my-skill", "default-reasoning", "chart-output"]);
-    expect(withDefaultUserSessionSkillRefs(["chart-output", "my-skill"])).toEqual([
-      "chart-output",
-      "my-skill",
-      "default-reasoning",
-    ]);
+    expect(withDefaultUserSessionSkillRefs(["chart-output", "my-skill"])).toEqual(["chart-output", "my-skill", "default-reasoning"]);
     expect(withDefaultUserSessionSkillRefs([], { resolvable: () => false })).toEqual([]);
     expect(
       withDefaultUserSessionSkillRefs(["my-skill"], {

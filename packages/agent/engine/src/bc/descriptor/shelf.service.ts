@@ -1,4 +1,10 @@
-import { parseTenantDescriptorId, type InstallRequest, type ShelfEntryView, type ShelfPatch, filterUserVisibleShelfEntries } from "@cube-ai/contracts";
+import {
+  parseTenantDescriptorId,
+  type InstallRequest,
+  type ShelfEntryView,
+  type ShelfPatch,
+  filterUserVisibleShelfEntries,
+} from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import { assertUserShelfInstallAllowed } from "./engine-internal-guard";

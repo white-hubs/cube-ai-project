@@ -26,9 +26,9 @@ import {
 } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
-import { assertUserDescriptorContentIsolated } from "./engine-internal-guard";
 import { parseAgentDocument, parseRuleDocument, parseSkillDocument } from "./descriptor-document-parser";
 import { assertDescriptorOwner, assertDescriptorOwnerOrAdmin } from "./descriptor-owner";
+import { assertUserDescriptorContentIsolated } from "./engine-internal-guard";
 import type { ShelfService } from "./shelf.service";
 import type { TenantDescriptorRepository, UpsertDescriptorResult } from "./tenant-descriptor.repository";
 

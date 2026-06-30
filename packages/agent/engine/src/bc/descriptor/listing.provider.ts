@@ -58,11 +58,11 @@ function buildSystemSource(c: Container): LibrarySystemSource {
       (skills?.list() ?? [])
         .filter((skill) => !isEngineInternalSkillRef(skill.name))
         .map((skill) => ({
-        name: skill.name,
-        ...(skill.displayName ? { displayName: skill.displayName } : {}),
-        ...(skill.description ? { description: skill.description } : {}),
-        ...(skill.tags ? { tags: skill.tags } : {}),
-      })),
+          name: skill.name,
+          ...(skill.displayName ? { displayName: skill.displayName } : {}),
+          ...(skill.description ? { description: skill.description } : {}),
+          ...(skill.tags ? { tags: skill.tags } : {}),
+        })),
   };
 }
 

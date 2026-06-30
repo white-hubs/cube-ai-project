@@ -1,5 +1,11 @@
 import type { OutboxWriter, TransactionContext } from "@cube-ai/bun-server-ext-outbox";
-import { type DescriptorListingView, type LibraryItemView, type TenantDescriptorKind, filterUserVisibleLibraryItems, isEngineInternalLibraryRef } from "@cube-ai/contracts";
+import {
+  type DescriptorListingView,
+  type LibraryItemView,
+  type TenantDescriptorKind,
+  filterUserVisibleLibraryItems,
+  isEngineInternalLibraryRef,
+} from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import { assertDescriptorOwner, assertDescriptorOwnerOrAdmin } from "./descriptor-owner";
