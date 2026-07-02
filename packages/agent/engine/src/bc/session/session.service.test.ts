@@ -244,6 +244,88 @@ describe("SessionService — business flows", () => {
     expect(view.agentVersionNo).toBe(2);
   });
 
+  test("createSession strips engine-internal refs from tenant-authored agent snapshots", async () => {
+    let capturedInput: CreateSessionInput | undefined;
+    const sfid = new SfidService();
+    const repo: SessionRepository = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async (_c, _tenant, sid, input) => {
+        capturedInput = input;
+        return { ...fakeRow(sid), agentVersionNo: input.agentVersionNo };
+      }),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    };
+    const pool: Pool = {
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const runnable = {
+      resolve: mock(async () => ({
+        versionNo: 1,
+        record: {
+          prompt: "tenant agent",
+          availableTools: [],
+          ruleRefs: [],
+          skillRefs: ["default-reasoning", "my-skill"],
+          subAgentRefs: ["cube-researcher", "agt_child"],
+        },
+      })),
+    };
+    const skillRegistry = {
+      resolve: (name: string) =>
+        name === "my-skill"
+          ? {
+              kind: "skill" as const,
+              name: "my-skill",
+              description: "mine",
+              instructions: "do work",
+              trigger: { type: "semantic" as const },
+            }
+          : name === "default-reasoning"
+            ? {
+                kind: "skill" as const,
+                name: "default-reasoning",
+                description: "reasoning",
+                instructions: "think step by step",
+                trigger: { type: "semantic" as const },
+              }
+            : name === "chart-output"
+              ? {
+                  kind: "skill" as const,
+                  name: "chart-output",
+                  description: "charts",
+                  instructions: "echarts fence",
+                  trigger: { type: "semantic" as const },
+                }
+              : undefined,
+    };
+    const svc = new SessionService(sfid, repo, pool, outbox, undefined, skillRegistry, undefined, undefined, undefined, runnable as never);
+
+    await svc.createSession(7, "bob", "Bob", { agentId: "agt_1" });
+
+    const snapshot = capturedInput?.agentSnapshotJson as {
+      agent?: { content?: { skillRefs?: string[]; subAgentRefs?: string[] } };
+      skills?: Array<{ name: string }>;
+    };
+    expect(snapshot.agent?.content?.skillRefs).toEqual(["my-skill", "default-reasoning", "chart-output"]);
+    expect(snapshot.agent?.content?.subAgentRefs).toEqual(["agt_child"]);
+    expect(snapshot.skills?.map((row) => row.name)).toEqual(["my-skill", "default-reasoning", "chart-output"]);
+  });
+
   test("createSession freezes only currently registered MCP tool refs", async () => {
     const capturedInputs: unknown[] = [];
     const sfid = new SfidService();
@@ -476,6 +558,38 @@ describe("SessionService — business flows", () => {
 
     await expect(svc.createSession(1, "u1", "U", { agentId: "28147497671065600001" })).rejects.toMatchObject({
       code: "RESOURCE_NOT_FOUND_DESCRIPTOR",
+    });
+  });
+
+  test("createSession rejects engine-internal agent ids for user sessions", async () => {
+    const sfid = new SfidService();
+    const repo: SessionRepository = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async (_c, _tenant, sid, _input) => fakeRow(sid)),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    };
+    const pool: Pool = {
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const svc = new SessionService(sfid, repo, pool, outbox, { getGlobalPrompt: () => "" } as never);
+
+    await expect(svc.createSession(1, "u1", "U", { agentId: "cube-default" })).rejects.toMatchObject({
+      code: "FAILED_PRECONDITION_ENGINE_INTERNAL_DESCRIPTOR",
     });
   });
 
