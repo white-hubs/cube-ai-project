@@ -1,6 +1,8 @@
 import { type Container } from "@dangao/bun-server";
 import type { Pool } from "mysql2/promise";
 
+import { isEngineInternalAgentRef, isEngineInternalSkillRef } from "@cube-ai/contracts";
+
 import { MYSQL_POOL_TOKEN } from "../../infra/mysql/mysql.tokens";
 import { buildOutboxWriter } from "../../infra/outbox/outbox-factory";
 import { sharedSfidService } from "../../infra/sfid/shared-sfid";
@@ -40,6 +42,7 @@ function buildSystemSource(c: Container): LibrarySystemSource {
         tags?: string[];
       }> = [];
       for (const name of names) {
+        if (isEngineInternalAgentRef(name)) continue;
         const rec = await loader?.getAgent(name);
         if (!rec) continue;
         out.push({
@@ -52,12 +55,14 @@ function buildSystemSource(c: Container): LibrarySystemSource {
       return out;
     },
     systemSkills: () =>
-      (skills?.list() ?? []).map((skill) => ({
-        name: skill.name,
-        ...(skill.displayName ? { displayName: skill.displayName } : {}),
-        ...(skill.description ? { description: skill.description } : {}),
-        ...(skill.tags ? { tags: skill.tags } : {}),
-      })),
+      (skills?.list() ?? [])
+        .filter((skill) => !isEngineInternalSkillRef(skill.name))
+        .map((skill) => ({
+          name: skill.name,
+          ...(skill.displayName ? { displayName: skill.displayName } : {}),
+          ...(skill.description ? { description: skill.description } : {}),
+          ...(skill.tags ? { tags: skill.tags } : {}),
+        })),
   };
 }
 

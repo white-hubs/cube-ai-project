@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/agent-sdk-client-assistant",
-  "version": "0.0.1-alpha.11",
+  "version": "0.0.1-alpha.12",
   "type": "module",
   "description": "Framework-agnostic application-domain SDK for chatbot/assistant UIs built on top of cube-agentic-engine. Owns: AssistantStore (multi-session, multi-stream), reasoning tree reducer, IDB persistence, ID-replacement, error normalization. ADR-0008.",
   "sideEffects": false,
