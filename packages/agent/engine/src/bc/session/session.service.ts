@@ -21,7 +21,7 @@ import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolve
 import { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import { appendEngineUtcClockBlock } from "../tools/engine-utc";
 import type { SessionRepository } from "./repository/session.repository";
-import { hydrateSnapshotRules, snapshotRuleTexts, type RuleRegistryResolveLike } from "./snapshot-rule-hydration";
+import { hydrateSnapshotRules, type RuleRegistryResolveLike } from "./snapshot-rule-hydration";
 import { hydrateSnapshotSkills, type SkillRegistryResolveLike } from "./snapshot-skill-hydration";
 
 const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
@@ -169,16 +169,24 @@ async function buildSnapshots(params: {
   const subAgentRefs = agentIsTenantRef ? filterUserVisibleSubAgentRefs(rawSubAgentRefs) : rawSubAgentRefs;
   const maxDepth =
     sanitizedDescriptor && typeof sanitizedDescriptor["maxDepth"] === "number" ? Number(sanitizedDescriptor["maxDepth"]) : undefined;
+  // 接地预取声明：忠实投影进 snapshot content（buildSnapshots 是白名单投影，必须显式带上）。
+  const groundingPrefetch =
+    sanitizedDescriptor && Array.isArray(sanitizedDescriptor["groundingPrefetch"])
+      ? (sanitizedDescriptor["groundingPrefetch"] as unknown[])
+      : [];
   const requestedModel = params.modelCode?.trim() ?? "";
-  // 前缀 ref（skl_/rul_）经 tenantResolver 预取（仅已发布），与系统 registry 合并成同构 resolve()；
-  // 未发布 / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。
-  const skillResolver = await mergeTenantSkills(skillRefs, params.skillRegistry, params.tenantResolver, params.tenant);
+  // 前缀 ref（skl_/rul_）经 tenantResolver 预取（owner 见自己的 draft/head、非 owner 仅见已发布，
+  // 与「我的技能」自见语义一致），与系统 registry 合并成同构 resolve()；
+  // 未发布且非 owner / 未知前缀 → 不在 map，回落系统 registry → 仍按 not-found 处理（ADR-0016 §5）。
+  const skillResolver = await mergeTenantSkills(skillRefs, params.skillRegistry, params.tenantResolver, params.tenant, params.userId);
   const skills = skillRefs.length > 0 ? hydrateSnapshotSkills(skillRefs, skillResolver) : [];
-  // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，并注入 system prompt
-  // （global prompt 之后、agent prompt 之前）。
-  const ruleResolver = await mergeTenantRules(ruleRefs, params.ruleRegistry, params.tenantResolver, params.tenant);
+  // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules（版本权威）。规则文本**不再**
+  // 内联进 snapshot.prompt——改由 EngineFactory 每轮把 snapshot.rules 投影给
+  // `SessionScope.additionalRules`，交 tachu `PromptAssembler` 按 activation 组装进 system 段
+  // （always 恒进、manual 命中点名才进），每轮重算、不入 memory（ADR-0032 分层规则组装）。
+  const ruleResolver = await mergeTenantRules(ruleRefs, params.ruleRegistry, params.tenantResolver, params.tenant, params.userId);
   const rules = ruleRefs.length > 0 ? hydrateSnapshotRules(ruleRefs, ruleResolver) : [];
-  const promptBody = [globalPrompt, ...snapshotRuleTexts(rules), agentInstructions, sessionSuffix].filter((x) => x.length > 0).join("\n\n");
+  const promptBody = [globalPrompt, agentInstructions, sessionSuffix].filter((x) => x.length > 0).join("\n\n");
   // session 创建时一次性把 UTC 时钟锚点冻结进 snapshot.prompt。
   // 整个 session 复用，不再在每个 turn 重复注入；新鲜时间由 `currentDate` 工具兜底。
   const prompt = appendEngineUtcClockBlock(promptBody, frozen);
@@ -195,6 +203,7 @@ async function buildSnapshots(params: {
         toolRefs,
         ...(subAgentRefs.length > 0 ? { subAgentRefs } : {}),
         ...(typeof maxDepth === "number" ? { maxDepth } : {}),
+        ...(groundingPrefetch.length > 0 ? { groundingPrefetch } : {}),
       },
     },
     rules,

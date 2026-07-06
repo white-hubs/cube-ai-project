@@ -11,28 +11,20 @@ export type { ImageAttachment };
 export type AssistantRole = "user" | "assistant" | "system" | "tool";
 
 /**
- * Engine 9 阶段（与 `@cube-ai/contracts` `reasoning-step-v1.phase` 对齐）。
+ * 对外 loop-lifecycle 轮次里程碑（与 `@cube-ai/contracts` `reasoning-step-v1.point` 对齐）。
+ * tachu rc.13：引擎不再对外泄漏内部 phase 名，只暴露 `turnStart` / `turnStop`。
  * 不直接 import contracts 的字面量类型以避免循环 / 包体积膨胀；保持本地拷贝。
  */
-export type ReasoningPhase =
-  | "session"
-  | "safety"
-  | "intent"
-  | "precheck"
-  | "planning"
-  | "graph-check"
-  | "execution"
-  | "validation"
-  | "output";
+export type ReasoningLifecyclePoint = "turnStart" | "turnStop";
 
 /** 单个 reasoning step（服务端 reasoning step + SDK 合成的 tool-call step）。 */
 export interface ReasoningStep {
   stepId: string;
-  /** 顶层 phase step 缺省；嵌套 model-reasoning / tool-loop / tool-call 子 step 必填。 */
+  /** 顶层 lifecycle step 缺省；嵌套 model-reasoning / tool-loop / tool-call 子 step 必填。 */
   parentStepId?: string;
-  kind: "phase" | "model-reasoning" | "tool-loop" | "tool-call";
+  kind: "lifecycle" | "model-reasoning" | "tool-loop" | "tool-call";
   label: string;
-  phase?: ReasoningPhase;
+  point?: ReasoningLifecyclePoint;
   /** `kind === 'tool-call'` 时由 SDK 从 tool-call-* 事件合成。 */
   toolCallId?: string;
   toolName?: string;

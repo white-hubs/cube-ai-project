@@ -16,28 +16,31 @@ import {
 } from "@tachu/core";
 
 import { RuntimeRefsSchema, DEFAULT_USER_SESSION_SKILL_REFS } from "@cube-ai/contracts";
-import type { LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
+import type { GroundingPrefetchEntry, LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
 import type { ImageAttachment, MessageContentV1 } from "@cube-ai/contracts";
 
 import { MemoryProjectionRelayService } from "../../infra/memory-projection/memory-projection-relay.service";
 import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
 import { mergeTenantSkills } from "../descriptor/merge-tenant-registry";
+import { buildShelfSkillDiscoveryProvider, type ShelfSkillLister } from "../descriptor/shelf-skill-discovery";
 import { SkillRegistryService } from "../descriptor/skill-registry.service";
 import type { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
 import { LocalFileService } from "../files/local-file.service";
+import { snapshotRulesToTachuDescriptors } from "../session/snapshot-rule-hydration";
 import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session/snapshot-skill-hydration";
 import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
-import { appendSkillDiscoveryHint } from "../skill-activation/skill-activation-bridge";
+import { appendSkillDiscoveryHint } from "../skill-activation/skill-discovery-hint";
 import { type IntentRoutingBlock } from "../tool-activation";
 import type { ToolHandlerCtx } from "../tools/tool-context";
 import { ToolService } from "../tools/tool.service";
 import { assembleTachuRuntime, buildDefaultEngineConfig } from "./assemble-tachu-runtime";
 import { mapContractToolToTachu } from "./contract-tool-to-tachu";
 import { computeTachuToolMirrorNamesForPrompt } from "./engine-tool-mirror";
+import { findExplicitRuleMentions } from "./explicit-rule-mention";
 import { findExplicitSkillMentions } from "./explicit-skill-mention";
 import { findExplicitToolMentions } from "./explicit-tool-mention";
+import { applyHostGatingPolicyPreseed } from "./host-gating-policy";
 import { emitHostEngineEvent } from "./host-observability";
-import { applyHostTurnPolicyPreseed, TURN_POLICY_INTENT_ROUTING_APPENDIX } from "./host-turn-policy";
 import { resolveNonEmptyModel } from "./tachu.tokens";
 import type { TurnContextHolder } from "./turn-context-holder";
 
@@ -256,6 +259,29 @@ function formatRetrievedKnowledgeContext(output: unknown, refs: readonly Runtime
   ].join("\n");
 }
 
+function renderPrefetchOutput(output: unknown): string {
+  if (output == null) return "";
+  if (typeof output === "string") return truncateText(output.trim(), 4000);
+  try {
+    return truncateText(JSON.stringify(output), 4000);
+  } catch {
+    return "";
+  }
+}
+
+/** Format one grounding-prefetch tool output into an Agent Context block. */
+function formatGroundingPrefetchContext(tool: string, output: unknown): string {
+  const body = renderPrefetchOutput(output);
+  if (!body) return "";
+  return [`## 预取接地事实（来自 ${tool}，本轮已代为查询，请据此选用真实标识符，勿臆造）`, body].join("\n");
+}
+
+/** Join multiple prefetch context blocks; undefined when nothing to inject. */
+function mergePrefetchContext(...parts: Array<string | undefined>): string | undefined {
+  const kept = parts.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+  return kept.length > 0 ? kept.join("\n\n") : undefined;
+}
+
 function errorToToolError(error: unknown): { code: string; message: string; retryable: boolean } {
   const rec = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
   const code = typeof rec["code"] === "string" ? rec["code"] : "TOOL_EXECUTION_FAILED";
@@ -267,7 +293,7 @@ function errorToToolError(error: unknown): { code: string; message: string; retr
 /**
  * EngineFactory —— `cube-agentic-engine` 一侧对 `@tachu/core.Engine` 的会话适配层。
  *
- * 职责（最小化、不僭越 tachu 的 9 阶段流水线）：
+ * 职责（最小化、不僭越 tachu 的深单 loop 主干）：
  *  1. 持有 tachu.Engine 单例。Engine 的默认配置（registry、memory、safety、capability
  *     mapping）由本类内部用合理的运行时默认装配；per-session 的差异通过 SessionScope
  *     在每次 runStream 调用时叠加，不污染单例状态。
@@ -278,11 +304,13 @@ function errorToToolError(error: unknown): { code: string; message: string; retr
  * 不在本类的职责（明确边界）：
  *  - 不负责 SSE 事件构造 → TurnService 持有 mapper；
  *  - 不负责 Outbox / 持久化 → TurnService 与各 Repository；
- *  - 不绕过 9 阶段流水线（intent → planning → validation → output 全部由 tachu 保证）。
+ *  - 不绕过深单 loop 主干（tachu rc.10：session → safety → tool-routing →
+ *    execution → validation → output，路由 / 校验 / 终答全部由 tachu 保证）。
  *
- * **工具可见性（与 @tachu/core Phase 5）**：`runPlanningPhase` 只认 `registry.list("tool")`，
- * 不会读取 `SessionScope.additionalTools`。因此必须把 Descriptor BC 中已注册的
- * Tool 镜像进本 Engine 专用的 `DescriptorRegistry`，否则永远走 direct-answer 兜底。
+ * **工具可见性（与 @tachu/core `tool-routing` 阶段）**：确定性 tool-routing 以
+ * `registry.list("tool")`（叠加 `SessionScope` 的可见工具集）收窄本轮模型可见工具。
+ * 因此必须把 Descriptor BC 中已注册的 Tool 镜像进本 Engine 专用的 `DescriptorRegistry`，
+ * 否则 loop 首步就看不到该工具。
  */
 
 export interface AgentSnapshotShape {
@@ -303,10 +331,11 @@ export interface AgentSnapshotShape {
           keywords: readonly string[];
         }>;
       };
+      groundingPrefetch?: ReadonlyArray<GroundingPrefetchEntry>;
     };
   };
   rules?: ReadonlyArray<unknown>;
-  /** Frozen inline skill rows (ADR-0023); drives SessionScope.additionalSkills. */
+  /** Frozen inline skill rows; drives SessionScope.additionalSkills. */
   skills?: ReadonlyArray<SnapshotSkillEntry | unknown>;
   tools?: ReadonlyArray<unknown>;
 }
@@ -321,6 +350,11 @@ export interface TurnRunStreamInput {
   prompt: string;
   content?: MessageContentV1;
   attachments?: ImageAttachment[];
+  /**
+   * 调用方显式点名的 `manual` 规则（与 prompt 内 `@rule`/`/rule` 取并集）。
+   * 命中 snapshot 里的 manual 规则时，其正文作为 User Message 上下文块注入本轮（ADR-0032）。
+   */
+  explicitRuleNames?: readonly string[];
   /** User-selected references scoped to this turn only. */
   runtimeRefs?: RuntimeRefs;
   /** turn body 里前端传的 modelCode，优先级最高（高于 snapshot 与 env）。 */
@@ -344,6 +378,8 @@ export class EngineFactory {
   private readonly descriptorRegistry?: DescriptorRegistryService;
   private readonly skillRegistry?: SkillRegistryService;
   private readonly tenantResolver?: TenantDescriptorResolver;
+  /** 「我的技能」发现数据源（渐进式披露 L2/L3）。缺省时不注入 skillDiscovery。 */
+  private readonly userShelf?: ShelfSkillLister;
   /** 与 DescriptorRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 tool 表。 */
   private toolsMirrorSig = "";
   /** 与 SkillRegistryService 内容对齐的签名，变更时才重刷 Tachu 侧 skill 表。 */
@@ -377,10 +413,12 @@ export class EngineFactory {
      */
     private readonly toolServiceProvider?: () => ToolService | undefined,
     tenantResolver?: TenantDescriptorResolver,
+    userShelf?: ShelfSkillLister,
   ) {
     this.descriptorRegistry = descriptorRegistry;
     this.skillRegistry = skillRegistry;
     this.tenantResolver = tenantResolver;
+    this.userShelf = userShelf;
     this.providerId = provider.id;
     this.defaultModel = resolveNonEmptyModel(process.env["AGENTIC_ENGINE_MODEL"], "gpt-4o-mini");
 
@@ -442,11 +480,21 @@ export class EngineFactory {
     for (const chunk of knowledgePrefetch.chunks) {
       yield chunk;
     }
+    const groundingPrefetch = await this.prefetchAgentGrounding(arg, ctx);
+    for (const chunk of groundingPrefetch.chunks) {
+      yield chunk;
+    }
     const input = await this.buildInputEnvelope(arg);
     const runtimeSkillIds = uniqueRuntimeSkillRefs(arg.runtimeRefs).map((ref) => ref.skillId);
-    const runtimeSkillResolver = await mergeTenantSkills(runtimeSkillIds, this.skillRegistry, this.tenantResolver, arg.tenant);
+    const runtimeSkillResolver = await mergeTenantSkills(runtimeSkillIds, this.skillRegistry, this.tenantResolver, arg.tenant, arg.userId);
     await this.mirrorRuntimeSkillsToTachuIfNeeded(runtimeSkillResolver, arg.runtimeRefs);
-    const scope = this.buildSessionScope(arg, knowledgePrefetch.promptContext, runtimeSkillResolver);
+    this.emitUnresolvedRuntimeSkillPins(arg, ctx, runtimeSkillResolver);
+    const scope = this.buildSessionScope(
+      arg,
+      ctx,
+      mergePrefetchContext(knowledgePrefetch.promptContext, groundingPrefetch.promptContext),
+      runtimeSkillResolver,
+    );
     this.turnContext.embeddingModelCode = arg.skillEmbeddingModelCode;
     this.turnContext.intentRoutingBlock = (arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined) ?? null;
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
@@ -542,7 +590,7 @@ export class EngineFactory {
   private async buildInputEnvelope(arg: TurnRunStreamInput): Promise<InputEnvelope> {
     const registeredToolNames = this.tachuRegistry.list("tool").map((t) => t.name);
     if (!hasImageInput(arg.content)) {
-      return applyHostTurnPolicyPreseed(
+      return applyHostGatingPolicyPreseed(
         {
           content: arg.prompt,
           metadata: { modality: "text", size: arg.prompt.length },
@@ -573,7 +621,7 @@ export class EngineFactory {
         },
       });
     }
-    return applyHostTurnPolicyPreseed(
+    return applyHostGatingPolicyPreseed(
       {
         content: contentParts,
         metadata: {
@@ -584,6 +632,79 @@ export class EngineFactory {
       arg.prompt,
       registeredToolNames,
     );
+  }
+
+  /**
+   * Shared scaffolding for every host-side {@link 接地预取 | grounding prefetch}:
+   * emit tool-call-start → invoke the tool → emit tool-call-end (success/error) →
+   * hand back the raw output/error + duration. Callers own the skip-guards, the
+   * domain-specific observability events, and how the output is formatted into
+   * Agent Context. Keeps the guard/callId/chunk/error mechanics in ONE place so a
+   * new prefetch adapter (knowledge, ontology, …) only writes "what to call + how
+   * to format", not another copy of the chunk plumbing.
+   */
+  private async runContextPrefetch(
+    run: { toolName: string; input: unknown; callId: string; argumentsPreview?: string },
+    context: ExecutionContext,
+  ): Promise<{
+    chunks: StreamChunk[];
+    output?: unknown;
+    error?: ReturnType<typeof errorToToolError>;
+    durationMs: number;
+    success: boolean;
+  }> {
+    const toolService = this.getToolService();
+    const startedAt = Date.now();
+    if (!toolService) {
+      return { chunks: [], durationMs: 0, success: false, error: errorToToolError(new Error("ToolService unavailable")) };
+    }
+    const chunks: StreamChunk[] = [
+      this.withStreamEnvelope(
+        {
+          type: "tool-call-start",
+          callId: run.callId,
+          tool: run.toolName,
+          argumentsPreview: run.argumentsPreview ?? JSON.stringify(run.input),
+        },
+        context,
+      ),
+    ];
+    try {
+      const controller = new AbortController();
+      const output = await toolService.invoke(run.toolName, run.input, this.toToolHandlerCtx(context, controller.signal), {
+        toolCallId: run.callId,
+      });
+      chunks.push(
+        this.withStreamEnvelope(
+          {
+            type: "tool-call-end",
+            callId: run.callId,
+            tool: run.toolName,
+            success: true,
+            durationMs: Date.now() - startedAt,
+            output,
+          },
+          context,
+        ),
+      );
+      return { chunks, output, durationMs: Date.now() - startedAt, success: true };
+    } catch (error) {
+      const toolError = errorToToolError(error);
+      chunks.push(
+        this.withStreamEnvelope(
+          {
+            type: "tool-call-end",
+            callId: run.callId,
+            tool: run.toolName,
+            success: false,
+            durationMs: Date.now() - startedAt,
+            error: toolError,
+          },
+          context,
+        ),
+      );
+      return { chunks, error: toolError, durationMs: Date.now() - startedAt, success: false };
+    }
   }
 
   private async prefetchRuntimeKnowledge(
@@ -635,87 +756,124 @@ export class EngineFactory {
     }
 
     const callId = arg.nextStreamId?.() ?? `runtime-knowledge-query:${arg.turnId}`;
-    const startedAt = Date.now();
     const input = { query, topK: 5 };
-    const chunks: StreamChunk[] = [
-      this.withStreamEnvelope(
-        {
-          type: "tool-call-start",
-          callId,
-          tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
-          argumentsPreview: JSON.stringify({
-            ...input,
-            kbIds: refs.map((ref) => ref.kbId),
-          }),
-        },
-        context,
-      ),
-    ];
-
-    try {
-      const controller = new AbortController();
-      const output = await toolService.invoke(RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME, input, this.toToolHandlerCtx(context, controller.signal), {
-        toolCallId: callId,
-      });
-      chunks.push(
-        this.withStreamEnvelope(
-          {
-            type: "tool-call-end",
-            callId,
-            tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
-            success: true,
-            durationMs: Date.now() - startedAt,
-            output,
-          },
-          context,
-        ),
-      );
-      const promptContext = formatRetrievedKnowledgeContext(output, refs);
-      const hits = readKnowledgeHits(output);
+    const result = await this.runContextPrefetch(
+      {
+        toolName: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
+        input,
+        callId,
+        argumentsPreview: JSON.stringify({ ...input, kbIds }),
+      },
+      context,
+    );
+    if (result.success) {
+      const promptContext = formatRetrievedKnowledgeContext(result.output, refs);
+      const hits = readKnowledgeHits(result.output);
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
         type: "knowledge_prefetch_end",
         phase: "prefetch",
         payload: {
           hitCount: hits.length,
-          truncated: readKnowledgeTruncated(output),
+          truncated: readKnowledgeTruncated(result.output),
           kbIds,
           queryChars: query.length,
-          durationMs: Date.now() - startedAt,
+          durationMs: result.durationMs,
           injectedContextChars: promptContext.length,
           topHits: summarizeKnowledgeHitsForObservability(hits),
         },
       });
-      return { chunks, promptContext };
-    } catch (error) {
-      const toolError = errorToToolError(error);
+      return { chunks: result.chunks, promptContext };
+    }
+    const toolError = result.error ?? errorToToolError(new Error("knowledge prefetch failed"));
+    emitHostEngineEvent(this.observability, context, {
+      timestamp: Date.now(),
+      type: "knowledge_prefetch_failed",
+      phase: "prefetch",
+      payload: {
+        kbIds,
+        queryChars: query.length,
+        durationMs: result.durationMs,
+        errorCode: toolError.code,
+        errorMessage: toolError.message,
+      },
+    });
+    return { chunks: result.chunks };
+  }
+
+  /**
+   * 数据实体等「接地预取」执行者（见 CONTEXT.md「接地预取」）：读 agent 声明的
+   * `groundingPrefetch`，逐项经 {@link runContextPrefetch} 预跑，把结果格式化注入本轮
+   * 上下文。领域知识全在声明里，本方法保持通用、不认任何具体工具名。
+   */
+  private async prefetchAgentGrounding(
+    arg: TurnRunStreamInput,
+    context: ExecutionContext,
+  ): Promise<{ chunks: StreamChunk[]; promptContext?: string }> {
+    const entries = arg.agentSnapshot?.agent?.content?.groundingPrefetch ?? [];
+    if (entries.length === 0) {
+      return { chunks: [] };
+    }
+    const toolService = this.getToolService();
+    if (!toolService) {
       emitHostEngineEvent(this.observability, context, {
         timestamp: Date.now(),
-        type: "knowledge_prefetch_failed",
+        type: "grounding_prefetch_skipped",
         phase: "prefetch",
-        payload: {
-          kbIds,
-          queryChars: query.length,
-          durationMs: Date.now() - startedAt,
-          errorCode: toolError.code,
-          errorMessage: toolError.message,
-        },
+        payload: { reason: "no_tool_service", entryCount: entries.length },
       });
-      chunks.push(
-        this.withStreamEnvelope(
-          {
-            type: "tool-call-end",
-            callId,
-            tool: RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME,
-            success: false,
-            durationMs: Date.now() - startedAt,
-            error: errorToToolError(error),
-          },
-          context,
-        ),
-      );
-      return { chunks };
+      return { chunks: [] };
     }
+    const registeredToolNames = new Set(this.tachuRegistry.list("tool").map((t) => t.name));
+    const query = truncateText(arg.prompt.trim(), 512);
+    const chunks: StreamChunk[] = [];
+    const contextParts: string[] = [];
+    let index = 0;
+    for (const entry of entries) {
+      const emitSkip = (reason: string): void =>
+        emitHostEngineEvent(this.observability, context, {
+          timestamp: Date.now(),
+          type: "grounding_prefetch_skipped",
+          phase: "prefetch",
+          payload: { reason, tool: entry.tool },
+        });
+      if (!registeredToolNames.has(entry.tool)) {
+        emitSkip("tool_not_registered");
+        continue;
+      }
+      if (entry.queryFromPrompt && query.length < 2) {
+        emitSkip("query_too_short");
+        continue;
+      }
+      const input = {
+        ...entry.args,
+        ...(entry.queryFromPrompt ? { query, topK: entry.topK ?? 5 } : {}),
+      };
+      const callId = arg.nextStreamId?.() ?? `runtime-grounding-prefetch:${arg.turnId}:${index}`;
+      index += 1;
+      const result = await this.runContextPrefetch({ toolName: entry.tool, input, callId }, context);
+      for (const chunk of result.chunks) chunks.push(chunk);
+      if (result.success) {
+        const part = formatGroundingPrefetchContext(entry.tool, result.output);
+        if (part) contextParts.push(part);
+        emitHostEngineEvent(this.observability, context, {
+          timestamp: Date.now(),
+          type: "grounding_prefetch_end",
+          phase: "prefetch",
+          payload: { tool: entry.tool, durationMs: result.durationMs, injectedContextChars: part.length },
+        });
+      } else {
+        const toolError = result.error ?? errorToToolError(new Error("grounding prefetch failed"));
+        emitHostEngineEvent(this.observability, context, {
+          timestamp: Date.now(),
+          type: "grounding_prefetch_failed",
+          phase: "prefetch",
+          payload: { tool: entry.tool, durationMs: result.durationMs, errorCode: toolError.code, errorMessage: toolError.message },
+        });
+      }
+    }
+    const promptContext = mergePrefetchContext(...contextParts);
+    return promptContext !== undefined ? { chunks, promptContext } : { chunks };
   }
 
   private withStreamEnvelope(chunk: StreamChunkPayload, context: ExecutionContext): StreamChunk {
@@ -805,6 +963,29 @@ export class EngineFactory {
   }
 
   /**
+   * 运行时 @-pin 的技能若最终解析不到（owner 也拿不到 draft、非 owner 又未发布、或 id 不存在），
+   * 发一个 host 观测事件——修掉「引用登记看似成功、正文却从未注入」的静默失败（见 CONTEXT.md「@-pin 技能解析」）。
+   */
+  private emitUnresolvedRuntimeSkillPins(
+    arg: TurnRunStreamInput,
+    context: ExecutionContext,
+    skillResolver: SkillRegistryResolveLike | undefined,
+  ): void {
+    for (const ref of uniqueRuntimeSkillRefs(arg.runtimeRefs)) {
+      if (skillResolver?.resolve(ref.skillId)) continue;
+      emitHostEngineEvent(this.observability, context, {
+        timestamp: Date.now(),
+        type: "skill_pin_unresolved",
+        phase: "prefetch",
+        payload: {
+          skillId: ref.skillId,
+          ...(ref.displayName !== undefined ? { displayName: ref.displayName } : {}),
+        },
+      });
+    }
+  }
+
+  /**
    * 构造 SessionScope —— 本类的核心翻译逻辑。
    *
    * - systemInstruction：直接采用 snapshot `prompt`；UTC 时钟锚点已在 session 创建时
@@ -812,11 +993,16 @@ export class EngineFactory {
    *   注入。仅空白时不设置（由 tachu 走自身默认 system prompt）。
    * - modelOverride.all：优先级 turn body > snapshot.modelConfig > env > 默认；
    *   只要任一档命中，都用 `provider.id` + 该 model 写入 `all`，影响本轮全部 capability。
-   * - additionalSkills：快照内联 skill 名称列表（ADR-0007：作为 snapshot-refs 输入，T0 pinned）。
+   * - additionalSkills：快照内联 skill 名称列表（作为 snapshot-refs 输入，T0 pinned）。
+   * - additionalRules / explicitRuleNames：把 snapshot 冻结的规则每轮投影给 tachu，交由
+   *   `PromptAssembler` 按 `activation` 组装进 system 段（`always` 恒进、`manual` 命中
+   *   `explicitRuleNames` 才进）——每轮重算、**不入 memory**（ADR-0032）。点名集 =
+   *   prompt `@rule`/`/rule` ∪ 调用方 `explicitRuleNames`，与 snapshot 里的 manual 规则求交。
    * - keyword 候选由 tachu `SkillActivator` + `KeywordCandidateStrategy` 处理。
    */
   private buildSessionScope(
     arg: TurnRunStreamInput,
+    context: ExecutionContext,
     retrievedKnowledgeContext?: string,
     skillResolver?: SkillRegistryResolveLike,
   ): SessionScope {
@@ -830,12 +1016,24 @@ export class EngineFactory {
 
     const scope: SessionScope = {
       modelOverride: { all: { provider: this.providerId, model } },
-      additionalRules: [],
+      additionalRules: snapshotRulesToTachuDescriptors(arg.agentSnapshot?.rules),
       additionalSkills: this.resolvePinnedSkillsForTurn(arg, skillResolver),
       additionalTools: [],
       ...(arg.nextStreamId !== undefined ? { idFactory: arg.nextStreamId } : {}),
       ...(intentRouting?.enabled === false ? { toolRoutingDisabled: true } : {}),
     };
+
+    // 「我的技能」渐进式披露（L2/L3）：从当前 user 的 shelf（owner-aware）构造回合级、
+    // 租户隔离的 skillDiscovery provider，喂给 tachu 原生 search_skills / load_skill /
+    // "Available Skills"——不写进程级共享 registry，规避跨租户泄漏（AGENTS.md #3）。
+    if (this.userShelf && this.tenantResolver && arg.userId) {
+      scope.skillDiscovery = buildShelfSkillDiscoveryProvider({
+        shelf: this.userShelf,
+        resolver: this.tenantResolver,
+        tenant: arg.tenant,
+        userId: arg.userId,
+      });
+    }
 
     const basePrompt = typeof rawPrompt === "string" && rawPrompt.trim().length > 0 ? rawPrompt.trim() : "";
     const withKnowledgeRefs = appendRuntimeKnowledgeRefsHint(basePrompt, arg.runtimeRefs);
@@ -849,8 +1047,9 @@ export class EngineFactory {
       scope.systemInstruction = withHint;
     }
 
-    // Populate intentAgentContext so the intent LLM can make context-aware complexity
-    // decisions without relying on hardcoded domain regex patterns.
+    // rc.10 深单 loop 无 intent 分类器：agent 可见 tools/skills 经 `activationHints`
+    // （tachu rc.13 取代旧 `intentAgentContext`）被确定性 `tool-routing` 阶段消费
+    // （并入本轮 agent 可见工具/技能名全集）；纯确定性 host gating 输入，无 intent-LLM。
     // tachuRegistry is already up-to-date: mirrorDescriptorToolsToTachuIfNeeded() runs
     // before buildSessionScope() in runStream().
     const registeredTools = this.tachuRegistry.list("tool") as Array<{
@@ -862,26 +1061,23 @@ export class EngineFactory {
       description?: string;
       tags?: string[];
     }>;
-    const intentTools = registeredTools
+    const agentVisibleTools = registeredTools
       .filter((t) => t.description)
       .map((t) => ({
         name: t.name,
         description: summarizeToolDescriptionForIntent(t.description as string),
       }));
-    const intentSkills = registeredSkills
+    const agentVisibleSkills = registeredSkills
       .filter((s) => s.description)
       .map((s) => ({
         name: s.name,
         description: s.description as string,
         ...(s.tags && s.tags.length > 0 ? { tags: [...s.tags] } : {}),
       }));
-    const intentInstructionParts = [basePrompt, TURN_POLICY_INTENT_ROUTING_APPENDIX].filter((part) => part.length > 0);
-    const intentSystemInstruction = intentInstructionParts.length > 0 ? intentInstructionParts.join("\n\n") : undefined;
-    if (intentSystemInstruction || intentTools.length > 0 || intentSkills.length > 0) {
-      scope.intentAgentContext = {
-        ...(intentSystemInstruction ? { systemInstruction: intentSystemInstruction } : {}),
-        ...(intentTools.length > 0 ? { tools: intentTools } : {}),
-        ...(intentSkills.length > 0 ? { skills: intentSkills } : {}),
+    if (agentVisibleTools.length > 0 || agentVisibleSkills.length > 0) {
+      scope.activationHints = {
+        ...(agentVisibleTools.length > 0 ? { tools: agentVisibleTools } : {}),
+        ...(agentVisibleSkills.length > 0 ? { skills: agentVisibleSkills } : {}),
       };
     }
 
@@ -899,6 +1095,27 @@ export class EngineFactory {
     }
     if (explicitSkillNames.size > 0) {
       scope.explicitSkillNames = [...explicitSkillNames];
+    }
+
+    // manual 规则激活集：本轮被显式点名（prompt `@rule`/`/rule` ∪ 调用方 explicitRuleNames）
+    // 且在 snapshot 里确为 manual 的规则。tachu 只对 manual 规则消费 explicitRuleNames；
+    // always 恒进、semantic/path 由各自输入门控，故此处只收 manual 命中名（可观测、语义清晰）。
+    const manualRuleNames = new Set((scope.additionalRules ?? []).filter((r) => r.activation.mode === "manual").map((r) => r.name));
+    if (manualRuleNames.size > 0) {
+      const activated = new Set(findExplicitRuleMentions(arg.prompt, [...manualRuleNames]));
+      for (const raw of arg.explicitRuleNames ?? []) {
+        const name = raw.trim();
+        if (manualRuleNames.has(name)) activated.add(name);
+      }
+      if (activated.size > 0) {
+        scope.explicitRuleNames = [...activated];
+        emitHostEngineEvent(this.observability, context, {
+          timestamp: Date.now(),
+          type: "manual_rule_injected",
+          phase: "session",
+          payload: { rules: [...activated] },
+        });
+      }
     }
 
     return scope;
@@ -1072,9 +1289,8 @@ export class EngineFactory {
    *   `SessionScope.modelOverride` 覆盖。
    * - memory.archivePath 留空，使用 tachu 默认（不落盘归档）。
    * - safety.workspaceRoot 取当前进程 cwd（与 tachu 测试一致）。
-   * - intent.disableSimpleMarkers=true：禁用 strong-simple-short fast-path，
-   *   避免"列出流程"、"查询知识库"等短指令被启发式截断到 direct-answer，
-   *   确保所有输入都经过 intent LLM 分类后再决定是否走工具调用路径。
+   * - rc.10 深单 loop 无 intent 分类 phase：所有输入直接进 loop，由 LLM 自决是否
+   *   调工具；无工具轮由 loop step-1 承接（不再有 simple/complex 预分类）。
    */
   buildEngineConfig(): EngineConfig {
     return buildDefaultEngineConfig(this.providerId, this.defaultModel);

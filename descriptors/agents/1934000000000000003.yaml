@@ -19,6 +19,13 @@ availableTools:
   - mcp.biz-ontology.search_by_domain
   - mcp.biz-ontology.read_ontology
   - mcp.biz-ontology.query_database
+# 接地预取（CONTEXT.md「接地预取」）：tool-loop 前主机代跑一次实体索引，把真实实体/连接
+# 清单注入本轮上下文，弱模型无需自己多步发现即可拿到真实标识符、不再盲猜表名。
+groundingPrefetch:
+  - tool: mcp.biz-ontology.read_ontology
+    args:
+      connection: ""
+      entity: "_index"
 instructions: |
   ## 角色
   你是企业数据分析 AI 助手，通过 MCP 工具查询业务数据库回答问题。

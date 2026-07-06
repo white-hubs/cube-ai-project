@@ -341,7 +341,7 @@ async function sendTurnAndAwaitSseCompletion(args: {
   expect(buf).toContain("message-completed-v1");
   expect(buf).toContain("event: turn.completed");
   expect(buf).toContain("turn-completed-v1");
-  // ADR-0021：9 阶段骨架 + 模型 reasoning 子 step 必须以结构化事件流出。
+  // 9 阶段骨架 + 模型 reasoning 子 step 必须以结构化事件流出。
   // ghcloud-ai-app-stub 默认在 chat-completions 响应里塞 `reasoning_content`，
   // OpenAICompatProvider 应将其映射为顶层 reasoning-delta StreamChunk，最终
   // 由 mapper emit reasoning-step-v1 + reasoning-delta-v1。
@@ -394,7 +394,7 @@ async function uploadLocalImage(args: {
   return body;
 }
 
-/** ADR-0024/0025: upstream user turns must carry resolved vision (data:image), not file placeholders. */
+/** Upstream user turns must carry resolved vision (data:image), not file placeholders. */
 function assertUpstreamChatCarriesResolvedVision(chatReqs: { body: unknown }[]): void {
   let sawBase64InUser = false;
   for (const req of chatReqs) {

@@ -1,8 +1,9 @@
-import { parseTenantDescriptorId, type TenantAgentContent } from '@cube-ai/contracts';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import type { DescriptorListingRepository } from './listing.service';
-import type { UserShelfRepository } from './shelf.service';
-import type { TenantDescriptorRepository } from './tenant-descriptor.repository';
+import { parseTenantDescriptorId, type TenantAgentContent } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import type { DescriptorListingRepository } from "./listing.service";
+import type { UserShelfRepository } from "./shelf.service";
+import type { TenantDescriptorRepository } from "./tenant-descriptor.repository";
 
 export interface RunnableAgentResolution {
   record: Record<string, unknown>;
@@ -10,11 +11,7 @@ export interface RunnableAgentResolution {
 }
 
 function notFound(agentRef: string): never {
-  throw AgenticEngineError.fromCode(
-    'RESOURCE_NOT_FOUND_DESCRIPTOR',
-    `Agent descriptor not found: ${agentRef}`,
-    { agentRef },
-  );
+  throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Agent descriptor not found: ${agentRef}`, { agentRef });
 }
 
 function agentRecord(content: unknown): Record<string, unknown> {
@@ -27,7 +24,8 @@ function agentRecord(content: unknown): Record<string, unknown> {
     ruleRefs: c.ruleRefs ?? [],
     skillRefs: c.skillRefs ?? [],
     ...(c.subAgentRefs && c.subAgentRefs.length > 0 ? { subAgentRefs: c.subAgentRefs } : {}),
-    ...(typeof c.maxDepth === 'number' ? { maxDepth: c.maxDepth } : {}),
+    ...(typeof c.maxDepth === "number" ? { maxDepth: c.maxDepth } : {}),
+    ...(c.groundingPrefetch && c.groundingPrefetch.length > 0 ? { groundingPrefetch: c.groundingPrefetch } : {}),
   };
 }
 
@@ -38,16 +36,11 @@ export class RunnableAgentResolver {
     private readonly shelves: UserShelfRepository,
   ) {}
 
-  async resolve(
-    tenant: number,
-    userId: string,
-    agentRef: string,
-    opts: { versionNo?: number } = {},
-  ): Promise<RunnableAgentResolution> {
-    if (parseTenantDescriptorId(agentRef)?.kind !== 'agent') notFound(agentRef);
+  async resolve(tenant: number, userId: string, agentRef: string, opts: { versionNo?: number } = {}): Promise<RunnableAgentResolution> {
+    if (parseTenantDescriptorId(agentRef)?.kind !== "agent") notFound(agentRef);
 
     const head = await this.descriptors.findById(tenant, agentRef);
-    if (!head || head.kind !== 'agent') notFound(agentRef);
+    if (!head || head.kind !== "agent") notFound(agentRef);
 
     if (head.ownerUserId === userId) {
       if (opts.versionNo !== undefined) {

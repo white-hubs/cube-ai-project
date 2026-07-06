@@ -1,15 +1,51 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  DescriptorNameSchema,
   DescriptorVersionSchema,
   FromDocumentResultSchema,
+  ProposeResultSchema,
   TENANT_DESCRIPTOR_ID_PREFIXES,
   TenantAgentContentSchema,
+  TenantDescriptorCreateRequestSchema,
   TenantDescriptorViewSchema,
   TenantRuleContentSchema,
   TenantSkillContentSchema,
   parseTenantDescriptorId,
 } from "./tenant-descriptor";
+
+describe("DescriptorNameSchema (ADR-0033 slug key)", () => {
+  it("accepts lower-kebab slugs", () => {
+    for (const ok of ["a", "agent", "customer-support-agent", "v2-agent-3"]) {
+      expect(DescriptorNameSchema.safeParse(ok).success).toBe(true);
+    }
+  });
+
+  it("rejects non-ASCII, spaces, uppercase, and edge hyphens", () => {
+    for (const bad of ["", "支持", "Support Agent", "UPPER", "-lead", "trail-", "a b", "under_score"]) {
+      expect(DescriptorNameSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("trims surrounding whitespace before validating", () => {
+    expect(DescriptorNameSchema.parse("  support-agent  ")).toBe("support-agent");
+  });
+});
+
+describe("TenantDescriptorCreateRequestSchema (envelope)", () => {
+  it("requires a slug name and an (opaque) content payload", () => {
+    expect(TenantDescriptorCreateRequestSchema.safeParse({ name: "a", content: { prompt: "hi" } }).success).toBe(true);
+    expect(TenantDescriptorCreateRequestSchema.safeParse({ content: { prompt: "hi" } }).success).toBe(false);
+    expect(TenantDescriptorCreateRequestSchema.safeParse({ name: "Bad Name", content: {} }).success).toBe(false);
+  });
+});
+
+describe("ProposeResultSchema carries a slug name", () => {
+  it("requires name so propose output is directly feedable into create", () => {
+    expect(ProposeResultSchema.safeParse({ name: "support-agent", content: {}, suggestions: [], valid: true }).success).toBe(true);
+    expect(ProposeResultSchema.safeParse({ content: {}, suggestions: [], valid: true }).success).toBe(false);
+  });
+});
 
 describe("parseTenantDescriptorId", () => {
   it("parses the three kind prefixes", () => {
@@ -79,6 +115,25 @@ describe("TenantAgentContentSchema", () => {
     expect(parsed.tags).toEqual(["cs"]);
     expect(parsed.version).toBe("1.2.0");
   });
+
+  it("parses optional groundingPrefetch declarations and rejects empty tool names", () => {
+    const parsed = TenantAgentContentSchema.parse({
+      prompt: "p",
+      groundingPrefetch: [
+        { tool: "mcp.biz-ontology.read_ontology", args: { connection: "", entity: "_index" } },
+        { tool: "mcp.biz-ontology.search_ontology", queryFromPrompt: true, topK: 8 },
+      ],
+    });
+    expect(parsed.groundingPrefetch).toEqual([
+      { tool: "mcp.biz-ontology.read_ontology", args: { connection: "", entity: "_index" } },
+      { tool: "mcp.biz-ontology.search_ontology", queryFromPrompt: true, topK: 8 },
+    ]);
+    // omitted entirely → stays undefined (host treats as "no prefetch")
+    expect(TenantAgentContentSchema.parse({ prompt: "p" }).groundingPrefetch).toBeUndefined();
+    // an entry without a tool name is meaningless → rejected
+    expect(TenantAgentContentSchema.safeParse({ prompt: "p", groundingPrefetch: [{ tool: "" }] }).success).toBe(false);
+    expect(TenantAgentContentSchema.safeParse({ prompt: "p", groundingPrefetch: [{ topK: 3 }] }).success).toBe(false);
+  });
 });
 
 describe("TenantSkillContentSchema", () => {
@@ -93,17 +148,37 @@ describe("TenantSkillContentSchema", () => {
     expect(TenantSkillContentSchema.safeParse({ description: "d", instructions: "" }).success).toBe(false);
   });
 
-  it("strips unknown frontmatter fields (resources/requires/deprecated)", () => {
+  it("strips unknown frontmatter fields (resources/requires/deprecated/legacy trigger)", () => {
     const parsed = TenantSkillContentSchema.parse({
       deprecated: true,
       description: "d",
       instructions: "i",
       requires: ["y"],
       resources: [{ path: "x" }],
+      trigger: "explicit",
     } as Record<string, unknown>);
     expect("resources" in parsed).toBe(false);
     expect("requires" in parsed).toBe(false);
     expect("deprecated" in parsed).toBe(false);
+    // rc.13：旧 trigger 词汇彻底移除，wire 只认 activation（透传为未知字段被 strip）。
+    expect("trigger" in parsed).toBe(false);
+  });
+
+  it("accepts activation modes and is fail-closed on invalid ones (rc.13)", () => {
+    expect(TenantSkillContentSchema.safeParse({ description: "d", instructions: "i", activation: { mode: "manual" } }).success).toBe(true);
+    expect(
+      TenantSkillContentSchema.safeParse({ description: "d", instructions: "i", activation: { mode: "path", globs: ["src/**/*.ts"] } })
+        .success,
+    ).toBe(true);
+    // 缺省（无 activation）合法——读取侧回落 semantic。
+    expect(TenantSkillContentSchema.safeParse({ description: "d", instructions: "i" }).success).toBe(true);
+    // fail-closed：未知 mode / path 缺非空 globs。
+    expect(TenantSkillContentSchema.safeParse({ description: "d", instructions: "i", activation: { mode: "explicit" } }).success).toBe(
+      false,
+    );
+    expect(
+      TenantSkillContentSchema.safeParse({ description: "d", instructions: "i", activation: { mode: "path", globs: [] } }).success,
+    ).toBe(false);
   });
 });
 

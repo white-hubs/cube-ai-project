@@ -45,11 +45,15 @@ const console = createAgentConsoleClient({
   headers: () => ({ authorization: `Bearer ${getToken()}` }),
 });
 
-// 1) 结构化创建一个 agent（落为草稿）
+// 1) 结构化创建一个 agent（落为草稿）。信封 { name, content }（ADR-0033）：
+//    name = 租户内唯一 slug key（^[a-z0-9][a-z0-9-]*$），必填、不可变、≠ displayName。
 const agent = await console.createAgent({
-  prompt: "你是客服助手。",
-  ruleRefs: ["rul_123"],
-  displayName: "support",
+  name: "support-agent",
+  content: {
+    prompt: "你是客服助手。",
+    ruleRefs: ["rul_123"],
+    displayName: "客服助手", // 人类标签，可含中文；不作 name
+  },
 });
 
 // 2) 发布后才会被运行时解析（未发布 = 草稿，对运行时不可见）
@@ -60,6 +64,7 @@ await console.publishAgent(agent.id);
 
 - **租户隔离**：所有读写自动限定在当前租户，租户身份由请求头解析（你只需在 `headers` 里带上鉴权 / 租户头），SDK 不接收 `tenantId` 入参。
 - **前缀 id**：服务端生成、不可变，`agt_` / `skl_` / `rul_` + 雪花 id。裸 name（无前缀）永远指系统级资产，不归本 SDK 管。
+- **name vs displayName vs id（ADR-0033）**：`name` = 你在 create 时给的**租户内唯一 slug key**（`^[a-z0-9][a-z0-9-]*$`，必填、不可变、fail-closed，**不能是中文/大写/空格**）；`displayName` = content 内的**人类标签**（可含中文、可重复）；`id` = 服务端生成的运行时身份。三者不可互相替代——服务端**不再**从 displayName 派生 name。
 - **草稿/发布两态**：`create` / `update` / `createFromDocument` 都只产生**草稿**（`status: 'draft'`，`headVersionNo` 递增）。**只有 `publish*` 之后运行时才解析到该版本**。版本历史 append-only，「回滚」= 把旧内容重新提交为新草稿再发布。
 - **错误**：非 2xx 抛 `Error`（消息形如 `agent-sdk-console POST /agents: HTTP 404`）。内容/文档校验失败为 412。
 
@@ -78,7 +83,7 @@ await console.publishAgent(agent.id);
 
 | 能力               | agent                              | skill                              | rule                              |
 | ------------------ | ---------------------------------- | ---------------------------------- | --------------------------------- |
-| 建草稿             | `createAgent(content)`             | `createSkill(content)`             | `createRule(content)`             |
+| 建草稿             | `createAgent({name,content})`      | `createSkill({name,content})`      | `createRule({name,content})`      |
 | 列表               | `listAgents()`                     | `listSkills()`                     | `listRules()`                     |
 | 取单个             | `getAgent(id)`                     | `getSkill(id)`                     | `getRule(id)`                     |
 | 更新（新草稿版本） | `updateAgent(id, content)`         | `updateSkill(id, content)`         | `updateRule(id, content)`         |
@@ -86,12 +91,12 @@ await console.publishAgent(agent.id);
 | 发布 head          | `publishAgent(id)`                 | `publishSkill(id)`                 | `publishRule(id)`                 |
 | 文档导入           | `createFromDocument('agent', raw)` | `createFromDocument('skill', raw)` | `createFromDocument('rule', raw)` |
 
-结构化创建/更新直接传 kind 对应的 `content` 对象（由 contracts schema 校验，服务端会补默认值）：
+结构化创建传信封 `{ name, content }`（`name` = slug key）；更新只传 `content`（name 不可改）。`content` 由 contracts schema 校验、服务端补默认值：
 
 - **agent**：`prompt`(必填) + 可选 `modelConfig` / `ruleRefs` / `skillRefs` / `availableTools` / `subAgentRefs` / `maxDepth`
-- **skill**：`description` + `instructions`（均必填）+ 可选 `trigger`
+- **skill**：`description` + `instructions`（均必填）+ 可选 `activation`
 - **rule**：`content`(必填) + 可选 `description`
-- 三者共有可选 meta：`displayName` / `tags` / `version`
+- 三者共有可选 meta：`displayName` / `tags` / `version`（`displayName` 是人类标签、可含中文，**不是** `name`）
 
 ## 用法二：从 Markdown 文档导入（ADR-0018）
 

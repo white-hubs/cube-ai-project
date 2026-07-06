@@ -10,6 +10,8 @@ import type { ZodType } from "zod";
 
 import type { OutboxWriter, TransactionContext } from "@cube-ai/bun-server-ext-outbox";
 import {
+  DESCRIPTOR_NAME_PATTERN,
+  DescriptorNameSchema,
   TenantAgentContentSchema,
   TenantRuleContentSchema,
   TenantSkillContentSchema,
@@ -26,7 +28,7 @@ import {
 } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
-import { parseAgentDocument, parseRuleDocument, parseSkillDocument } from "./descriptor-document-parser";
+import { normalizeActivationInput, parseAgentDocument, parseRuleDocument, parseSkillDocument } from "./descriptor-document-parser";
 import { assertDescriptorOwner, assertDescriptorOwnerOrAdmin } from "./descriptor-owner";
 import { assertUserDescriptorContentIsolated } from "./engine-internal-guard";
 import type { ShelfService } from "./shelf.service";
@@ -39,6 +41,40 @@ const CONTENT_SCHEMA: Record<TenantDescriptorKind, ZodType> = {
 };
 
 const NULL_TX = null as unknown as TransactionContext;
+
+/**
+ * name 政策单点（ADR-0033）：租户内唯一 key，fail-closed 限定小写 kebab（displayName 可含中文，name 不可）。
+ * 空 → "required"；非法字符集 → 明确 slug 报错。三面（create / fromDocument / MCP ops）统一经此。
+ */
+function assertDescriptorName(raw: unknown, kind: TenantDescriptorKind): string {
+  const parsed = DescriptorNameSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  const hasText = typeof raw === "string" && raw.trim().length > 0;
+  throw AgenticEngineError.fromCode(
+    "INVALID_ARGUMENT_DESCRIPTOR_NAME",
+    hasText
+      ? `Invalid descriptor name '${(raw as string).trim()}': must be lower kebab-case matching ^[a-z0-9]+(?:-[a-z0-9]+)*$ (no leading/trailing/double hyphen, ASCII only)`
+      : "Descriptor name is required",
+    { kind },
+  );
+}
+
+/** 把任意文本有损转成 slug-safe name；无可用 ASCII 字符（如全中文）时返回空串。 */
+function toDescriptorNameSlug(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const slug = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/g, "");
+  return DESCRIPTOR_NAME_PATTERN.test(slug) ? slug : "";
+}
+
+/** propose 兜底 name（LLM 未给 / displayName 全非 ASCII 时）——仍是合法 slug。 */
+function generatedDescriptorName(kind: TenantDescriptorKind): string {
+  return `${kind}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** propose ref 候选的 kind 全集（含运行时 tool / sub-agent，ADR-0027 §6）。 */
 export type ProposeRefKind = ProposeSuggestion["kind"];
@@ -180,7 +216,8 @@ function buildStructuredMessages(
   const system = [
     `You are an authoring assistant for ${kind} descriptors in an AI middleware platform.`,
     `Given the drafted ${kind} body below, return ONLY a single JSON object with this exact shape:`,
-    `{"suggestions":[{"kind":"skill|rule|tool|agent","ref":"<exact ref from the candidate list>","rationale":"<why>","confidence":<0..1 optional>}],"meta":{"displayName":"<optional>","tags":["..."],"description":"<optional>","trigger":"<optional, skill only>"}}`,
+    `{"suggestions":[{"kind":"skill|rule|tool|agent","ref":"<exact ref from the candidate list>","rationale":"<why>","confidence":<0..1 optional>}],"meta":{"name":"<REQUIRED slug: lowercase ASCII, digits and hyphens only, matching ^[a-z0-9][a-z0-9-]*$>","displayName":"<optional human label, may be non-ASCII>","tags":["..."],"description":"<optional>","activation":"<optional, skill only: always|manual|semantic|path>"}}`,
+    `"meta.name" is a URL/file-safe slug derived from the intent (e.g. "customer-support-agent"); it is NOT the displayName and must never be empty or contain non-ASCII characters.`,
     `You MUST only reference refs that appear verbatim in the candidate list below. Never invent refs.`,
     kind === "agent"
       ? `Recommend the skills/rules/tools/sub-agents most relevant to this agent.`
@@ -229,8 +266,9 @@ function assembleContent(
           : req.intent?.trim() || prose.slice(0, 80).trim();
     if (desc) content["description"] = desc;
   }
-  if (kind === "skill" && typeof meta.trigger === "string" && meta.trigger.trim()) {
-    content["trigger"] = meta.trigger.trim();
+  if (kind === "skill") {
+    const activation = normalizeActivationInput(meta.activation);
+    if (activation !== undefined) content["activation"] = activation;
   }
   return content;
 }
@@ -297,24 +335,42 @@ export class DescriptorManagementService {
     }
   }
 
+  /**
+   * 统一「建草稿」写核（ADR-0033）——HTTP 结构化 create / `:fromDocument` / MCP ops create 三面共用。
+   * 收敛四件事到一处：name 政策（slug fail-closed）、content 按 kind 校验 + engine-internal 隔离、
+   * 同名 owner 归属检查（防跨 user 覆盖）、作者货架登记。领域解析（YAML→structured）仍在
+   * DescriptorDocumentParser，此核只吃已成形的 `(name, content)`。
+   */
+  private async writeDraft(
+    tenant: number,
+    kind: TenantDescriptorKind,
+    rawName: unknown,
+    rawContent: unknown,
+    actor?: string,
+  ): Promise<UpsertDescriptorResult> {
+    const name = assertDescriptorName(rawName, kind);
+    const content = this.validateContent(kind, rawContent);
+    const existing = await this.repo.findByName(tenant, kind, name);
+    if (existing) {
+      assertDescriptorOwner(existing.ownerUserId, actor);
+    }
+    const res = await this.repo.upsert(tenant, kind, name, content, actor);
+    if ((kind === "agent" || kind === "skill") && actor) {
+      await this.shelf?.upsertAuthored(tenant, actor, res.id, kind);
+    }
+    return res;
+  }
+
   async create(
     tenant: number,
     kind: TenantDescriptorKind,
     body: { name?: unknown; content?: unknown },
     actor?: string,
   ): Promise<TenantDescriptorView> {
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name) {
-      throw AgenticEngineError.fromCode("INVALID_ARGUMENT_DESCRIPTOR_NAME", "Descriptor name is required", { kind });
-    }
-    const content = this.validateContent(kind, body.content);
-    const { id } = await this.repo.upsert(tenant, kind, name, content, actor);
-    if ((kind === "agent" || kind === "skill") && actor) {
-      await this.shelf?.upsertAuthored(tenant, actor, id, kind);
-    }
-    const view = await this.repo.findById(tenant, id);
+    const res = await this.writeDraft(tenant, kind, body.name, body.content, actor);
+    const view = await this.repo.findById(tenant, res.id);
     if (!view) {
-      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Descriptor not visible after create", { id });
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Descriptor not visible after create", { id: res.id });
     }
     return view;
   }
@@ -388,7 +444,11 @@ export class DescriptorManagementService {
     return rolledBack;
   }
 
-  /** ADR-0018：text/plain 文档 → parse → upsert（结果恒为 draft）。 */
+  /**
+   * ADR-0018：text/plain 文档 → parse → upsert（结果恒为 draft）。
+   * ADR-0030 D1：与 {@link create} 同为「创建」入口，成功后同样把 agent/skill 自动登记进作者货架，
+   * 否则经 `:fromDocument` 创建的资产不会出现在 `/my/agents`｜`/my/skills`。
+   */
   async fromDocument(tenant: number, kind: TenantDescriptorKind, raw: string, actor?: string): Promise<FromDocumentResult> {
     let parsed: { name: string; content: unknown };
     try {
@@ -400,12 +460,8 @@ export class DescriptorManagementService {
         { kind },
       );
     }
-    const existing = await this.repo.findByName(tenant, kind, parsed.name);
-    if (existing) {
-      assertDescriptorOwner(existing.ownerUserId, actor);
-    }
-    const res: UpsertDescriptorResult = await this.repo.upsert(tenant, kind, parsed.name, parsed.content, actor);
-    return res;
+    // 与结构化 create 同核：name slug 政策 + content 隔离校验 + owner 归属 + 货架登记（ADR-0033）。
+    return this.writeDraft(tenant, kind, parsed.name, parsed.content, actor);
   }
 
   /**
@@ -490,10 +546,14 @@ export class DescriptorManagementService {
     const rawContent = assembleContent(kind, req, prose, meta);
     const { content, suggestions } = groundAndInline(kind, rawContent, rawSuggestions, candidateByRef);
 
+    // ADR-0033：propose 产出即带 slug-safe name（LLM meta.name 优先 → displayName 有损 slug → 兜底生成）。
+    const name = toDescriptorNameSlug(meta.name) || toDescriptorNameSlug(meta.displayName) || generatedDescriptorName(kind);
+
     const validation = CONTENT_SCHEMA[kind].safeParse(content);
     const result: ProposeResult = validation.success
-      ? { content: validation.data, suggestions, valid: true }
+      ? { name, content: validation.data, suggestions, valid: true }
       : {
+          name,
           content,
           suggestions,
           valid: false,

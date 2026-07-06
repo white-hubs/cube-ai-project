@@ -4,7 +4,7 @@ import { AGENTIC_CONTRACTS_VERSION, ERROR_CATEGORIES, ErrorResponseSchema, HEADE
 
 describe("@cube-ai/contracts smoke", () => {
   test("version string is set", () => {
-    expect(AGENTIC_CONTRACTS_VERSION).toBe("0.0.1-alpha.12");
+    expect(AGENTIC_CONTRACTS_VERSION).toBe("0.0.1-alpha.13");
   });
 
   test("SFID schema accepts 19-digit decimal string", () => {

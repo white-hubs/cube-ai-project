@@ -205,7 +205,7 @@
     },
     "packages/agent/sdk-client": {
       "name": "@cube-ai/agent-sdk-client",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "zod": "catalog:",
@@ -217,7 +217,7 @@
     },
     "packages/agent/sdk-client-assistant": {
       "name": "@cube-ai/agent-sdk-client-assistant",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/agent-sdk-client": "workspace:*",
         "@cube-ai/contracts": "workspace:*",
@@ -230,7 +230,7 @@
     },
     "packages/agent/sdk-client-mock": {
       "name": "@cube-ai/agent-sdk-client-mock",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -242,7 +242,7 @@
     },
     "packages/agent/sdk-client-vue": {
       "name": "@cube-ai/agent-sdk-client-vue",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/agent-sdk-client": "workspace:*",
         "@cube-ai/agent-sdk-client-assistant": "workspace:*",
@@ -259,7 +259,7 @@
     },
     "packages/agent/sdk-console": {
       "name": "@cube-ai/agent-sdk-console",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "zod": "catalog:",
@@ -270,7 +270,7 @@
     },
     "packages/contracts": {
       "name": "@cube-ai/contracts",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "zod": "catalog:",
       },
@@ -309,7 +309,7 @@
     },
     "packages/flow/sdk-client": {
       "name": "@cube-ai/flow-sdk-client",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -319,7 +319,7 @@
     },
     "packages/flow/sdk-console": {
       "name": "@cube-ai/flow-sdk-console",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "devDependencies": {
         "typescript": "catalog:",
       },
@@ -368,7 +368,7 @@
     },
     "packages/kb/sdk-client": {
       "name": "@cube-ai/kb-sdk-client",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
       },
@@ -378,7 +378,7 @@
     },
     "packages/kb/sdk-console": {
       "name": "@cube-ai/kb-sdk-console",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "devDependencies": {
         "typescript": "catalog:",
       },
@@ -400,7 +400,7 @@
     },
     "packages/llm/sdk-console": {
       "name": "@cube-ai/llm-sdk-console",
-      "version": "0.0.1-alpha.12",
+      "version": "0.0.1-alpha.13",
       "dependencies": {
         "@cube-ai/contracts": "workspace:*",
         "zod": "catalog:",
@@ -484,9 +484,9 @@
       "xlsx": "0.18.5",
     },
     "tachu": {
-      "@tachu/core": "1.0.0-rc.3",
-      "@tachu/extensions": "1.0.0-rc.3",
-      "@tachu/host-defaults": "1.0.0-rc.3",
+      "@tachu/core": "1.0.0-rc.14",
+      "@tachu/extensions": "1.0.0-rc.14",
+      "@tachu/host-defaults": "1.0.0-rc.14",
     },
     "test": {
       "@happy-dom/global-registrator": "20.10.2",
@@ -1129,11 +1129,11 @@
 
     "@smithy/util-utf8": ["@smithy/util-utf8@2.3.0", "", { "dependencies": { "@smithy/util-buffer-from": "^2.2.0", "tslib": "^2.6.2" } }, "sha512-R8Rdn8Hy72KKcebgLiv8jQcQkXoLMOGGv5uI1/k0l+snqkOzQ1R0ChUBCxWMlBsFMekWjq0wRudIweFs7sKT5A=="],
 
-    "@tachu/core": ["@tachu/core@1.0.0-rc.3", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/core/-/core-1.0.0-rc.3.tgz", { "dependencies": { "gray-matter": "^4.0.3", "semver": "^7.8.0", "tiktoken": "^1.0.22" } }, "sha512-CQbFEgFPFI0QbsJRTTQCmGjvhUTUBAZzUVQ+fBBWjqaoo1aUJX3P6/h/iXb6toAAIvMusyp8JWzQqu0aVsp20A=="],
+    "@tachu/core": ["@tachu/core@1.0.0-rc.14", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/core/-/core-1.0.0-rc.14.tgz", { "dependencies": { "gray-matter": "^4.0.3", "semver": "^7.8.0", "tiktoken": "^1.0.22" } }, "sha512-PcOWQNo8Md5kzSZ5M4axow693wg2bG7KNpBkBP+FaqM07LCWUq9DmG4DVs5+iAyChq2tHWe5jSRzTITy33CCOA=="],
 
-    "@tachu/extensions": ["@tachu/extensions@1.0.0-rc.3", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/extensions/-/extensions-1.0.0-rc.3.tgz", { "dependencies": { "@anthropic-ai/sdk": "^0.90.0", "@google/genai": "^2.3.0", "@modelcontextprotocol/sdk": "^1.29.0", "@opentelemetry/api": "^1.9.1", "@opentelemetry/sdk-trace-base": "^2.7.0", "@opentelemetry/sdk-trace-node": "^2.7.0", "@qdrant/js-client-rest": "^1.17.0", "@tachu/core": "1.0.0-rc.3", "mammoth": "^1.12.0", "openai": "^6.34.0", "pdf-parse": "^2.4.5" } }, "sha512-R5/je9GNcA94lK+f1KGOPnF3qh4mbnlyyoZnAcnMiRyy6lQKhvy6X9tVoQJBHaDqVZOeyxa32y51bTgDLz343A=="],
+    "@tachu/extensions": ["@tachu/extensions@1.0.0-rc.14", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/extensions/-/extensions-1.0.0-rc.14.tgz", { "dependencies": { "@anthropic-ai/sdk": "^0.90.0", "@google/genai": "^2.3.0", "@modelcontextprotocol/sdk": "^1.29.0", "@opentelemetry/api": "^1.9.1", "@opentelemetry/sdk-trace-base": "^2.7.0", "@opentelemetry/sdk-trace-node": "^2.7.0", "@qdrant/js-client-rest": "^1.17.0", "@tachu/core": "1.0.0-rc.14", "mammoth": "^1.12.0", "openai": "^6.34.0", "pdf-parse": "^2.4.5" } }, "sha512-WhlE8ClaPLnlPXcbJlN6l4MnLYZavj+8M6hK+vyzaL+I78tGzjTAeUgz2RKMAAlNlveJlK/qNGa3k6YTuPQR5A=="],
 
-    "@tachu/host-defaults": ["@tachu/host-defaults@1.0.0-rc.3", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/host-defaults/-/host-defaults-1.0.0-rc.3.tgz", { "dependencies": { "@tachu/core": "1.0.0-rc.3", "@tachu/extensions": "1.0.0-rc.3" } }, "sha512-Sm7W/0hWKG/G3bM9h+oPeFMHmw8ksB5ZvEwSQ6OTVlcn7okk6LwM5wfwZlV7xcVDymn5JWX8uf9n+DOipzCrJg=="],
+    "@tachu/host-defaults": ["@tachu/host-defaults@1.0.0-rc.14", "http://nexus.guhecloud.com:8888/repository/npm-group/@tachu/host-defaults/-/host-defaults-1.0.0-rc.14.tgz", { "dependencies": { "@tachu/core": "1.0.0-rc.14", "@tachu/extensions": "1.0.0-rc.14" } }, "sha512-jG+4H6cpPkPzJZWR3q4mE4yzAQ+sTltbV0+XtXU4vZuBNA/PBjUkIIS58xF7MLR6yW1U1fKvjnVubzf8hh3cVA=="],
 
     "@testcontainers/mysql": ["@testcontainers/mysql@12.0.1", "", { "dependencies": { "testcontainers": "^12.0.1" } }, "sha512-/vC3XP+TbCC/Vvn7lATNolIFA+AcWArBIfEV/zRPGts+ntGh7t1jCMEyMF9kfOTKrQwCc0a+w2IwfAYY7b2jTQ=="],
 

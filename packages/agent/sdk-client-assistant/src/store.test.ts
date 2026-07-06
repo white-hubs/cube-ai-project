@@ -339,7 +339,7 @@ describe("AssistantStore — send / streamEvents reducer", () => {
     await store.send("q");
     await nextTick();
     pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", label: "plan", phase: "planning", stepId: "step-1", time: 1 },
+      data: { event: "START", kind: "lifecycle", label: "开始处理", point: "turnStart", stepId: "step-1", time: 1 },
       event: "reasoning-step-v1",
     });
     pushEvent("sess-1", {
@@ -359,7 +359,7 @@ describe("AssistantStore — send / streamEvents reducer", () => {
     await store.send("q");
     await nextTick();
     pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", label: "执行中", phase: "execution", stepId: "phase-1", time: 1 },
+      data: { event: "START", kind: "lifecycle", label: "开始处理", point: "turnStart", stepId: "phase-1", time: 1 },
       event: "reasoning-step-v1",
     });
     pushEvent("sess-1", {
@@ -491,7 +491,7 @@ describe("AssistantStore — send / streamEvents reducer", () => {
       event: "message-delta-v1",
     });
     pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", stepId: "r", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "r", time: 1 },
       event: "reasoning-step-v1",
     });
     pushEvent("sess-1", {
@@ -687,10 +687,10 @@ describe("AssistantStore — send / streamEvents reducer", () => {
         steps: [
           {
             endTime: 100,
-            kind: "phase",
+            kind: "lifecycle",
             label: "意图识别",
             ok: true,
-            phase: "intent",
+            point: "turnStop",
             startTime: 1,
             stepId: "s1",
             text: "historical reasoning",
@@ -904,7 +904,7 @@ describe("AssistantStore — per-turn stream lifecycle (ADR-0008 §D5.1.v2)", ()
     const r1 = await store.send("q-1");
     await nextTick();
     pushEvent("s1", {
-      data: { event: "START", kind: "phase", stepId: "late", time: 1, turnId: "9999" },
+      data: { event: "START", kind: "lifecycle", stepId: "late", time: 1, turnId: "9999" },
       event: "reasoning-step-v1",
     });
     await nextTick();

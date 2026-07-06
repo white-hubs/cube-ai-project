@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
+import { TenantDescriptorCreateRequestSchema } from "@cube-ai/contracts";
+
 import { createAgentConsoleClient } from "./client";
 
 describe("AgentConsoleClient", () => {
-  test("createAgent POSTs JSON to /agent/console/agents", async () => {
+  test("createAgent POSTs the { name, content } envelope to /agent/console/agents", async () => {
     let capturedUrl = "";
     let capturedInit: RequestInit | undefined;
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -16,15 +18,33 @@ describe("AgentConsoleClient", () => {
       baseUrl: "http://ai-center.test",
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const body = { displayName: "A", prompt: "hello" };
-    await client.createAgent(body);
+    // name = slug key（≠ displayName，可含中文）；content 携带 displayName。
+    const req = { name: "support-agent", content: { displayName: "客服助手", prompt: "hello" } };
+    await client.createAgent(req);
 
     expect(capturedUrl).toBe("http://ai-center.test/agent/console/agents");
     expect(capturedInit?.method).toBe("POST");
     const headers = capturedInit?.headers as Record<string, string>;
     expect(headers["content-type"]).toBe("application/json");
     expect(headers.accept).toBe("application/json");
-    expect(capturedInit?.body).toBe(JSON.stringify(body));
+    expect(capturedInit?.body).toBe(JSON.stringify(req));
+  });
+
+  test("crossing test: what createAgent serializes parses against the contract envelope schema", async () => {
+    let capturedBody = "";
+    const fetchImpl = async (_url: string, init?: RequestInit): Promise<Response> => {
+      capturedBody = init?.body as string;
+      return Response.json({ id: "agt_1" });
+    };
+    const client = createAgentConsoleClient({
+      baseUrl: "http://ai-center.test",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    await client.createAgent({ name: "support-agent", content: { displayName: "客服助手", prompt: "hello" } });
+
+    // The SDK's on-the-wire body must satisfy the same schema the server parses — no drift by construction.
+    const parsed = TenantDescriptorCreateRequestSchema.safeParse(JSON.parse(capturedBody));
+    expect(parsed.success).toBe(true);
   });
 
   test("publishAgent POSTs to /agent/console/agents/<id>/publish", async () => {

@@ -3,8 +3,8 @@ name: chart-output
 version: 1.0.3
 description: 适用于统计、汇总、趋势、对比、可视化、图表、流程图、架构图、时序图等场景；用户提到图表、可视化、统计图、ECharts、Mermaid 时使用。
 displayName: 图表输出
-trigger:
-  type: semantic
+activation:
+  mode: semantic
 tags:
   - chart
   - visualization

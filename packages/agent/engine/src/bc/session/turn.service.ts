@@ -297,7 +297,7 @@ export class TurnService {
       turnId: arg.turnId,
       messageId: assistantMessageId,
       startTime,
-      // ADR-0021：reasoning-step-v1 的 stepId 走与 turnId/messageId 同体系的
+      // reasoning-step-v1 的 stepId 走与 turnId/messageId 同体系的
       // SFID，便于前端 Map<stepId, ReasoningStep> 索引与日志查询。
       nextSfid: () => this.sfid.next(),
     });
@@ -431,7 +431,7 @@ export class TurnService {
         },
         "turn.llm.phase.failed",
       );
-      // ADR-0021 Q11a：runStream 抛错时强制把所有活跃 reasoning step END，
+      // runStream 抛错时强制把所有活跃 reasoning step END，
       // 让前端 reasoning 树永远闭合。在 turn.failed 之前发，保持事件先后逻辑一致。
       const closureEvents = forceCloseActiveReasoning(mapperState, {
         code: "TURN_INTERRUPTED",

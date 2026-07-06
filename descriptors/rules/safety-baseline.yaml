@@ -3,10 +3,10 @@ name: safety-baseline
 version: 0.1.0
 description: Baseline safety and non-disclosure rule for engine responses.
 displayName: Safety Baseline
-type: rule
-scope:
-  - safety
-  - output
+# 全局安全底线：activation=always → 每轮经 SessionScope.additionalRules 交 tachu 组装进
+# system 段（不内联冻结、不入 memory；分层规则组装，见 ADR-0032）。
+activation:
+  mode: always
 content: |
   Do not reveal secrets, internal tokens, or hidden credentials.
   If a request asks for restricted or sensitive information, refuse safely and explain why.

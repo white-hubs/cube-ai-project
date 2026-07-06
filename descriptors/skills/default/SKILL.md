@@ -3,8 +3,8 @@ name: default-reasoning
 version: 1.0.0
 description: 默认推理技能：理解用户意图、拆解执行步骤、按需调用工具，并以简洁、有据的方式给出结论。
 displayName: 默认推理
-trigger:
-  type: semantic
+activation:
+  mode: semantic
 tags:
   - reasoning
   - default

@@ -1,23 +1,25 @@
 /**
  * FlowHandler — invokes the AI middle-platform Flow via FlowInvokerPort.
- * v1 主路径：**同步** `LOCAL` tool-use，返回 `{ result, executionTrace? }`（ADR-0020）。
+ * v1 主路径：**同步** `LOCAL` tool-use，返回 `{ result, executionTrace? }`。
  *
  * ref: docs/detailed-design/07-tools/builtin-catalog.md §6
- *      docs/adr/ADR-0020-platform-flow-sync-intent-routing.md
  */
-import { Inject, Injectable } from '@dangao/bun-server';
-import type { FlowExecutionTraceItem, FlowInvokerPort } from '@cube-ai/contracts';
-import { AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN } from '@cube-ai/contracts/platform';
-import { AgenticEngineError } from '../../../infra/errors/agentic-error';
-import type { ToolHandlerCtx } from '../tool-context';
-import type { ToolHandler } from './base-handler';
+import { Inject, Injectable } from "@dangao/bun-server";
 
-const MODEL_TRACE_MAX_ITEMS = Math.max(1, Number(process.env['AGENTIC_FLOW_TRACE_MODEL_MAX_ITEMS'] ?? 64));
-const MODEL_TRACE_MAX_CHARS = Math.max(256, Number(process.env['AGENTIC_FLOW_TRACE_MODEL_MAX_CHARS'] ?? 12_000));
+import type { FlowExecutionTraceItem, FlowInvokerPort } from "@cube-ai/contracts";
+import { AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN } from "@cube-ai/contracts/platform";
 
-function truncateExecutionTraceForModel(
-  trace: FlowExecutionTraceItem[] | undefined,
-): { executionTrace?: FlowExecutionTraceItem[]; traceTruncated?: boolean } {
+import { AgenticEngineError } from "../../../infra/errors/agentic-error";
+import type { ToolHandlerCtx } from "../tool-context";
+import type { ToolHandler } from "./base-handler";
+
+const MODEL_TRACE_MAX_ITEMS = Math.max(1, Number(process.env["AGENTIC_FLOW_TRACE_MODEL_MAX_ITEMS"] ?? 64));
+const MODEL_TRACE_MAX_CHARS = Math.max(256, Number(process.env["AGENTIC_FLOW_TRACE_MODEL_MAX_CHARS"] ?? 12_000));
+
+function truncateExecutionTraceForModel(trace: FlowExecutionTraceItem[] | undefined): {
+  executionTrace?: FlowExecutionTraceItem[];
+  traceTruncated?: boolean;
+} {
   if (!trace?.length) return {};
   let charBudget = MODEL_TRACE_MAX_CHARS;
   const out: FlowExecutionTraceItem[] = [];
@@ -54,18 +56,13 @@ export type FlowHandlerOutput = {
 
 @Injectable()
 export class FlowHandler implements ToolHandler<FlowHandlerInput, FlowHandlerOutput> {
-  readonly kind = 'flow' as unknown as ToolHandler['kind'];
+  readonly kind = "flow" as unknown as ToolHandler["kind"];
 
-  constructor(
-    @Inject(AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN) private readonly port: FlowInvokerPort,
-  ) {}
+  constructor(@Inject(AGENTIC_PLATFORM_FLOW_INVOKER_TOKEN) private readonly port: FlowInvokerPort) {}
 
   async invoke(input: FlowHandlerInput, ctx: ToolHandlerCtx): Promise<FlowHandlerOutput> {
-    if (!input?.flowId || typeof input.flowId !== 'string') {
-      throw AgenticEngineError.fromCode(
-        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-        'platform.flow.invoke requires a non-empty string flowId',
-      );
+    if (!input?.flowId || typeof input.flowId !== "string") {
+      throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "platform.flow.invoke requires a non-empty string flowId");
     }
 
     try {
@@ -83,29 +80,25 @@ export class FlowHandler implements ToolHandler<FlowHandlerInput, FlowHandlerOut
         result: resp.result,
         ...trimmed,
         ...(resp.partial !== undefined ? { partial: resp.partial } : {}),
-        ...('error' in resp && resp.error !== undefined ? { error: resp.error } : {}),
+        ...("error" in resp && resp.error !== undefined ? { error: resp.error } : {}),
       };
     } catch (e) {
-      const code =
-        (e as { code?: string } | null)?.code ?? 'UPSTREAM_TOOL_HTTP_FAILED';
+      const code = (e as { code?: string } | null)?.code ?? "UPSTREAM_TOOL_HTTP_FAILED";
       const msg = e instanceof Error ? e.message : String(e);
       const allowed = new Set([
-        'UPSTREAM_TOOL_HTTP_FAILED',
-        'UPSTREAM_NETWORK_TIMEOUT',
-        'UPSTREAM_AUTH_FAILED',
-        'INVALID_ARGUMENT_SCHEMA_VIOLATION',
-        'RESOURCE_NOT_FOUND_REMOTE',
-        'FAILED_PRECONDITION_UPSTREAM',
+        "UPSTREAM_TOOL_HTTP_FAILED",
+        "UPSTREAM_NETWORK_TIMEOUT",
+        "UPSTREAM_AUTH_FAILED",
+        "INVALID_ARGUMENT_SCHEMA_VIOLATION",
+        "RESOURCE_NOT_FOUND_REMOTE",
+        "FAILED_PRECONDITION_UPSTREAM",
       ]);
       const mapped = allowed.has(code)
-        ? code === 'RESOURCE_NOT_FOUND_REMOTE'
-          ? 'RESOURCE_NOT_FOUND_DESCRIPTOR'
+        ? code === "RESOURCE_NOT_FOUND_REMOTE"
+          ? "RESOURCE_NOT_FOUND_DESCRIPTOR"
           : code
-        : 'UPSTREAM_TOOL_HTTP_FAILED';
-      throw AgenticEngineError.fromCode(
-        mapped as Parameters<typeof AgenticEngineError.fromCode>[0],
-        `platform.flow.invoke failed: ${msg}`,
-      );
+        : "UPSTREAM_TOOL_HTTP_FAILED";
+      throw AgenticEngineError.fromCode(mapped as Parameters<typeof AgenticEngineError.fromCode>[0], `platform.flow.invoke failed: ${msg}`);
     }
   }
 }

@@ -22,8 +22,10 @@ function baseCtx(
   return {
     setStatus,
     params,
-    request: { text: mock(async () => extra.text ?? "") } as unknown as Request,
-    getBody: mock(async () => extra.body ?? {}),
+    // 还原真实语义：body 是一次性流，框架分发管道已预读并缓存进 getBody()；
+    // 控制器绝不能再调 request.text()，否则第二次读流会抛 "Body already used"。
+    request: { text: mock(() => Promise.reject(new TypeError("Body already used"))) } as unknown as Request,
+    getBody: mock(async () => (extra.text !== undefined ? extra.text : (extra.body ?? {}))),
     getParam: mock((k: string) => params[k]),
     state: extra.noSubject
       ? {}
@@ -98,13 +100,22 @@ function parseSse(text: string): Array<{ event: string; data: unknown }> {
 const run = <T>(ctx: Context, fn: () => Promise<T>) => contextStore.run(ctx, fn);
 
 describe("DescriptorManagementController — REST wiring", () => {
-  test('POST /agent/console/agents → service.create(tenant, "agent", body, actor)', async () => {
+  test('POST /agent/console/agents → service.create(tenant, "agent", { name, content }, actor)', async () => {
     const svc = mockService();
     const ctl = new DescriptorManagementController(svc);
     const ctx = baseCtx({ tenant: 7, userId: "alice", body: { name: "support", content: { prompt: "hi" } } });
     const res = await run(ctx, () => ctl.createAgent());
     expect(svc.create).toHaveBeenCalledWith(7, "agent", { name: "support", content: { prompt: "hi" } }, "alice");
     expect((res as { id: string }).id).toBe("agt_1");
+  });
+
+  test("POST /agent/console/agents forwards the envelope thinly (name policy lives in the service)", async () => {
+    const svc = mockService();
+    const ctl = new DescriptorManagementController(svc);
+    // 扁平 body（无 name）现在只是被薄转发；name 缺失由 service.writeDraft fail-closed（不再在控制器派生）。
+    const ctx = baseCtx({ tenant: 7, userId: "alice", body: { displayName: "支持", prompt: "hi" } });
+    await run(ctx, () => ctl.createAgent());
+    expect(svc.create).toHaveBeenCalledWith(7, "agent", { name: undefined, content: undefined }, "alice");
   });
 
   test("DescriptorManagementLegacyController delegates GET /agent/agents to same list handler", async () => {

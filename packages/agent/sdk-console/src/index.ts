@@ -9,6 +9,7 @@ import {
 export type { ProposeRequest, ProposeResult, ProposeSuggestion } from "@cube-ai/contracts";
 export type {
   AgentContentInput,
+  DescriptorCreateRequest,
   FromDocumentResult,
   LibraryBrowseOptions,
   ProposeOptions,

@@ -4,8 +4,8 @@ export {
   type IntentRoutingOutcome,
   type IntentRoutingState,
   readGlobalIntentRoutingParams,
-} from './intent-routing-types';
-export { computeIntentToolRouting, intentRoutingToToolContributions } from './intent-flow-scoring';
-export { DataChartTurnPolicyToolStrategy } from './data-chart-turn-policy.strategy';
-export { KeywordToolStrategy } from './keyword-tool.strategy';
-export { SemanticToolStrategy } from './semantic-tool.strategy';
+} from "./intent-routing-types";
+export { computeIntentToolRouting, intentRoutingToToolContributions } from "./intent-flow-scoring";
+export { DataChartGatingPolicyToolStrategy } from "./data-chart-gating-policy.strategy";
+export { KeywordToolStrategy } from "./keyword-tool.strategy";
+export { SemanticToolStrategy } from "./semantic-tool.strategy";

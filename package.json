@@ -87,9 +87,9 @@
       "@opentelemetry/semantic-conventions": "1.41.1"
     },
     "tachu": {
-      "@tachu/core": "1.0.0-rc.3",
-      "@tachu/extensions": "1.0.0-rc.3",
-      "@tachu/host-defaults": "1.0.0-rc.3"
+      "@tachu/core": "1.0.0-rc.14",
+      "@tachu/extensions": "1.0.0-rc.14",
+      "@tachu/host-defaults": "1.0.0-rc.14"
     },
     "vue": {
       "vue": "3.5.35",

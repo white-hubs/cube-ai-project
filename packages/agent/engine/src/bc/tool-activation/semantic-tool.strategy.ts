@@ -3,20 +3,19 @@ import {
   type ToolActivationContext,
   type ToolCandidateContribution,
   type ToolCandidateStrategy,
-} from '@tachu/core';
-import { computeIntentToolRouting } from './intent-flow-scoring';
-import type { IntentRoutingBlock } from './intent-routing-types';
+} from "@tachu/core";
+
+import { computeIntentToolRouting } from "./intent-flow-scoring";
+import type { IntentRoutingBlock } from "./intent-routing-types";
 
 /**
- * Semantic pre-filter for flow-class tools (ADR-0024 §D3).
+ * Semantic pre-filter for flow-class tools.
  * Skips tools already selected by {@link KeywordToolStrategy} (γ shortcut).
  */
 export class SemanticToolStrategy implements ToolCandidateStrategy {
-  readonly name = 'embedding-intent-flow';
+  readonly name = "embedding-intent-flow";
 
-  constructor(
-    private readonly getIntentBlock: () => IntentRoutingBlock | null | undefined,
-  ) {}
+  constructor(private readonly getIntentBlock: () => IntentRoutingBlock | null | undefined) {}
 
   async score(ctx: ToolActivationContext): Promise<ToolCandidateContribution[]> {
     const facade = ctx.semanticRetrieval;
@@ -57,8 +56,8 @@ export class SemanticToolStrategy implements ToolCandidateStrategy {
 
     const result = await facade.retrieve(
       {
-        caller: 'tool',
-        namespace: 'intent-flow',
+        caller: "tool",
+        namespace: "intent-flow",
         query: ctx.query,
         corpus,
       },

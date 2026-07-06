@@ -9,8 +9,7 @@ import { z } from "zod";
  * v1 主路径：**同步**返回结构化 `result`（中台 `/run` 或等价 envelope 全文）；
  * 可选 `executionTrace` 由适配器在消费 `run-stream` 等流式接口时填充。
  *
- * ref: docs/adr/ADR-0020-platform-flow-sync-intent-routing.md
- *      docs/detailed-design/07-tools/builtin-catalog.md §6
+ * ref: docs/detailed-design/07-tools/builtin-catalog.md §6
  */
 
 const SfidStringSchema = z.string().regex(/^\d{19}$/u, "must be a 19-digit SFID");
