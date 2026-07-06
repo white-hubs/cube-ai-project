@@ -1,4 +1,3 @@
-import { buildHostEngineDependencies, ENGINE_INIT_CORRELATION } from '@tachu/host-defaults';
 import {
   DefaultRetrievalPolicyRegistry,
   createDefaultToolCandidateStrategies,
@@ -14,38 +13,31 @@ import {
   type ObservabilityEmitter,
   type ProviderAdapter,
   type TaskExecutor,
-} from '@tachu/core';
-import { projectMemoryRefs, type ProjectionWorker } from '@tachu/extensions/memory';
+} from "@tachu/core";
+import { projectMemoryRefs, type ProjectionWorker } from "@tachu/extensions/memory";
+import { buildHostEngineDependencies, ENGINE_INIT_CORRELATION } from "@tachu/host-defaults";
+
+import { createTurnAwareEmbeddingRuntime, TurnAwareEmbeddingRuntime } from "@cube-ai/agent-engine/adapters/embedding";
+import { RedisProjectedMemorySystem } from "@cube-ai/agent-engine/adapters/memory";
+import { LlmProviderPortBridge } from "@cube-ai/agent-engine/adapters/provider";
+import { CubeQdrantMemoryIndex } from "@cube-ai/agent-engine/adapters/vector";
+import { AGENTIC_ENGINE_MEMORY_COLLECTION } from "@cube-ai/agent-engine/adapters/vector";
+import type { LlmProviderPort } from "@cube-ai/contracts/platform";
+
+import type { ImageAssetReader } from "../files/image-asset-reader";
+import { KeywordCandidateStrategy } from "../skill-activation/keyword-candidate.strategy";
+import { resolveSkillEmbeddingModelCode } from "../skill-activation/skill-embedding-config";
+import { KeywordToolStrategy, SemanticToolStrategy } from "../tool-activation";
+import { DataChartGatingPolicyToolStrategy } from "../tool-activation/data-chart-gating-policy.strategy";
 import {
-  createTurnAwareEmbeddingRuntime,
-  TurnAwareEmbeddingRuntime,
-} from '@cube-ai/agent-engine/adapters/embedding';
-import { LlmProviderPortBridge } from '@cube-ai/agent-engine/adapters/provider';
-import { CubeQdrantMemoryIndex } from '@cube-ai/agent-engine/adapters/vector';
-import { AGENTIC_ENGINE_MEMORY_COLLECTION } from '@cube-ai/agent-engine/adapters/vector';
-import type { LlmProviderPort } from '@cube-ai/contracts/platform';
-import { RedisProjectedMemorySystem } from '@cube-ai/agent-engine/adapters/memory';
-import type { ImageAssetReader } from '../files/image-asset-reader';
-import { KeywordCandidateStrategy } from '../skill-activation/keyword-candidate.strategy';
-import { LocalFileMultimodalResolver } from './local-file-multimodal-resolver';
-import { createResourceDemandRouter } from './resource-demand-router';
-import { resolveSkillEmbeddingModelCode } from '../skill-activation/skill-embedding-config';
-import { DataChartTurnPolicyToolStrategy } from '../tool-activation/data-chart-turn-policy.strategy';
-import { KeywordToolStrategy, SemanticToolStrategy } from '../tool-activation';
-import type { TurnContextHolder } from './turn-context-holder';
-import {
-  CUBE_DIRECT_ANSWER_SYSTEM_PROMPT_BASE,
-  CUBE_INTENT_FEW_SHOT_EXAMPLES,
-  CUBE_INTENT_SYSTEM_PROMPT_BASE,
-  CUBE_TOOL_USE_FINAL_ANSWER_SYSTEM_PROMPT_BASE,
   CUBE_TOOL_USE_SYSTEM_PROMPT_BASE,
   CUBE_TOOL_USE_SYSTEM_PROMPT_SUFFIX,
   CUBE_VALIDATION_SEMANTIC_JUDGE_SYSTEM_PROMPT_BASE,
-} from './cube-engine-prompt-overrides';
-import {
-  resolveNonEmptyModel,
-  TACHU_INTERNAL_TOOL_NAMES,
-} from './tachu.tokens';
+} from "./cube-engine-prompt-overrides";
+import { LocalFileMultimodalResolver } from "./local-file-multimodal-resolver";
+import { createResourceDemandRouter } from "./resource-demand-router";
+import { resolveNonEmptyModel, TACHU_INTERNAL_TOOL_NAMES } from "./tachu.tokens";
+import type { TurnContextHolder } from "./turn-context-holder";
 
 export interface AssembleTachuRuntimeInput {
   provider: ProviderAdapter;
@@ -54,7 +46,7 @@ export interface AssembleTachuRuntimeInput {
   turnContext: TurnContextHolder;
   taskExecutor: TaskExecutor;
   engineConfig?: EngineConfig | undefined;
-  /** Resolves opaque file.uri to Provider base64 (ADR-0024). */
+  /** Resolves opaque file.uri to Provider base64. */
   imageAssetReader?: ImageAssetReader;
   /** Preferred embedding path via @cube-ai/embedding (ADR-0005). */
   llmProvider?: LlmProviderPort;
@@ -70,25 +62,46 @@ export interface AssembleTachuRuntimeResult {
   initWarnings: string[];
 }
 
-export function buildDefaultEngineConfig(
-  providerId: string,
-  defaultModel: string,
-): EngineConfig {
+/**
+ * biz-ontology 查库动作工具 → 同域「发现/列举」兄弟工具（tachu rc.10 discoveryExpansion，ADR-0031）。
+ *
+ * 弱模型的路由常只 pin 动作工具 `query_database`，把同域发现工具饿掉、只能盲猜视图名。
+ * tachu 在 tool-routing choke-point 消费此表：pin `query_database` 时把这些兄弟一并送入本轮模型可见工具集
+ * （有向、单跳、dedup ∩ 已注册 \ excludeTools）。tachu 不理解任何 domain，领域名单只住本仓。
+ *
+ * 名单 = descriptor availableTools 去掉动作工具本身，须与
+ * `descriptors/agents/1934000000000000003.yaml` 的 availableTools + 「推荐发现路径」保持一致。
+ */
+const BIZ_ONTOLOGY_QUERY_TOOL = "mcp.biz-ontology.query_database";
+const BIZ_ONTOLOGY_DISCOVERY_SIBLINGS: readonly string[] = [
+  "mcp.biz-ontology.list_databases",
+  "mcp.biz-ontology.list_business_domains",
+  "mcp.biz-ontology.search_ontology",
+  "mcp.biz-ontology.search_by_domain",
+  "mcp.biz-ontology.read_ontology",
+];
+
+/**
+ * tachu 内置「宿主 gating-policy」工具候选策略的运行时 `name`。
+ *
+ * 我们只从 tachu 默认策略集里复用这一条——它消费 `InputEnvelope.metadata.gatingPolicy`
+ * 的 include/exclude（由 {@link applyHostGatingPolicyPreseed} 预置：data-chart 排除 image.qwen、
+ * 生成图强制纳入 image.qwen），其余默认策略由本仓的 Keyword/Semantic/DataChart 策略取代。
+ *
+ * rc.12 把该策略 `IntentTurnPolicyToolStrategy` 重命名为 `HostPolicyToolStrategy`
+ * （`name`：`"intent-turn-policy"` → `"host-policy"`）；rc.13 把 `TurnPolicy` 类型/字段
+ * 统一改名到 `GatingPolicy`（`name` 不变，仍是 `"host-policy"`）。用具名常量 + 单测钉住
+ * 这个字符串，让未来 tachu 再改名时测试**显式失败**，而不是 filter 静默返回空数组、导致 preseed 失效。
+ */
+export const HOST_POLICY_TOOL_STRATEGY_NAME = "host-policy";
+
+export function buildDefaultEngineConfig(providerId: string, defaultModel: string): EngineConfig {
   const route: ModelRoute = { provider: providerId, model: defaultModel };
   return {
     registry: { descriptorPaths: [], enableVectorIndexing: false },
-    intent: {
-      disableSimpleMarkers: true,
-      systemPromptBase: CUBE_INTENT_SYSTEM_PROMPT_BASE,
-      fewShotExamples: CUBE_INTENT_FEW_SHOT_EXAMPLES,
-    },
     toolUse: {
       systemPromptBase: CUBE_TOOL_USE_SYSTEM_PROMPT_BASE,
       systemPromptSuffix: CUBE_TOOL_USE_SYSTEM_PROMPT_SUFFIX,
-      finalAnswerSystemPromptBase: CUBE_TOOL_USE_FINAL_ANSWER_SYSTEM_PROMPT_BASE,
-    },
-    directAnswer: {
-      systemPromptBase: CUBE_DIRECT_ANSWER_SYSTEM_PROMPT_BASE,
     },
     validation: {
       semanticJudgeSystemPromptBase: CUBE_VALIDATION_SEMANTIC_JUDGE_SYSTEM_PROMPT_BASE,
@@ -100,18 +113,29 @@ export function buildDefaultEngineConfig(
       failFast: false,
       streamingOutput: true,
       skillBudget: 0.8,
-      skillActivationMode: 'activator',
+      skillActivationMode: "activator",
       candidateTopK: 20,
       stickyTtlTurns: 8,
       stickyMaxSlots: 3,
       enableSearchSkillsTool: true,
+      // 弱模型工具调用鲁棒性（tachu rc.10，ADR-0031）——与 W1/W2 prompt、groundingPrefetch 纵深互补：
+      // ① discoveryExpansion：pin 动作工具时把同域发现兄弟一并送入本轮（治 tool starvation）。
+      // ② toolLoop.failureRecoveryRetries：查库失败且零成功时强制再走一步（框住「一次失败即放弃」，
+      //    默认提示词英文、与 W1 同源，无需覆盖）。显式写 1 = 意图可读 + 防 tachu 默认漂移。
+      toolActivation: {
+        discoveryExpansion: {
+          enabled: true,
+          siblings: { [BIZ_ONTOLOGY_QUERY_TOOL]: [...BIZ_ONTOLOGY_DISCOVERY_SIBLINGS] },
+        },
+      },
+      toolLoop: { failureRecoveryRetries: 1 },
     },
     memory: {
       contextTokenLimit: 8000,
       compressionThreshold: 0.8,
       headKeep: 4,
       tailKeep: 4,
-      archivePath: '.tachu/archive/cube-agentic-engine.jsonl',
+      archivePath: ".tachu/archive/cube-agentic-engine.jsonl",
       vectorIndexLimit: 1000,
     },
     budget: { maxTokens: 500_000, maxToolCalls: 500, maxWallTimeMs: 3_000_000 },
@@ -126,31 +150,31 @@ export function buildDefaultEngineConfig(
         intent: route,
         planning: route,
         validation: route,
-        'fast-cheap': route,
-        'high-reasoning': route,
+        "fast-cheap": route,
+        "high-reasoning": route,
       },
       providerFallbackOrder: [providerId],
     },
     providers: {
       qdrant: {
-        baseURL: process.env['AGENTIC_ENGINE_QDRANT_URL'] ?? 'http://localhost:6333',
+        baseURL: process.env["AGENTIC_ENGINE_QDRANT_URL"] ?? "http://localhost:6333",
         extra: {
           vectorIndex: {
-            url: process.env['AGENTIC_ENGINE_QDRANT_URL'] ?? 'http://localhost:6333',
+            url: process.env["AGENTIC_ENGINE_QDRANT_URL"] ?? "http://localhost:6333",
             collectionName: AGENTIC_ENGINE_MEMORY_COLLECTION,
-            vectorSize: Number(process.env['AGENTIC_ENGINE_MEMORY_VECTOR_SIZE'] ?? '1536'),
+            vectorSize: Number(process.env["AGENTIC_ENGINE_MEMORY_VECTOR_SIZE"] ?? "1536"),
           },
         },
       },
     },
     observability: { enabled: true, maskSensitiveData: true },
-    hooks: { writeHookTimeout: 1000, failureBehavior: 'continue' },
+    hooks: { writeHookTimeout: 1000, failureBehavior: "continue" },
   };
 }
 
 function memoryEntryContentText(entry: MemoryEntry): string {
-  if (typeof entry.content === 'string') return entry.content;
-  if (entry.content === null || entry.content === undefined) return '';
+  if (typeof entry.content === "string") return entry.content;
+  if (entry.content === null || entry.content === undefined) return "";
   try {
     return JSON.stringify(entry.content);
   } catch {
@@ -168,21 +192,14 @@ function createLoadEntry(memory: RedisProjectedMemorySystem) {
 }
 
 /**
- * Pure assembly for tachu {@link Engine} + cube projection stack (ADR-0021).
+ * Pure assembly for tachu {@link Engine} + cube projection stack.
  */
-export function assembleTachuRuntime(
-  input: AssembleTachuRuntimeInput,
-): AssembleTachuRuntimeResult {
-  const defaultModel = resolveNonEmptyModel(
-    process.env['AGENTIC_ENGINE_MODEL'],
-    'gpt-4o-mini',
-  );
+export function assembleTachuRuntime(input: AssembleTachuRuntimeInput): AssembleTachuRuntimeResult {
+  const defaultModel = resolveNonEmptyModel(process.env["AGENTIC_ENGINE_MODEL"], "gpt-4o-mini");
   const defaultEmbeddingModel =
-    resolveSkillEmbeddingModelCode() ??
-    resolveNonEmptyModel(process.env['AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL'], 'text-embedding-3-small');
+    resolveSkillEmbeddingModelCode() ?? resolveNonEmptyModel(process.env["AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL"], "text-embedding-3-small");
 
-  const config =
-    input.engineConfig ?? buildDefaultEngineConfig(input.provider.id, defaultModel);
+  const config = input.engineConfig ?? buildDefaultEngineConfig(input.provider.id, defaultModel);
 
   const hostResult = buildHostEngineDependencies(config, {
     observability: input.observability,
@@ -199,12 +216,11 @@ export function assembleTachuRuntime(
   let projectionWorker: ProjectionWorker | undefined;
 
   const llmProvider =
-    input.llmProvider ??
-    (input.provider instanceof LlmProviderPortBridge ? input.provider.getLlmProviderPort() : undefined);
+    input.llmProvider ?? (input.provider instanceof LlmProviderPortBridge ? input.provider.getLlmProviderPort() : undefined);
 
-  if (llmProvider && typeof input.provider.embed === 'function') {
-    const memoryVectorSize = Number(process.env['AGENTIC_ENGINE_MEMORY_VECTOR_SIZE'] ?? '1536');
-    const memoryTenant = Number(process.env['AGENTIC_ENGINE_MEMORY_TENANT_ID'] ?? '1');
+  if (llmProvider && typeof input.provider.embed === "function") {
+    const memoryVectorSize = Number(process.env["AGENTIC_ENGINE_MEMORY_VECTOR_SIZE"] ?? "1536");
+    const memoryTenant = Number(process.env["AGENTIC_ENGINE_MEMORY_TENANT_ID"] ?? "1");
     embeddingRuntime = createTurnAwareEmbeddingRuntime({
       provider: llmProvider,
       defaultModel: defaultEmbeddingModel,
@@ -218,17 +234,17 @@ export function assembleTachuRuntime(
     });
 
     vectorIndex = new CubeQdrantMemoryIndex({
-      url: process.env['AGENTIC_ENGINE_QDRANT_URL'] ?? 'http://localhost:6333',
-      apiKey: process.env['AGENTIC_ENGINE_QDRANT_API_KEY'],
-      vectorSize: Number(process.env['AGENTIC_ENGINE_MEMORY_VECTOR_SIZE'] ?? '1536'),
-      searchTenant: Number(process.env['AGENTIC_ENGINE_MEMORY_TENANT_ID'] ?? '1'),
+      url: process.env["AGENTIC_ENGINE_QDRANT_URL"] ?? "http://localhost:6333",
+      apiKey: process.env["AGENTIC_ENGINE_QDRANT_API_KEY"],
+      vectorSize: Number(process.env["AGENTIC_ENGINE_MEMORY_VECTOR_SIZE"] ?? "1536"),
+      searchTenant: Number(process.env["AGENTIC_ENGINE_MEMORY_TENANT_ID"] ?? "1"),
     });
 
     if (input.memorySystem instanceof RedisProjectedMemorySystem) {
       const mem = input.memorySystem;
       const projectionCtx = {
         ...DEFAULT_ADAPTER_CALL_CONTEXT,
-        tenant: Number(process.env['AGENTIC_ENGINE_MEMORY_TENANT_ID'] ?? '1'),
+        tenant: Number(process.env["AGENTIC_ENGINE_MEMORY_TENANT_ID"] ?? "1"),
       };
       const loadEntry = createLoadEntry(mem);
       mem.bindProjectionProject((sessionId: string, refs: readonly string[], signal: AbortSignal) =>
@@ -254,25 +270,25 @@ export function assembleTachuRuntime(
     input.observability.emit({
       timestamp: Date.now(),
       correlation: ENGINE_INIT_CORRELATION,
-      phase: 'init',
-      type: 'progress',
+      phase: "init",
+      type: "progress",
       payload: {
-        status: 'projection.available',
+        status: "projection.available",
         providerId: input.provider.id,
         model: defaultEmbeddingModel,
-        vectorIndexKind: 'qdrant',
+        vectorIndexKind: "qdrant",
       },
     });
   } else {
-    initWarnings.push('projection.disabled');
+    initWarnings.push("projection.disabled");
     input.observability.emit({
       timestamp: Date.now(),
       correlation: ENGINE_INIT_CORRELATION,
-      phase: 'init',
-      type: 'warning',
+      phase: "init",
+      type: "warning",
       payload: {
-        status: 'projection.disabled',
-        reason: 'provider does not implement embed()',
+        status: "projection.disabled",
+        reason: "provider does not implement embed()",
       },
     });
   }
@@ -284,9 +300,7 @@ export function assembleTachuRuntime(
       })
     : hostResult.engineDependencies.semanticRetrievalFacade;
 
-  const multimodalResolver = input.imageAssetReader
-    ? new LocalFileMultimodalResolver(input.imageAssetReader)
-    : undefined;
+  const multimodalResolver = input.imageAssetReader ? new LocalFileMultimodalResolver(input.imageAssetReader) : undefined;
 
   const resourceDemandRouter = createResourceDemandRouter();
 
@@ -300,10 +314,8 @@ export function assembleTachuRuntime(
     resourceDemandRouter,
     candidateStrategies: [new KeywordCandidateStrategy()],
     toolStrategies: [
-      ...createDefaultToolCandidateStrategies().filter(
-        (strategy) => strategy.name === 'intent-turn-policy',
-      ),
-      new DataChartTurnPolicyToolStrategy(),
+      ...createDefaultToolCandidateStrategies().filter((strategy) => strategy.name === HOST_POLICY_TOOL_STRATEGY_NAME),
+      new DataChartGatingPolicyToolStrategy(),
       new KeywordToolStrategy(() => input.turnContext.intentRoutingBlock),
       new SemanticToolStrategy(() => input.turnContext.intentRoutingBlock),
     ],

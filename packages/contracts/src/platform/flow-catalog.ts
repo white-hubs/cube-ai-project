@@ -2,9 +2,7 @@ import { z } from "zod";
 
 /**
  * FlowCatalogPort — 列举 AI 中台已配置的 Flow，供 `platform.flow.list` 使用。
- * 与 `FlowInvokerPort` 分离：发现为只读 GET，与 ADR-0020 方案 C（先 list 再 invoke）对齐。
- *
- * ref: docs/adr/ADR-0020-platform-flow-sync-intent-routing.md
+ * 与 `FlowInvokerPort` 分离：发现为只读 GET，先 list 再 invoke。
  */
 
 export const FlowCatalogListRequestSchema = z.object({

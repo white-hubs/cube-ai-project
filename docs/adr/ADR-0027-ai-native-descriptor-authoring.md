@@ -11,7 +11,7 @@ ADR-0016 / ADR-0018 落地了 agent 管理面（`/agent/console/*`）对 agent /
 
 作为「AI 基础能力提供方」，中台不应以传统业务平台思维交付管理面——应让管理者在创作 descriptor 时**深度感受到 AI 便利**：用 LLM 优化配置、甚至从意图自动生成配置。
 
-约束基线：跨域只走 contracts port（ADR-0002）、能力包无自有鉴权、tenant 单一隔离主键（ADR-0012 addendum）、LLM 凭据单源 `llm-core`（ADR-0003）、Tool 编排归 engine（ADR-0006）、draft/publish 两态（ADR-0016 §4）、SDK 按面命名（ADR-0011）。已有先例：engine 运行时已会「自己用 LLM 帮自己做决策」（tool-activation / `intent-flow-scoring`，ADR-0020），但该路由是**关键词子串匹配**，非语义/embedding。
+约束基线：跨域只走 contracts port（ADR-0002）、能力包无自有鉴权、tenant 单一隔离主键（ADR-0012 addendum）、LLM 凭据单源 `llm-core`（ADR-0003）、Tool 编排归 engine（ADR-0006）、draft/publish 两态（ADR-0016 §4）、SDK 按面命名（ADR-0011）。已有先例：engine 运行时已会「自己用 LLM 帮自己做决策」（tool-activation / `intent-flow-scoring`），但该路由是**关键词子串匹配**，非语义/embedding。
 
 收敛起点是 6 个候选方向（NL 生成、引用智能装配、发布前评测、配置优化、会话提炼、自动元数据），经 grill 坍缩。
 
@@ -65,7 +65,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-sdk
 
 `propose` 推荐 refs 时，把**候选清单**（系统级 + 本租户已发布、按 kind 过滤的 name + description）喂给生成 LLM，LLM **只能从清单内选**；产出后再对 registry **硬校验存在性**、丢弃任何幻觉项。这是本能力区别于「前端接个通用 ChatGPT」的核心价值——吃到了上游/通用 LLM 拿不到的平台内部 registry 知识。
 
-运行时 tool-activation 的关键词路由（ADR-0020）**不动**——它是运行时召回，与创作时推荐是两个场景（管理 Agent 在运行时仍复用它）。embedding 召回预筛留待 registry 规模触发。
+运行时 tool-activation 的关键词路由**不动**——它是运行时召回，与创作时推荐是两个场景（管理 Agent 在运行时仍复用它）。embedding 召回预筛留待 registry 规模触发。
 
 ### 7. 管理能力的原语 = 管理 ops 工具集（Tool Handler）
 
@@ -105,7 +105,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-sdk
 
 - **Positive**：两种 UX（可控表单 / 省心对话）覆盖不同创作偏好；`propose` 纯建议不碰持久化、零写副作用、可安全反复调；ref 硬接地杜绝幻觉 = 中台特有价值；管理能力「一核两面」与 LLM 同构、心智一致；**外部 agent 生态（IDE agent 等）零 bespoke 集成即可经 MCP 管理中台 descriptor**；`propose` 一原语两用、减重复；diff/confirm 与 tool consent 共用同一安全语义。
 - **Negative**：新增 SSE `:propose` 端点 + contracts 信封 schema + SDK 方法；管理 ops 工具集 + 内置「管理 Agent」预置 + 两面 consent 策略；engine 新增 **MCP 服务端运行时面**（transport / 鉴权 / 多租户并发 / server-side draft-safe + 显式确认协议），两面需保持 ops 行为一致；每次 `propose`/对话都是 LLM 调用，有成本。
-- **Neutral**：发布前评测 / diff UI 外推给下游或暂不做；配置优化不单列（= `propose` 带 `base`）；运行时关键词路由（ADR-0020）不动；MCP 桥接（入站）语义不变，本 ADR 只新增出站服务端面。
+- **Neutral**：发布前评测 / diff UI 外推给下游或暂不做；配置优化不单列（= `propose` 带 `base`）；运行时关键词路由不动；MCP 桥接（入站）语义不变，本 ADR 只新增出站服务端面。
 
 ## Options Considered
 
@@ -116,7 +116,7 @@ AI 辅助创作经 `/agent` 管理面 API + `agent-sdk-console` 暴露，`ai-sdk
 - **仅 MCP server、砍掉进程内管理 Agent**：进程内 agent 用管理能力要走 MCP 回环，荒谬。否（一核两面，§8）。
 - **不开 MCP、仅进程内 ops-as-tools**：实现最小，但丢了外部 agent 生态零集成管理的便利。否（开 MCP server 门面）。
 - **MCP 全量暴露、不加服务端门槛（纯靠 client host consent）**：最简单，但 publish/软删有运行时副作用，client host 的 consent 不可控时风险高。否（服务端 draft-safe + 显式确认，§9）。
-- **ref 接地复用关键词路由（ADR-0020）**：零新逻辑，但召回弱、需每 skill 精配 keywords；`propose` 已是 LLM 调用，in-context 接地质量更高。否（in-context + 硬校验）。
+- **ref 接地复用关键词路由**：零新逻辑，但召回弱、需每 skill 精配 keywords；`propose` 已是 LLM 调用，in-context 接地质量更高。否（in-context + 硬校验）。
 - **ref 接地用 embedding 召回 + rerank**：大 registry 可扩展，但要维护索引。暂否（规模触发再上，作 in-context 候选预筛）。
 - **`propose` 一次性 JSON（非 SSE）**：实现简单，但丢流式体验（生成慢时无反馈）。否（SSE delta + 末尾信封）。
 - **管理 Agent 另起专用对话端点（不复用 engine agent 运行时）**：耦合更松，但重复 session/turn/consent 全套。否（系统级内置 agent + 工具）。

@@ -121,7 +121,7 @@ describe("SessionService — business flows", () => {
       name: "default-reasoning",
       description: "Default reasoning",
       instructions: "Be concise.",
-      trigger: { type: "semantic" },
+      activation: { mode: "semantic" },
     };
     const descriptorLoader = {
       getGlobalPrompt: () => "GLOBAL",
@@ -174,14 +174,16 @@ describe("SessionService — business flows", () => {
         skills?: Array<{ name: string; content: { instructions?: string } }>;
       };
     };
-    // Snapshot prompt = body (global + rules + agent + sessionSuffix) + 一次性冻结的 session-start UTC 块。
+    // Snapshot prompt = body (global + agent + sessionSuffix) + 一次性冻结的 session-start UTC 块。
+    // 规则正文**不再**内联进 prompt（ADR-0032：改由 per-turn additionalRules 进 tachu system 段）。
     const builtPrompt = input.agentSnapshotJson?.agent?.content?.prompt ?? "";
-    expect(builtPrompt.startsWith("GLOBAL\n\nRULE-TEXT: never reveal secrets.\n\nAGENT\n\nSESSION\n\n---\n")).toBe(true);
+    expect(builtPrompt.startsWith("GLOBAL\n\nAGENT\n\nSESSION\n\n---\n")).toBe(true);
+    expect(builtPrompt).not.toContain("RULE-TEXT: never reveal secrets.");
     expect(builtPrompt).toContain("Session-start time (UTC)");
     expect(builtPrompt).toContain("`currentDate` tool");
     expect(input.agentSnapshotJson?.agent?.content?.toolRefs).toEqual(["platform.flow.invoke", "platform.knowledge.query"]);
     expect(input.agentSnapshotJson?.agent?.content?.ruleRefs).toEqual(["safety-baseline"]);
-    // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules，不再是恒空数组。
+    // rule 水合（ADR-0016 §7）：内容冻结进 snapshot.rules（版本权威），供 per-turn 投影检索。
     expect(input.agentSnapshotJson?.rules?.length).toBe(1);
     expect(input.agentSnapshotJson?.rules?.[0]?.name).toBe("safety-baseline");
     expect(input.agentSnapshotJson?.rules?.[0]?.content.content).toContain("never reveal");

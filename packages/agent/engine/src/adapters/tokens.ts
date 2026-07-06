@@ -12,32 +12,20 @@
 
 // ─── Canonical token names (agentic.adapter.*) ───────────────────────────────
 
-export const AGENTIC_PROVIDER_TOKEN = Symbol.for('agentic.adapter.provider');
+export const AGENTIC_PROVIDER_TOKEN = Symbol.for("agentic.adapter.provider");
 
-export const AGENTIC_VECTOR_STORE_TOKEN = Symbol.for(
-  'agentic.adapter.vectorStore',
-);
+export const AGENTIC_VECTOR_STORE_TOKEN = Symbol.for("agentic.adapter.vectorStore");
 
-/** Pure-vector Qdrant index for memory projection + recall (ADR-0021). */
-export const TACHU_VECTOR_INDEX_TOKEN = Symbol.for(
-  'agentic.adapter.vectorIndex',
-);
+/** Pure-vector Qdrant index for memory projection + recall. */
+export const TACHU_VECTOR_INDEX_TOKEN = Symbol.for("agentic.adapter.vectorIndex");
 
-export const AGENTIC_MEMORY_SYSTEM_TOKEN = Symbol.for(
-  'agentic.adapter.memorySystem',
-);
+export const AGENTIC_MEMORY_SYSTEM_TOKEN = Symbol.for("agentic.adapter.memorySystem");
 
-export const AGENTIC_SAFETY_MODULE_TOKEN = Symbol.for(
-  'agentic.adapter.safetyModule',
-);
+export const AGENTIC_SAFETY_MODULE_TOKEN = Symbol.for("agentic.adapter.safetyModule");
 
-export const AGENTIC_OBSERVABILITY_TOKEN = Symbol.for(
-  'agentic.adapter.observability',
-);
+export const AGENTIC_OBSERVABILITY_TOKEN = Symbol.for("agentic.adapter.observability");
 
-export const AGENTIC_EXECUTION_BACKEND_TOKEN = Symbol.for(
-  'agentic.adapter.executionBackend',
-);
+export const AGENTIC_EXECUTION_BACKEND_TOKEN = Symbol.for("agentic.adapter.executionBackend");
 
 // ─── Legacy aliases (deprecated — remove in M2-Phase2) ───────────────────────
 /** @deprecated use AGENTIC_PROVIDER_TOKEN */

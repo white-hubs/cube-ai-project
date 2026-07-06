@@ -62,7 +62,10 @@ function colonActionOf(ctx: Context): string {
 }
 
 async function rawTextBody(ctx: Context): Promise<string> {
-  const text = await ctx.request.text();
+  // 框架分发管道对所有 POST/PUT/PATCH 请求已预读一次 body（缓存于 ctx.getBody()）；
+  // Fetch Request.body 是一次性流，绝不能再调 ctx.request.text()（会抛 "Body already used"）。
+  const body = await ctx.getBody();
+  const text = typeof body === "string" ? body : "";
   if (!text || !text.trim()) {
     throw AgenticEngineError.fromCode("INVALID_ARGUMENT_DESCRIPTOR_DOCUMENT", "Descriptor document body must be non-empty text/plain", {});
   }
@@ -210,7 +213,9 @@ export class DescriptorManagementController {
   private async create(kind: TenantDescriptorKind) {
     const ctx = requireCtx();
     const body = await jsonBody(ctx);
-    return this.svc.create(tenantOf(ctx), kind, body, actorOf(ctx));
+    // 唯一 wire 契约 = 信封 `{ name, content }`（ADR-0033，TenantDescriptorCreateRequestSchema）。
+    // name 政策 / content 校验统一在 service.writeDraft，此处只做薄转发。
+    return this.svc.create(tenantOf(ctx), kind, { name: body.name, content: body.content }, actorOf(ctx));
   }
 
   private async list(kind: TenantDescriptorKind) {

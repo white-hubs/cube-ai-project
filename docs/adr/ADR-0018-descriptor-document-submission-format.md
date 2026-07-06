@@ -28,7 +28,7 @@ description: <string>
 displayName: <string>
 tags: [...]
 version: <string>        # 内容语义版本，独立于 DB head_version_no
-<kind 特定字段>           # skill: trigger; agent: modelConfig/ruleRefs/skillRefs/...
+<kind 特定字段>           # skill: activation（tachu rc.13，取代旧 trigger）; agent: modelConfig/ruleRefs/skillRefs/...
 ---
 <markdown body>           # skill → instructions; rule → content; agent → prompt
 ```

@@ -1,10 +1,7 @@
-import type { ToolDescriptor } from '@tachu/core';
-import type { ToolCandidateContribution } from '@tachu/core';
-import {
-  readGlobalIntentRoutingParams,
-  type IntentRoutingBlock,
-  type IntentRoutingOutcome,
-} from './intent-routing-types';
+import type { ToolDescriptor } from "@tachu/core";
+import type { ToolCandidateContribution } from "@tachu/core";
+
+import { readGlobalIntentRoutingParams, type IntentRoutingBlock, type IntentRoutingOutcome } from "./intent-routing-types";
 
 type FlowScore = {
   toolName: string;
@@ -27,7 +24,7 @@ function resolveIntentParams(block: IntentRoutingBlock) {
 }
 
 /**
- * ADR-0020 keyword routing — shared by ToolCandidateStrategy and TurnService SSE audit.
+ * Keyword routing — shared by ToolCandidateStrategy and TurnService SSE audit.
  */
 export function computeIntentToolRouting(input: {
   prompt: string;
@@ -37,7 +34,7 @@ export function computeIntentToolRouting(input: {
   const toolRefs = [...input.toolRefs];
   const block = input.intentBlock;
   if (!block || block.enabled === false || !Array.isArray(block.flows) || block.flows.length === 0) {
-    return { state: 'matched', visibleToolRefs: toolRefs };
+    return { state: "matched", visibleToolRefs: toolRefs };
   }
 
   const { confirm, floor, topK } = resolveIntentParams(block);
@@ -53,7 +50,7 @@ export function computeIntentToolRouting(input: {
   const maxScore = scored.length === 0 ? 0 : Math.max(...scored.map((s) => s.score));
 
   if (maxScore === 0) {
-    return { state: 'empty', visibleToolRefs: nonFlow };
+    return { state: "empty", visibleToolRefs: nonFlow };
   }
 
   if (maxScore >= confirm) {
@@ -62,10 +59,10 @@ export function computeIntentToolRouting(input: {
     const topP = winners[0]!.priority;
     const bucket = winners.filter((w) => w.priority === topP);
     if (bucket.length === 1) {
-      return { state: 'matched', visibleToolRefs: [...nonFlow, bucket[0]!.toolName] };
+      return { state: "matched", visibleToolRefs: [...nonFlow, bucket[0]!.toolName] };
     }
     return {
-      state: 'fallback',
+      state: "fallback",
       visibleToolRefs: [...nonFlow, ...bucket.map((b) => b.toolName)],
       multiMatch: true,
     };
@@ -73,16 +70,16 @@ export function computeIntentToolRouting(input: {
 
   const ranked = scored
     .filter((s) => s.score >= floor && s.score < confirm)
-    .sort((a, b) => b.score - a.score || b.priority - a.priority || a.toolName.localeCompare(b.toolName));
+    .toSorted((a, b) => b.score - a.score || b.priority - a.priority || a.toolName.localeCompare(b.toolName));
   const picked = ranked.slice(0, topK).map((r) => r.toolName);
   if (picked.length === 0) {
-    return { state: 'empty', visibleToolRefs: nonFlow };
+    return { state: "empty", visibleToolRefs: nonFlow };
   }
-  return { state: 'fallback', visibleToolRefs: [...nonFlow, ...picked] };
+  return { state: "fallback", visibleToolRefs: [...nonFlow, ...picked] };
 }
 
 /**
- * Map ADR-0020 routing outcome to tachu ToolCandidateContribution[] for ToolActivator.
+ * Map keyword routing outcome to tachu ToolCandidateContribution[] for ToolActivator.
  */
 export function intentRoutingToToolContributions(input: {
   prompt: string;
@@ -104,8 +101,8 @@ export function intentRoutingToToolContributions(input: {
     contributions.push({
       toolName: tool.name,
       score: 1,
-      reason: isFlow ? `keyword:intent-flow:${outcome.state}` : 'keyword:non-flow-always',
-      promote: { reason: isFlow ? `intent-flow:${outcome.state}` : 'non-flow-always' },
+      reason: isFlow ? `keyword:intent-flow:${outcome.state}` : "keyword:non-flow-always",
+      promote: { reason: isFlow ? `intent-flow:${outcome.state}` : "non-flow-always" },
     });
   }
 

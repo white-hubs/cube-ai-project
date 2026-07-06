@@ -122,6 +122,18 @@ _Avoid_: 把 MCP 凭据并入 LLM **凭据边界**
 每个需要工具的运行时各自装配同构的 **Tool Handler** 薄适配（engine 现有；未来去 LF 后的 flow 自建），互不共享 **Tool 编排**。
 _Avoid_: 让 flow 依赖 engine 的 tool bc, 抽公共 tool 装配层
 
+**接地预取 (Grounding Prefetch)**:
+运行时在 tool-loop 开始前、按 **agent 声明** 主动预跑一次发现/检索类工具，把结果注入本轮上下文的 host 侧准备机制；让（尤其能力较弱的）模型无需自己多步发现即可拿到接地事实（如知识检索命中、数据实体清单），从而不必盲猜标识符。**知识检索预取** 与 **数据实体（ontology）预取** 是它的两个实例，共用同一 host 预取原语；触发源可不同（前者由本轮 runtime 引用触发、后者由 agent 声明触发），但都不改 **Tool 编排** 的循环语义。领域专属知识（调哪个工具、如何取参）只住 **声明式资产**，不下沉进通用运行时代码。
+_Avoid_: 把它当 tool-loop 内的一次普通 tool 调用, 在通用运行时代码里硬编码某 MCP server 的工具名, 与 **Tool 编排** 混为一谈, 把它当模型「能力」而非 host 准备步
+
+**规则激活 (Rule Activation)**:
+rule descriptor 上的**激活轴**，只回答「规则正文**何时**进入本轮上下文」（对齐业界 rule 系统 Cursor/Copilot/Continue/Cline，本仓自持类型、词汇对齐 tachu `Activation`）：`always`（全局常驻）· `manual`（仅显式点名）· `semantic`（按相关性经工具按需拉取）· `path`（命中文件 glob 时）。缺省视为 `always`。它**不表达** block/annotate/validate（那属 guard/hook）。规则不再一律全塞 system prompt——激活轴决定该规则本轮是否注入（组装统一交 tachu `PromptAssembler`，落 system 段、每轮重算、不入 memory，ADR-0032）。**激活轴是四类描述符（rule/skill/tool/agent）共用的唯一词汇**（tachu rc.13：skill 从旧 `trigger` 收敛到 `activation`，`explicit`→`manual`；`trigger` 词汇彻底移除）——skill 缺省回落 `semantic`（非 `always`）。
+_Avoid_: 把它当 loop 的 phase 轴（tachu 旧 `RuleScope` 的证伪设计）, 把「配置了就一定生效」当默认（非法声明 fail-closed 拒装，不静默降级到最宽松档）, 与 guard/校验语义混为一谈
+
+**分层规则组装 (Layered Rule Assembly)**:
+按 **规则激活** 把规则分层送入本轮上下文，而非无差别拼进 system prompt——**组装委托 tachu 原生 activation 管线**（ADR-0032 反转 ADR-0016 §7 的自建路径）：每轮 `EngineFactory` 把 snapshot 规则投影给 `SessionScope.additionalRules`、把点名集给 `explicitRuleNames`，交 `PromptAssembler` 按 activation 组装进 **system 段**（`## Hard Rules`）——`always` 恒进、`manual` 命中点名才进、`semantic`/`path` 由各自输入门控。全部**每轮重算、不入 memory**（system 段每轮 assemble、只有用户输入落 memory）。点名集 = prompt `@rule`/`/rule` ∪ 调用方 `explicitRuleNames`，与 snapshot manual 规则求交。`semantic`（engine 未透传 `semanticActiveRuleNames`）与 `path`（engine 未透传 `contextFilePaths` + 本仓无 per-turn 文件上下文）当前**留档 inert**。snapshot 仍冻结全部规则作版本权威，分层只发生在**每轮投影**（`snapshotRulesToTachuDescriptors`）。
+_Avoid_: 把 manual 注入 User Message（会入 memory，与"不入 memory"冲突）, 在本仓再手写规则 prompt 文本（组装交 tachu）, 用裸名子串匹配点名（规则名多为普通词，只认 `@`/`/` sigil）, 以为 snapshot 只存静态规则
+
 ### Descriptor 资产
 
 **Descriptor（声明式资产）**:
@@ -136,8 +148,16 @@ _Avoid_: 让租户改写内置资产, 把 dev 占位当系统资产带上生产
 租户经 **agent 管理面** 自助创建/维护的声明式资产（agent / skill / rule），仅本租户可见，按 **租户隔离主键 (tenant)** 隔离；与系统级以标识命名空间区分，互不遮蔽。
 _Avoid_: 与系统级同名遮蔽（shadow）, 跨租户共享, 把 tool 纳入租户自助 CRUD
 
+**descriptor 三重标识 (name / displayName / id)**:
+租户级 descriptor 上三个**互不替代**的「像身份」的字段（ADR-0033，杜绝 name↔displayName 混用）：
+- **name** = 租户内唯一 **slug key**：创建时**必填、显式、不可变**，fail-closed 限定 `^[a-z0-9]+(?:-[a-z0-9]+)*$`（小写 kebab、ASCII）；是 upsert 主键与 Descriptor Document frontmatter 的 `name`；**不参与运行时解析**、**不进版本内容**。可类比"文件名"。
+- **displayName** = **人类标签**：住 **content 内**、被版本化、可含中文/任意字符、可重复；**绝不**用作 name（故服务端不从 displayName 派生 name）。
+- **id**（`agt_`/`skl_`/`rul_`+SFID）= **运行时身份**：服务端生成、不可变。
+结构化创建唯一 wire 契约 = 信封 `{ name, content }`（`TenantDescriptorCreateRequestSchema`），三面（HTTP create / `:fromDocument` frontmatter / **管理 ops 工具集** create）与 **propose** 产出同形——propose 自身产出 slug-safe `name`（displayName 可能全中文，不可派生）。
+_Avoid_: 把 displayName 当 name, 让 name 含中文/大写/空格, 让服务端从 displayName 派生 name, 把 name 塞进被版本化的 content
+
 **agent 管理面 (agent console)**:
-agent 域的管理面 —— 对 **租户级 descriptor** 的 CRUD / 版本 / 发布；与消费面（chat 运行时）相对，经 `agent-sdk-console` 消费。
+agent 域的管理面 —— 对 **租户级 descriptor** 的 CRUD / 版本 / 发布；与消费面（chat 运行时）相对，经 `agent-sdk-console` 消费。结构化创建走信封 `{ name, content }`（见 **descriptor 三重标识**）。
 _Avoid_: 把管理面塞进 `/v1/*` 消费面, 手工部署 descriptor 文件当管理能力
 
 **发布 (publish)**:
@@ -157,8 +177,8 @@ _Avoid_: 把 document 格式当原始存储（应解析后落结构化字段）,
 _Avoid_: 解析逻辑分散在 loader 私有函数与 HTTP 控制器之间
 
 **Descriptor 创作辅助 (propose)**:
-中台以自身 LLM、依据租户意图与**平台内部 registry**（系统级 + 本租户已发布 skill/rule/tool）产出一份候选 descriptor content 的能力（ADR-0027）；既可从意图生成、也可以现有 content 为输入做优化。**纯建议、不落库**——返回结构化信封（含已接地的 ref 推荐），落库仍走 **agent 管理面** 的 CRUD。推荐的 ref 经「候选清单内选 + 产出后硬校验」杜绝幻觉。
-_Avoid_: 让 propose 直接写库, 把它当 SDK Playground 私有页面逻辑, 推荐 registry 里不存在的 ref
+中台以自身 LLM、依据租户意图与**平台内部 registry**（系统级 + 本租户已发布 skill/rule/tool）产出一份候选 descriptor content 的能力（ADR-0027）；既可从意图生成、也可以现有 content 为输入做优化。**纯建议、不落库**——返回结构化信封 `{ name, content, suggestions }`（含已接地的 ref 推荐），与 **agent 管理面** create 信封同形、可直接喂 create（ADR-0033）；产出即含 slug-safe `name`（displayName 可能全中文、不可派生，故 propose 自己生成）。落库仍走 **agent 管理面** 的 CRUD。推荐的 ref 经「候选清单内选 + 产出后硬校验」杜绝幻觉。
+_Avoid_: 让 propose 直接写库, 把它当 SDK Playground 私有页面逻辑, 推荐 registry 里不存在的 ref, 让 propose 产出缺 name（下游 create 无字段可填）
 
 **管理 ops 工具集**:
 把 **agent 管理面** 的 ops（**Descriptor 创作辅助 (propose)** + list/get/create/update/publish/softDelete）包装成的一组 **Tool Handler**（ADR-0027）；是「让 agent 管理 descriptor」的**可复用原语**——粒度是 ops 而非整个 agent，别的 agent 可只取其中几个。**一核两面**暴露（与 LLM 同构）：进程内面给任何进程内 agent、对外面经 **管理能力 MCP 门面** 给外部 agent。

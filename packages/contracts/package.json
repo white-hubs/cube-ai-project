@@ -1,8 +1,12 @@
 {
   "name": "@cube-ai/contracts",
-  "version": "0.0.1-alpha.12",
-  "type": "module",
+  "version": "0.0.1-alpha.14",
   "description": "Single source of truth for Zod schemas (SDK + Mock + Engine + tests).",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -36,13 +40,7 @@
       "types": "./src/platform/index.ts"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
   "publishConfig": {
-    "access": "public",
-    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -74,7 +72,9 @@
         "import": "./dist/platform/index.js",
         "types": "./dist/platform/index.d.ts"
       }
-    }
+    },
+    "access": "public",
+    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/"
   },
   "scripts": {
     "build": "bun run clean && bunx tsc -p tsconfig.build.json",

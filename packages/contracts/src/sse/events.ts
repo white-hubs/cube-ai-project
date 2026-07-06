@@ -21,11 +21,11 @@ export const TurnStartedEventSchema = z.object({
 });
 export type TurnStartedEvent = z.infer<typeof TurnStartedEventSchema>;
 
-// `turn-phase-v1` 已于 ADR-0021 移除。取而代之的是 `reasoning-step-v1`，承载
-// tachu 9 阶段（session / safety / intent / precheck / planning / graph-check /
-// execution / validation / output）的结构化骨架，并支持嵌套 `model-reasoning`
-// 子 step。需要"PRE_LLM/LLM/TOOL_USE/POST_LLM"四段粗粒度视图的消费方，应在
-// 客户端按 `reasoning-step-v1.phase` 自行聚合，而非依赖服务端事件。
+// `turn-phase-v1` 已移除。取而代之的是 `reasoning-step-v1`，承载对外的
+// loop-lifecycle 粗粒度轮次里程碑（tachu rc.13：`turnStart` / `turnStop`，
+// 取代旧的 6 阶段 `phase` 骨架——引擎不再对外泄漏内部 phase 名），
+// 并支持嵌套 `model-reasoning` 子 step。需要更细粒度进度的消费方，应改看
+// `reasoning-delta-v1`（模型思考流）与 tool-call 事件，而非服务端 phase 事件。
 
 export const TurnCompletedEventSchema = z.object({
   durationMs: z.number().int().nonnegative(),
@@ -62,7 +62,7 @@ export const TurnFailedEventSchema = z.object({
 export type TurnFailedEvent = z.infer<typeof TurnFailedEventSchema>;
 
 export const IntentRoutingEventSchema = z.object({
-  /** 当 `state=fallback` 且因同 priority 并列触发「交给主模型选」时为 true（ADR-0020）。 */
+  /** 当 `state=fallback` 且因同 priority 并列触发「交给主模型选」时为 true。 */
   multiMatch: z.boolean().optional(),
   schema: z.literal("intent-routing-v1"),
   state: z.enum(["matched", "fallback", "empty"]),
@@ -92,7 +92,7 @@ export type EffectiveRouteResolvedEvent = z.infer<typeof EffectiveRouteResolvedE
 /**
  * `message-delta-v1` 仅承载**面向用户的最终答复正文**增量。
  *
- * ADR-0021：原 `delta: { type: 'reasoning' }` 分支已移除。模型自身的思考过程
+ * 原 `delta: { type: 'reasoning' }` 分支已移除。模型自身的思考过程
  * 与引擎 9 阶段骨架统一通过 `reasoning-step-v1` + `reasoning-delta-v1` 两条
  * 新 schema 传输；前者负责生命周期（START/END、嵌套），后者负责文本流。
  */
@@ -115,23 +115,22 @@ export const MessageCompletedEventSchema = z.object({
 });
 export type MessageCompletedEvent = z.infer<typeof MessageCompletedEventSchema>;
 
-// ── Reasoning events (ADR-0021) ───────────────────────────────────────────────
+// ── Reasoning events ─────────────────────────────────────────────────────────
 //
 // 双事件分离：`reasoning-step-v1` 管生命周期（START/END、嵌套）；
 // `reasoning-delta-v1` 管文本增量。
 //
 // `kind` 枚举：
-//   - `phase`：tachu 9 阶段骨架，必填 `phase` 字段，顶层 step（parentStepId 缺省）
+//   - `lifecycle`：tachu 对外 loop-lifecycle 轮次里程碑（`turnStart` / `turnStop`），
+//     必填 `point` 字段，顶层 step（parentStepId 缺省）。取代旧的 `phase` kind。
 //   - `model-reasoning`：模型自身 reasoning（DeepSeek-R1 / o-series 等）
 //     由 mapper 在首次看到 reasoning-delta chunk 时自动开启；以最近一次活跃
-//     phase step 为 parent，构成「阶段 → 子思考」一层嵌套
-//   - `tool-loop`：tachu Phase 7 execution 内的一轮 Agentic Loop 决策过程；
+//     lifecycle step 为 parent，构成「轮次 → 子思考」一层嵌套
+//   - `tool-loop`：深单 loop 内一轮 Agentic Loop 决策过程；
 //     中间模型话术与工具调用挂在该 step 下，不进入最终 message.delta
 //
 // 注意：本仓策略明确"reasoning 不入库、仅当前对话展示"。OutboxWriter 与
 // messages.content_json 均不消费这两条事件；SSE replay buffer 一视同仁。
-//
-// ref: docs/adr/ADR-0021-sse-reasoning-step-and-delta.md
 
 /** Reasoning step lifecycle event：START / END 两态。 */
 export const ReasoningStepEventSchema = z.object({
@@ -142,17 +141,17 @@ export const ReasoningStepEventSchema = z.object({
     })
     .optional(),
   event: z.enum(["START", "END"]),
-  kind: z.enum(["phase", "model-reasoning", "tool-loop"]),
-  /** 客户端展示标签；mapper 内置 phase → 中文映射可被宿主覆盖。 */
+  kind: z.enum(["lifecycle", "model-reasoning", "tool-loop"]),
+  /** 客户端展示标签；mapper 内置 lifecycle point → 中文映射可被宿主覆盖。 */
   label: z.string(),
-  /** 弹性槽位：planning 阶段可放 RankedPlan 概要等结构化补充。 */
+  /** 弹性槽位：可放选中工具集等结构化补充。 */
   meta: z.record(z.string(), z.unknown()).optional(),
   /** 仅 `event === 'END'` 存在。 */
   ok: z.boolean().optional(),
-  /** 顶层 phase step 缺省；嵌套子 step（`model-reasoning` 等）必填。 */
+  /** 顶层 lifecycle step 缺省；嵌套子 step（`model-reasoning` 等）必填。 */
   parentStepId: SfidSchema.optional(),
-  /** 仅当 `kind === 'phase'` 时存在；与 tachu `EnginePhase` 字面量一致。 */
-  phase: z.enum(["session", "safety", "intent", "precheck", "planning", "graph-check", "execution", "validation", "output"]).optional(),
+  /** 仅当 `kind === 'lifecycle'` 时存在；对外 loop-lifecycle 轮次里程碑（tachu rc.13）。 */
+  point: z.enum(["turnStart", "turnStop"]).optional(),
   schema: z.literal("reasoning-step-v1"),
   /** 由 SfidService.next() 生成，与 turnId/messageId 同体系。 */
   stepId: SfidSchema,
@@ -167,11 +166,11 @@ export const ReasoningDeltaEventSchema = z.object({
   /** Step 范围序号；step 内从 1 起单调递增，与 `message-delta-v1.seqInTurn` 解耦。 */
   seqInStep: z.number().int().positive(),
   /**
-   * `phase`：tachu 阶段进度文本（当前未使用，预留给将来按 phase 注释展示）
+   * `lifecycle`：轮次里程碑进度文本（当前未使用，预留给将来按 point 注释展示）
    * `model`：模型自身 reasoning_content 流（DeepSeek-R1 / o-series 等）
    * `tool-loop`：工具循环中的模型过程文本；不持久化为最终答案正文
    */
-  source: z.enum(["phase", "model", "tool-loop"]),
+  source: z.enum(["lifecycle", "model", "tool-loop"]),
   stepId: SfidSchema,
   text: z.string(),
   turnId: SfidSchema,

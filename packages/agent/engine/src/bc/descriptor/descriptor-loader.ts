@@ -1,3 +1,7 @@
+import { Inject, Injectable } from "@dangao/bun-server";
+import { NacosConfigClient } from "@dangao/nacos-client";
+import type { SkillDescriptor } from "@tachu/core";
+import { createHash } from "node:crypto";
 /**
  * DescriptorLoader：目录扫描 + Nacos（group `agentic-engine-tools`）加载 Tool Descriptor。
  *
@@ -8,34 +12,32 @@
  *
  * R24：Nacos HTTP 仅在 start() / 轮询时发出，不在模块 import 期连接。
  */
-import { readdir, readFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
-import { createHash } from 'node:crypto';
-import { Inject, Injectable } from '@dangao/bun-server';
-import { ToolDescriptor } from '@cube-ai/contracts';
-import { NacosConfigClient } from '@dangao/nacos-client';
-import { parse as parseYaml } from 'yaml';
-import type { SkillDescriptor } from '@tachu/core';
-import { DescriptorRegistryService } from './descriptor-registry.service';
+import { readdir, readFile } from "node:fs/promises";
+import { join, extname } from "node:path";
+import { parse as parseYaml } from "yaml";
+
+import { ToolDescriptor } from "@cube-ai/contracts";
+
+import { extractDescriptorDocumentParts, parseSkillActivation } from "./descriptor-document-parser";
+import { DescriptorRegistryService } from "./descriptor-registry.service";
 import {
   ENGINE_BUILTIN_TOOL_NAMES,
   ensureBuiltinCurrentDateDescriptor,
   ensureBuiltinImageQwenDescriptor,
   ensureBuiltinPlatformToolDescriptors,
-} from './engine-builtin-descriptors';
-import { extractDescriptorDocumentParts } from './descriptor-document-parser';
-import { RuleRegistryService, type RuleDescriptor } from './rule-registry.service';
-import { SkillRegistryService } from './skill-registry.service';
+} from "./engine-builtin-descriptors";
+import { RuleRegistryService, type RuleActivation, type RuleDescriptor } from "./rule-registry.service";
+import { SkillRegistryService } from "./skill-registry.service";
 import {
   createNacosClientFromEnv,
   TOOL_EFFECTIVE_VERSION_SOURCE_TOKEN,
   type ToolEffectiveVersionSource,
-} from './tool-effective-version.provider';
+} from "./tool-effective-version.provider";
 
-const LOG_PREFIX = '[DescriptorLoader]';
+const LOG_PREFIX = "[DescriptorLoader]";
 
 /** 热更通知：监听 `descriptor.reload`。 */
-export const DESCRIPTOR_RELOAD_EVENT = 'descriptor.reload';
+export const DESCRIPTOR_RELOAD_EVENT = "descriptor.reload";
 
 function warn(msg: string): void {
   console.warn(`${LOG_PREFIX} ${msg}`);
@@ -46,24 +48,24 @@ function info(msg: string): void {
 }
 
 function shortHash(value: string): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
-function skillTriggerLabel(skill: SkillDescriptor): string {
-  return skill.trigger?.type ?? 'semantic';
+function skillActivationLabel(skill: SkillDescriptor): string {
+  return skill.activation?.mode ?? "semantic";
 }
 
 function describeSkill(skill: SkillDescriptor): string {
-  const version = skill.version ?? '0.0.0';
+  const version = skill.version ?? "0.0.0";
   const resources = skill.resources?.length ?? 0;
-  const tags = skill.tags && skill.tags.length > 0 ? skill.tags.join(',') : '-';
+  const tags = skill.tags && skill.tags.length > 0 ? skill.tags.join(",") : "-";
   return (
     `${skill.name}@${version}` +
-    ` trigger=${skillTriggerLabel(skill)}` +
+    ` activation=${skillActivationLabel(skill)}` +
     ` tags=${tags}` +
     ` resources=${resources}` +
     ` instructionsChars=${skill.instructions.length}` +
-    ` sourceDir=${skill.sourceDir ?? '<unset>'}`
+    ` sourceDir=${skill.sourceDir ?? "<unset>"}`
   );
 }
 
@@ -72,9 +74,9 @@ function isDevPlaceholderAgentName(name: string): boolean {
   return /^\d{19}$/.test(name);
 }
 
-function parseStructuredContent(raw: string, hintPath: string): unknown {
+function parseStructuredContent(raw: string, _hintPath: string): unknown {
   const t = raw.trim();
-  if (t.startsWith('{')) {
+  if (t.startsWith("{")) {
     return JSON.parse(t) as unknown;
   }
   return parseYaml(raw) as unknown;
@@ -82,175 +84,146 @@ function parseStructuredContent(raw: string, hintPath: string): unknown {
 
 function parseIndexDataIds(content: string): string[] {
   const doc = parseYaml(content) as unknown;
-  if (!doc || typeof doc !== 'object') return [];
+  if (!doc || typeof doc !== "object") return [];
   const root = doc as Record<string, unknown>;
-  const ids =
-    root['dataIds'] ??
-    root['descriptors'] ??
-    root['items'];
+  const ids = root["dataIds"] ?? root["descriptors"] ?? root["items"];
   if (Array.isArray(ids)) {
-    return ids.filter((x): x is string => typeof x === 'string' && x.length > 0);
+    return ids.filter((x): x is string => typeof x === "string" && x.length > 0);
   }
   return [];
 }
 
 function readOptionalString(rec: Record<string, unknown>, key: string): string | undefined {
   const value = rec[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function normalizeSkillTrigger(
-  raw: unknown,
-  skillName: string,
-  hintPath: string,
-): SkillDescriptor['trigger'] {
-  const type =
-    typeof raw === 'string'
-      ? raw
-      : raw && typeof raw === 'object'
-        ? (raw as { type?: unknown }).type
-        : undefined;
-  if (type === 'always' || type === 'semantic' || type === 'explicit') {
-    return { type };
-  }
-  if (type === 'keyword' || type === 'custom') {
-    warn(
-      `skill ${skillName} (${hintPath}) uses deprecated trigger.type=${type}; using semantic`,
-    );
-  }
-  return { type: 'semantic' };
-}
+// tachu rc.10 后 SkillResource 收敛为 `{ path }`——路径前缀
+// （scripts/ · references/ · assets/）即类型信息，不再有独立 `type` / `loadHint`
+// 字段。这里仍按前缀过滤掉无法识别的资源，避免把任意路径塞进 registry。
+const SKILL_RESOURCE_PREFIXES = ["scripts/", "references/", "assets/"] as const;
 
-function parseSkillResources(raw: unknown): SkillDescriptor['resources'] {
+function parseSkillResources(raw: unknown): SkillDescriptor["resources"] {
   if (!Array.isArray(raw)) return undefined;
-  const resources: NonNullable<SkillDescriptor['resources']> = [];
+  const resources: NonNullable<SkillDescriptor["resources"]> = [];
   for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
+    if (!item || typeof item !== "object") continue;
     const rec = item as Record<string, unknown>;
-    const path = readOptionalString(rec, 'path');
-    const type = rec['type'];
+    const path = readOptionalString(rec, "path");
     if (!path) continue;
-    if (type !== 'script' && type !== 'reference' && type !== 'asset') continue;
-    const loadHint = readOptionalString(rec, 'loadHint');
-    resources.push({
-      path,
-      type,
-      ...(loadHint !== undefined ? { loadHint } : {}),
-    });
+    if (!SKILL_RESOURCE_PREFIXES.some((prefix) => path.startsWith(prefix))) continue;
+    resources.push({ path });
   }
   return resources.length > 0 ? resources : undefined;
 }
 
-function parseSkillDescriptorFromRecord(
-  rec: Record<string, unknown>,
-  instructions: string,
-  sourceDir: string,
-  hintPath: string,
-): SkillDescriptor {
-  const name = readOptionalString(rec, 'name');
-  const description = readOptionalString(rec, 'description');
-  if (!name) throw new Error('skill descriptor requires non-empty name');
+function parseSkillDescriptorFromRecord(rec: Record<string, unknown>, instructions: string, sourceDir: string): SkillDescriptor {
+  const name = readOptionalString(rec, "name");
+  const description = readOptionalString(rec, "description");
+  if (!name) throw new Error("skill descriptor requires non-empty name");
   if (!description) throw new Error(`skill ${name} requires non-empty description`);
 
   return {
-    kind: 'skill',
+    kind: "skill",
     name,
     description,
     instructions: instructions.trim(),
-    trigger: normalizeSkillTrigger(rec['trigger'], name, hintPath),
+    activation: parseSkillActivation(rec["activation"], name),
     sourceDir,
-    ...(readOptionalString(rec, 'version') !== undefined
-      ? { version: readOptionalString(rec, 'version') }
+    ...(readOptionalString(rec, "version") !== undefined ? { version: readOptionalString(rec, "version") } : {}),
+    ...(readOptionalString(rec, "displayName") !== undefined ? { displayName: readOptionalString(rec, "displayName") } : {}),
+    ...(rec["deprecated"] === true ? { deprecated: true } : {}),
+    ...(readOptionalString(rec, "deprecatedMessage") !== undefined
+      ? { deprecatedMessage: readOptionalString(rec, "deprecatedMessage") }
       : {}),
-    ...(readOptionalString(rec, 'displayName') !== undefined
-      ? { displayName: readOptionalString(rec, 'displayName') }
-      : {}),
-    ...(rec['deprecated'] === true ? { deprecated: true } : {}),
-    ...(readOptionalString(rec, 'deprecatedMessage') !== undefined
-      ? { deprecatedMessage: readOptionalString(rec, 'deprecatedMessage') }
-      : {}),
-    ...(Array.isArray(rec['tags'])
-      ? { tags: rec['tags'].filter((x): x is string => typeof x === 'string') }
-      : {}),
-    ...(Array.isArray(rec['requires'])
-      ? { requires: rec['requires'] as SkillDescriptor['requires'] }
-      : {}),
-    ...(parseSkillResources(rec['resources']) !== undefined
-      ? { resources: parseSkillResources(rec['resources']) }
-      : {}),
+    ...(Array.isArray(rec["tags"]) ? { tags: rec["tags"].filter((x): x is string => typeof x === "string") } : {}),
+    ...(Array.isArray(rec["requires"]) ? { requires: rec["requires"] as SkillDescriptor["requires"] } : {}),
+    ...(parseSkillResources(rec["resources"]) !== undefined ? { resources: parseSkillResources(rec["resources"]) } : {}),
   };
 }
 
-function parseSkillMarkdown(raw: string, sourceDir: string, hintPath: string): SkillDescriptor {
+function parseSkillMarkdown(raw: string, sourceDir: string, _hintPath: string): SkillDescriptor {
   // frontmatter 提取统一走 DescriptorDocumentParser seam（ADR-0018 §5）
   const { record, body } = extractDescriptorDocumentParts(raw);
-  return parseSkillDescriptorFromRecord(record, body, sourceDir, hintPath);
+  return parseSkillDescriptorFromRecord(record, body, sourceDir);
 }
 
-/** `descriptors/rules/*.yaml`（kind: rule）→ RuleDescriptor；缺 name/content 抛错。 */
+/**
+ * 解析 rule 的 `activation`（激活轴）。缺省返回 undefined（读取侧回落 `always`，见
+ * {@link resolveRuleActivation}）；显式声明则 **fail-closed** 校验——未知 mode 或
+ * `path` 缺非空 `globs` 一律抛错，让调用方（loader）跳过该文件，而非静默降级到最宽松档。
+ */
+function parseRuleActivation(rec: Record<string, unknown>, ruleName: string): RuleActivation | undefined {
+  const raw = rec["activation"];
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "object") {
+    throw new Error(`rule ${ruleName} activation must be an object`);
+  }
+  const mode = (raw as Record<string, unknown>)["mode"];
+  switch (mode) {
+    case "always":
+    case "manual":
+    case "semantic":
+      return { mode };
+    case "path": {
+      const rawGlobs = (raw as Record<string, unknown>)["globs"];
+      const globs = Array.isArray(rawGlobs) ? rawGlobs.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
+      if (globs.length === 0) {
+        throw new Error(`rule ${ruleName} activation mode 'path' requires non-empty globs`);
+      }
+      return { mode: "path", globs };
+    }
+    default:
+      throw new Error(`rule ${ruleName} has unknown activation mode: ${String(mode)}`);
+  }
+}
+
+/** `descriptors/rules/*.yaml`（kind: rule）→ RuleDescriptor；缺 name/content 或非法 activation 抛错。 */
 function parseRuleDescriptorContent(raw: string, hintPath: string): RuleDescriptor {
   const parsed = parseStructuredContent(raw, hintPath);
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('rule descriptor must be an object');
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("rule descriptor must be an object");
   }
   const rec = parsed as Record<string, unknown>;
-  if (rec['kind'] !== 'rule') {
-    throw new Error('rule descriptor kind must be rule');
+  if (rec["kind"] !== "rule") {
+    throw new Error("rule descriptor kind must be rule");
   }
-  const name = readOptionalString(rec, 'name');
-  if (!name) throw new Error('rule descriptor requires non-empty name');
-  const content =
-    typeof rec['content'] === 'string' && rec['content'].trim().length > 0
-      ? rec['content'].trim()
-      : undefined;
+  const name = readOptionalString(rec, "name");
+  if (!name) throw new Error("rule descriptor requires non-empty name");
+  const content = typeof rec["content"] === "string" && rec["content"].trim().length > 0 ? rec["content"].trim() : undefined;
   if (!content) throw new Error(`rule ${name} requires non-empty content`);
+  const activation = parseRuleActivation(rec, name);
 
   return {
-    kind: 'rule',
+    kind: "rule",
     name,
     content,
-    ...(readOptionalString(rec, 'version') !== undefined
-      ? { version: readOptionalString(rec, 'version') }
-      : {}),
-    ...(readOptionalString(rec, 'description') !== undefined
-      ? { description: readOptionalString(rec, 'description') }
-      : {}),
-    ...(readOptionalString(rec, 'displayName') !== undefined
-      ? { displayName: readOptionalString(rec, 'displayName') }
-      : {}),
-    ...(Array.isArray(rec['tags'])
-      ? { tags: rec['tags'].filter((x): x is string => typeof x === 'string') }
-      : {}),
+    ...(activation !== undefined ? { activation } : {}),
+    ...(readOptionalString(rec, "version") !== undefined ? { version: readOptionalString(rec, "version") } : {}),
+    ...(readOptionalString(rec, "description") !== undefined ? { description: readOptionalString(rec, "description") } : {}),
+    ...(readOptionalString(rec, "displayName") !== undefined ? { displayName: readOptionalString(rec, "displayName") } : {}),
+    ...(Array.isArray(rec["tags"]) ? { tags: rec["tags"].filter((x): x is string => typeof x === "string") } : {}),
   };
 }
 
-function parseLegacySkillDescriptor(
-  raw: string,
-  sourceDir: string,
-  hintPath: string,
-): SkillDescriptor {
+function parseLegacySkillDescriptor(raw: string, sourceDir: string, hintPath: string): SkillDescriptor {
   const parsed = parseStructuredContent(raw, hintPath);
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('legacy skill descriptor must be an object');
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("legacy skill descriptor must be an object");
   }
   const rec = parsed as Record<string, unknown>;
-  if (rec['kind'] !== 'skill') {
-    throw new Error('legacy skill descriptor kind must be skill');
+  if (rec["kind"] !== "skill") {
+    throw new Error("legacy skill descriptor kind must be skill");
   }
-  const instructions = readOptionalString(rec, 'instructions') ?? '';
-  return parseSkillDescriptorFromRecord(rec, instructions, sourceDir, hintPath);
+  const instructions = readOptionalString(rec, "instructions") ?? "";
+  return parseSkillDescriptorFromRecord(rec, instructions, sourceDir);
 }
 
 async function readOptionalFile(path: string): Promise<string | undefined> {
   try {
-    return await readFile(path, 'utf-8');
+    return await readFile(path, "utf-8");
   } catch (e) {
-    if (
-      e &&
-      typeof e === 'object' &&
-      'code' in e &&
-      (e as { code?: unknown }).code === 'ENOENT'
-    ) {
+    if (e && typeof e === "object" && "code" in e && (e as { code?: unknown }).code === "ENOENT") {
       return undefined;
     }
     throw e;
@@ -262,11 +235,11 @@ export class DescriptorLoader {
   readonly reloadEvents = new EventTarget();
   private readonly agentIndex = new Map<string, string>();
   private readonly agentCache = new Map<string, Record<string, unknown>>();
-  private globalPrompt = '';
+  private globalPrompt = "";
 
   private nacosConfig: NacosConfigClient | null = null;
   private pollHandle: ReturnType<typeof setInterval> | null = null;
-  private lastIndexFingerprint = '';
+  private lastIndexFingerprint = "";
   private started = false;
 
   constructor(
@@ -282,9 +255,7 @@ export class DescriptorLoader {
     const reserved = new Set<string>(ENGINE_BUILTIN_TOOL_NAMES);
     return descriptors.filter((d) => {
       if (reserved.has(d.name)) {
-        warn(
-          `ignoring external ToolDescriptor ${d.name}@${d.version ?? '1.0.0'} — engine builtin takes precedence`,
-        );
+        warn(`ignoring external ToolDescriptor ${d.name}@${d.version ?? "1.0.0"} — engine builtin takes precedence`);
         return false;
       }
       return true;
@@ -301,9 +272,7 @@ export class DescriptorLoader {
         warn(`replaceAllFromSnapshot failed: ${(e as Error).message}`);
       }
     } else if (descriptors.length > 0) {
-      warn(
-        'descriptor batch contained only reserved builtin names (e.g. currentDate); skipping replaceAllFromSnapshot',
-      );
+      warn("descriptor batch contained only reserved builtin names (e.g. currentDate); skipping replaceAllFromSnapshot");
     }
     ensureBuiltinCurrentDateDescriptor(this.registry);
     ensureBuiltinImageQwenDescriptor(this.registry);
@@ -321,24 +290,18 @@ export class DescriptorLoader {
     this.nacosConfig = core ? new NacosConfigClient(core) : null;
 
     const skillDir = this.configuredSkillDir();
-    const agentDir =
-      process.env.AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR?.trim() ||
-      join(process.cwd(), 'descriptors', 'agents');
+    const agentDir = process.env.AGENTIC_ENGINE_AGENT_DESCRIPTOR_DIR?.trim() || join(process.cwd(), "descriptors", "agents");
     const toolDir = process.env.AGENTIC_ENGINE_TOOL_DESCRIPTOR_DIR?.trim();
-    const pollMs = Number(
-      process.env.AGENTIC_ENGINE_DESCRIPTOR_POLL_MS ?? '15000',
-    );
+    const pollMs = Number(process.env.AGENTIC_ENGINE_DESCRIPTOR_POLL_MS ?? "15000");
     info(
       `startup descriptor loading begin cwd=${process.cwd()} ` +
-        `globalPrompt=${process.env.AGENTIC_ENGINE_GLOBAL_PROMPT_PATH?.trim() || join(process.cwd(), 'CUBE.md')} ` +
+        `globalPrompt=${process.env.AGENTIC_ENGINE_GLOBAL_PROMPT_PATH?.trim() || join(process.cwd(), "CUBE.md")} ` +
         `agentDir=${agentDir} skillDir=${skillDir} ` +
-        `toolDir=${toolDir || '<disabled>'} nacos=${this.nacosConfig ? 'enabled' : 'disabled'} ` +
+        `toolDir=${toolDir || "<disabled>"} nacos=${this.nacosConfig ? "enabled" : "disabled"} ` +
         `pollMs=${this.nacosConfig ? pollMs : 0}`,
     );
 
-    const promptPath =
-      process.env.AGENTIC_ENGINE_GLOBAL_PROMPT_PATH?.trim() ||
-      join(process.cwd(), 'CUBE.md');
+    const promptPath = process.env.AGENTIC_ENGINE_GLOBAL_PROMPT_PATH?.trim() || join(process.cwd(), "CUBE.md");
     await this.loadGlobalPrompt(promptPath);
 
     const agentResult = await this.buildAgentIndexFromDir(agentDir);
@@ -359,9 +322,7 @@ export class DescriptorLoader {
 
       if (pollMs > 0) {
         this.pollHandle = setInterval(() => {
-          this.loadFromNacosInternal({ force: false }).catch((e) =>
-            warn(`poll reload failed: ${(e as Error).message}`),
-          );
+          this.loadFromNacosInternal({ force: false }).catch((e) => warn(`poll reload failed: ${(e as Error).message}`));
         }, pollMs);
       }
     }
@@ -369,7 +330,7 @@ export class DescriptorLoader {
     ensureBuiltinCurrentDateDescriptor(this.registry);
     ensureBuiltinImageQwenDescriptor(this.registry);
     ensureBuiltinPlatformToolDescriptors(this.registry);
-    info('startup descriptor loading complete');
+    info("startup descriptor loading complete");
   }
 
   /** 优雅停止轮询（供未来 lifecycle 使用）。 */
@@ -393,7 +354,7 @@ export class DescriptorLoader {
       return { indexed: 0, skipped: 0 };
     }
 
-    const supported = ['.yaml', '.yml', '.json'];
+    const supported = [".yaml", ".yml", ".json"];
     const files = entries.filter((f) => supported.includes(extname(f).toLowerCase()));
     let indexed = 0;
     let skipped = 0;
@@ -401,18 +362,18 @@ export class DescriptorLoader {
     for (const file of files) {
       const fullPath = join(dir, file);
       try {
-        const content = await readFile(fullPath, 'utf-8');
+        const content = await readFile(fullPath, "utf-8");
         const parsed = parseStructuredContent(content, fullPath);
-        if (!parsed || typeof parsed !== 'object') {
+        if (!parsed || typeof parsed !== "object") {
           skipped++;
           continue;
         }
         const rec = parsed as Record<string, unknown>;
-        if (rec['kind'] !== 'agent') {
+        if (rec["kind"] !== "agent") {
           skipped++;
           continue;
         }
-        const name = typeof rec['name'] === 'string' ? rec['name'].trim() : '';
+        const name = typeof rec["name"] === "string" ? rec["name"].trim() : "";
         if (!name) {
           skipped++;
           continue;
@@ -433,7 +394,7 @@ export class DescriptorLoader {
   }
 
   listIndexedAgentNames(): string[] {
-    return [...this.agentIndex.keys()].sort();
+    return [...this.agentIndex.keys()].toSorted();
   }
 
   /**
@@ -452,9 +413,9 @@ export class DescriptorLoader {
     if (placeholders.length === 0) return;
 
     placeholders.sort();
-    const env = (process.env.DEPLOY_ENV ?? '').toUpperCase();
-    const isDev = env === 'DEV' || env === 'DEVELOPMENT' || env === '';
-    const list = placeholders.join(', ');
+    const env = (process.env.DEPLOY_ENV ?? "").toUpperCase();
+    const isDev = env === "DEV" || env === "DEVELOPMENT" || env === "";
+    const list = placeholders.join(", ");
     if (isDev) {
       info(
         `Loaded ${placeholders.length} dev-only agent descriptor(s) keyed by SFID: [${list}] ` +
@@ -462,7 +423,7 @@ export class DescriptorLoader {
       );
     } else {
       warn(
-        `Detected ${placeholders.length} dev-only agent descriptor(s) keyed by SFID under DEPLOY_ENV=${env || '<unset>'}: [${list}] ` +
+        `Detected ${placeholders.length} dev-only agent descriptor(s) keyed by SFID under DEPLOY_ENV=${env || "<unset>"}: [${list}] ` +
           `— these placeholders should not be deployed beyond DEV; remove them from descriptors/agents/.`,
       );
     }
@@ -474,9 +435,9 @@ export class DescriptorLoader {
     const path = this.agentIndex.get(name);
     if (!path) return null;
     try {
-      const text = await readFile(path, 'utf-8');
+      const text = await readFile(path, "utf-8");
       const parsed = parseStructuredContent(text, path);
-      if (!parsed || typeof parsed !== 'object') return null;
+      if (!parsed || typeof parsed !== "object") return null;
       const rec = parsed as Record<string, unknown>;
       this.agentCache.set(name, rec);
       return rec;
@@ -495,14 +456,14 @@ export class DescriptorLoader {
 
   async loadGlobalPrompt(path: string): Promise<string> {
     try {
-      const text = await readFile(path, 'utf-8');
+      const text = await readFile(path, "utf-8");
       this.globalPrompt = text;
       info(`global prompt loaded path=${path} chars=${text.length}`);
       return text;
     } catch (e) {
       warn(`cannot read global prompt ${path}: ${(e as Error).message}`);
-      this.globalPrompt = '';
-      return '';
+      this.globalPrompt = "";
+      return "";
     }
   }
 
@@ -511,17 +472,11 @@ export class DescriptorLoader {
   }
 
   private configuredSkillDir(): string {
-    return (
-      process.env.AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR?.trim() ||
-      join(process.cwd(), 'descriptors', 'skills')
-    );
+    return process.env.AGENTIC_ENGINE_SKILL_DESCRIPTOR_DIR?.trim() || join(process.cwd(), "descriptors", "skills");
   }
 
   private configuredRuleDir(): string {
-    return (
-      process.env.AGENTIC_ENGINE_RULE_DESCRIPTOR_DIR?.trim() ||
-      join(process.cwd(), 'descriptors', 'rules')
-    );
+    return process.env.AGENTIC_ENGINE_RULE_DESCRIPTOR_DIR?.trim() || join(process.cwd(), "descriptors", "rules");
   }
 
   async loadRulesFromConfiguredDir(): Promise<{ loaded: number; skipped: number }> {
@@ -546,7 +501,7 @@ export class DescriptorLoader {
       return { loaded: 0, skipped: 0 };
     }
 
-    const supported = ['.yaml', '.yml', '.json'];
+    const supported = [".yaml", ".yml", ".json"];
     const files = entries.filter((f) => supported.includes(extname(f).toLowerCase()));
     let loaded = 0;
     let skipped = 0;
@@ -555,7 +510,7 @@ export class DescriptorLoader {
     for (const file of files) {
       const fullPath = join(dir, file);
       try {
-        const content = await readFile(fullPath, 'utf-8');
+        const content = await readFile(fullPath, "utf-8");
         rules.push(parseRuleDescriptorContent(content, fullPath));
         loaded++;
       } catch (e) {
@@ -569,8 +524,8 @@ export class DescriptorLoader {
       `rule descriptor scan complete dir=${dir} loaded=${loaded} skipped=${skipped} ` +
         `registrySize=${this.ruleRegistry.size()} latest=[${this.ruleRegistry
           .list()
-          .map((r) => `${r.name}@${r.version ?? '0.0.0'}`)
-          .join(', ')}]`,
+          .map((r) => `${r.name}@${r.version ?? "0.0.0"}`)
+          .join(", ")}]`,
     );
     return { loaded, skipped };
   }
@@ -601,7 +556,7 @@ export class DescriptorLoader {
 
     for (const entry of entries) {
       const skillDir = join(dir, entry);
-      const skillMdPath = join(skillDir, 'SKILL.md');
+      const skillMdPath = join(skillDir, "SKILL.md");
       try {
         const markdown = await readOptionalFile(skillMdPath);
         if (markdown !== undefined) {
@@ -618,7 +573,7 @@ export class DescriptorLoader {
       }
 
       let legacyLoaded = false;
-      for (const descriptorName of ['descriptor.yaml', 'descriptor.yml', 'descriptor.json']) {
+      for (const descriptorName of ["descriptor.yaml", "descriptor.yml", "descriptor.json"]) {
         const descriptorPath = join(skillDir, descriptorName);
         try {
           const raw = await readOptionalFile(descriptorPath);
@@ -645,8 +600,8 @@ export class DescriptorLoader {
     info(
       `skill descriptor scan complete dir=${dir} loaded=${loaded} skipped=${skipped} ` +
         `registrySize=${this.skillRegistry.size()} latest=[${finalSkills
-          .map((skill) => `${skill.name}@${skill.version ?? '0.0.0'}:${skillTriggerLabel(skill)}`)
-          .join(', ')}] signature=${shortHash(signature)}`,
+          .map((skill) => `${skill.name}@${skill.version ?? "0.0.0"}:${skillActivationLabel(skill)}`)
+          .join(", ")}] signature=${shortHash(signature)}`,
     );
     return { loaded, skipped };
   }
@@ -663,7 +618,7 @@ export class DescriptorLoader {
       return { loaded: 0, skipped: 0 };
     }
 
-    const supported = ['.yaml', '.yml', '.json'];
+    const supported = [".yaml", ".yml", ".json"];
     const files = entries.filter((f) => supported.includes(extname(f).toLowerCase()));
 
     let loaded = 0;
@@ -673,7 +628,7 @@ export class DescriptorLoader {
     for (const file of files) {
       const fullPath = join(dir, file);
       try {
-        const content = await readFile(fullPath, 'utf-8');
+        const content = await readFile(fullPath, "utf-8");
         const parsed = parseStructuredContent(content, fullPath);
         const descriptor = ToolDescriptor.parse(parsed);
         batch.push(descriptor);
@@ -697,19 +652,15 @@ export class DescriptorLoader {
     const client = this.nacosConfig;
     if (!client) return;
 
-    const group =
-      process.env.AGENTIC_ENGINE_DESCRIPTOR_GROUP?.trim() ||
-      'agentic-engine-tools';
-    const indexId =
-      process.env.AGENTIC_ENGINE_DESCRIPTOR_INDEX_DATA_ID?.trim() ||
-      'descriptor-index.yaml';
+    const group = process.env.AGENTIC_ENGINE_DESCRIPTOR_GROUP?.trim() || "agentic-engine-tools";
+    const indexId = process.env.AGENTIC_ENGINE_DESCRIPTOR_INDEX_DATA_ID?.trim() || "descriptor-index.yaml";
 
     let indexContent: string;
     let fingerprint: string;
     try {
       const idx = await client.getConfig({ dataId: indexId, groupName: group });
-      indexContent = idx.content ?? '';
-      fingerprint = `${idx.md5 ?? ''}:${idx.lastModified ?? ''}`;
+      indexContent = idx.content ?? "";
+      fingerprint = `${idx.md5 ?? ""}:${idx.lastModified ?? ""}`;
     } catch (e) {
       warn(`Nacos index fetch failed (${indexId}): ${(e as Error).message}`);
       return;
@@ -723,34 +674,40 @@ export class DescriptorLoader {
     let dataIds = parseIndexDataIds(indexContent);
     const extra = process.env.AGENTIC_ENGINE_DESCRIPTOR_DATA_IDS?.trim();
     if (extra) {
-      dataIds = [...new Set([...dataIds, ...extra.split(',').map((s) => s.trim()).filter(Boolean)])];
+      dataIds = [
+        ...new Set([
+          ...dataIds,
+          ...extra
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        ]),
+      ];
     }
 
     if (dataIds.length === 0) {
       warn(`index ${indexId} produced no dataIds`);
       return;
     }
-    info(
-      `Nacos descriptor index loaded group=${group} index=${indexId} dataIds=${dataIds.length} fingerprint=${fingerprint || '<empty>'}`,
-    );
+    info(`Nacos descriptor index loaded group=${group} index=${indexId} dataIds=${dataIds.length} fingerprint=${fingerprint || "<empty>"}`);
 
     const descriptors: ToolDescriptor[] = [];
 
     for (const dataId of dataIds) {
       try {
         const res = await client.getConfig({ dataId, groupName: group });
-        const raw = res.content ?? '';
+        const raw = res.content ?? "";
         const parsed = parseStructuredContent(raw, dataId);
         const descriptor = ToolDescriptor.parse(parsed);
         descriptors.push(descriptor);
-        info(`loaded Nacos tool descriptor dataId=${dataId} ${descriptor.name}@${descriptor.version ?? '1.0.0'}`);
+        info(`loaded Nacos tool descriptor dataId=${dataId} ${descriptor.name}@${descriptor.version ?? "1.0.0"}`);
       } catch (e) {
         warn(`skip invalid Nacos descriptor dataId=${dataId}: ${(e as Error).message}`);
       }
     }
 
     if (descriptors.length === 0) {
-      warn('no valid descriptors after Nacos fetch');
+      warn("no valid descriptors after Nacos fetch");
       return;
     }
 

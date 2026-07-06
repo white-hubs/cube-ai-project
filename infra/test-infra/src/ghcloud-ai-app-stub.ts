@@ -93,7 +93,7 @@ function defaultChatCompletionsResponse(): Record<string, unknown> {
         message: {
           role: "assistant",
           content: "stub assistant response",
-          // ADR-0021：默认在 stub 响应里同时塞一段 `reasoning_content`，让
+          // 默认在 stub 响应里同时塞一段 `reasoning_content`，让
           // OpenAICompatProvider 的非流路径走通 reasoning 提取分支（DeepSeek-R1 /
           // 豆包-thinking 风格）。集成测试可断言 SSE 流里出现 reasoning-*-v1 事件。
           reasoning_content: "stub reasoning trace: weighing options…",

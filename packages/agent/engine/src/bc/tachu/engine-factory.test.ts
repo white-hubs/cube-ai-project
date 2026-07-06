@@ -30,6 +30,7 @@ function testEngineFactory(
   localFiles?: ConstructorParameters<typeof EngineFactory>[7],
   llmProvider?: LlmProviderPort,
   tenantResolver?: TenantDescriptorResolver,
+  userShelf?: ConstructorParameters<typeof EngineFactory>[12],
 ): EngineFactory {
   const resolvedLlm = llmProvider ?? (provider as CaptureProvider).llmProvider;
   return new EngineFactory(
@@ -45,6 +46,7 @@ function testEngineFactory(
     resolvedLlm,
     undefined,
     tenantResolver,
+    userShelf,
   );
 }
 
@@ -157,14 +159,6 @@ describe("EngineFactory", () => {
     expect(config.runtime.defaultTaskTimeoutMs).toBe(600_000);
   });
 
-  test("sets disableSimpleMarkers=true to prevent flow/knowledge short queries hitting strong-simple-short fast-path", () => {
-    const provider = createCaptureProvider();
-    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, provider.llmProvider);
-    const config = (factory as unknown as { buildEngineConfig(): EngineConfig }).buildEngineConfig();
-
-    expect(config.intent?.disableSimpleMarkers).toBe(true);
-  });
-
   test("resolveEffectiveRoute reroutes image-bearing turns to an image-capable model", async () => {
     const provider = createCaptureProvider();
     provider.listAvailableModels = async () => [
@@ -200,7 +194,7 @@ describe("EngineFactory", () => {
     expect(route.reason).toBe("IMAGE_CAPABILITY_REROUTE");
   });
 
-  /** Provider-bound base64 expansion via LocalFileMultimodalResolver + tachu ADR-0024. */
+  /** Provider-bound base64 expansion via LocalFileMultimodalResolver. */
   test("runStream builds multimodal input parts from local file assets", async () => {
     const provider = createCaptureProvider();
     provider.listAvailableModels = async () => [
@@ -247,7 +241,7 @@ describe("EngineFactory", () => {
     expect(Array.isArray(content)).toBe(true);
     const parts = content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
     // Body keeps the original prompt + an opaque resource token, with the
-    // materialized carrier appended under a `--- References ---` block (ADR-0025).
+    // materialized carrier appended under a `--- References ---` block.
     const bodyText = parts.find((p) => p.type === "text" && p.text?.includes("compare"))?.text ?? "";
     expect(bodyText).toContain("compare");
     expect(bodyText).toMatch(/\[\[ref:image:[0-9a-f-]+\]\]/u);
@@ -256,7 +250,7 @@ describe("EngineFactory", () => {
     expect(imagePart?.image_url?.url).toBe("data:image/png;base64,AQID");
   });
 
-  test("enables tachu skill activator runtime defaults (ADR-0007)", () => {
+  test("enables tachu skill activator runtime defaults", () => {
     const provider = createCaptureProvider();
     const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, provider.llmProvider);
     const config = (factory as unknown as { buildEngineConfig(): EngineConfig }).buildEngineConfig();
@@ -270,7 +264,7 @@ describe("EngineFactory", () => {
     expect(config.runtime.enableSearchSkillsTool).toBe(true);
   });
 
-  test("runStream forwards agentSnapshot.agent.content.prompt as SessionScope.systemInstruction so direct-answer sees it in the system message", async () => {
+  test("runStream forwards agentSnapshot.agent.content.prompt as SessionScope.systemInstruction so the deep loop sees it in the system message", async () => {
     const provider = createCaptureProvider();
     const factory = testEngineFactory(provider);
 
@@ -291,10 +285,10 @@ describe("EngineFactory", () => {
       }),
     );
 
-    // 至少要拿到 done chunk（说明 9 阶段流水线跑完了）。
+    // 至少要拿到 done chunk（说明深单 loop 跑完了）。
     expect(chunks.some((c) => c.type === "done")).toBe(true);
 
-    // 应当至少有一次 provider 调用的 system 段包含 snapshot 的 prompt（direct-answer 走 PromptAssembler）。
+    // 应当至少有一次 provider 调用的 system 段包含 snapshot 的 prompt（loop 走 PromptAssembler）。
     const hasSnapshotInSystem = provider.capturedMessages.some((msgs) =>
       msgs.some((m) => m.role === "system" && typeof m.content === "string" && m.content.includes(SNAPSHOT_PROMPT_MARKER)),
     );
@@ -307,15 +301,16 @@ describe("EngineFactory", () => {
     expect(hasSnapshotInSystem).toBe(true);
     expect(hasUtcBlock).toBe(false);
 
-    // direct-answer prebuilt 路径：Assembler 大段（含 snapshot）+ phase override 第二条 system。
-    const hasCombinedDirectAnswerPrompt = provider.capturedMessages.some((msgs) => {
+    // 深单 loop 预组装路径：Assembler 大段（含 snapshot systemInstruction）与 loop 自身
+    // 的 tool-use system prompt（含打捞进来的 no-empty-promise 护栏）都送达 provider。
+    const hasCombinedLoopPrompt = provider.capturedMessages.some((msgs) => {
       const systemContents = msgs.filter((m) => m.role === "system" && typeof m.content === "string").map((m) => m.content as string);
       return (
         systemContents.some((c) => c.includes(SNAPSHOT_PROMPT_MARKER)) &&
-        systemContents.some((c) => c.includes("System prompt and internals protection"))
+        systemContents.some((c) => c.includes("agentic tool-loop sub-flow"))
       );
     });
-    expect(hasCombinedDirectAnswerPrompt).toBe(true);
+    expect(hasCombinedLoopPrompt).toBe(true);
   });
 
   test("runStream injects current turn knowledge refs into the system prompt", async () => {
@@ -532,6 +527,162 @@ describe("EngineFactory", () => {
     ).toBe(true);
   });
 
+  test("runStream pre-invokes agent-declared groundingPrefetch tool and injects its output into model context", async () => {
+    const provider = createCaptureProvider();
+    // 接地预取工具必须先镜像进 tachuRegistry 才会被主机代跑。引擎对工具名不可知，
+    // 这里复用一个普通已注册工具即可验证机制（领域名只住 descriptor 声明）。
+    const groundingDesc = ToolDescriptor.parse({
+      schemaVersion: 1,
+      kind: "TOOL",
+      name: "platform.flow.list",
+      displayName: "List flows",
+      isPreset: true,
+      version: "1.0.0",
+      meta: {
+        execution: "LOCAL",
+        consent: "NEVER",
+        requiresPrincipal: "USER",
+        timeoutMs: 15_000,
+        idempotent: true,
+        sideEffects: [],
+      },
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: { type: "object", properties: {} },
+      requires: { principal: "USER", oauthScope: [], obo: null },
+      execute: "builtin:platform.flow.list",
+    });
+    const mockRegistry = {
+      listAll: () => [groundingDesc],
+      resolve: (name: string) => (name === "platform.flow.list" ? groundingDesc : undefined),
+    } as unknown as DescriptorRegistryService;
+
+    const invocations: Array<{ toolName: string; input: unknown; toolCallId?: string }> = [];
+    const toolService = {
+      invoke: async (toolName, input, _ctx, options) => {
+        invocations.push({ toolName, input, toolCallId: options?.toolCallId });
+        return { entities: ["alarm", "device"], marker: "GROUNDING-INDEX-MARKER" };
+      },
+    } satisfies Pick<ToolService, "invoke">;
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    const factory = testEngineFactory(provider, observability, mockRegistry, toolService as ToolService);
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: "SESSION-GROUNDING-1",
+        turnId: "TURN-GROUNDING-1",
+        tenant: 58197260,
+        prompt: "统计各设备的告警数量",
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: "BASE-PROMPT",
+              groundingPrefetch: [{ tool: "platform.flow.list", args: { connection: "", entity: "_index" } }],
+            },
+          },
+        },
+        nextStreamId: (() => {
+          let n = 0;
+          return () => `stream-${++n}`;
+        })(),
+      }),
+    );
+
+    // 主机在 tool-loop 开始前代为预跑，且带上声明的静态参数。
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]).toMatchObject({
+      toolName: "platform.flow.list",
+      input: { connection: "", entity: "_index" },
+    });
+    // 预取以真实 tool-call 事件对形式流出（可观测、可回放）。
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === "tool-call-end" &&
+          c.tool === "platform.flow.list" &&
+          c.success === true &&
+          JSON.stringify(c.output).includes("GROUNDING-INDEX-MARKER"),
+      ),
+    ).toBe(true);
+    // 预取结果被格式化注入 system prompt，供本轮 LLM 选用真实标识符。
+    expect(
+      provider.capturedMessages.some((msgs) =>
+        msgs.some(
+          (m) =>
+            m.role === "system" &&
+            typeof m.content === "string" &&
+            m.content.includes("预取接地事实") &&
+            m.content.includes("GROUNDING-INDEX-MARKER"),
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      observabilityEvents.some(
+        (ev) =>
+          ev.type === "grounding_prefetch_end" &&
+          ev.payload.tool === "platform.flow.list" &&
+          typeof ev.payload.injectedContextChars === "number" &&
+          (ev.payload.injectedContextChars as number) > 0,
+      ),
+    ).toBe(true);
+  });
+
+  test("runStream skips a groundingPrefetch entry whose tool is not registered this turn (no invoke)", async () => {
+    const provider = createCaptureProvider();
+    const invocations: string[] = [];
+    const toolService = {
+      invoke: async (toolName) => {
+        invocations.push(toolName);
+        return {};
+      },
+    } satisfies Pick<ToolService, "invoke">;
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    // 不传 descriptorRegistry → 无工具被镜像进 tachuRegistry → 声明的接地工具本轮不可达。
+    const factory = testEngineFactory(provider, observability, undefined, toolService as ToolService);
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-GROUNDING-SKIP",
+        turnId: "TURN-GROUNDING-SKIP",
+        tenant: 1,
+        prompt: "统计各设备的告警数量",
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: "BASE-PROMPT",
+              groundingPrefetch: [{ tool: "mcp.biz-ontology.read_ontology", args: { entity: "_index" } }],
+            },
+          },
+        },
+      }),
+    );
+
+    expect(invocations).toHaveLength(0);
+    expect(
+      observabilityEvents.some(
+        (ev) =>
+          ev.type === "grounding_prefetch_skipped" &&
+          ev.payload.reason === "tool_not_registered" &&
+          ev.payload.tool === "mcp.biz-ontology.read_ontology",
+      ),
+    ).toBe(true);
+  });
+
   test("runStream pins current turn runtime user skill refs", async () => {
     const provider = createCaptureProvider();
     const skillRegistry = new SkillRegistryService();
@@ -542,7 +693,7 @@ describe("EngineFactory", () => {
       version: "1.0.2",
       description: "charts",
       instructions: `Runtime selected skill:\n${SKILL_MARKER}`,
-      trigger: { type: "semantic" },
+      activation: { mode: "semantic" },
     });
     const factory = testEngineFactory(provider, undefined, undefined, undefined, skillRegistry);
 
@@ -632,6 +783,156 @@ describe("EngineFactory", () => {
     expect(hasTenantSkillInSystem).toBe(true);
   });
 
+  test("runStream resolves an OWNER's own UNPUBLISHED (draft) @-pinned skill via actorUserId", async () => {
+    const provider = createCaptureProvider();
+    const MARKER = "OWNER-DRAFT-GREETING-主公-MARKER";
+    const draftSkillId = "skl_owner_draft";
+    const OWNER = "u-owner";
+    const repo = {
+      // 草稿从未发布：published 读路径拿不到
+      resolvePublished: mock(async (): Promise<TenantDescriptorView | null> => null),
+      // owner 读路径：findById 返回 draft/head（含 ownerUserId）
+      findById: mock(async (_tenant: number, id: string): Promise<TenantDescriptorView | null> => {
+        if (id !== draftSkillId) return null;
+        return {
+          id: draftSkillId,
+          kind: "skill",
+          name: "greeting-prefix",
+          status: "draft",
+          headVersionNo: 1,
+          publishedVersionNo: null,
+          hasUnpublishedChanges: true,
+          ownerUserId: OWNER,
+          createTime: 1,
+          updateTime: 1,
+          content: { description: "greet as 主公", instructions: `You must greet with:\n${MARKER}` },
+        };
+      }),
+    };
+    const tenantResolver = new TenantDescriptorResolver(repo as never);
+    const factory = testEngineFactory(provider, undefined, undefined, undefined, undefined, undefined, undefined, tenantResolver);
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-OWNER-DRAFT-SKILL-1",
+        turnId: "TURN-OWNER-DRAFT-SKILL-1",
+        tenant: 42,
+        userId: OWNER,
+        prompt: "你好",
+        runtimeRefs: {
+          userSkills: [{ skillId: draftSkillId, displayName: "主公问候前缀" }],
+        },
+      }),
+    );
+
+    const systems = provider.capturedMessages.flatMap((msgs) =>
+      msgs.filter((m) => m.role === "system" && typeof m.content === "string").map((m) => m.content as string),
+    );
+    expect(systems.some((content) => content.includes(MARKER))).toBe(true);
+  });
+
+  test("runStream exposes the user's shelf skills under '## Available Skills' via skillDiscovery (progressive disclosure)", async () => {
+    const provider = createCaptureProvider();
+    const shelfSkillId = "skl_my_greeting";
+    const OWNER = "u-owner";
+    const SKILL_NAME = "主公问候前缀";
+    const repo = {
+      resolvePublished: mock(async (): Promise<TenantDescriptorView | null> => null),
+      findById: mock(async (_tenant: number, id: string): Promise<TenantDescriptorView | null> => {
+        if (id !== shelfSkillId) return null;
+        return {
+          id: shelfSkillId,
+          kind: "skill",
+          name: SKILL_NAME,
+          status: "draft",
+          headVersionNo: 1,
+          publishedVersionNo: null,
+          hasUnpublishedChanges: true,
+          ownerUserId: OWNER,
+          createTime: 1,
+          updateTime: 1,
+          content: { description: "以主公前缀问候", instructions: "greet as 主公" },
+        };
+      }),
+    };
+    const tenantResolver = new TenantDescriptorResolver(repo as never);
+    const userShelf = {
+      listByUser: async () => [
+        {
+          id: "she_1",
+          targetKind: "skill" as const,
+          targetId: shelfSkillId,
+          source: "authored" as const,
+          pinVersionNo: null,
+          enabled: true,
+          effectiveVersionNo: null,
+          runnableStatus: "runnable" as const,
+        },
+      ],
+    };
+    const factory = testEngineFactory(
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      tenantResolver,
+      userShelf,
+    );
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-SHELF-DISCOVERY-1",
+        turnId: "TURN-SHELF-DISCOVERY-1",
+        tenant: 42,
+        userId: OWNER,
+        prompt: "还有其它的技能吗？",
+      }),
+    );
+
+    const systems = provider.capturedMessages.flatMap((msgs) =>
+      msgs.filter((m) => m.role === "system" && typeof m.content === "string").map((m) => m.content as string),
+    );
+    expect(systems.some((content) => content.includes("## Available Skills") && content.includes(SKILL_NAME))).toBe(true);
+  });
+
+  test("runStream emits skill_pin_unresolved when an @-pinned skill cannot be resolved (owner-less draft / missing)", async () => {
+    const provider = createCaptureProvider();
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: (ev.payload ?? {}) as Record<string, unknown> });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    // resolver 什么都解析不到（草稿未发布且请求者非 owner，或 id 不存在）
+    const repo = {
+      resolvePublished: mock(async (): Promise<TenantDescriptorView | null> => null),
+      findById: mock(async (): Promise<TenantDescriptorView | null> => null),
+    };
+    const tenantResolver = new TenantDescriptorResolver(repo as never);
+    const factory = testEngineFactory(provider, observability, undefined, undefined, undefined, undefined, undefined, tenantResolver);
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-PIN-UNRESOLVED-1",
+        turnId: "TURN-PIN-UNRESOLVED-1",
+        tenant: 42,
+        userId: "u-x",
+        prompt: "你好",
+        runtimeRefs: {
+          userSkills: [{ skillId: "skl_missing", displayName: "主公问候前缀" }],
+        },
+      }),
+    );
+
+    expect(observabilityEvents.some((ev) => ev.type === "skill_pin_unresolved" && ev.payload["skillId"] === "skl_missing")).toBe(true);
+  });
+
   test("runStream injects inline snapshot skills into system prompt via additionalSkills", async () => {
     const provider = createCaptureProvider();
     const skillRegistry = new SkillRegistryService();
@@ -642,7 +943,7 @@ describe("EngineFactory", () => {
       version: "1.0.2",
       description: "charts",
       instructions: `Output charts using:\n${SKILL_MARKER}`,
-      trigger: { type: "semantic" },
+      activation: { mode: "semantic" },
     });
     const factory = testEngineFactory(provider, undefined, undefined, undefined, skillRegistry);
 
@@ -861,7 +1162,7 @@ describe("EngineFactory", () => {
     }
   });
 
-  test("mirrors DescriptorRegistry tools into tachu so complex intent yields tool-use plan (not empty-tool fallback)", async () => {
+  test("mirrors DescriptorRegistry tools into tachu so the deep loop can see and call them (not empty-tool fallback)", async () => {
     const listDesc = ToolDescriptor.parse({
       schemaVersion: 1,
       kind: "TOOL",
@@ -887,57 +1188,56 @@ describe("EngineFactory", () => {
       resolve: (name: string) => (name === "platform.flow.list" ? listDesc : undefined),
     } as unknown as DescriptorRegistryService;
 
-    let llmCalls = 0;
-    const planningWarnings: unknown[] = [];
-    const observability: ObservabilityEmitter = {
-      on() {
-        return () => {};
+    // rc.10 深单 loop 无 intent 分类：验证镜像进 tachu 的工具对 loop 首步 LLM 可见
+    // 且可真正调用（而非因空工具集走兜底）。
+    const invocations: string[] = [];
+    const toolService = {
+      invoke: async (toolName: string) => {
+        invocations.push(toolName);
+        return { flows: [] };
       },
-      off() {},
-      emit(ev) {
-        if (ev.type === "warning" && ev.phase === "planning") {
-          planningWarnings.push(ev.payload);
-        }
-      },
-      setMasker() {},
-    };
+    } as unknown as ToolService;
+
+    let toolCallIssued = false;
     const provider: ProviderAdapter = {
       id: "agentic-platform-llm-catalog",
-      name: "PhasedIntentProvider",
+      name: "ToolVisibilityProvider",
       async listAvailableModels() {
         return [];
       },
-      async chat(_request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
-        llmCalls += 1;
-        if (llmCalls === 1) {
+      async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+        if (request.tools?.some((t) => t.name === "platform.flow.list") && !toolCallIssued) {
+          toolCallIssued = true;
           return {
-            content: JSON.stringify({
-              complexity: "complex",
-              intent: "询问当前已配置的流程列表",
-              contextRelevance: "related",
-            }),
+            content: "",
+            finishReason: "tool_calls",
+            toolCalls: [{ id: "call-flow-1", name: "platform.flow.list", arguments: {} }],
             usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
           };
         }
         return {
-          content: "stub final",
+          content: "已为你列出配置好的流程。",
+          finishReason: "stop",
           usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
         };
       },
       async *chatStream(request: ChatRequest, ctx: AdapterCallContext) {
         const r = await provider.chat(request, ctx);
-        if (typeof r.content === "string") {
+        if (typeof r.content === "string" && r.content.length > 0) {
           yield { type: "text-delta", delta: r.content } as const;
+        }
+        for (const call of r.toolCalls ?? []) {
+          yield { type: "tool-call-complete", call } as const;
         }
         yield {
           type: "finish",
-          finishReason: "stop",
+          finishReason: r.finishReason ?? "stop",
           usage: r.usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         } as const;
       },
     };
 
-    const factory = testEngineFactory(provider, observability, mockRegistry);
+    const factory = testEngineFactory(provider, undefined, mockRegistry, toolService);
     const chunks = await drain(
       factory.runStream({
         sessionId: "2054102360564695070",
@@ -947,13 +1247,8 @@ describe("EngineFactory", () => {
       }),
     );
 
-    expect(
-      planningWarnings.some(
-        (p) => typeof p === "object" && p !== null && String((p as { reason?: string }).reason ?? "").includes("no matching tool"),
-      ),
-    ).toBe(false);
     expect(chunks.some((c) => c.type === "done")).toBe(true);
-    expect(llmCalls).toBeGreaterThan(1);
+    expect(invocations).toContain("platform.flow.list");
   });
 
   test("skillEmbeddingModelCode overrides env for provider.embed", async () => {
@@ -967,7 +1262,7 @@ describe("EngineFactory", () => {
       version: "1.0.0",
       description: "charts echarts",
       instructions: "use echarts",
-      trigger: { type: "semantic" },
+      activation: { mode: "semantic" },
     });
 
     const provider = createCaptureProvider();
@@ -1000,7 +1295,7 @@ describe("EngineFactory", () => {
       version: "1.0.0",
       description: "statistics visualization",
       instructions: "Use echarts fenced blocks for statistics visualization.",
-      trigger: { type: "semantic" },
+      activation: { mode: "semantic" },
     });
 
     const activationEvents: unknown[] = [];
@@ -1054,7 +1349,7 @@ describe("EngineFactory", () => {
         version: "1.0.0",
         description: "statistics visualization",
         instructions: "first instructions",
-        trigger: { type: "semantic" },
+        activation: { mode: "semantic" },
       },
     ]);
     const provider = createCaptureProvider();
@@ -1075,7 +1370,7 @@ describe("EngineFactory", () => {
         version: "1.0.0",
         description: "statistics visualization",
         instructions: "second instructions",
-        trigger: { type: "semantic" },
+        activation: { mode: "semantic" },
       },
     ]);
     await drain(
@@ -1157,7 +1452,6 @@ describe("EngineFactory", () => {
       },
     } satisfies Pick<ToolService, "invoke">;
 
-    let chatCalls = 0;
     let toolCallIssued = false;
     const provider: ProviderAdapter = {
       id: "agentic-platform-llm-catalog",
@@ -1166,17 +1460,6 @@ describe("EngineFactory", () => {
         return [];
       },
       async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
-        chatCalls += 1;
-        if (!request.tools && chatCalls === 1) {
-          return {
-            content: JSON.stringify({
-              complexity: "complex",
-              intent: "Search the web for current context",
-              contextRelevance: "related",
-            }),
-            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-          };
-        }
         if (request.tools?.some((t) => t.name === "mcp.web-search.search") && !toolCallIssued) {
           toolCallIssued = true;
           return {
@@ -1285,7 +1568,6 @@ describe("EngineFactory", () => {
       },
     } satisfies Pick<ToolService, "invoke">;
 
-    let chatCalls = 0;
     let toolCallIssued = false;
     const provider: ProviderAdapter = {
       id: "agentic-platform-llm-catalog",
@@ -1294,17 +1576,6 @@ describe("EngineFactory", () => {
         return [];
       },
       async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
-        chatCalls += 1;
-        if (!request.tools && chatCalls === 1) {
-          return {
-            content: JSON.stringify({
-              complexity: "complex",
-              intent: "Search the web for current context",
-              contextRelevance: "related",
-            }),
-            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-          };
-        }
         if (request.tools?.some((t) => t.name === "mcp.web-search.search") && !toolCallIssued) {
           toolCallIssued = true;
           return {
@@ -1367,5 +1638,119 @@ describe("EngineFactory", () => {
     // i.e. the call did NOT degrade to a `[executed:tool] <ref>` stub.
     expect(providerCalls).toBeGreaterThan(0);
     expect(invokeCount).toBe(1);
+  });
+
+  test("runStream injects an explicitly @mentioned manual rule into the SYSTEM prompt via tachu additionalRules (not the user message, not memory)", async () => {
+    const provider = createCaptureProvider();
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    const factory = testEngineFactory(provider, observability);
+    const MANUAL_RULE_MARKER = "MANUAL-RULE-SQL-STYLE-MARKER";
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-MANUAL-RULE-1",
+        turnId: "TURN-MANUAL-RULE-1",
+        tenant: 1,
+        prompt: "请遵守 @sql-style 帮我写查询",
+        agentSnapshot: {
+          agent: { content: { prompt: "BASE-PROMPT" } },
+          rules: [
+            {
+              name: "sql-style",
+              versionNo: 1,
+              content: { kind: "rule", name: "sql-style", content: MANUAL_RULE_MARKER, activation: { mode: "manual" } },
+            },
+          ],
+        },
+      }),
+    );
+
+    const flat = (c: unknown): string =>
+      typeof c === "string"
+        ? c
+        : Array.isArray(c)
+          ? c.map((p) => (p && typeof p === "object" && "text" in p ? String((p as { text?: unknown }).text ?? "") : "")).join("\n")
+          : "";
+    const lastMsgs = provider.capturedMessages.at(-1) ?? [];
+    // tachu 把命中的 manual 规则渲染进 system 段的 `## Hard Rules`；用户话轮不含规则正文（→ 不入 memory）。
+    const inSystem = lastMsgs.some((m) => m.role === "system" && flat(m.content).includes(MANUAL_RULE_MARKER));
+    const inUser = lastMsgs.some((m) => m.role === "user" && flat(m.content).includes(MANUAL_RULE_MARKER));
+    expect(inSystem).toBe(true);
+    expect(inUser).toBe(false);
+    expect(
+      observabilityEvents.some((ev) => ev.type === "manual_rule_injected" && (ev.payload.rules as string[])?.includes("sql-style")),
+    ).toBe(true);
+  });
+
+  test("runStream does NOT inject a manual rule that was not mentioned this turn", async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+    const MARKER = "MANUAL-RULE-UNMENTIONED-MARKER";
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-MANUAL-RULE-2",
+        turnId: "TURN-MANUAL-RULE-2",
+        tenant: 1,
+        prompt: "帮我写个查询",
+        agentSnapshot: {
+          agent: { content: { prompt: "BASE-PROMPT" } },
+          rules: [
+            {
+              name: "sql-style",
+              versionNo: 1,
+              content: { kind: "rule", name: "sql-style", content: MARKER, activation: { mode: "manual" } },
+            },
+          ],
+        },
+      }),
+    );
+
+    const flat = (c: unknown): string =>
+      typeof c === "string"
+        ? c
+        : Array.isArray(c)
+          ? c.map((p) => (p && typeof p === "object" && "text" in p ? String((p as { text?: unknown }).text ?? "") : "")).join("\n")
+          : "";
+    const anyHas = provider.capturedMessages.some((msgs) => msgs.some((m) => flat(m.content).includes(MARKER)));
+    expect(anyHas).toBe(false);
+  });
+
+  test("runStream always-activation snapshot rule is injected into the SYSTEM prompt every turn without any mention", async () => {
+    const provider = createCaptureProvider();
+    const factory = testEngineFactory(provider);
+    const ALWAYS_RULE_MARKER = "ALWAYS-RULE-SAFETY-MARKER";
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-ALWAYS-RULE-1",
+        turnId: "TURN-ALWAYS-RULE-1",
+        tenant: 1,
+        prompt: "hello",
+        agentSnapshot: {
+          agent: { content: { prompt: "BASE-PROMPT" } },
+          rules: [
+            {
+              name: "safety-baseline",
+              versionNo: 1,
+              content: { kind: "rule", name: "safety-baseline", content: ALWAYS_RULE_MARKER, activation: { mode: "always" } },
+            },
+          ],
+        },
+      }),
+    );
+
+    const inSystem = provider.capturedMessages.some((msgs) =>
+      msgs.some((m) => m.role === "system" && typeof m.content === "string" && m.content.includes(ALWAYS_RULE_MARKER)),
+    );
+    expect(inSystem).toBe(true);
   });
 });

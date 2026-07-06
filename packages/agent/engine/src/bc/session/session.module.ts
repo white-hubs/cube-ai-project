@@ -136,11 +136,24 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         } catch {
           llmProvider = undefined;
         }
+        // TenantDescriptorResolver / UserShelfRepository 都不是 DI provider（仅在 SessionService
+        // factory 内联构造）——旧代码这里 `c.resolve(TenantDescriptorResolver)` 必然抛错、把
+        // tenantResolver 静默吞成 undefined，导致运行时 @-pin 的租户技能解析与「我的技能」发现在
+        // 生产里其实是死的。改为与 SessionService 一致：从同一 MySQL pool 直接构造，并挂上
+        // descriptor.reload 失效订阅（与 SessionService 的解析器缓存语义对齐）。
         let tenantResolver: TenantDescriptorResolver | undefined;
+        let userShelf: UserShelfRepositoryImpl | undefined;
         try {
-          tenantResolver = c.resolve(TenantDescriptorResolver) as TenantDescriptorResolver;
+          const pool = c.resolve(MYSQL_POOL_TOKEN) as Pool | null;
+          if (pool) {
+            tenantResolver = new TenantDescriptorResolver(new TenantDescriptorRepositoryImpl(pool, sharedSfidService));
+            userShelf = new UserShelfRepositoryImpl(pool, sharedSfidService);
+            const invalidationRedis = createSessionRedis();
+            if (invalidationRedis) tenantResolver.attachInvalidationSubscriber(invalidationRedis);
+          }
         } catch {
           tenantResolver = undefined;
+          userShelf = undefined;
         }
         return new EngineFactory(
           provider,
@@ -155,6 +168,7 @@ type DiContainer = { resolve: (token: unknown) => unknown };
           llmProvider,
           toolServiceProvider,
           tenantResolver,
+          userShelf,
         );
       },
     },
@@ -197,6 +211,13 @@ type DiContainer = { resolve: (token: unknown) => unknown };
         }
         // 租户级 descriptor 运行时解析器（前缀路由 + 已发布 head + 条目缓存，ADR-0016 §5）。
         const tenantResolver = new TenantDescriptorResolver(new TenantDescriptorRepositoryImpl(pool, sharedSfidService));
+        // T7 outbox `descriptor.reload` → PubSubDispatcher 已把 emit/dispatch 接好
+        // （publish/remove 见 descriptor-management.service.ts）；这里补订阅端，让精确
+        // 失效替代纯 30s TTL 兜底（迁移残留 L9）。无 redis 时静默保留 TTL-only 行为。
+        const invalidationRedis = createSessionRedis();
+        if (invalidationRedis) {
+          tenantResolver.attachInvalidationSubscriber(invalidationRedis);
+        }
         const runnableAgentResolver = new RunnableAgentResolver(
           new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
           new DescriptorListingRepositoryImpl(pool),

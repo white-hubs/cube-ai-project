@@ -1,8 +1,12 @@
 {
   "name": "@cube-ai/agent-sdk-client-mock",
-  "version": "0.0.1-alpha.12",
-  "type": "module",
+  "version": "0.0.1-alpha.14",
   "description": "In-process mock engine for SDK tests and local Storybook-style demos. Speaks the same Zod contracts as the real engine.",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -12,13 +16,7 @@
       "types": "./src/index.ts"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
   "publishConfig": {
-    "access": "public",
-    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
@@ -26,7 +24,9 @@
         "import": "./dist/index.js",
         "types": "./dist/index.d.ts"
       }
-    }
+    },
+    "access": "public",
+    "registry": "http://nexus.guhecloud.com:8888/repository/npm-hosted/"
   },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target=bun --format=esm --sourcemap=external --external @cube-ai/contracts && bunx tsc -p tsconfig.build.json",
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@cube-ai/agent-sdk-client": "workspace:*",
-    "typescript": "catalog:",
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
   }
 }

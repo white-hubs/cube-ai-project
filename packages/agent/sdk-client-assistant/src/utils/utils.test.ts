@@ -140,13 +140,13 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     expect(summary.message).toBe("rate limit");
   });
 
-  test("reduceReasoningEvent: phase START → append step", () => {
+  test("reduceReasoningEvent: lifecycle START → append step", () => {
     const t1 = reduceReasoningEvent(undefined, {
       data: {
         event: "START",
-        kind: "phase",
-        label: "规划",
-        phase: "planning",
+        kind: "lifecycle",
+        label: "开始处理",
+        point: "turnStart",
         stepId: "s-1",
         time: 1000,
       },
@@ -154,7 +154,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     });
     expect(t1.steps).toHaveLength(1);
     expect(t1.steps[0]?.stepId).toBe("s-1");
-    expect(t1.steps[0]?.phase).toBe("planning");
+    expect(t1.steps[0]?.point).toBe("turnStart");
     expect(t1.steps[0]?.ok).toBeUndefined();
   });
 
@@ -162,7 +162,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     const t1 = reduceReasoningEvent(undefined, {
       data: {
         event: "START",
-        kind: "phase",
+        kind: "lifecycle",
         stepId: "s-1",
         time: 1000,
       },
@@ -171,7 +171,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     const t2 = reduceReasoningEvent(t1, {
       data: {
         event: "START",
-        kind: "phase",
+        kind: "lifecycle",
         stepId: "s-1",
         time: 1000,
       },
@@ -182,14 +182,14 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
 
   test("reduceReasoningEvent: END updates ok/endTime/error", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "s", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "s", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
       data: {
         error: { code: "X", message: "oops" },
         event: "END",
-        kind: "phase",
+        kind: "lifecycle",
         ok: false,
         stepId: "s",
         time: 100,
@@ -251,7 +251,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
 
   test("reduceReasoningEvent: tool-call events append and complete a child tool step", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", label: "执行中", phase: "execution", stepId: "phase-1", time: 1 },
+      data: { event: "START", kind: "lifecycle", label: "开始处理", point: "turnStart", stepId: "phase-1", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
@@ -295,7 +295,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
 
   test("reduceReasoningEvent: unrelated event returns same tree", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "s", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "s", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
@@ -307,7 +307,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
 
   test("forceCloseActiveReasoning marks active steps with ok=false and error", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "a", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "a", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
@@ -317,7 +317,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     const t2 = reduceReasoningEvent(t1, {
       data: {
         event: "END",
-        kind: "phase",
+        kind: "lifecycle",
         ok: true,
         stepId: "a",
         time: 50,
@@ -345,13 +345,14 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     expect(shouldExpandReasoningStepByDefault(s)).toBe(true);
   });
 
-  test("shouldExpandReasoningStepByDefault: planning/execution/output open by default", () => {
-    const base = { kind: "phase" as const, label: "l", startTime: 1, stepId: "s", text: "" };
-    expect(shouldExpandReasoningStepByDefault({ ...base, phase: "planning" })).toBe(true);
-    expect(shouldExpandReasoningStepByDefault({ ...base, phase: "execution" })).toBe(true);
-    expect(shouldExpandReasoningStepByDefault({ ...base, phase: "output" })).toBe(true);
-    expect(shouldExpandReasoningStepByDefault({ ...base, phase: "safety" })).toBe(false);
-    expect(shouldExpandReasoningStepByDefault({ ...base, phase: "session" })).toBe(false);
+  test("shouldExpandReasoningStepByDefault: turnStart umbrella open by default, turnStop collapsed", () => {
+    const base = { kind: "lifecycle" as const, label: "l", startTime: 1, stepId: "s", text: "" };
+    expect(shouldExpandReasoningStepByDefault({ ...base, point: "turnStart" })).toBe(true);
+    expect(shouldExpandReasoningStepByDefault({ ...base, point: "turnStop" })).toBe(false);
+    // 无 point 的 lifecycle step → 折叠
+    expect(shouldExpandReasoningStepByDefault(base)).toBe(false);
+    // model-reasoning 始终默认展开
+    expect(shouldExpandReasoningStepByDefault({ ...base, kind: "model-reasoning" })).toBe(true);
   });
 
   test("hasVisibleReasoning checks for non-empty steps", () => {
@@ -361,7 +362,7 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
       hasVisibleReasoning({
         steps: [
           {
-            kind: "phase",
+            kind: "lifecycle",
             label: "l",
             startTime: 1,
             stepId: "s",

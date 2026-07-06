@@ -9,7 +9,7 @@ function mergeObject<T extends object, S extends readonly object[]>(target: T, .
  * Reasoning reducer (@cube-ai/contracts SSE wire schema / ADR-0008 §D5.4) + UI helpers.
  * Ported from ghcloud `assistant-chat.utils.ts`.
  */
-import type { ReasoningPhase, ReasoningStep, ReasoningTree } from "../types";
+import type { ReasoningLifecyclePoint, ReasoningStep, ReasoningTree } from "../types";
 
 export function createEmptyReasoningTree(): ReasoningTree {
   return { steps: [] };
@@ -48,10 +48,10 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
     const stepId = typeof data.stepId === "string" ? data.stepId : "";
     const kindRaw = typeof data.kind === "string" ? data.kind : "";
     const eventTag = typeof data.event === "string" ? data.event : "";
-    if (!stepId || (kindRaw !== "phase" && kindRaw !== "model-reasoning" && kindRaw !== "tool-loop")) {
+    if (!stepId || (kindRaw !== "lifecycle" && kindRaw !== "model-reasoning" && kindRaw !== "tool-loop")) {
       return base;
     }
-    const kind = kindRaw as "phase" | "model-reasoning" | "tool-loop";
+    const kind = kindRaw as "lifecycle" | "model-reasoning" | "tool-loop";
     const time = typeof data.time === "number" ? data.time : Date.now();
     const label = typeof data.label === "string" ? data.label : kind;
     if (eventTag === "START") {
@@ -66,7 +66,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
         stepId,
         text: "",
         ...(typeof data.parentStepId === "string" && data.parentStepId !== "" ? { parentStepId: data.parentStepId } : {}),
-        ...(typeof data.phase === "string" ? { phase: data.phase as ReasoningPhase } : {}),
+        ...(typeof data.point === "string" ? { point: data.point as ReasoningLifecyclePoint } : {}),
       };
       return { steps: [...base.steps, next] };
     }
@@ -240,13 +240,14 @@ export function hasVisibleReasoning(tree: ReasoningTree | undefined): boolean {
 }
 
 /**
- * 默认展开白名单：`planning / execution / output` phase + `model-reasoning` 始终默认 open。
+ * 默认展开白名单：`turnStart` 轮次伞 step（承载主处理过程）+ `model-reasoning` 始终默认 open；
+ * `turnStop`（校验里程碑）默认折叠。
  */
 export function shouldExpandReasoningStepByDefault(step: ReasoningStep): boolean {
   if (step.kind === "model-reasoning") {
     return true;
   }
-  if (step.phase === "planning" || step.phase === "execution" || step.phase === "output") {
+  if (step.kind === "lifecycle" && step.point === "turnStart") {
     return true;
   }
   return false;

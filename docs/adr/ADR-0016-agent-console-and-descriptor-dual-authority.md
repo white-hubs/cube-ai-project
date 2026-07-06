@@ -51,11 +51,15 @@ Tool descriptor 涉及 consent / safety / 凭据面，保留 Nacos 运维推送�
 
 - 租户 Agent descriptor 与文件 YAML 全字段对齐（prompt / modelConfig / ruleRefs / skillRefs / availableTools / subAgentRefs / maxDepth）。
 - 写入时校验引用**存在且可见**（系统级 或 本租户已发布）；subAgentRefs 同样限系统级 + 本租户。
-- Skill 为结构化 wire schema（name / description / trigger / instructions[markdown]），v1 不支持附属资源文件。
+- Skill 为结构化 wire schema（name / description / activation / instructions[markdown]），v1 不支持附属资源文件。
+
+> **Amended by tachu rc.13 升级适配（2026-07-04）**：本节原文的 skill wire 字段 `trigger`（自由字符串，值 `always`/`semantic`/`explicit`）随 tachu rc.13「四类描述符统一 `activation` 词汇、彻底移除 `trigger`」一并迁移为 `activation`（判别联合 `{ mode: always|manual|semantic|path }`，`explicit`→`manual`）。`TenantSkillContentSchema.activation` **fail-closed**（未知 mode / `path` 缺非空 globs 直接 parse 失败，不静默降级）；缺省读取侧回落 `semantic`。`rc.*` 阶段无兼容层——已入库租户 skill content 由一次性脚本 `tools/migration/skill-trigger-to-activation.ts` 就地改写，未迁旧行落 `semantic`。
 
 ### 7. Rule 运行时水合一并补全
 
-`ruleRefs`（裸 name → 系统级文件，`rul_` → 租户 DB）在 session create 时解析出 rule 内容写入 snapshot.rules，并注入 system prompt。否则 rule CRUD 是死数据。
+`ruleRefs`（裸 name → 系统级文件，`rul_` → 租户 DB）在 session create 时解析出 rule 内容写入 snapshot.rules。否则 rule CRUD 是死数据。
+
+> **Amended by ADR-0032（2026-07-03）**：本节原文的「并注入 system prompt」指本仓自建 prompt 文本拼装（session create 时把规则正文内联进 `snapshot.prompt`）。ADR-0032 反转此路径：snapshot.rules 仍是版本权威，但**组装/注入委托 tachu 原生 activation 管线**——每轮由 `EngineFactory` 把 snapshot.rules 投影给 `SessionScope.additionalRules`，交 `PromptAssembler` 按 `activation` 组装进 system 段（always 恒进、manual 命中点名才进），每轮重算、不入 memory。规则正文不再内联进 `snapshot.prompt`。
 
 ### 8. 路由与鉴权
 

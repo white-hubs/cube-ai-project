@@ -39,12 +39,17 @@
 | ADR-0016          | [agent 管理面（console face）与 descriptor 双层权威 —— 租户 MySQL + 系统文件，前缀 id 命名空间，draft/publish 版本模型](./ADR-0016-agent-console-and-descriptor-dual-authority.md)                             | Accepted       |
 | ADR-0017          | [Schema Migration —— 域自持 migrations/ + 独立 history 表 + 共享 infra runner，ai-center 启动时协调](./ADR-0017-schema-migration-per-domain-runner.md)                                                         | Accepted       |
 | ADR-0018          | [Descriptor Document 提交格式 —— `:fromDocument` 独立端点、text/plain upsert、draft 落库、DescriptorDocumentParser seam、三种 kind schema 对称扩展](./ADR-0018-descriptor-document-submission-format.md)       | Accepted       |
+| ADR-0019          | [HTTP middleware 链固定顺序 —— 4 步协议层骨架 + 派生层显式挂载点（补档）](./ADR-0019-middleware-chain-order.md)                                                                                                | Accepted       |
+| ADR-0022          | [SSE per-turn 作用域（replay + live 过滤）与用户主动取消 turn（补档）](./ADR-0022-sse-per-turn-scoping-and-cancel.md)                                                                                          | Accepted       |
 | ADR-0027          | [AI-native descriptor 创作 —— `propose` 纯建议能力 + 管理 ops 工具集一核两面（进程内 Tool Handler + MCP server 门面），ref LLM-in-context 接地](./ADR-0027-ai-native-descriptor-authoring.md)                  | Accepted       |
 | ADR-0028          | [flow 对外 gRPC 服务面（平台服务间）保留并在 host 重建 + Nacos 注册广播 grpc_server_port](./ADR-0028-flow-platform-grpc-service-face.md)                                                                       | Accepted       |
 | ADR-0029          | [会话归属（session owner）—— tenant 之下的用户级隔离子层（session 锚定资源），admin scope 读旁路，仓储 404 收口](./ADR-0029-session-owner-user-isolation-sublayer.md)                                          | Accepted       |
 | ADR-0030          | [我的智能体 / 库（商城）+ 技能 / 插件 —— 用户级货架投影、作者归属、发布≠上架、ref 浮动安装、内容可见性分层（修订 ADR-0016 / 扩展 ADR-0029）](./ADR-0030-my-agents-library-and-marketplace-shelf-projection.md) | Accepted       |
+| ADR-0031          | [descriptor 声明式接地预取（grounding prefetch）—— tool-loop 前主机代跑发现/检索工具、结果注入本轮上下文，领域知识只住 descriptor（弱模型鲁棒性纵深防御，补 ADR-0006）](./ADR-0031-descriptor-declarative-grounding-prefetch.md) | Accepted       |
+| ADR-0032          | [分层规则组装与规则激活轴 —— 自持 RuleActivation 词汇 + fail-closed loader，组装委托 tachu 原生 activation 管线（always/manual 每轮进 system 段、不入 memory），semantic/path 留档（随 tachu rc.12 迁移收口 RuleScope 缺陷）](./ADR-0032-layered-rule-assembly-and-activation.md) | Accepted       |
+| ADR-0033          | [descriptor 创建契约收口 —— 唯一信封 `{ name, content }` + name 作 fail-closed slug 身份键（与 displayName / id 三分）+ propose 产出 name，三面统一 `writeDraft` intake，删兼容读（修订 ADR-0018 / 扩展 ADR-0027）](./ADR-0033-descriptor-create-contract-and-name-identity.md) | Accepted       |
 
-> 编号 0019–0026 在代码注释中被引用（runtime / tachu 系列决策），未在本索引建档；本仓文档化 ADR 由 0027 续接。
+> 编号 0020/0021/0023–0026 曾在代码注释中被引用（多为 tachu 侧决策编号或本仓遗留占位），经核查上游 tachu / tachu-docs 均无对应正式文档，已从代码注释中移除、改写为事实描述，不建档。0019/0022 同样曾长期悬空引用，但分量较重（横跨中间件链路 / SSE 语义多个文件），已补档见上表。本仓新增文档化 ADR 由 0027 续接。
 
 ## 未决问题（贯穿）
 

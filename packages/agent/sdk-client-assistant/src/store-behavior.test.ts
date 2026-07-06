@@ -844,7 +844,7 @@ describe("AssistantStore — 断流 / placeholder 兜底", () => {
     await store.send("q");
     await nextTick();
     fake.pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", stepId: "open-step", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "open-step", time: 1 },
       event: "reasoning-step-v1",
     });
     await nextTick();
@@ -890,7 +890,7 @@ describe("AssistantStore — 断流 / placeholder 兜底", () => {
       { content: "ans", createTime: 2, id: "srv-real", role: "assistant", turnId: "1001" },
     ]);
     fake.pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", stepId: "r1", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "r1", time: 1 },
       event: "reasoning-step-v1",
     });
     fake.pushEvent("sess-1", {
@@ -970,7 +970,7 @@ describe("AssistantStore — 断流 / placeholder 兜底", () => {
       event: "message-delta-v1",
     });
     fake.pushEvent("sess-1", {
-      data: { event: "START", kind: "phase", stepId: "r", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "r", time: 1 },
       event: "reasoning-step-v1",
     });
     fake.pushEvent("sess-1", {

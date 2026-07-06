@@ -13,10 +13,10 @@ function makeTree(text = "plan-text"): ReasoningTree {
     steps: [
       {
         endTime: 100,
-        kind: "phase",
+        kind: "lifecycle",
         label: "plan",
         ok: true,
-        phase: "planning",
+        point: "turnStart",
         startTime: 1,
         stepId: "s1",
         text,

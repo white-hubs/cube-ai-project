@@ -114,7 +114,7 @@ describe("MessageDeltaEventSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  test("rejects legacy reasoning delta variant (ADR-0021: reasoning moved to reasoning-delta-v1)", () => {
+  test("rejects legacy reasoning delta variant (reasoning moved to reasoning-delta-v1)", () => {
     const result = MessageDeltaEventSchema.safeParse({
       delta: { reasoning: "thinking…", type: "reasoning" },
       messageId: VALID_MESSAGE_SFID,
@@ -130,12 +130,12 @@ describe("ReasoningStepEventSchema", () => {
   const VALID_STEP_SFID = "1820000000000000700";
   const PARENT_STEP_SFID = "1820000000000000701";
 
-  test("parses phase START without parentStepId", () => {
+  test("parses lifecycle START without parentStepId", () => {
     const result = ReasoningStepEventSchema.safeParse({
       event: "START",
-      kind: "phase",
-      label: "任务规划",
-      phase: "planning",
+      kind: "lifecycle",
+      label: "开始处理",
+      point: "turnStart",
       schema: "reasoning-step-v1",
       stepId: VALID_STEP_SFID,
       time: Date.now(),
@@ -162,10 +162,10 @@ describe("ReasoningStepEventSchema", () => {
     const result = ReasoningStepEventSchema.safeParse({
       error: { code: "TURN_INTERRUPTED", message: "aborted by client" },
       event: "END",
-      kind: "phase",
-      label: "执行中",
+      kind: "lifecycle",
+      label: "校验结果中",
       ok: false,
-      phase: "execution",
+      point: "turnStop",
       schema: "reasoning-step-v1",
       stepId: VALID_STEP_SFID,
       time: Date.now(),
@@ -174,13 +174,28 @@ describe("ReasoningStepEventSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  test("rejects unknown phase value", () => {
+  test("rejects unknown point value", () => {
+    expect(
+      ReasoningStepEventSchema.safeParse({
+        event: "START",
+        kind: "lifecycle",
+        label: "X",
+        point: "unknown-point",
+        schema: "reasoning-step-v1",
+        stepId: VALID_STEP_SFID,
+        time: Date.now(),
+        turnId: VALID_TURN_SFID,
+      }).success,
+    ).toBe(false);
+  });
+
+  test("rejects removed phase kind", () => {
     expect(
       ReasoningStepEventSchema.safeParse({
         event: "START",
         kind: "phase",
-        label: "X",
-        phase: "unknown-phase",
+        label: "执行中",
+        phase: "execution",
         schema: "reasoning-step-v1",
         stepId: VALID_STEP_SFID,
         time: Date.now(),
@@ -368,7 +383,7 @@ describe("SseEventSchema discriminated union", () => {
     ).toBe(false);
   });
 
-  test("rejects removed turn-phase-v1 (ADR-0021)", () => {
+  test("rejects removed turn-phase-v1", () => {
     expect(
       SseEventSchema.safeParse({
         event: "START",
@@ -385,9 +400,9 @@ describe("SseEventSchema discriminated union", () => {
     const VALID_STEP_SFID = "1820000000000000900";
     const stepEvent = SseEventSchema.safeParse({
       event: "START",
-      kind: "phase",
-      label: "执行中",
-      phase: "execution",
+      kind: "lifecycle",
+      label: "开始处理",
+      point: "turnStart",
       schema: "reasoning-step-v1",
       stepId: VALID_STEP_SFID,
       time: Date.now(),

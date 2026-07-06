@@ -150,23 +150,22 @@ export const TOOL_APPROVAL: MockScenario = {
 // ─── reasoning_streaming (@cube-ai/contracts SSE wire schema) ───────────────────────────────────────────
 
 /**
- * Scenario: tachu 9 阶段骨架 + 模型 reasoning 嵌套子 step + 正文 delta。
+ * Scenario: loop-lifecycle 轮次里程碑 + 模型 reasoning 嵌套子 step + 正文 delta。
  *
- * 用于 SDK / 前端开发自测 reasoning 渲染。事件顺序刻意拟合 mapper 真实行为：
+ * 用于 SDK / 前端开发自测 reasoning 渲染。事件顺序刻意拟合 mapper 真实行为
+ * （tachu rc.13：对外只暴露 turnStart / turnStop 粗粒度里程碑，不再泄漏内部 phase）：
  *   1. turn-started
- *   2. reasoning-step-v1 (phase=session START)
- *   3. reasoning-step-v1 (phase=session END)
- *   ...（中间阶段省略）
- *   4. reasoning-step-v1 (phase=execution START)
- *   5. reasoning-step-v1 (model-reasoning START, parent=execution)
- *   6. reasoning-delta-v1 ×N
- *   7. reasoning-step-v1 (model-reasoning END)  ← 由 text-delta 触发
- *   8. message-delta-v1 ×M
- *   9. reasoning-step-v1 (phase=execution END)
- *  10. message-completed / turn-completed
+ *   2. reasoning-step-v1 (lifecycle point=turnStart START) —— 轮次伞 step
+ *   3. reasoning-step-v1 (model-reasoning START, parent=turnStart)
+ *   4. reasoning-delta-v1 ×N
+ *   5. reasoning-step-v1 (model-reasoning END)  ← 由 text-delta 触发
+ *   6. message-delta-v1 ×M
+ *   7. reasoning-step-v1 (lifecycle point=turnStart END) —— turnStop enter 时关闭
+ *   8. reasoning-step-v1 (lifecycle point=turnStop START/END) —— 校验里程碑
+ *   9. message-completed / turn-completed
  */
-const MOCK_PHASE_SESSION_STEP_ID = "1000000000000000010";
-const MOCK_PHASE_EXEC_STEP_ID = "1000000000000000011";
+const MOCK_LIFECYCLE_START_STEP_ID = "1000000000000000010";
+const MOCK_LIFECYCLE_STOP_STEP_ID = "1000000000000000011";
 const MOCK_MODEL_REASONING_STEP_ID = "1000000000000000012";
 
 export const REASONING_STREAMING: MockScenario = {
@@ -175,40 +174,19 @@ export const REASONING_STREAMING: MockScenario = {
     ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
     ev({
       event: "START",
-      kind: "phase",
-      label: "会话准备",
-      phase: "session",
+      kind: "lifecycle",
+      label: "开始处理",
+      point: "turnStart",
       schema: "reasoning-step-v1",
-      stepId: MOCK_PHASE_SESSION_STEP_ID,
+      stepId: MOCK_LIFECYCLE_START_STEP_ID,
       time: NOW + 5,
-      turnId: MOCK_TURN_ID,
-    }),
-    ev({
-      event: "END",
-      kind: "phase",
-      label: "会话准备",
-      ok: true,
-      phase: "session",
-      schema: "reasoning-step-v1",
-      stepId: MOCK_PHASE_SESSION_STEP_ID,
-      time: NOW + 10,
-      turnId: MOCK_TURN_ID,
-    }),
-    ev({
-      event: "START",
-      kind: "phase",
-      label: "执行中",
-      phase: "execution",
-      schema: "reasoning-step-v1",
-      stepId: MOCK_PHASE_EXEC_STEP_ID,
-      time: NOW + 20,
       turnId: MOCK_TURN_ID,
     }),
     ev({
       event: "START",
       kind: "model-reasoning",
       label: "模型思考",
-      parentStepId: MOCK_PHASE_EXEC_STEP_ID,
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
       schema: "reasoning-step-v1",
       stepId: MOCK_MODEL_REASONING_STEP_ID,
       time: NOW + 30,
@@ -235,7 +213,7 @@ export const REASONING_STREAMING: MockScenario = {
       kind: "model-reasoning",
       label: "模型思考",
       ok: true,
-      parentStepId: MOCK_PHASE_EXEC_STEP_ID,
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
       schema: "reasoning-step-v1",
       stepId: MOCK_MODEL_REASONING_STEP_ID,
       time: NOW + 80,
@@ -252,12 +230,33 @@ export const REASONING_STREAMING: MockScenario = {
     ev({ delta: { text: "第三。", type: "text" }, messageId: MOCK_MSG_ID, schema: "message-delta-v1", seqInTurn: 3, turnId: MOCK_TURN_ID }),
     ev({
       event: "END",
-      kind: "phase",
-      label: "执行中",
+      kind: "lifecycle",
+      label: "开始处理",
       ok: true,
-      phase: "execution",
+      point: "turnStart",
       schema: "reasoning-step-v1",
-      stepId: MOCK_PHASE_EXEC_STEP_ID,
+      stepId: MOCK_LIFECYCLE_START_STEP_ID,
+      time: NOW + 115,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "START",
+      kind: "lifecycle",
+      label: "校验结果中",
+      point: "turnStop",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_LIFECYCLE_STOP_STEP_ID,
+      time: NOW + 118,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "END",
+      kind: "lifecycle",
+      label: "校验结果中",
+      ok: true,
+      point: "turnStop",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_LIFECYCLE_STOP_STEP_ID,
       time: NOW + 120,
       turnId: MOCK_TURN_ID,
     }),

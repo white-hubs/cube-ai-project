@@ -1,4 +1,4 @@
-import { shouldOmitImageQwenFromMirror } from './host-turn-policy';
+import { shouldOmitImageQwenFromMirror } from "./host-gating-policy";
 
 /**
  * 计算本轮应镜像到 tachu 的工具名集合（含 `currentDate` / `image.qwen` 并集规则）。
@@ -31,7 +31,7 @@ export function computeTachuToolMirrorNames(
   const names = new Set<string>();
   if (toolRefs && toolRefs.length > 0) {
     for (const raw of toolRefs) {
-      const n = typeof raw === 'string' ? raw.trim() : '';
+      const n = typeof raw === "string" ? raw.trim() : "";
       if (!n) continue;
       if (registry.resolve(n)) names.add(n);
     }
@@ -40,13 +40,13 @@ export function computeTachuToolMirrorNames(
       names.add(d.name);
     }
   }
-  if (registry.resolve('currentDate')) {
-    names.add('currentDate');
+  if (registry.resolve("currentDate")) {
+    names.add("currentDate");
   }
-  if (!options?.omitImageQwen && registry.resolve('image.qwen')) {
-    names.add('image.qwen');
+  if (!options?.omitImageQwen && registry.resolve("image.qwen")) {
+    names.add("image.qwen");
   }
-  return [...names].sort();
+  return [...names].toSorted();
 }
 
 /** Mirror helper: omit image.qwen for data-chart or uploaded-image describe turns. */

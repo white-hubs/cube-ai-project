@@ -158,7 +158,7 @@ export const ToolDescriptor = z.object({
   category: ToolCategory.optional(),
 
   /**
-   * 工具**执行**消费的资源声明（ADR-0026 D4c）。
+   * 工具**执行**消费的资源声明。
    * 语义为「该工具运行时需要哪些 kind 的正文资源 / 是否必需」，**不等于**「推理 LLM
    * 选择调用该工具时需要看到什么」。仅作 `resourceDemandRouter` 的输入参考
    * （`candidateTools`），core 绝不据此自动裁剪推理 prompt。

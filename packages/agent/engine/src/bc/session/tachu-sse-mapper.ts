@@ -1,4 +1,4 @@
-import type { EngineOutput, EnginePhase, StreamChunkPayload } from "@tachu/core";
+import type { EngineOutput, StreamChunkPayload } from "@tachu/core";
 
 import {
   type MessageCompletedEvent,
@@ -27,21 +27,15 @@ import {
  */
 
 /**
- * Phase → 客户端展示标签的内置中文映射（mapper 默认）。
+ * loop-lifecycle 轮次里程碑 → 客户端展示标签的内置中文映射（mapper 默认）。
  *
- * 与 SSE schema `reasoning-step-v1.label` 对齐：宿主可以在前端覆盖文案，但
- * 服务端永远发一份默认值，避免协议消费者还得自己维护翻译表。
+ * tachu rc.13 起对外只暴露粗粒度轮次里程碑（`turnStart` / `turnStop`），不再泄漏
+ * 内部 6 阶段名。与 SSE schema `reasoning-step-v1.label` 对齐：宿主可以在前端覆盖
+ * 文案，但服务端永远发一份默认值，避免协议消费者还得自己维护翻译表。
  */
-const PHASE_LABELS: Record<EnginePhase, string> = {
-  session: "会话准备",
-  safety: "安全检查",
-  intent: "意图识别",
-  precheck: "前置检查",
-  planning: "任务规划",
-  "graph-check": "计划校验",
-  execution: "执行中",
-  validation: "结果验证",
-  output: "生成答案",
+const LIFECYCLE_LABELS: Record<"turnStart" | "turnStop", string> = {
+  turnStart: "开始处理",
+  turnStop: "校验结果中",
 };
 
 /** Model reasoning 子 step 的默认标签。 */
@@ -79,8 +73,8 @@ export interface TachuSseMapperState {
    */
   pendingToolCalls: Map<string, { toolName: string; startedAt: number }>;
   /**
-   * 进行中 tool-call 所属 reasoning phase（callId → parent stepId）。
-   * completed 复用 started 捕获到的 parent，避免 phase 提前关闭时丢失归属。
+   * 进行中 tool-call 所属 reasoning step（callId → parent stepId）。
+   * completed 复用 started 捕获到的 parent，避免 step 提前关闭时丢失归属。
    */
   toolCallParentStepIds: Map<string, string>;
   /**
@@ -90,10 +84,10 @@ export interface TachuSseMapperState {
   turnFailedEmitted: boolean;
   /** SFID 生成工厂：与 turnId/messageId 同体系。由 TurnService 注入。 */
   nextSfid: () => string;
-  /** 当前活跃 phase step 的 stepId；构成 `model-reasoning` 子 step 的 parent。 */
-  activePhaseStepId: string | null;
-  /** 当前活跃 phase 名（仅用于 END 时回写 `phase` 字段、与 START 严格对偶）。 */
-  activePhase: EnginePhase | null;
+  /** 当前活跃 lifecycle 伞 step 的 stepId；构成 `model-reasoning`/`tool-loop`/`tool-call` 子 step 的 parent。 */
+  activeLifecycleStepId: string | null;
+  /** 当前活跃 lifecycle 里程碑（仅用于 END 时回写 `point` 字段、与 START 严格对偶）。 */
+  activeLifecyclePoint: "turnStart" | "turnStop" | null;
   /** 当前活跃 model-reasoning 子 step 的 stepId。 */
   activeModelReasoningStepId: string | null;
   /** 当前活跃 tool-loop 子 step 的 stepId。 */
@@ -127,8 +121,8 @@ export function createTachuSseMapperState(input: {
     toolCallParentStepIds: new Map<string, string>(),
     turnFailedEmitted: false,
     nextSfid: input.nextSfid,
-    activePhaseStepId: null,
-    activePhase: null,
+    activeLifecycleStepId: null,
+    activeLifecyclePoint: null,
     activeModelReasoningStepId: null,
     activeToolLoopStepId: null,
     activeToolLoopStepNumber: null,
@@ -209,7 +203,7 @@ function flushPendingToolCalls(
  * 关闭活跃的 model-reasoning 子 step（如有）。
  *
  * 触发场景（Q5 状态机 B）：
- *   - 收到 text-delta / tool-call-start / phase-exit / done
+ *   - 收到 text-delta / tool-call-start / lifecycle exit / done
  *   - 收到 error（异常路径强制收尾，Q11a）
  *
  * `ok` 决定 END 事件的 ok 字段；正常收尾为 true，异常路径为 false。
@@ -222,7 +216,7 @@ function closeActiveModelReasoning(
 ): void {
   const stepId = state.activeModelReasoningStepId;
   if (!stepId) return;
-  const parentStepId = state.activeToolLoopStepId ?? state.activePhaseStepId;
+  const parentStepId = state.activeToolLoopStepId ?? state.activeLifecycleStepId;
   const payload: ReasoningStepEvent = {
     schema: "reasoning-step-v1",
     turnId: state.turnId,
@@ -252,7 +246,7 @@ function closeActiveToolLoop(
     schema: "reasoning-step-v1",
     turnId: state.turnId,
     stepId,
-    ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
+    ...(state.activeLifecycleStepId !== null ? { parentStepId: state.activeLifecycleStepId } : {}),
     kind: "tool-loop",
     event: "END",
     label: `${TOOL_LOOP_LABEL_PREFIX}第 ${stepNumber} 轮`,
@@ -266,36 +260,36 @@ function closeActiveToolLoop(
 }
 
 /**
- * 强制关闭活跃的 phase step（异常收尾或 done 兜底）。
+ * 强制关闭活跃的 lifecycle 伞 step（异常收尾或 done 兜底）。
  *
- * 调用方应先 `closeActiveModelReasoning` 再关 phase；正常路径下 phase-exit
- * chunk 会主动调用此函数。
+ * 调用方应先 `closeActiveModelReasoning` 再关 lifecycle；正常路径下 `lifecycle`
+ * exit chunk 会主动关闭对偶的 step。
  */
-function closeActivePhase(
+function closeActiveLifecycle(
   state: TachuSseMapperState,
   events: SseEventDescriptor[],
   now: () => number,
   outcome: { ok: true } | { ok: false; code: string; message: string },
 ): void {
-  const stepId = state.activePhaseStepId;
-  const phase = state.activePhase;
-  if (!stepId || !phase) return;
+  const stepId = state.activeLifecycleStepId;
+  const point = state.activeLifecyclePoint;
+  if (!stepId || !point) return;
   closeActiveToolLoop(state, events, now, outcome);
   const payload: ReasoningStepEvent = {
     schema: "reasoning-step-v1",
     turnId: state.turnId,
     stepId,
-    kind: "phase",
+    kind: "lifecycle",
     event: "END",
-    label: PHASE_LABELS[phase],
-    phase,
+    label: LIFECYCLE_LABELS[point],
+    point,
     ok: outcome.ok,
     ...(outcome.ok === false ? { error: { code: outcome.code, message: outcome.message } } : {}),
     time: now(),
   };
   events.push({ sseEvent: "reasoning.step", payload });
-  state.activePhaseStepId = null;
-  state.activePhase = null;
+  state.activeLifecycleStepId = null;
+  state.activeLifecyclePoint = null;
 }
 
 function nextSeqInStep(state: TachuSseMapperState, stepId: string): number {
@@ -376,12 +370,12 @@ export function mapStreamChunkToSseEvents(
     case "reasoning-delta": {
       if (!chunk.content) return [];
       const events: SseEventDescriptor[] = [];
-      // 首次 reasoning-delta：开启 model-reasoning 子 step，parent = 当前 phase。
+      // 首次 reasoning-delta：开启 model-reasoning 子 step，parent = 当前 lifecycle 伞 step。
       let stepId = state.activeModelReasoningStepId;
       if (stepId === null) {
         stepId = state.nextSfid();
         state.activeModelReasoningStepId = stepId;
-        const parentStepId = state.activeToolLoopStepId ?? state.activePhaseStepId;
+        const parentStepId = state.activeToolLoopStepId ?? state.activeLifecycleStepId;
         const startPayload: ReasoningStepEvent = {
           schema: "reasoning-step-v1",
           turnId: state.turnId,
@@ -406,57 +400,59 @@ export function mapStreamChunkToSseEvents(
       events.push({ sseEvent: "reasoning.delta", payload: deltaPayload });
       return events;
     }
-    case "phase-enter": {
-      // 进入新 phase 前若仍有活跃 phase（理论不应有），强制关闭做防御。
+    case "lifecycle": {
+      // 对外只暴露粗粒度轮次里程碑（turnStart / turnStop）；其余 loop-lifecycle point
+      // 按 no-op 处理（向前兼容：tachu 未来新增/surfacing 更多 point 不会让本仓崩）。
+      if (chunk.point !== "turnStart" && chunk.point !== "turnStop") return [];
+      const point = chunk.point;
       const events: SseEventDescriptor[] = [];
-      closeActiveModelReasoning(state, events, now, { ok: true });
-      closeActivePhase(state, events, now, { ok: true });
-      state.toolLoopStepIds.clear();
-      const stepId = chunk.stepId ?? state.nextSfid();
-      state.activePhaseStepId = stepId;
-      state.activePhase = chunk.phase;
-      const startPayload: ReasoningStepEvent = {
-        schema: "reasoning-step-v1",
-        turnId: state.turnId,
-        stepId,
-        kind: "phase",
-        event: "START",
-        label: PHASE_LABELS[chunk.phase],
-        phase: chunk.phase,
-        time: now(),
-      };
-      events.push({ sseEvent: "reasoning.step", payload: startPayload });
-      return events;
-    }
-    case "phase-exit": {
-      const events: SseEventDescriptor[] = [];
-      // phase 退出前先关子 step（model-reasoning 总是 phase 的子项，且短于 phase）。
+      if (chunk.status === "enter") {
+        // 新里程碑进入前，防御性关掉活跃 model-reasoning 与上一个 lifecycle 伞 step。
+        closeActiveModelReasoning(state, events, now, { ok: true });
+        closeActiveLifecycle(state, events, now, { ok: true });
+        state.toolLoopStepIds.clear();
+        const stepId = chunk.stepId ?? state.nextSfid();
+        state.activeLifecycleStepId = stepId;
+        state.activeLifecyclePoint = point;
+        const startPayload: ReasoningStepEvent = {
+          schema: "reasoning-step-v1",
+          turnId: state.turnId,
+          stepId,
+          kind: "lifecycle",
+          event: "START",
+          label: LIFECYCLE_LABELS[point],
+          point,
+          time: now(),
+        };
+        events.push({ sseEvent: "reasoning.step", payload: startPayload });
+        return events;
+      }
+      // status === "exit"：先关子 step，再 END 对偶的 lifecycle step。
       closeActiveModelReasoning(state, events, now, { ok: true });
       closeActiveToolLoop(state, events, now, { ok: true });
-      // 仅在 chunk.phase 与当前活跃 phase 对齐时正常 END；否则做防御性 close。
-      if (state.activePhaseStepId !== null && state.activePhase === chunk.phase) {
+      if (state.activeLifecycleStepId !== null && state.activeLifecyclePoint === point) {
         const endPayload: ReasoningStepEvent = {
           schema: "reasoning-step-v1",
           turnId: state.turnId,
-          stepId: state.activePhaseStepId,
-          kind: "phase",
+          stepId: state.activeLifecycleStepId,
+          kind: "lifecycle",
           event: "END",
-          label: PHASE_LABELS[chunk.phase],
-          phase: chunk.phase,
-          ok: chunk.ok,
-          ...(chunk.ok === false && chunk.error
+          label: LIFECYCLE_LABELS[point],
+          point,
+          ok: chunk.ok ?? true,
+          ...(chunk.ok === false
             ? {
                 error: {
-                  code: chunk.error.code ?? "PHASE_FAILED",
-                  message: chunk.error.message ?? "phase exited with ok=false",
+                  code: chunk.error?.code ?? "LIFECYCLE_FAILED",
+                  message: chunk.error?.message ?? "lifecycle milestone exited with ok=false",
                 },
               }
             : {}),
           time: now(),
         };
         events.push({ sseEvent: "reasoning.step", payload: endPayload });
-        state.activePhaseStepId = null;
-        state.activePhase = null;
+        state.activeLifecycleStepId = null;
+        state.activeLifecyclePoint = null;
       }
       return events;
     }
@@ -496,7 +492,7 @@ export function mapStreamChunkToSseEvents(
         schema: "reasoning-step-v1",
         turnId: state.turnId,
         stepId,
-        ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
+        ...(state.activeLifecycleStepId !== null ? { parentStepId: state.activeLifecycleStepId } : {}),
         kind: "tool-loop",
         event: "START",
         label: `${TOOL_LOOP_LABEL_PREFIX}第 ${chunk.step} 轮`,
@@ -551,7 +547,7 @@ export function mapStreamChunkToSseEvents(
         schema: "reasoning-step-v1",
         turnId: state.turnId,
         stepId,
-        ...(state.activePhaseStepId !== null ? { parentStepId: state.activePhaseStepId } : {}),
+        ...(state.activeLifecycleStepId !== null ? { parentStepId: state.activeLifecycleStepId } : {}),
         kind: "tool-loop",
         event: "END",
         label: `${TOOL_LOOP_LABEL_PREFIX}第 ${chunk.step} 轮`,
@@ -594,7 +590,7 @@ export function mapStreamChunkToSseEvents(
         toolName: chunk.tool,
         startedAt: now(),
       });
-      const parentStepId = chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activePhaseStepId;
+      const parentStepId = chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activeLifecycleStepId;
       if (parentStepId !== null) {
         state.toolCallParentStepIds.set(chunk.callId, parentStepId);
       }
@@ -612,13 +608,13 @@ export function mapStreamChunkToSseEvents(
     }
     case "done": {
       if (state.turnFailedEmitted) return [];
-      // 兜底关掉所有活跃 step（理论上 phase-exit 已经收尾，这里防御异常路径）。
+      // 兜底关掉所有活跃 step（理论上 lifecycle exit 已经收尾，这里防御异常路径）。
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
       closeActiveToolLoop(state, events, now, { ok: true });
-      // 先补全漏发的 tool-call-end，再关 phase —— 避免「phase 已 END 但子工具仍无 completed」。
+      // 先补全漏发的 tool-call-end，再关 lifecycle —— 避免「lifecycle 已 END 但子工具仍无 completed」。
       flushPendingToolCalls(state, events, now, { ok: true });
-      closeActivePhase(state, events, now, { ok: true });
+      closeActiveLifecycle(state, events, now, { ok: true });
       pushSyntheticFinalMessageDeltaIfNeeded(state, events, chunk.output);
       const tokenUsage = chunk.output.metadata.tokenUsage;
       const endTime = now();
@@ -682,7 +678,7 @@ export function mapStreamChunkToSseEvents(
         code: "TURN_INTERRUPTED",
         message: e.message,
       });
-      closeActivePhase(state, events, now, {
+      closeActiveLifecycle(state, events, now, {
         ok: false,
         code: "TURN_INTERRUPTED",
         message: e.message,
@@ -703,7 +699,7 @@ export function mapStreamChunkToSseEvents(
     case "tool-call-end": {
       state.pendingToolCalls.delete(chunk.callId);
       const parentStepId =
-        state.toolCallParentStepIds.get(chunk.callId) ?? chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activePhaseStepId;
+        state.toolCallParentStepIds.get(chunk.callId) ?? chunk.parentStepId ?? state.activeToolLoopStepId ?? state.activeLifecycleStepId;
       const payload: ToolCallCompletedEvent = {
         schema: "tool-call-completed-v1",
         turnId: state.turnId,
@@ -762,7 +758,7 @@ export function forceCloseActiveReasoning(
     code: reason.code,
     message: reason.message,
   });
-  closeActivePhase(state, events, now, {
+  closeActiveLifecycle(state, events, now, {
     ok: false,
     code: reason.code,
     message: reason.message,

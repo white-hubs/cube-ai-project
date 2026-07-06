@@ -40,6 +40,18 @@ export type AgentContentInput = z.input<typeof TenantAgentContentSchema>;
 export type SkillContentInput = z.input<typeof TenantSkillContentSchema>;
 export type RuleContentInput = z.input<typeof TenantRuleContentSchema>;
 
+/**
+ * 结构化创建请求信封（ADR-0033，对齐 contracts `TenantDescriptorCreateRequestSchema`）。
+ *   - `name`    租户内唯一 **slug key**（`^[a-z0-9][a-z0-9-]*$`）；不可变、非空、必须显式给出。
+ *               ≠ `content.displayName`（人类标签，可含中文）——服务端不再从 displayName 派生 name。
+ *   - `content` kind 内容对象（含 displayName / prompt 等），由 contracts schema 校验、服务端补默认值。
+ * `propose` 的输出信封 `{ name, content }` 与此同形，可直接喂 `createAgent`/`createSkill`/`createRule`。
+ */
+export interface DescriptorCreateRequest<C> {
+  name: string;
+  content: C;
+}
+
 export interface ShelfListOptions {
   enabled?: boolean;
   source?: "authored" | "ref" | "copy";
@@ -90,8 +102,8 @@ class AgentConsoleClientImpl {
 
   // --- generic CRUD over a plural kind segment ---
 
-  private create<C>(plural: string, body: C): Promise<TenantDescriptorView> {
-    return requestJson<TenantDescriptorView>(this.config, "POST", `/${plural}`, body);
+  private create<C>(plural: string, req: DescriptorCreateRequest<C>): Promise<TenantDescriptorView> {
+    return requestJson<TenantDescriptorView>(this.config, "POST", `/${plural}`, req);
   }
 
   private list(plural: string): Promise<TenantDescriptorView[]> {
@@ -172,8 +184,8 @@ class AgentConsoleClientImpl {
 
   // --- agents ---
 
-  createAgent(body: AgentContentInput): Promise<TenantDescriptorView> {
-    return this.create(KIND_PLURAL.agent, body);
+  createAgent(req: DescriptorCreateRequest<AgentContentInput>): Promise<TenantDescriptorView> {
+    return this.create(KIND_PLURAL.agent, req);
   }
 
   listAgents(): Promise<TenantDescriptorView[]> {
@@ -222,8 +234,8 @@ class AgentConsoleClientImpl {
 
   // --- skills ---
 
-  createSkill(body: SkillContentInput): Promise<TenantDescriptorView> {
-    return this.create(KIND_PLURAL.skill, body);
+  createSkill(req: DescriptorCreateRequest<SkillContentInput>): Promise<TenantDescriptorView> {
+    return this.create(KIND_PLURAL.skill, req);
   }
 
   listSkills(): Promise<TenantDescriptorView[]> {
@@ -272,8 +284,8 @@ class AgentConsoleClientImpl {
 
   // --- rules ---
 
-  createRule(body: RuleContentInput): Promise<TenantDescriptorView> {
-    return this.create(KIND_PLURAL.rule, body);
+  createRule(req: DescriptorCreateRequest<RuleContentInput>): Promise<TenantDescriptorView> {
+    return this.create(KIND_PLURAL.rule, req);
   }
 
   listRules(): Promise<TenantDescriptorView[]> {

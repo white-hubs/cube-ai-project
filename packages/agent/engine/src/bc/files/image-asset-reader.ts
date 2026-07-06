@@ -13,7 +13,7 @@ export interface ImageAssetReadResult {
 }
 
 /**
- * Host seam for reading image bytes by opaque file id (ADR-0025 amendment / tachu ADR-0024).
+ * Host seam for reading image bytes by opaque file id.
  */
 export interface ImageAssetReader {
   readImageAsset(input: ImageAssetReadInput): Promise<ImageAssetReadResult>;

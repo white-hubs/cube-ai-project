@@ -16,6 +16,7 @@ export async function mergeTenantRules(
   base: RuleRegistryResolveLike | undefined,
   resolver: TenantDescriptorResolver | undefined,
   tenant: number,
+  actorUserId?: string,
 ): Promise<RuleRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
   const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "rule");
@@ -23,7 +24,7 @@ export async function mergeTenantRules(
   const tenantRules = new Map<string, RuleDescriptor>();
   for (const ref of refs) {
     if (parseTenantDescriptorId(ref)?.kind !== "rule") continue;
-    const rule = await resolver.getRule(tenant, ref);
+    const rule = await resolver.getRule(tenant, ref, actorUserId);
     if (rule) tenantRules.set(ref, rule);
   }
   return {
@@ -40,6 +41,7 @@ export async function mergeTenantSkills(
   base: SkillRegistryResolveLike | undefined,
   resolver: TenantDescriptorResolver | undefined,
   tenant: number,
+  actorUserId?: string,
 ): Promise<SkillRegistryResolveLike | undefined> {
   if (!resolver || refs.length === 0) return base;
   const hasTenantRef = refs.some((r) => parseTenantDescriptorId(r)?.kind === "skill");
@@ -47,7 +49,7 @@ export async function mergeTenantSkills(
   const tenantSkills = new Map<string, SkillDescriptor>();
   for (const ref of refs) {
     if (parseTenantDescriptorId(ref)?.kind !== "skill") continue;
-    const skill = await resolver.getSkill(tenant, ref);
+    const skill = await resolver.getSkill(tenant, ref, actorUserId);
     if (skill) tenantSkills.set(ref, skill);
   }
   return {

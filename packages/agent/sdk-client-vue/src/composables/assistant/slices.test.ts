@@ -529,9 +529,9 @@ describe("useAssistantReasoning", () => {
     ch.push({
       data: {
         event: "START",
-        kind: "phase",
-        label: "规划",
-        phase: "planning",
+        kind: "lifecycle",
+        label: "开始处理",
+        point: "turnStart",
         stepId: "step-1",
         time: 10,
         turnId: "turn-1",
@@ -549,7 +549,7 @@ describe("useAssistantReasoning", () => {
     ch.push({
       data: {
         event: "END",
-        kind: "phase",
+        kind: "lifecycle",
         ok: true,
         stepId: "step-1",
         time: 42,
@@ -561,10 +561,10 @@ describe("useAssistantReasoning", () => {
     const step = api.reasoning.lastReasoning.value!.steps[0]!;
     expect(step).toMatchObject({
       endTime: 42,
-      kind: "phase",
-      label: "规划",
+      kind: "lifecycle",
+      label: "开始处理",
       ok: true,
-      phase: "planning",
+      point: "turnStart",
       startTime: 10,
       stepId: "step-1",
       text: "先查资料",

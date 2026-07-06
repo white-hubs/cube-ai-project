@@ -235,7 +235,7 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
   test("reasoning-step-v1：缺 stepId / 非法 kind → 原树返回（同引用）", () => {
     const t0 = createEmptyReasoningTree();
     const t1 = reduceReasoningEvent(t0, {
-      data: { event: "START", kind: "phase", time: 1 },
+      data: { event: "START", kind: "lifecycle", time: 1 },
       event: "reasoning-step-v1",
     });
     expect(t1).toBe(t0);
@@ -249,7 +249,7 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
   test("reasoning-step-v1：event 标记非 START/END → 原树返回", () => {
     const t0 = createEmptyReasoningTree();
     const t1 = reduceReasoningEvent(t0, {
-      data: { event: "PROGRESS", kind: "phase", stepId: "s", time: 1 },
+      data: { event: "PROGRESS", kind: "lifecycle", stepId: "s", time: 1 },
       event: "reasoning-step-v1",
     });
     expect(t1).toBe(t0);
@@ -257,11 +257,11 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
 
   test("END 未知 stepId → steps 不变（map 无命中）", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "a", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "a", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
-      data: { event: "END", kind: "phase", stepId: "ghost", time: 9 },
+      data: { event: "END", kind: "lifecycle", stepId: "ghost", time: 9 },
       event: "reasoning-step-v1",
     });
     expect(t1.steps).toHaveLength(1);
@@ -270,7 +270,7 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
 
   test("delta：未知 stepId / 空 text → 不变", () => {
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "a", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "a", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
@@ -353,11 +353,11 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
     const closed = forceCloseActiveReasoning(undefined, { code: "C", message: "m" });
     expect(closed.steps).toEqual([]);
     const t0 = reduceReasoningEvent(undefined, {
-      data: { event: "START", kind: "phase", stepId: "a", time: 1 },
+      data: { event: "START", kind: "lifecycle", stepId: "a", time: 1 },
       event: "reasoning-step-v1",
     });
     const t1 = reduceReasoningEvent(t0, {
-      data: { event: "END", kind: "phase", ok: true, stepId: "a", time: 5 },
+      data: { event: "END", kind: "lifecycle", ok: true, stepId: "a", time: 5 },
       event: "reasoning-step-v1",
     });
     const closed2 = forceCloseActiveReasoning(t1, { code: "C", message: "m" }, 999);
@@ -365,10 +365,10 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
     expect(closed2.steps[0]?.endTime).toBe(5);
   });
 
-  test("shouldExpandReasoningStepByDefault：无 phase 的 phase-kind / tool-call → false", () => {
+  test("shouldExpandReasoningStepByDefault：无 point 的 lifecycle-kind / tool-call → false", () => {
     expect(
       shouldExpandReasoningStepByDefault({
-        kind: "phase",
+        kind: "lifecycle",
         label: "l",
         startTime: 1,
         stepId: "s",

@@ -99,6 +99,33 @@ describe("DescriptorManagementService — validation + lifecycle orchestration",
     });
   });
 
+  test("create rejects non-slug name (fail-closed, ADR-0033)", async () => {
+    const svc = new DescriptorManagementService(fakeRepo());
+    for (const bad of ["支持助手", "Support Agent", "UPPER", "-lead", "trail-"]) {
+      await expect(svc.create(1, "agent", { name: bad, content: { prompt: "hi" } })).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT_DESCRIPTOR_NAME",
+      });
+    }
+  });
+
+  test("create accepts a lower-kebab slug name", async () => {
+    const repo = fakeRepo();
+    const svc = new DescriptorManagementService(repo);
+    await svc.create(1, "agent", { name: "customer-support-agent", content: { prompt: "hi" } }, "alice");
+    expect((repo.upsert as ReturnType<typeof mock>).mock.calls[0][2]).toBe("customer-support-agent");
+  });
+
+  test("create rejects reusing a name owned by another user (unified intake owner guard)", async () => {
+    const repo = fakeRepo({
+      findByName: mock(async () => fakeView({ id: "agt_9", ownerUserId: "bob" })),
+    });
+    const svc = new DescriptorManagementService(repo);
+    await expect(svc.create(7, "agent", { name: "shared-name", content: { prompt: "hi" } }, "alice")).rejects.toMatchObject({
+      code: "PERMISSION_DENIED_DESCRIPTOR_OWNER",
+    });
+    expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
   test("create rejects content failing kind schema", async () => {
     const svc = new DescriptorManagementService(fakeRepo());
     // agent requires non-empty prompt
@@ -171,6 +198,21 @@ describe("DescriptorManagementService — validation + lifecycle orchestration",
       description: "Review a PR",
       instructions: "Go read the diff carefully.",
     });
+  });
+
+  test("fromDocument inserts authored skills into owner shelf when shelf service is available", async () => {
+    const repo = fakeRepo();
+    const shelf = {
+      upsertAuthored: mock(async () => undefined),
+    } as unknown as ShelfService;
+    const svc = new DescriptorManagementService(repo, undefined, undefined, shelf);
+    const doc = "---\nname: review-pr\ndescription: Review a PR\n---\nGo read the diff carefully.";
+
+    await svc.fromDocument(3, "skill", doc, "bob");
+    expect(shelf.upsertAuthored).toHaveBeenCalledWith(3, "bob", "skl_1", "skill");
+
+    await svc.fromDocument(3, "rule", "---\nname: safety\n---\nNo secrets.", "bob");
+    expect(shelf.upsertAuthored).toHaveBeenCalledTimes(1);
   });
 
   test("fromDocument surfaces updated action from repo", async () => {
@@ -325,6 +367,29 @@ describe("DescriptorManagementService.propose — ADR-0027 ① pure suggestion (
     // pure / read-only: never persists
     expect(repo.upsert).not.toHaveBeenCalled();
     expect(repo.publish).not.toHaveBeenCalled();
+  });
+
+  test("propose emits an LLM-provided slug name (ADR-0033, ready to feed create)", async () => {
+    const { provider } = fakeLlm({
+      prose: "You are a helpful support agent.",
+      structured: { suggestions: [], meta: { name: "customer-support", displayName: "客服助手" } },
+    });
+    const svc = new DescriptorManagementService(fakeRepo(), provider, fakeCandidateSource());
+    const result = await svc.propose(7, "agent", { intent: "支持" });
+    expect(result.name).toBe("customer-support");
+    // 输出信封与 create 同形：{ name, content } 可直接喂 create
+    expect(typeof result.content).toBe("object");
+  });
+
+  test("propose falls back to a generated slug when name/displayName have no ASCII (all-Chinese)", async () => {
+    const { provider } = fakeLlm({
+      prose: "prompt",
+      structured: { suggestions: [], meta: { displayName: "客服助手" } },
+    });
+    const svc = new DescriptorManagementService(fakeRepo(), provider, fakeCandidateSource());
+    const result = await svc.propose(7, "agent", { intent: "支持" });
+    expect(result.name).toMatch(/^[a-z0-9][a-z0-9-]*$/);
+    expect(result.name.startsWith("agent-")).toBe(true);
   });
 
   test("proposeStream emits prose deltas then a terminal proposal envelope", async () => {
