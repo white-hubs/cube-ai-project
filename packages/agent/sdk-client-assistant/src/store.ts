@@ -615,6 +615,12 @@ export class AssistantStore {
         }
         return;
       }
+      case "message-reset-v1": {
+        // Option B：上游判定刚才乐观流进气泡的那段不是最终答案（叙述 / 失败恢复草稿 /
+        // 工具轮），清空进行中的正文气泡；叙述仍保留在 reasoning 思考树。终答随后重新流入。
+        this.resetInProgressAssistantContent(sessionId);
+        return;
+      }
       case "message-completed-v1": {
         const serverMessageId = extractAssistantMessageId(data);
         const turnId = extractTurnId(data) ?? undefined;
@@ -766,6 +772,14 @@ export class AssistantStore {
         [sessionId]: newMessages,
       },
     });
+  }
+
+  /**
+   * 清空进行中 assistant 消息的正文气泡（`message-reset-v1`，Option B）。
+   * 仅动 `content`，不碰 reasoning 思考树——叙述/过程仍留在思考区。
+   */
+  private resetInProgressAssistantContent(sessionId: string): void {
+    this.setLastAssistantContent(sessionId, "");
   }
 
   private setLastAssistantContent(sessionId: string, content: string): void {

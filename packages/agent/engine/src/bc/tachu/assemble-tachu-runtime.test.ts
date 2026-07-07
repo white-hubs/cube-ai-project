@@ -1,6 +1,6 @@
 import { createDefaultToolCandidateStrategies } from "@tachu/core";
 import type { ObservabilityEmitter, ProviderAdapter, TaskExecutor } from "@tachu/core";
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { InMemoryStore } from "@cube-ai/agent-engine/adapters/memory";
 import { LlmProviderPortBridge } from "@cube-ai/agent-engine/adapters/provider";
@@ -138,5 +138,48 @@ describe("buildDefaultEngineConfig — weak-model tool-call robustness wiring", 
   test("explicitly sets failureRecoveryRetries=1 so a first tool failure forces one recovery step instead of giving up", () => {
     const config = buildDefaultEngineConfig("test-provider", "test-model");
     expect(config.runtime.toolLoop?.failureRecoveryRetries).toBe(1);
+  });
+});
+
+/**
+ * run 预算（budget.*）线上可调而不改码：单轮耗尽时运维改 env 即可放宽/收紧。
+ * fail-safe：非法/非正/缺省一律回退硬编码默认，绝不把预算降成 0/NaN 误杀全部请求。
+ */
+describe("buildDefaultEngineConfig — env-configurable run budget", () => {
+  const ENV_KEYS = ["AGENTIC_ENGINE_RUN_MAX_TOKENS", "AGENTIC_ENGINE_RUN_MAX_TOOL_CALLS", "AGENTIC_ENGINE_RUN_MAX_WALL_TIME_MS"] as const;
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of ENV_KEYS) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+  afterEach(() => {
+    for (const k of ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  test("falls back to hard-coded defaults when env is unset", () => {
+    const config = buildDefaultEngineConfig("p", "m");
+    expect(config.budget).toEqual({ maxTokens: 500_000, maxToolCalls: 500, maxWallTimeMs: 3_000_000 });
+  });
+
+  test("reads each budget knob independently from its own env var", () => {
+    process.env["AGENTIC_ENGINE_RUN_MAX_TOKENS"] = "120000";
+    process.env["AGENTIC_ENGINE_RUN_MAX_TOOL_CALLS"] = "40";
+    process.env["AGENTIC_ENGINE_RUN_MAX_WALL_TIME_MS"] = "600000";
+    const config = buildDefaultEngineConfig("p", "m");
+    expect(config.budget).toEqual({ maxTokens: 120_000, maxToolCalls: 40, maxWallTimeMs: 600_000 });
+  });
+
+  test("ignores invalid / zero / negative env values and keeps the default (never 0 or NaN)", () => {
+    process.env["AGENTIC_ENGINE_RUN_MAX_TOKENS"] = "not-a-number";
+    process.env["AGENTIC_ENGINE_RUN_MAX_TOOL_CALLS"] = "0";
+    process.env["AGENTIC_ENGINE_RUN_MAX_WALL_TIME_MS"] = "-5";
+    const config = buildDefaultEngineConfig("p", "m");
+    expect(config.budget).toEqual({ maxTokens: 500_000, maxToolCalls: 500, maxWallTimeMs: 3_000_000 });
   });
 });

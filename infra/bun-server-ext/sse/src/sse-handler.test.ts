@@ -80,9 +80,20 @@ describe("createSessionSseStreamResponse", () => {
     await new Promise((r) => setTimeout(r, 30));
     const reader = res.body!.getReader();
     const dec = new TextDecoder();
-    const { value } = await reader.read();
-    const chunk = dec.decode(value ?? new Uint8Array());
-    expect(chunk).toContain("281474976710657:000001");
+    // 首块为 preamble 注释行（": ok"）——立即 flush 以尽早占满 TTFB；随后是回放事件。
+    let aggregated = "";
+    for (let i = 0; i < 3; i++) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      aggregated += dec.decode(value ?? new Uint8Array());
+      if (aggregated.includes("281474976710657:000001")) {
+        break;
+      }
+    }
+    expect(aggregated.startsWith(": ok")).toBe(true);
+    expect(aggregated).toContain("281474976710657:000001");
     reader.cancel();
     ac.abort();
   });

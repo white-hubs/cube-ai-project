@@ -10,9 +10,10 @@
  * - Nacos 热更 logLevel：UPPERCASE → .toLowerCase() 喂给 pino（logging.md §2）
  */
 
-import pino from 'pino';
-import { Injectable } from '@dangao/bun-server';
-import { correlationStorage } from './log-context';
+import { Injectable } from "@dangao/bun-server";
+import pino from "pino";
+
+import { correlationStorage } from "./log-context";
 
 /**
  * 10 必填字段（camelCase）— logging.md §3.1。
@@ -21,12 +22,12 @@ import { correlationStorage } from './log-context';
  * OTel instrumentation-pino 自动注入：traceId / spanId。
  */
 export interface LogFields {
-  level: number;           // pino 数值 10..60
-  time: number;            // epoch ms number（规范 §4.2，禁止 ISO8601）
+  level: number; // pino 数值 10..60
+  time: number; // epoch ms number（规范 §4.2，禁止 ISO8601）
   pid: number;
   hostname: string;
   msg: string;
-  serviceName: string;     // 'cube-agentic-engine'
+  serviceName: string; // 'cube-agentic-engine'
   serviceVersion: string;
   deploymentEnvironment: string; // UPPERCASE: PROD/STAGING/TEST/DEV
   traceId: string | null;
@@ -39,33 +40,37 @@ export interface LogFields {
  */
 export const REDACTION_PATHS: readonly string[] = [
   // HTTP Headers（协议 canonical 大小写，pino redact 大小写不敏感）
-  'req.headers.authorization',
-  'req.headers.cookie',
+  "req.headers.authorization",
+  "req.headers.cookie",
   'req.headers["x-forwarded-for"]',
   'res.headers["set-cookie"]',
 
   // OAuth2 凭据
-  '*.accessToken',
-  '*.refreshToken',
-  '*.idToken',
-  '*.password',
-  '*.clientSecret',
-  '*.oboPrivateKey',
+  "*.accessToken",
+  "*.refreshToken",
+  "*.idToken",
+  "*.password",
+  "*.clientSecret",
+  "*.oboPrivateKey",
 
   // token sub-keys
-  'user.token',
-  'principal.token',
-  'obo.token',
+  "user.token",
+  "principal.token",
+  "obo.token",
+
+  // 出站 MCP 身份透传窄 carrier（原始用户 Authorization，禁落日志/审计）
+  "*.callIdentity.authorization",
+  "callIdentity.authorization",
 
   // 业务内容（PII / 隐私）
-  '*.message.content',
-  '*.messages[*].content',
-  '*.tool.args',
-  '*.tool.result',
+  "*.message.content",
+  "*.messages[*].content",
+  "*.tool.args",
+  "*.tool.result",
 ] as const;
 
 /** DI token — design doc §3.4 */
-export const DI_LOGGER_FACTORY = Symbol.for('agentic.observability.loggerFactory');
+export const DI_LOGGER_FACTORY = Symbol.for("agentic.observability.loggerFactory");
 
 @Injectable()
 export class LoggerFactory {
@@ -73,29 +78,23 @@ export class LoggerFactory {
 
   constructor() {
     this.basePino = pino({
-      level: (
-        process.env.AGENTIC_ENGINE_LOG_LEVEL ?? 'info'
-      ).toLowerCase(),
+      level: (process.env.AGENTIC_ENGINE_LOG_LEVEL ?? "info").toLowerCase(),
       timestamp: pino.stdTimeFunctions.epochTime,
-      messageKey: 'msg',
+      messageKey: "msg",
       base: {
-        serviceName: 'cube-agentic-engine',
-        serviceVersion: process.env.AGENTIC_ENGINE_VERSION ?? '0.0.0',
-        deploymentEnvironment: (
-          process.env.AGENTIC_ENGINE_ENV ?? 'DEV'
-        ).toUpperCase(),
+        serviceName: "cube-agentic-engine",
+        serviceVersion: process.env.AGENTIC_ENGINE_VERSION ?? "0.0.0",
+        deploymentEnvironment: (process.env.AGENTIC_ENGINE_ENV ?? "DEV").toUpperCase(),
       },
       mixin: () => {
         const store = correlationStorage.getStore();
         if (!store) return {};
         // 过滤 null 值，避免 JSON 输出含冗余 null 字段
-        return Object.fromEntries(
-          Object.entries(store).filter(([, v]) => v !== null),
-        );
+        return Object.fromEntries(Object.entries(store).filter(([, v]) => v !== null));
       },
       redact: {
         paths: REDACTION_PATHS as string[],
-        censor: '[REDACTED]',
+        censor: "[REDACTED]",
         remove: false,
       },
     });
@@ -126,7 +125,7 @@ export class LoggerFactory {
 export function createBootstrapLogger(name: string, ns: string): pino.Logger {
   return pino({
     name,
-    level: process.env.AGENTIC_ENGINE_LOG_LEVEL?.toLowerCase() ?? 'info',
+    level: process.env.AGENTIC_ENGINE_LOG_LEVEL?.toLowerCase() ?? "info",
     base: { ns },
     formatters: {
       level: (label) => ({ level: label }),

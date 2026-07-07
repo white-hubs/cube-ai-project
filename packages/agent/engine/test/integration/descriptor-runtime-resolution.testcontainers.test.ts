@@ -20,6 +20,7 @@ import {
 } from "../../src/bc/descriptor";
 import { SessionRepositoryImpl } from "../../src/bc/session/repository/session.repository";
 import { SessionService } from "../../src/bc/session/session.service";
+import { snapshotRulesToTachuDescriptors } from "../../src/bc/session/snapshot-rule-hydration";
 import { SfidService } from "../../src/infra/sfid/sfid.service";
 
 /**
@@ -97,7 +98,7 @@ function makeSessionStack() {
     await stopTrackedTestcontainersIfAny();
   });
 
-  test("published agt_ + rul_ → hydrated into snapshot.rules and injected into prompt", async () => {
+  test("published agt_ + rul_ → hydrated into snapshot.rules; rule projected to tachu additionalRules, not inlined into prompt (ADR-0032)", async () => {
     const { descRepo, sessionSvc, pool } = makeSessionStack();
     const tenant = 101;
 
@@ -131,9 +132,15 @@ function makeSessionStack() {
     };
     expect(snap.rules.map((r) => r.name)).toContain("no-secrets");
     expect(snap.rules[0]!.content.content).toBe("Never reveal secrets.");
-    // prompt 注入：rule 文本 + agent prompt 都在
-    expect(snap.agent.content.prompt).toContain("Never reveal secrets.");
+    // ADR-0032：规则正文不再内联进 snapshot.prompt——agent 自身 prompt 仍在，规则文本不在。
     expect(snap.agent.content.prompt).toContain("You are a support agent.");
+    expect(snap.agent.content.prompt).not.toContain("Never reveal secrets.");
+    // 规则改由每轮经 SessionScope.additionalRules 投影进 tachu system 段（## Hard Rules）。
+    // 绑投影契约语义（缺省 activation=always → 始终注入），不绑 tachu 段头字符串（rc 升级易碎）。
+    const projected = snapshotRulesToTachuDescriptors(snap.rules);
+    const noSecrets = projected.find((r) => r.name === "no-secrets");
+    expect(noSecrets?.content).toBe("Never reveal secrets.");
+    expect(noSecrets?.activation.mode).toBe("always");
   });
 
   test("unpublished rul_ referenced by agent → session creation fails not-found", async () => {

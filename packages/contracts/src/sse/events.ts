@@ -115,6 +115,32 @@ export const MessageCompletedEventSchema = z.object({
 });
 export type MessageCompletedEvent = z.infer<typeof MessageCompletedEventSchema>;
 
+/**
+ * `message-reset-v1` 令客户端**丢弃当前进行中的正文气泡增量**（回到空气泡）。
+ *
+ * 背景（tachu rc.14 契约）：agent 具备工具能力时，所有 assistant 正文——含中间叙述、
+ * 被废弃的失败恢复草稿、以及真正的最终答案——都统一经 `tool-loop-delta` 逐块流出，
+ * 且「本步是不是最终答案」的判别信号 `tool-loop-step-end.reason` **总在正文流完之后**
+ * 才到达（见 tachu `tool-use.ts` emitStepEnd 时序）。为了让最终答案气泡真正逐字流式，
+ * 下游 mapper 采取「乐观转发 + 事后回溯清空」：`tool-loop-delta` 即时 `message-delta-v1`
+ * 进气泡；一旦该步以 `reason !== "terminal"` 收尾（说明刚才那段是叙述/草稿而非答案），
+ * 就补发本事件清空气泡；`reason === "terminal"` 的那段则原样保留。
+ *
+ * `reason` 透传 tachu 的 step-end 判别值（`tool-calls-completed` /
+ * `failure-recovery-injected` / … / mapper 在 `done` 对账不一致时用 `final-reconcile`），
+ * 仅供下游观测与调试，客户端不据此分支——收到即清空。
+ *
+ * 一致性不变量：清空 + 后续 `message-delta-v1` 重放后的气泡内容，恒等于 `terminalDraft`
+ * （即 listMessages 持久化正文），SSE replay 亦成立。
+ */
+export const MessageResetEventSchema = z.object({
+  messageId: SfidSchema,
+  reason: z.string(),
+  schema: z.literal("message-reset-v1"),
+  turnId: SfidSchema,
+});
+export type MessageResetEvent = z.infer<typeof MessageResetEventSchema>;
+
 // ── Reasoning events ─────────────────────────────────────────────────────────
 //
 // 双事件分离：`reasoning-step-v1` 管生命周期（START/END、嵌套）；
@@ -184,6 +210,13 @@ export const ToolCallStartedEventSchema = z.object({
   meta: z.object({
     execution: z.enum(["LOCAL", "REMOTE", "LONG_RUNNING"]),
     consent: z.enum(["NEVER", "ON_FIRST_USE", "EACH_CALL", "ADMIN_ONLY"]),
+    /**
+     * 语义分类标签，供下游渲染「缩略思考态」（如 cursor/claude 网页那种活动提示）
+     * 直接查表，不必对 toolName/label 裸串猜测或硬编码。engine 在已知调用种类时填写；
+     * 未识别或 agent 自定义领域工具（如 groundingPrefetch 声明的 ontology 查询）落 `tool`。
+     * 可选：旧引擎未发此字段时向后兼容（`undefined`）。
+     */
+    activity: z.enum(["web-search", "knowledge-retrieval", "skill-load", "tool"]).optional(),
   }),
   /** Optional reasoning phase parent; old engines may omit it. */
   parentStepId: SfidSchema.optional(),
@@ -296,6 +329,7 @@ export type DrainModeEvent = z.infer<typeof DrainModeEventSchema>;
 export const SseEventSchema = z.discriminatedUnion("schema", [
   TurnStartedEventSchema,
   MessageDeltaEventSchema,
+  MessageResetEventSchema,
   MessageCompletedEventSchema,
   ReasoningStepEventSchema,
   ReasoningDeltaEventSchema,

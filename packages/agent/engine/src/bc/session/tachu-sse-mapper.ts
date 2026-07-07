@@ -3,6 +3,7 @@ import type { EngineOutput, StreamChunkPayload } from "@tachu/core";
 import {
   type MessageCompletedEvent,
   type MessageDeltaEvent,
+  type MessageResetEvent,
   type ReasoningDeltaEvent,
   type ReasoningStepEvent,
   type ToolCallCompletedEvent,
@@ -43,17 +44,44 @@ const MODEL_REASONING_LABEL = "模型思考";
 const TOOL_LOOP_LABEL_PREFIX = "工具循环";
 
 /**
+ * 已知调用种类 → `meta.activity` 语义标签（`reasoning-step-v1.kind` 的 tool-call 侧对应物）。
+ * 供下游渲染「缩略思考态」直接查表，不必对 `toolName` / `label` 裸串猜测。
+ *
+ * 覆盖范围**刻意**只含 engine 自己拥有、名字稳定的运行时工具（web-search bridge、
+ * `platform.knowledge.query`、`runtime.skill.refs`）。Agent descriptor 自定义声明的
+ * `groundingPrefetch` 工具（如 ontology 查询）是**领域专属**名字，engine 域无关
+ * （ADR-0031 §2），mapper 不臆猜其类目，落回通用 `tool`。
+ *
+ * 与 `RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME` / `RUNTIME_SKILL_REFS_TOOL_NAME`
+ * （`engine-factory.ts`）同名字符串——刻意本地复制而非跨文件 import，保持本
+ * mapper 纯函数、零副作用边界（见文件头注释）；改名需同步两处，测试会兜底。
+ */
+const KNOWLEDGE_QUERY_TOOL_NAME = "platform.knowledge.query";
+const SKILL_REFS_TOOL_NAME = "runtime.skill.refs";
+
+type ToolCallActivity = "web-search" | "knowledge-retrieval" | "skill-load" | "tool";
+
+function resolveToolCallActivity(toolName: string): ToolCallActivity {
+  if (toolName.startsWith("mcp.web-search.")) return "web-search";
+  if (toolName === KNOWLEDGE_QUERY_TOOL_NAME) return "knowledge-retrieval";
+  if (toolName === SKILL_REFS_TOOL_NAME) return "skill-load";
+  return "tool";
+}
+
+/**
  * tachu chunk 不携带 execution/consent；与 `McpBridgeService` 对 `web-search` 的 NEVER 对齐。
  * 其余工具默认安全档：LOCAL + ON_FIRST_USE。
  */
 function toolCallStartedMeta(toolName: string): {
   execution: "LOCAL" | "REMOTE";
   consent: "NEVER" | "ON_FIRST_USE";
+  activity: ToolCallActivity;
 } {
+  const activity = resolveToolCallActivity(toolName);
   if (toolName.startsWith("mcp.web-search.")) {
-    return { execution: "REMOTE", consent: "NEVER" };
+    return { execution: "REMOTE", consent: "NEVER", activity };
   }
-  return { execution: "LOCAL", consent: "ON_FIRST_USE" };
+  return { execution: "LOCAL", consent: "ON_FIRST_USE", activity };
 }
 
 export interface TachuSseMapperState {
@@ -98,6 +126,19 @@ export interface TachuSseMapperState {
   toolLoopStepIds: Map<number, string>;
   /** Step 范围 seq 计数器（key = stepId），与 message-delta 的 seqInTurn 解耦。 */
   seqByStep: Map<string, number>;
+  /**
+   * 客户端正文气泡「当前」已乐观流入、尚未被 `message.reset` 清空的分片
+   * （Option B）。
+   *
+   * tachu rc.14 契约下所有 assistant 正文（叙述 / 失败恢复草稿 / 最终答案）都只经
+   * `tool-loop-delta`（或 legacy `delta`）逐块吐出。mapper 到达即发 `message-delta-v1`
+   * 进气泡（真流式），并把该段追加到此数组。一旦本步以 `reason !== "terminal"` 收尾，
+   * 说明这段不是最终答案 → 发 `message.reset` 并清空本数组（气泡回到空）。
+   *
+   * 因此本数组恒等于「客户端气泡此刻显示的内容」，`done` 时据此与 `terminalDraft`
+   * 对账：一致则不重发（真流式无闪烁），不一致才自愈（reset + 整段补发）。
+   */
+  liveAnswerChunks: string[];
 }
 
 export function createTachuSseMapperState(input: {
@@ -128,11 +169,13 @@ export function createTachuSseMapperState(input: {
     activeToolLoopStepNumber: null,
     toolLoopStepIds: new Map<number, string>(),
     seqByStep: new Map<string, number>(),
+    liveAnswerChunks: [],
   };
 }
 
 export type SseEventDescriptor =
   | { sseEvent: "message.delta"; payload: MessageDeltaEvent }
+  | { sseEvent: "message.reset"; payload: MessageResetEvent }
   | { sseEvent: "usage.delta"; payload: UsageDeltaEvent }
   | { sseEvent: "tool.call.started"; payload: ToolCallStartedEvent }
   | { sseEvent: "tool.call.completed"; payload: ToolCallCompletedEvent }
@@ -327,13 +370,11 @@ export function extractUserVisibleAnswerText(output: EngineOutput): string {
 }
 
 /**
- * 若本轮从未发过 `message-delta-v1`，但 `done` 里已有非空正文，在终态前补一条 delta，
- * 保证客户端仅靠 SSE 也能拼出与 listMessages 一致的可见答复（契约：message.completed 不含正文）。
+ * 乐观把一段正文增量发进客户端气泡（`message-delta-v1`），并追加到 `liveAnswerChunks`
+ * （= 气泡当前内容），供 `done` 对账。`delta` 与 `tool-loop-delta` 两条正文通道共用。
  */
-function pushSyntheticFinalMessageDeltaIfNeeded(state: TachuSseMapperState, events: SseEventDescriptor[], output: EngineOutput): void {
-  if (state.seqInTurn !== 1) return;
-  const text = extractUserVisibleAnswerText(output).trim();
-  if (text.length === 0) return;
+function pushBubbleDelta(state: TachuSseMapperState, events: SseEventDescriptor[], text: string): void {
+  state.liveAnswerChunks.push(text);
   const payload: MessageDeltaEvent = {
     schema: "message-delta-v1",
     turnId: state.turnId,
@@ -345,6 +386,41 @@ function pushSyntheticFinalMessageDeltaIfNeeded(state: TachuSseMapperState, even
   events.push({ sseEvent: "message.delta", payload });
 }
 
+/**
+ * 令客户端丢弃当前气泡内容（`message-reset-v1`），并清空 `liveAnswerChunks`。
+ * 气泡为空时不发（避免噪声）。`reason` 透传 tachu 判别值 / mapper 自愈标记。
+ */
+function pushBubbleReset(state: TachuSseMapperState, events: SseEventDescriptor[], reason: string): void {
+  if (state.liveAnswerChunks.length === 0) return;
+  state.liveAnswerChunks = [];
+  const payload: MessageResetEvent = {
+    schema: "message-reset-v1",
+    turnId: state.turnId,
+    messageId: state.messageId,
+    reason,
+  };
+  events.push({ sseEvent: "message.reset", payload });
+}
+
+/**
+ * `done` 时把客户端气泡对齐到 `terminalDraft`（= listMessages 持久化正文）。
+ *
+ *  - 气泡当前内容（`liveAnswerChunks` 拼接 trim）== 最终正文 → 什么都不做：终答已在
+ *    live 阶段逐字流出，真流式无闪烁（Option B 主路径）。
+ *  - 不一致 → 自愈：先 `message.reset` 清掉脏气泡，再整段补一条 `message-delta-v1`。
+ *    覆盖：非流式 provider、`empty-terminal`/异常兜底、以及终答段与 draft 的罕见错位。
+ *
+ * 契约：`message.completed` 不含正文，客户端仅靠 SSE 即可拼出与 listMessages 一致的答复。
+ */
+function reconcileFinalBubble(state: TachuSseMapperState, events: SseEventDescriptor[], output: EngineOutput): void {
+  const expected = extractUserVisibleAnswerText(output).trim();
+  const current = state.liveAnswerChunks.join("").trim();
+  if (current === expected) return;
+  pushBubbleReset(state, events, "final-reconcile");
+  if (expected.length === 0) return;
+  pushBubbleDelta(state, events, expected);
+}
+
 export function mapStreamChunkToSseEvents(
   state: TachuSseMapperState,
   chunk: StreamChunkPayload,
@@ -354,17 +430,11 @@ export function mapStreamChunkToSseEvents(
     case "delta": {
       if (!chunk.content) return [];
       // 用户正文增量 → 隐含「模型已停止吐 reasoning」，关掉子 step（Q5 状态机 B）。
+      // legacy 直连 `delta` 通道（老 engine）；与 tool-loop-delta 共用气泡逻辑，
+      // 供 `done` 统一对账。rc.14 实际不再走这里（正文全经 tool-loop-delta）。
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
-      const payload: MessageDeltaEvent = {
-        schema: "message-delta-v1",
-        turnId: state.turnId,
-        messageId: state.messageId,
-        seqInTurn: state.seqInTurn,
-        delta: { type: "text", text: chunk.content },
-      };
-      state.seqInTurn += 1;
-      events.push({ sseEvent: "message.delta", payload });
+      pushBubbleDelta(state, events, chunk.content);
       return events;
     }
     case "reasoning-delta": {
@@ -504,27 +574,39 @@ export function mapStreamChunkToSseEvents(
     }
     case "tool-loop-delta": {
       if (!chunk.content) return [];
+      const events: SseEventDescriptor[] = [];
+      closeActiveModelReasoning(state, events, now, { ok: true });
+      // 双通道（Option B）：
+      //  1) reasoning.delta —— 叙述/过程始终进「思考区」（tool-loop 子 step 下）。
+      //  2) message.delta —— 乐观进正文气泡（真流式）；本步若非 terminal 收尾，
+      //     tool-loop-step-end 会补 message.reset 把这段清掉，只有 terminal 段留存。
       const stepId =
         chunk.stepId ??
         state.toolLoopStepIds.get(chunk.step) ??
         (state.activeToolLoopStepNumber === chunk.step ? state.activeToolLoopStepId : null);
-      if (!stepId) return [];
-      const events: SseEventDescriptor[] = [];
-      closeActiveModelReasoning(state, events, now, { ok: true });
-      const seq = nextSeqInStep(state, stepId);
-      const payload: ReasoningDeltaEvent = {
-        schema: "reasoning-delta-v1",
-        turnId: state.turnId,
-        stepId,
-        seqInStep: seq,
-        text: chunk.content,
-        source: "tool-loop",
-      };
-      events.push({ sseEvent: "reasoning.delta", payload });
+      if (stepId) {
+        const seq = nextSeqInStep(state, stepId);
+        const payload: ReasoningDeltaEvent = {
+          schema: "reasoning-delta-v1",
+          turnId: state.turnId,
+          stepId,
+          seqInStep: seq,
+          text: chunk.content,
+          source: "tool-loop",
+        };
+        events.push({ sseEvent: "reasoning.delta", payload });
+      }
+      pushBubbleDelta(state, events, chunk.content);
       return events;
     }
     case "tool-loop-step-end": {
       const events: SseEventDescriptor[] = [];
+      // Option B：判别信号在正文流完后到达。本步若非 terminal 收尾（叙述 / 失败恢复
+      // 草稿 / 工具轮），刚才乐观流进气泡的那段就不是最终答案 → 清空气泡（叙述仍留思考区）。
+      // 只有 reason==="terminal" 的那段保留，最终恒等于 terminalDraft。
+      if (chunk.reason !== "terminal") {
+        pushBubbleReset(state, events, chunk.reason ?? "non-terminal-step");
+      }
       closeActiveModelReasoning(state, events, now, { ok: true });
       if (state.activeToolLoopStepNumber === chunk.step) {
         closeActiveToolLoop(
@@ -615,7 +697,7 @@ export function mapStreamChunkToSseEvents(
       // 先补全漏发的 tool-call-end，再关 lifecycle —— 避免「lifecycle 已 END 但子工具仍无 completed」。
       flushPendingToolCalls(state, events, now, { ok: true });
       closeActiveLifecycle(state, events, now, { ok: true });
-      pushSyntheticFinalMessageDeltaIfNeeded(state, events, chunk.output);
+      reconcileFinalBubble(state, events, chunk.output);
       const tokenUsage = chunk.output.metadata.tokenUsage;
       const endTime = now();
       const durationMs = endTime - state.startTime;

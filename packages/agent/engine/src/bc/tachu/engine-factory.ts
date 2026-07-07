@@ -31,7 +31,7 @@ import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session
 import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
 import { appendSkillDiscoveryHint } from "../skill-activation/skill-discovery-hint";
 import { type IntentRoutingBlock } from "../tool-activation";
-import type { ToolHandlerCtx } from "../tools/tool-context";
+import type { CallIdentity, ToolHandlerCtx } from "../tools/tool-context";
 import { ToolService } from "../tools/tool.service";
 import { assembleTachuRuntime, buildDefaultEngineConfig } from "./assemble-tachu-runtime";
 import { mapContractToolToTachu } from "./contract-tool-to-tachu";
@@ -346,6 +346,11 @@ export interface TurnRunStreamInput {
   tenant: number;
   userId?: string;
   scopes?: readonly string[];
+  /**
+   * 调用方用户原始身份三元组（出站 MCP 身份透传）；由 turn 控制器在请求上下文尚存时捕获。
+   * 仅 `authPassthrough: 'user'` 的 MCP server 消费；不进 ExecutionContext.principal。
+   */
+  callIdentity?: CallIdentity;
   /** 用户本轮输入。 */
   prompt: string;
   content?: MessageContentV1;
@@ -498,10 +503,13 @@ export class EngineFactory {
     this.turnContext.embeddingModelCode = arg.skillEmbeddingModelCode;
     this.turnContext.intentRoutingBlock = (arg.agentSnapshot?.agent?.content?.intentRouting as IntentRoutingBlock | undefined) ?? null;
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
+    // 出站 MCP 身份透传窄 carrier：随 per-turn holder 携带，不落进 ExecutionContext.principal。
+    this.turnContext.callIdentity = arg.callIdentity;
     try {
       yield* this.engine.runStream(input, ctx, scope);
     } finally {
       this.turnContext.callContext = undefined;
+      this.turnContext.callIdentity = undefined;
       this.turnContext.embeddingModelCode = undefined;
       this.turnContext.intentRoutingBlock = undefined;
     }
@@ -1260,6 +1268,8 @@ export class EngineFactory {
         turnId,
       },
       ...(runtimeRefs !== undefined ? { turn: { runtimeRefs } } : {}),
+      // 出站 MCP 身份透传：从 per-turn holder 读取（不来自 principal），仅本轮有效。
+      ...(this.turnContext.callIdentity !== undefined ? { callIdentity: this.turnContext.callIdentity } : {}),
     };
   }
 

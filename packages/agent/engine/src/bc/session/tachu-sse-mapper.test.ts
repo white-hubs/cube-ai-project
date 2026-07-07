@@ -179,13 +179,14 @@ describe("mapStreamChunkToSseEvents", () => {
         toolName: "platform.knowledge.query",
         args: { query: "hello" },
         // tachu chunk 不携带 execution/consent；默认安全档：本地、首次同意。
-        meta: { execution: "LOCAL", consent: "ON_FIRST_USE" },
+        // activity=knowledge-retrieval：下游据此渲染「正在检索知识库」缩略态，不必猜 toolName。
+        meta: { execution: "LOCAL", consent: "ON_FIRST_USE", activity: "knowledge-retrieval" },
       },
     });
     expect(state.pendingToolCalls.get("tcall_alpha_1")?.startedAt).toBe(1_700_000_000_500);
   });
 
-  test('{type:"tool-call-start"} for mcp.web-search.* → meta REMOTE + consent NEVER（与 bridge 注册一致）', () => {
+  test('{type:"tool-call-start"} for mcp.web-search.* → meta REMOTE + consent NEVER + activity=web-search（与 bridge 注册一致）', () => {
     const state = createTachuSseMapperState({
       turnId: TURN_ID,
       messageId: MESSAGE_ID,
@@ -200,7 +201,45 @@ describe("mapStreamChunkToSseEvents", () => {
     });
     expect(events[0]?.payload).toMatchObject({
       toolName: "mcp.web-search.web_search",
-      meta: { execution: "REMOTE", consent: "NEVER" },
+      meta: { execution: "REMOTE", consent: "NEVER", activity: "web-search" },
+    });
+  });
+
+  test('{type:"tool-call-start"} for runtime.skill.refs → activity=skill-load（技能引用注入，非普通工具）', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(state, {
+      type: "tool-call-start",
+      callId: "tcall_skill_1",
+      tool: "runtime.skill.refs",
+      argumentsPreview: "{}",
+    });
+    expect(events[0]?.payload).toMatchObject({
+      toolName: "runtime.skill.refs",
+      meta: { execution: "LOCAL", consent: "ON_FIRST_USE", activity: "skill-load" },
+    });
+  });
+
+  test('{type:"tool-call-start"} for unrecognized/domain-specific tool name → activity=tool（通用兜底，含 agent 自定义 groundingPrefetch 工具）', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(state, {
+      type: "tool-call-start",
+      callId: "tcall_generic_1",
+      tool: "mcp.biz-ontology.query_database",
+      argumentsPreview: "{}",
+    });
+    expect(events[0]?.payload).toMatchObject({
+      toolName: "mcp.biz-ontology.query_database",
+      meta: { execution: "LOCAL", consent: "ON_FIRST_USE", activity: "tool" },
     });
   });
 
@@ -487,6 +526,80 @@ describe("mapStreamChunkToSseEvents", () => {
     }
   });
 
+  test('{type:"done"} after a tool-loop-delta-only turn (model answered without calling any tool) does NOT re-send: text already streamed live, bubble reconciles with terminalDraft', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 1, maxSteps: 25 });
+    // Option B：tool-loop-delta 已在到达时即时 message.delta 进气泡（真流式）。
+    const d1 = mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "我先" });
+    const d2 = mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "直接" });
+    const d3 = mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "回答你。" });
+    // 每个 tool-loop-delta 当场产出一条 message.delta（不再囤到 done）。
+    for (const d of [d1, d2, d3]) {
+      expect(d.filter((e) => e.sseEvent === "message.delta")).toHaveLength(1);
+    }
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step-end", step: 1, success: true, reason: "terminal" });
+
+    const events = mapStreamChunkToSseEvents(
+      state,
+      {
+        type: "done",
+        output: makeEngineOutput({
+          content: "我先直接回答你。",
+          tokenUsage: { input: 5, output: 10, total: 15 },
+        }),
+      },
+      () => 1_700_000_001_500,
+    );
+
+    // 核心断言：气泡已在 live 阶段逐字流出且与 terminalDraft 对账一致 → done 不再补发。
+    expect(events.some((e) => e.sseEvent === "message.delta")).toBe(false);
+    expect(events.some((e) => e.sseEvent === "message.reset")).toBe(false);
+    expect(events.some((e) => e.sseEvent === "message.completed")).toBe(true);
+    // 3 个 live 分片各消费一个 seqInTurn（1..3），done 未再自增。
+    expect(state.seqInTurn).toBe(4);
+  });
+
+  test('{type:"done"} emits message.reset + a single synthetic message.delta when the live bubble content does not reconcile with the final text (self-heal)', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 1, maxSteps: 25 });
+    // 极端：本轮最后一步流出的正文与 done 抽出的 terminalDraft 不一致（理论上罕见）。
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "让我查一下…" });
+    const chunk: StreamChunkPayload = {
+      type: "done",
+      output: makeEngineOutput({
+        content: "最终答案与流出正文不一致",
+        tokenUsage: { input: 5, output: 10, total: 15 },
+      }),
+    };
+    const events = mapStreamChunkToSseEvents(state, chunk, () => 1_700_000_001_500);
+
+    // 先清空脏气泡，再补一条整段最终正文。
+    const resetIdx = events.findIndex((e) => e.sseEvent === "message.reset");
+    const deltaIdx = events.findIndex((e) => e.sseEvent === "message.delta");
+    expect(resetIdx).toBeGreaterThanOrEqual(0);
+    expect(deltaIdx).toBeGreaterThan(resetIdx);
+    if (events[resetIdx]?.sseEvent === "message.reset") {
+      expect(events[resetIdx].payload).toMatchObject({ schema: "message-reset-v1", reason: "final-reconcile" });
+    }
+    const messageDeltas = events.filter((e) => e.sseEvent === "message.delta");
+    expect(messageDeltas).toHaveLength(1);
+    expect(messageDeltas[0]?.payload).toMatchObject({
+      delta: { type: "text", text: "最终答案与流出正文不一致" },
+    });
+  });
+
   test('{type:"done"} with whitespace-only output does not emit synthetic message.delta', () => {
     const state = createTachuSseMapperState({
       turnId: TURN_ID,
@@ -768,7 +881,8 @@ describe("mapStreamChunkToSseEvents", () => {
       step: 1,
       content: "我先搜索一下",
     });
-    expect(delta).toHaveLength(1);
+    // Option B：tool-loop-delta 双通道——reasoning.delta（思考区）+ 乐观 message.delta（正文气泡）。
+    expect(delta).toHaveLength(2);
     expect(delta[0]).toEqual({
       sseEvent: "reasoning.delta",
       payload: {
@@ -778,6 +892,16 @@ describe("mapStreamChunkToSseEvents", () => {
         seqInStep: 1,
         text: "我先搜索一下",
         source: "tool-loop",
+      },
+    });
+    expect(delta[1]).toEqual({
+      sseEvent: "message.delta",
+      payload: {
+        schema: "message-delta-v1",
+        turnId: TURN_ID,
+        messageId: MESSAGE_ID,
+        seqInTurn: 1,
+        delta: { type: "text", text: "我先搜索一下" },
       },
     });
 
@@ -843,5 +967,154 @@ describe("mapStreamChunkToSseEvents", () => {
       expect(events[1].payload.event).toBe("END");
       expect(events[1].payload.ok).toBe(false);
     }
+  });
+});
+
+/**
+ * Option B — 正文气泡真流式：乐观转发 tool-loop-delta + 事后按 step-end.reason 回溯清空。
+ *
+ * tachu rc.14 契约下，所有 assistant 正文（中间叙述、失败恢复草稿、最终答案）都只经
+ * `tool-loop-delta` 流出，且判别信号 `tool-loop-step-end.reason` 总在正文流完后到达。
+ * mapper 乐观把每段 delta 即时送进气泡；非 terminal 收尾时补 `message.reset` 清空，
+ * 只有 `reason==="terminal"` 那段留存，最终恒等于 `terminalDraft`。
+ */
+describe("mapStreamChunkToSseEvents · Option B optimistic bubble streaming", () => {
+  test("non-terminal tool-loop-step-end emits message.reset to discard the optimistically-streamed narration", () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 1, maxSteps: 25 });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "我先查一下天气。" });
+
+    const end = mapStreamChunkToSseEvents(state, {
+      type: "tool-loop-step-end",
+      step: 1,
+      success: true,
+      reason: "tool-calls-completed",
+    });
+
+    const reset = end.find((e) => e.sseEvent === "message.reset");
+    expect(reset).toBeDefined();
+    expect(reset?.payload).toEqual({
+      schema: "message-reset-v1",
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      reason: "tool-calls-completed",
+    });
+    // 也仍会 END tool-loop reasoning step（思考区保留叙述）。
+    expect(end.some((e) => e.sseEvent === "reasoning.step")).toBe(true);
+  });
+
+  test("failure-recovery-injected step-end resets the discarded draft bubble", () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 2, maxSteps: 25 });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 2, content: "根据经验大概 120 万。" });
+
+    const end = mapStreamChunkToSseEvents(state, {
+      type: "tool-loop-step-end",
+      step: 2,
+      success: false,
+      reason: "failure-recovery-injected",
+    });
+
+    const reset = end.find((e) => e.sseEvent === "message.reset");
+    expect(reset?.payload).toMatchObject({ schema: "message-reset-v1", reason: "failure-recovery-injected" });
+  });
+
+  test("terminal tool-loop-step-end keeps the bubble (no message.reset)", () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 1, maxSteps: 25 });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-delta", step: 1, content: "这就是最终答案。" });
+
+    const end = mapStreamChunkToSseEvents(state, {
+      type: "tool-loop-step-end",
+      step: 1,
+      success: true,
+      reason: "terminal",
+    });
+
+    expect(end.some((e) => e.sseEvent === "message.reset")).toBe(false);
+  });
+
+  test("step-end with no optimistically-streamed content emits no message.reset (no noise)", () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    mapStreamChunkToSseEvents(state, { type: "lifecycle", point: "turnStart", status: "enter" });
+    mapStreamChunkToSseEvents(state, { type: "tool-loop-step", step: 1, maxSteps: 25 });
+    // 本步只调工具、无正文 delta。
+    const end = mapStreamChunkToSseEvents(state, {
+      type: "tool-loop-step-end",
+      step: 1,
+      success: true,
+      reason: "tool-calls-completed",
+    });
+    expect(end.some((e) => e.sseEvent === "message.reset")).toBe(false);
+  });
+
+  test("multi-step turn: narration flashes then clears each non-terminal step; only the terminal answer survives and done does not re-send", () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const all: { sseEvent: string; payload: unknown }[] = [];
+    const feed = (chunk: StreamChunkPayload, now?: () => number): void => {
+      for (const e of mapStreamChunkToSseEvents(state, chunk, now)) all.push(e);
+    };
+
+    feed({ type: "lifecycle", point: "turnStart", status: "enter" });
+    // step 1：叙述 → 工具 → 非 terminal 收尾（清空）
+    feed({ type: "tool-loop-step", step: 1, maxSteps: 25 });
+    feed({ type: "tool-loop-delta", step: 1, content: "我先查天气。" });
+    feed({ type: "tool-loop-step-end", step: 1, success: true, reason: "tool-calls-completed" });
+    // step 2：叙述 → 工具 → 非 terminal 收尾（清空）
+    feed({ type: "tool-loop-step", step: 2, maxSteps: 25 });
+    feed({ type: "tool-loop-delta", step: 2, content: "再看看日程。" });
+    feed({ type: "tool-loop-step-end", step: 2, success: true, reason: "tool-calls-completed" });
+    // step 3：最终答案 → terminal 收尾（保留）
+    feed({ type: "tool-loop-step", step: 3, maxSteps: 25 });
+    feed({ type: "tool-loop-delta", step: 3, content: "建议 11:30 后拍摄。" });
+    feed({ type: "tool-loop-step-end", step: 3, success: true, reason: "terminal" });
+    feed(
+      {
+        type: "done",
+        output: makeEngineOutput({ content: "建议 11:30 后拍摄。", tokenUsage: { input: 1, output: 2, total: 3 } }),
+      },
+      () => 1_700_000_001_500,
+    );
+
+    // 两次 flash-clear（step1/step2 各一次 reset），terminal 段无 reset。
+    const resets = all.filter((e) => e.sseEvent === "message.reset");
+    expect(resets).toHaveLength(2);
+    // 三段叙述各即时流出一条 message.delta。
+    const deltas = all.filter((e) => e.sseEvent === "message.delta");
+    expect(deltas).toHaveLength(3);
+    // 最后一条 message.delta 即最终答案；done 不再补发。
+    expect(deltas[2]?.payload).toMatchObject({ delta: { type: "text", text: "建议 11:30 后拍摄。" } });
+    const lastResetPos = all.map((e) => e.sseEvent).lastIndexOf("message.reset");
+    const lastDeltaPos = all.map((e) => e.sseEvent).lastIndexOf("message.delta");
+    // 终答的 delta 在最后一次 reset 之后（气泡最终只剩终答）。
+    expect(lastDeltaPos).toBeGreaterThan(lastResetPos);
   });
 });

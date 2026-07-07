@@ -48,8 +48,10 @@
 | ADR-0031          | [descriptor 声明式接地预取（grounding prefetch）—— tool-loop 前主机代跑发现/检索工具、结果注入本轮上下文，领域知识只住 descriptor（弱模型鲁棒性纵深防御，补 ADR-0006）](./ADR-0031-descriptor-declarative-grounding-prefetch.md) | Accepted       |
 | ADR-0032          | [分层规则组装与规则激活轴 —— 自持 RuleActivation 词汇 + fail-closed loader，组装委托 tachu 原生 activation 管线（always/manual 每轮进 system 段、不入 memory），semantic/path 留档（随 tachu rc.12 迁移收口 RuleScope 缺陷）](./ADR-0032-layered-rule-assembly-and-activation.md) | Accepted       |
 | ADR-0033          | [descriptor 创建契约收口 —— 唯一信封 `{ name, content }` + name 作 fail-closed slug 身份键（与 displayName / id 三分）+ propose 产出 name，三面统一 `writeDraft` intake，删兼容读（修订 ADR-0018 / 扩展 ADR-0027）](./ADR-0033-descriptor-create-contract-and-name-identity.md) | Accepted       |
+| ADR-0034          | [引擎内置 skill 与租户会话默认注入 —— default-reasoning/chart-output 全局常驻、不可声明/退订，成本经技能正文精简而非激活门控收敛](./ADR-0034-engine-internal-skills-and-default-session-injection.md) | Accepted       |
+| ADR-0035          | [正文气泡真流式 —— 乐观转发 tool-loop-delta + `message-reset-v1` 事后回溯清空（Option B），一致性由 done 对账兜底，tachu 零改动（扩展 ADR-0022 / ADR-0008）](./ADR-0035-final-answer-live-streaming-and-message-reset.md) | Accepted       |
 
-> 编号 0020/0021/0023–0026 曾在代码注释中被引用（多为 tachu 侧决策编号或本仓遗留占位），经核查上游 tachu / tachu-docs 均无对应正式文档，已从代码注释中移除、改写为事实描述，不建档。0019/0022 同样曾长期悬空引用，但分量较重（横跨中间件链路 / SSE 语义多个文件），已补档见上表。本仓新增文档化 ADR 由 0027 续接。
+> 编号 0020/0021/0023–0026 曾在代码注释中被引用（多为 tachu 侧决策编号或本仓遗留占位），经核查上游 tachu / tachu-docs 均无对应正式文档，已从代码注释中移除、改写为事实描述，不建档。0019/0022 同样曾长期悬空引用，但分量较重（横跨中间件链路 / SSE 语义多个文件），已补档见上表。本仓新增文档化 ADR 由 0027 续接。其中原挂 0023 占位的 chart-output「engine-internal + 默认注入」设计，经审计确认为 load-bearing，已正式建档为 ADR-0034（代码注释同步改引）。
 
 ## 未决问题（贯穿）
 

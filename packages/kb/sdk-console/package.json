@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/kb-sdk-console",
-  "version": "0.0.1-alpha.14",
+  "version": "0.0.1-alpha.17",
   "description": "Knowledge document management console — /kb/console/documents against ai-center.",
   "files": [
     "dist",

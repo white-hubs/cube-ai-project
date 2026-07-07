@@ -17,6 +17,7 @@ import {
   isPlaceholderSessionTitle,
   joinContentBlockArray,
   reduceReasoningEvent,
+  resolveStepActivity,
   shouldExpandReasoningStepByDefault,
 } from "./index";
 
@@ -180,11 +181,12 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     expect(t2.steps).toHaveLength(1);
   });
 
-  test("reduceReasoningEvent: END updates ok/endTime/error", () => {
+  test("reduceReasoningEvent: END updates ok/error；endTime 取客户端时钟（非 data.time）", () => {
     const t0 = reduceReasoningEvent(undefined, {
       data: { event: "START", kind: "lifecycle", stepId: "s", time: 1 },
       event: "reasoning-step-v1",
     });
+    const before = Date.now();
     const t1 = reduceReasoningEvent(t0, {
       data: {
         error: { code: "X", message: "oops" },
@@ -196,9 +198,12 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
       },
       event: "reasoning-step-v1",
     });
+    const after = Date.now();
     const s = t1.steps[0];
     expect(s?.ok).toBe(false);
-    expect(s?.endTime).toBe(100);
+    expect(s?.endTime).not.toBe(100); // 不再落库服务端 data.time
+    expect(s?.endTime ?? 0).toBeGreaterThanOrEqual(before);
+    expect(s?.endTime ?? 0).toBeLessThanOrEqual(after);
     expect(s?.error).toEqual({ code: "X", message: "oops" });
   });
 
@@ -239,7 +244,6 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
       event: "reasoning-step-v1",
     });
     expect(t2.steps[0]).toMatchObject({
-      endTime: 20,
       kind: "tool-loop",
       label: "工具循环第 1 轮",
       ok: true,
@@ -247,6 +251,9 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
       stepId: "loop-1",
       text: "我先搜索一下",
     });
+    // endTime 取客户端时钟（非 data.time=20），且不早于 startTime
+    expect(t2.steps[0]?.endTime).not.toBe(20);
+    expect(t2.steps[0]?.endTime ?? 0).toBeGreaterThanOrEqual(t2.steps[0]?.startTime ?? 0);
   });
 
   test("reduceReasoningEvent: tool-call events append and complete a child tool step", () => {
@@ -293,6 +300,91 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     expect(t2.steps[1]?.endTime).toBeGreaterThanOrEqual(t2.steps[1]?.startTime ?? 0);
   });
 
+  test("回归1：START 的 startTime 取客户端时钟；服务端 data.time 快 15s 也不带偏移", () => {
+    const serverTime = Date.now() + 15_000; // 服务端时钟比客户端快 15s
+    const before = Date.now();
+    const t = reduceReasoningEvent(undefined, {
+      data: { event: "START", kind: "lifecycle", stepId: "s", time: serverTime },
+      event: "reasoning-step-v1",
+    });
+    const after = Date.now();
+    const start = t.steps[0]?.startTime ?? 0;
+    // startTime ≈ Date.now()（落在处理窗口内），与 data.time 无关
+    expect(start).toBeGreaterThanOrEqual(before);
+    expect(start).toBeLessThanOrEqual(after);
+    // 关键：不吃服务端偏移——与 data.time 相差应接近 15s，而非 0
+    expect(Math.abs(serverTime - start)).toBeGreaterThanOrEqual(14_000);
+  });
+
+  test("回归2：tool-call-completed 带 durationMs=1234 且 data.time 偏移 → endTime − startTime === 1234", () => {
+    const serverTime = Date.now() + 15_000; // 服务端时钟偏移
+    const t = reduceReasoningEvent(undefined, {
+      data: { durationMs: 1234, ok: true, time: serverTime, toolCallId: "tc", toolName: "t" },
+      event: "tool-call-completed-v1",
+    });
+    const step = t.steps[0];
+    expect((step?.endTime ?? 0) - (step?.startTime ?? 0)).toBe(1234); // 服务端权威时长
+    expect(step?.endTime).not.toBe(serverTime); // endTime 取客户端 now，不落库 data.time
+  });
+
+  test("resolveStepActivity: model-reasoning step → thinking", () => {
+    const t0 = reduceReasoningEvent(undefined, {
+      data: { event: "START", kind: "model-reasoning", label: "模型思考", stepId: "s-1", time: 1 },
+      event: "reasoning-step-v1",
+    });
+    expect(resolveStepActivity(t0.steps[0]!)).toBe("thinking");
+  });
+
+  test("resolveStepActivity: lifecycle / tool-loop umbrella steps → working (generic, round number irrelevant)", () => {
+    const lifecycle = reduceReasoningEvent(undefined, {
+      data: { event: "START", kind: "lifecycle", label: "开始处理", point: "turnStart", stepId: "s-1", time: 1 },
+      event: "reasoning-step-v1",
+    });
+    const toolLoop = reduceReasoningEvent(undefined, {
+      data: { event: "START", kind: "tool-loop", label: "工具循环第 1 轮", stepId: "s-2", time: 1 },
+      event: "reasoning-step-v1",
+    });
+    expect(resolveStepActivity(lifecycle.steps[0]!)).toBe("working");
+    expect(resolveStepActivity(toolLoop.steps[0]!)).toBe("working");
+  });
+
+  test("resolveStepActivity: tool-call step reads meta.activity from wire event (knowledge-retrieval / web-search / skill-load)", () => {
+    const makeToolCallStep = (activity: string) =>
+      reduceReasoningEvent(undefined, {
+        data: {
+          args: {},
+          meta: { activity, consent: "ON_FIRST_USE", execution: "LOCAL" },
+          toolCallId: `tc_${activity}`,
+          toolName: "irrelevant.for.this.test",
+          turnId: "turn-1",
+        },
+        event: "tool-call-started-v1",
+      }).steps[0]!;
+
+    expect(resolveStepActivity(makeToolCallStep("knowledge-retrieval"))).toBe("knowledge-retrieval");
+    expect(resolveStepActivity(makeToolCallStep("web-search"))).toBe("web-search");
+    expect(resolveStepActivity(makeToolCallStep("skill-load"))).toBe("skill-load");
+  });
+
+  test("resolveStepActivity: tool-call step without recognized meta.activity falls back to generic tool (old engines / domain-specific groundingPrefetch tools)", () => {
+    const noMeta = reduceReasoningEvent(undefined, {
+      data: { args: {}, toolCallId: "tc_1", toolName: "mcp.biz-ontology.query_database", turnId: "turn-1" },
+      event: "tool-call-started-v1",
+    }).steps[0]!;
+    const unknownActivity = reduceReasoningEvent(undefined, {
+      data: {
+        args: {},
+        meta: { activity: "tool", consent: "ON_FIRST_USE", execution: "LOCAL" },
+        toolCallId: "tc_2",
+        toolName: "mcp.biz-ontology.query_database",
+        turnId: "turn-1",
+      },
+      event: "tool-call-started-v1",
+    }).steps[0]!;
+    expect(resolveStepActivity(noMeta)).toBe("tool");
+    expect(resolveStepActivity(unknownActivity)).toBe("tool");
+  });
+
   test("reduceReasoningEvent: unrelated event returns same tree", () => {
     const t0 = reduceReasoningEvent(undefined, {
       data: { event: "START", kind: "lifecycle", stepId: "s", time: 1 },
@@ -324,11 +416,12 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
       },
       event: "reasoning-step-v1",
     });
+    const aEndBeforeClose = t2.steps.find((s) => s.stepId === "a")?.endTime;
     const closed = forceCloseActiveReasoning(t2, { code: "STREAM_DISCONNECTED", message: "lost" }, 999);
     const a = closed.steps.find((s) => s.stepId === "a");
     const b = closed.steps.find((s) => s.stepId === "b");
     expect(a?.ok).toBe(true);
-    expect(a?.endTime).toBe(50);
+    expect(a?.endTime).toBe(aEndBeforeClose); // 已 END step 的 endTime 原值保留（forceClose 不覆盖）
     expect(b?.ok).toBe(false);
     expect(b?.endTime).toBe(999);
     expect(b?.error?.code).toBe("STREAM_DISCONNECTED");

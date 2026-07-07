@@ -322,6 +322,13 @@ export class OpenAiCompatProvider implements LlmProviderPort {
 
   async embed(req: LlmEmbedRequest, signal?: AbortSignal): Promise<LlmEmbedResult[]> {
     const url = `${normalizeBaseUrl(this.config.baseURL)}/embeddings`;
+    const inputCount = Array.isArray(req.input) ? req.input.length : 1;
+    const startedAt = Date.now();
+    llmDebug("openai.embed.request", {
+      model: this.config.model,
+      inputCount,
+      url,
+    });
     const response = await this.fetchImpl(url, {
       body: JSON.stringify({
         model: this.config.model,
@@ -331,6 +338,14 @@ export class OpenAiCompatProvider implements LlmProviderPort {
       headers: authHeaders(this.config.apiKey),
       method: "POST",
       signal,
+    });
+    llmDebug("openai.embed.done", {
+      elapsedMs: Date.now() - startedAt,
+      model: this.config.model,
+      ok: response.ok,
+      status: response.status,
+      inputCount,
+      url,
     });
     if (!response.ok) {
       throw mapHttpError(response.status, await response.text());
