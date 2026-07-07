@@ -6,6 +6,7 @@ import {
   GrantRequestEventSchema,
   IntentRoutingEventSchema,
   MessageDeltaEventSchema,
+  MessageResetEventSchema,
   PingEventV2Schema,
   ReasoningDeltaEventSchema,
   ReasoningStepEventSchema,
@@ -123,6 +124,28 @@ describe("MessageDeltaEventSchema", () => {
       turnId: VALID_TURN_SFID,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("MessageResetEventSchema", () => {
+  test("parses message-reset-v1 with reason (discard optimistically-streamed bubble)", () => {
+    const result = MessageResetEventSchema.safeParse({
+      messageId: VALID_MESSAGE_SFID,
+      reason: "tool-calls-completed",
+      schema: "message-reset-v1",
+      turnId: VALID_TURN_SFID,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects missing reason (reason carries the tachu step-end discriminator for telemetry)", () => {
+    expect(
+      MessageResetEventSchema.safeParse({
+        messageId: VALID_MESSAGE_SFID,
+        schema: "message-reset-v1",
+        turnId: VALID_TURN_SFID,
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -261,6 +284,44 @@ describe("ToolCallStartedEventSchema", () => {
     expect(result.success).toBe(true);
     expect((result as { data?: { parentStepId?: string } }).data?.parentStepId).toBe(parentStepId);
   });
+
+  test("preserves optional meta.activity semantic tag for downstream thinking-label rendering", () => {
+    const result = ToolCallStartedEventSchema.safeParse({
+      args: { query: "退货政策" },
+      meta: { consent: "ON_FIRST_USE", execution: "LOCAL", activity: "knowledge-retrieval" },
+      schema: "tool-call-started-v1",
+      toolCallId: "tc_01HZ8XYZ",
+      toolName: "platform.knowledge.query",
+      turnId: VALID_TURN_SFID,
+    });
+    expect(result.success).toBe(true);
+    expect((result as { data?: { meta?: { activity?: string } } }).data?.meta?.activity).toBe("knowledge-retrieval");
+  });
+
+  test("meta.activity is optional — old engines omitting it still parse (backward compat)", () => {
+    const result = ToolCallStartedEventSchema.safeParse({
+      args: { q: "test" },
+      meta: { consent: "ON_FIRST_USE", execution: "REMOTE" },
+      schema: "tool-call-started-v1",
+      toolCallId: "tc_01HZ8XYZ",
+      toolName: "search",
+      turnId: VALID_TURN_SFID,
+    });
+    expect(result.success).toBe(true);
+    expect((result as { data?: { meta?: { activity?: string } } }).data?.meta?.activity).toBeUndefined();
+  });
+
+  test("rejects unknown meta.activity value (closed enum, not free-text)", () => {
+    const result = ToolCallStartedEventSchema.safeParse({
+      args: {},
+      meta: { consent: "ON_FIRST_USE", execution: "LOCAL", activity: "made-up-activity" },
+      schema: "tool-call-started-v1",
+      toolCallId: "tc_01HZ8XYZ",
+      toolName: "search",
+      turnId: VALID_TURN_SFID,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("ToolCallCompletedEventSchema", () => {
@@ -394,6 +455,19 @@ describe("SseEventSchema discriminated union", () => {
         turnId: VALID_TURN_SFID,
       }).success,
     ).toBe(false);
+  });
+
+  test("routes message-reset-v1 correctly", () => {
+    const result = SseEventSchema.safeParse({
+      messageId: VALID_MESSAGE_SFID,
+      reason: "failure-recovery-injected",
+      schema: "message-reset-v1",
+      turnId: VALID_TURN_SFID,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.schema).toBe("message-reset-v1");
+    }
   });
 
   test("routes reasoning-step-v1 + reasoning-delta-v1 correctly", () => {

@@ -5,6 +5,7 @@
       "url": "http://your-mcp-host:7788/mcp",
       "name": "web-search",
       "required": false,
+      "authPassthrough": "none",
       "enabled": true
     },
     "biz-ontology": {
@@ -13,6 +14,10 @@
       "name": "biz-ontology",
       "consent": "NEVER",
       "required": false,
+      "authPassthrough": "user",
+      "headers": {
+        "feign_inner_invoke": "true"
+      },
       "enabled": true
     }
   }

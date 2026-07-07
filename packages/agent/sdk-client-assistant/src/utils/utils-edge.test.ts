@@ -309,11 +309,12 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
     expect(t.steps[0]?.label).toBe("调用 unknown");
   });
 
-  test("tool-call-completed：error + ok=false 写入 error；durationMs 负数 → 截为 0", () => {
+  test("tool-call-completed：error + ok=false 写入 error；durationMs 负数 → 截为 0；endTime 取客户端时钟", () => {
     const t0 = reduceReasoningEvent(undefined, {
       data: { time: 100, toolCallId: "tc", toolName: "t" },
       event: "tool-call-started-v1",
     });
+    const before = Date.now();
     const t1 = reduceReasoningEvent(t0, {
       data: {
         durationMs: -50,
@@ -325,20 +326,28 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
       },
       event: "tool-call-completed-v1",
     });
+    const after = Date.now();
     const step = t1.steps[0];
     expect(step?.ok).toBe(false);
     expect(step?.error).toEqual({ code: "TOOL_FAIL", message: "boom" });
     expect(step?.durationMs).toBe(0);
-    expect(step?.endTime).toBe(200);
+    expect(step?.endTime).not.toBe(200); // 不再落库服务端 data.time
+    expect(step?.endTime ?? 0).toBeGreaterThanOrEqual(before);
+    expect(step?.endTime ?? 0).toBeLessThanOrEqual(after);
   });
 
-  test("tool-call-completed 无先行 started + durationMs → startTime = time - durationMs", () => {
+  test("tool-call-completed 无先行 started + durationMs → endTime=客户端 now，startTime = endTime − durationMs", () => {
+    const before = Date.now();
     const t = reduceReasoningEvent(undefined, {
       data: { durationMs: 80, ok: true, time: 500, toolCallId: "tc", toolName: "t" },
       event: "tool-call-completed-v1",
     });
-    expect(t.steps[0]?.startTime).toBe(420);
-    expect(t.steps[0]?.endTime).toBe(500);
+    const after = Date.now();
+    const step = t.steps[0];
+    expect(step?.endTime).not.toBe(500); // 不再落库服务端 data.time
+    expect(step?.endTime ?? 0).toBeGreaterThanOrEqual(before);
+    expect(step?.endTime ?? 0).toBeLessThanOrEqual(after);
+    expect((step?.endTime ?? 0) - (step?.startTime ?? 0)).toBe(80); // 服务端权威时长
   });
 
   test("tool-call-completed：output 显式 undefined 也保留键存在语义（hasOwn）", () => {
@@ -360,9 +369,10 @@ describe("reasoning reducer — 非法输入与异常分支", () => {
       data: { event: "END", kind: "lifecycle", ok: true, stepId: "a", time: 5 },
       event: "reasoning-step-v1",
     });
+    const endBeforeClose = t1.steps[0]?.endTime;
     const closed2 = forceCloseActiveReasoning(t1, { code: "C", message: "m" }, 999);
     expect(closed2.steps[0]?.ok).toBe(true);
-    expect(closed2.steps[0]?.endTime).toBe(5);
+    expect(closed2.steps[0]?.endTime).toBe(endBeforeClose); // 已 END step 原值保留（forceClose 不覆盖）
   });
 
   test("shouldExpandReasoningStepByDefault：无 point 的 lifecycle-kind / tool-call → false", () => {

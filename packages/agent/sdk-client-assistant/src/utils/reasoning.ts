@@ -39,6 +39,12 @@ function makeToolStepId(toolCallId: string): string {
  *   - step END   → update `ok` / `error` / `endTime`
  *   - delta      → append text to matching step
  * Pure function — never mutate input; always return a new tree.
+ *
+ * 计时锚点约定：`startTime` / `endTime` 一律采用【客户端本地时钟】`Date.now()`（事件被
+ * 客户端处理的时刻）。服务端 `data.time` 与客户端时钟存在偏差，若拿它当墙钟，UI 对
+ * 「进行中」step 计算 `now(client) − startTime(server)` 会在 step 一出现就显示这个偏差
+ * （启动即偏十几秒）。故 `data.time` 不参与 elapsed 计算；tool-call 的服务端权威【时长】
+ * 保留在 `durationMs` 字段。
  */
 export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: NormalizedReasoningEvent): ReasoningTree {
   const base: ReasoningTree = tree ?? createEmptyReasoningTree();
@@ -52,7 +58,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
       return base;
     }
     const kind = kindRaw as "lifecycle" | "model-reasoning" | "tool-loop";
-    const time = typeof data.time === "number" ? data.time : Date.now();
+    const now = Date.now();
     const label = typeof data.label === "string" ? data.label : kind;
     if (eventTag === "START") {
       const existing = base.steps.find((s) => s.stepId === stepId);
@@ -62,7 +68,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
       const next: ReasoningStep = {
         kind,
         label,
-        startTime: time,
+        startTime: now,
         stepId,
         text: "",
         ...(typeof data.parentStepId === "string" && data.parentStepId !== "" ? { parentStepId: data.parentStepId } : {}),
@@ -81,7 +87,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
             }
           : undefined;
       return {
-        steps: base.steps.map((s) => (s.stepId === stepId ? { ...s, endTime: time, ok, ...(error ? { error } : {}) } : s)),
+        steps: base.steps.map((s) => (s.stepId === stepId ? { ...s, endTime: now, ok, ...(error ? { error } : {}) } : s)),
       };
     }
     return base;
@@ -108,14 +114,14 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
       return base;
     }
     const toolName = typeof data.toolName === "string" && data.toolName !== "" ? data.toolName : "unknown";
-    const time = typeof data.time === "number" ? data.time : Date.now();
+    const now = Date.now();
     const args = asRecord(data.args) ?? {};
     const meta = asRecord(data.meta);
     const next: ReasoningStep = {
       args,
       kind: "tool-call",
       label: `调用 ${toolName}`,
-      startTime: time,
+      startTime: now,
       stepId,
       text: "",
       toolCallId,
@@ -133,7 +139,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
     }
     const stepId = makeToolStepId(toolCallId);
     const toolName = typeof data.toolName === "string" && data.toolName !== "" ? data.toolName : "unknown";
-    const time = typeof data.time === "number" ? data.time : Date.now();
+    const now = Date.now();
     const durationMs =
       typeof data.durationMs === "number" && Number.isFinite(data.durationMs) ? Math.max(0, Math.floor(data.durationMs)) : undefined;
     const ok = typeof data.ok === "boolean" ? data.ok : true;
@@ -149,9 +155,10 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
     const existing = base.steps.find((s) => s.stepId === stepId);
 
     if (!existing) {
-      const startTime = durationMs !== null && durationMs !== undefined ? Math.max(0, time - durationMs) : time;
+      // 服务端权威【时长】：endTime 取客户端 now，startTime = endTime − durationMs（不再用服务端 time − durationMs）。
+      const startTime = durationMs !== undefined ? Math.max(0, now - durationMs) : now;
       const next: ReasoningStep = {
-        endTime: time,
+        endTime: now,
         kind: "tool-call",
         label: `调用 ${toolName}`,
         ok,
@@ -173,7 +180,7 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
         s.stepId === stepId
           ? {
               ...s,
-              endTime: time,
+              endTime: now,
               label: s.label || `调用 ${toolName}`,
               ok,
               toolName: s.toolName ?? toolName,
@@ -237,6 +244,36 @@ export function formatReasoningElapsedMs(elapsedMs: number): string {
 /** 是否非空可见。 */
 export function hasVisibleReasoning(tree: ReasoningTree | undefined): boolean {
   return (tree?.steps.length ?? 0) > 0;
+}
+
+/**
+ * 缩略思考态语义分类（对标 cursor/claude 网页那种「正在做什么」提示）。
+ * - `thinking`：模型自身推理
+ * - `web-search` / `knowledge-retrieval` / `skill-load`：engine 已知的具体活动种类，
+ *   来自 wire 层 `tool-call-started-v1.meta.activity`（见 `@cube-ai/contracts`）
+ * - `tool`：未识别的工具调用（含 agent 自定义 groundingPrefetch 领域工具，engine 域无关、
+ *   不臆猜其类目）
+ * - `working`：`lifecycle` / `tool-loop` 伞 step 通用兜底——**刻意不带轮次号语义**，
+ *   下游可直接映射成「处理中」而不必展示内部循环轮次（避免像调试页面）
+ */
+export type StepActivity = "thinking" | "web-search" | "knowledge-retrieval" | "skill-load" | "tool" | "working";
+
+/**
+ * 把 step 归一化成一个稳定枚举，供下游「缩略内容」渲染直接查表——
+ * 不必对 `toolName` / `label` 裸串做猜测或硬编码（后者随 label 文案变动即失配）。
+ */
+export function resolveStepActivity(step: ReasoningStep): StepActivity {
+  if (step.kind === "model-reasoning") {
+    return "thinking";
+  }
+  if (step.kind === "tool-call") {
+    const activity = step.meta?.activity;
+    if (activity === "web-search" || activity === "knowledge-retrieval" || activity === "skill-load") {
+      return activity;
+    }
+    return "tool";
+  }
+  return "working";
 }
 
 /**

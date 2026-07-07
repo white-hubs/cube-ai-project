@@ -35,9 +35,9 @@ export interface ReasoningStep {
   /** `undefined` = 进行中；START 后 / END 前的窗口期。 */
   ok?: boolean;
   error?: { code: string; message: string };
-  /** START 事件携带的时间（ms）。 */
+  /** step 开始的墙钟（ms）；由 reducer 用【客户端本地时钟】`Date.now()` 落库（见 `reduceReasoningEvent`），不取服务端 `data.time`。 */
   startTime: number;
-  /** END 事件携带的时间；未结束为 undefined。 */
+  /** step 结束的墙钟（ms，同为客户端本地时钟）；未结束为 undefined。 */
   endTime?: number;
   /** 同 step 内累积的 `reasoning-delta-v1.text`。 */
   text: string;

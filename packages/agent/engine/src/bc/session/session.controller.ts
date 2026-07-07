@@ -15,6 +15,7 @@ import {
 import type { DualSubject } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import type { CallIdentity } from "../tools/tool-context";
 import { isSessionAdmin } from "./session-owner";
 import { SessionService } from "./session.service";
 import { TurnService } from "./turn.service";
@@ -56,6 +57,19 @@ function readSubject(ctx: Context): DualSubject {
     throw AgenticEngineError.fromCode("UNAUTHENTICATED_TOKEN_INVALID", "Authentication required", {});
   }
   return subj;
+}
+
+/**
+ * 在请求上下文尚存时即时捕获调用方原始身份三元组（出站 MCP 身份透传）。
+ * turn 的 LLM 阶段 fire-and-forget、脱离本请求 ALS，故必须在此显式捕获后经
+ * `StartTurnOptions.callIdentity` 携带；缺 `authorization` 时返回 undefined（无可透传身份）。
+ */
+function readCallIdentity(ctx: Context, tenant: number): CallIdentity | undefined {
+  const headers = (ctx as unknown as { headers?: { get(key: string): string | null } }).headers;
+  const authorization = headers?.get("authorization") ?? undefined;
+  if (!authorization) return undefined;
+  const terminal = headers?.get("terminal") ?? undefined;
+  return { authorization, tenant, ...(terminal ? { terminal } : {}) };
 }
 
 function extractPromptFromBlocks(blocks: unknown[]): string {
@@ -330,6 +344,7 @@ export class SessionController {
       };
     }
     const subject = readSubject(ctx);
+    const callIdentity = readCallIdentity(ctx, subject.tenant);
     const turnId = await this.turnService.startTurn(sessionId, subject.tenant, prompt, {
       content,
       attachments,
@@ -339,6 +354,7 @@ export class SessionController {
       providerId: parsed.data.providerId,
       userId: subject.user.userId,
       scopes: subject.user.scopes,
+      ...(callIdentity !== undefined ? { callIdentity } : {}),
       ...(parsed.data.runtimeRefs !== undefined ? { runtimeRefs: parsed.data.runtimeRefs } : {}),
     });
     return { turnId };

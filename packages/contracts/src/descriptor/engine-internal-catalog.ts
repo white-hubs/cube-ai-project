@@ -14,7 +14,7 @@ export const ENGINE_INTERNAL_AGENT_REFS = ["cube-default", "cube-descriptor-mana
 export const ENGINE_INTERNAL_SKILL_REFS = ["default-reasoning", "chart-output"] as const;
 
 /**
- * 租户用户会话默认挂载的系统 skill（ADR-0023）。
+ * 租户用户会话默认挂载的系统 skill（ADR-0034）。
  * 创建 session 时在用户可见 skillRefs 之上自动补齐（与 {@link ENGINE_INTERNAL_SKILL_REFS} 解耦）。
  */
 export const DEFAULT_USER_SESSION_SKILL_REFS = ["default-reasoning", "chart-output"] as const;

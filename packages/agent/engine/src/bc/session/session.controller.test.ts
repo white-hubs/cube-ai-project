@@ -256,6 +256,46 @@ describe("SessionController — REST wiring", () => {
     );
   });
 
+  test("POST /sessions/:id/messages 捕获入站 authorization+terminal 为 callIdentity（出站身份透传）", async () => {
+    const turnSvc = {
+      startTurn: mock(async () => "1820345678901234999"),
+    } as unknown as TurnService;
+    const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
+    const ctx = baseCtx({
+      getParam: mock((k: string) => (k === "sessionId" ? "1820345678901234567" : undefined)),
+      getBody: mock(async () => ({ prompt: "查本体" })),
+      headers: new Headers({ authorization: "Bearer user-tok", terminal: "h5" }),
+    } as Partial<Context> & { headers: Headers });
+
+    await contextStore.run(ctx as Context, async () => ctl.startTurn());
+
+    expect(turnSvc.startTurn).toHaveBeenCalledWith(
+      "1820345678901234567",
+      42,
+      "查本体",
+      expect.objectContaining({
+        callIdentity: { authorization: "Bearer user-tok", tenant: 42, terminal: "h5" },
+      }),
+    );
+  });
+
+  test("POST /sessions/:id/messages 无 authorization header → 不带 callIdentity（fail-closed）", async () => {
+    const turnSvc = {
+      startTurn: mock(async () => "1820345678901234999"),
+    } as unknown as TurnService;
+    const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
+    const ctx = baseCtx({
+      getParam: mock((k: string) => (k === "sessionId" ? "1820345678901234567" : undefined)),
+      getBody: mock(async () => ({ prompt: "查本体" })),
+      headers: new Headers({ terminal: "h5" }),
+    } as Partial<Context> & { headers: Headers });
+
+    await contextStore.run(ctx as Context, async () => ctl.startTurn());
+
+    const options = (turnSvc.startTurn as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]![3] as Record<string, unknown>;
+    expect(options.callIdentity).toBeUndefined();
+  });
+
   test("POST /sessions/:id/messages rejects when both content and prompt are missing", async () => {
     const turnSvc = {
       startTurn: mock(async () => "1820345678901234999"),
@@ -583,10 +623,21 @@ describe("SessionController — REST wiring", () => {
     await new Promise((r) => setTimeout(r, 20));
     const reader = res.body!.getReader();
     const dec = new TextDecoder();
-    const { value } = await reader.read();
-    const chunk = dec.decode(value ?? new Uint8Array());
-    expect(chunk).toContain(`${T_TURN}:000001`);
-    expect(chunk).not.toContain(`${OTHER_TURN}:000001`);
+    // 首块为 preamble 注释行（": ok"，sse-handler 立即 flush 以压 TTFB）；随后才是回放事件，
+    // 故聚合多块直到读到本 turn 事件再断言（对齐 sse-handler.test.ts 的读法）。
+    let aggregated = "";
+    for (let i = 0; i < 3; i++) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      aggregated += dec.decode(value ?? new Uint8Array());
+      if (aggregated.includes(`${T_TURN}:000001`)) {
+        break;
+      }
+    }
+    expect(aggregated).toContain(`${T_TURN}:000001`);
+    expect(aggregated).not.toContain(`${OTHER_TURN}:000001`);
     reader.cancel();
     ac.abort();
   });

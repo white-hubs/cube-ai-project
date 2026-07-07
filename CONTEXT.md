@@ -118,6 +118,10 @@ _Avoid_: 在 handler 里复制能力实现, 跨运行时复用同一 handler 包
 连接外部 MCP server（stdio/sse/http JSON-RPC）的运行时内组件，与 tool registry/consent 紧耦合；其 server 凭据（env/headers）属 **Tool 凭据**。
 _Avoid_: 把 MCP 凭据并入 LLM **凭据边界**
 
+**MCP 出站身份透传 (MCP outbound auth passthrough)**:
+**MCP 桥接** 出站调外部 MCP server 时，是否把**调用方用户身份**（原始 `Authorization` + `tenant` + `terminal`）注入出站 header 的开关，由 `mcp-servers.json` **每 server 显式声明** `authPassthrough`：`none`（默认——只发静态 **Tool 凭据**）/ `user`（透传用户真实令牌，语义等同平台 `feign_inner_invoke` 内部兄弟调用）。**默认 none、fail-closed**：未声明 / 非法值 / 非 http transport / 入 LONG_RUNNING 队列一律不透传。身份在 **turn 起点**即时捕获（请求上下文尚存），经 `StartTurnOptions → ToolHandlerCtx.callIdentity` **窄 carrier** 带到 tool-loop——**不在 MCP 调用点懒读平台 session ALS**（turn 的 LLM 阶段 `void runLlmPhase()` fire-and-forget 已脱离原请求、ALS 已 `clearContext`），**不进** `ExecutionContext.principal`，靠 redaction 护栏防落日志/审计/job 快照。与 **Tool 凭据** 正交：前者「以谁的身份调」、后者「用什么钥匙连」。
+_Avoid_: 与 **Tool 凭据** 混为一谈, 默认开启透传, 给 web-search 这类公共 MCP 透传用户令牌, 在调用点懒读 ghcloud session ALS, 把 raw token 落日志/审计/快照, 让透传工具走 LONG_RUNNING
+
 **运行时自装配**:
 每个需要工具的运行时各自装配同构的 **Tool Handler** 薄适配（engine 现有；未来去 LF 后的 flow 自建），互不共享 **Tool 编排**。
 _Avoid_: 让 flow 依赖 engine 的 tool bc, 抽公共 tool 装配层
@@ -133,6 +137,12 @@ _Avoid_: 把它当 loop 的 phase 轴（tachu 旧 `RuleScope` 的证伪设计）
 **分层规则组装 (Layered Rule Assembly)**:
 按 **规则激活** 把规则分层送入本轮上下文，而非无差别拼进 system prompt——**组装委托 tachu 原生 activation 管线**（ADR-0032 反转 ADR-0016 §7 的自建路径）：每轮 `EngineFactory` 把 snapshot 规则投影给 `SessionScope.additionalRules`、把点名集给 `explicitRuleNames`，交 `PromptAssembler` 按 activation 组装进 **system 段**（`## Hard Rules`）——`always` 恒进、`manual` 命中点名才进、`semantic`/`path` 由各自输入门控。全部**每轮重算、不入 memory**（system 段每轮 assemble、只有用户输入落 memory）。点名集 = prompt `@rule`/`/rule` ∪ 调用方 `explicitRuleNames`，与 snapshot manual 规则求交。`semantic`（engine 未透传 `semanticActiveRuleNames`）与 `path`（engine 未透传 `contextFilePaths` + 本仓无 per-turn 文件上下文）当前**留档 inert**。snapshot 仍冻结全部规则作版本权威，分层只发生在**每轮投影**（`snapshotRulesToTachuDescriptors`）。
 _Avoid_: 把 manual 注入 User Message（会入 memory，与"不入 memory"冲突）, 在本仓再手写规则 prompt 文本（组装交 tachu）, 用裸名子串匹配点名（规则名多为普通词，只认 `@`/`/` sigil）, 以为 snapshot 只存静态规则
+
+### 技能披露与激活分层
+
+**技能激活分层 / 渐进式披露 (Skill Activation Tiers / Progressive Disclosure)**:
+一个 skill 进入本轮上下文的两档互斥形态（由 tachu `PromptAssembler` 组装并去重）：**Active Skills** = 被激活的技能，注入**完整 instructions 正文**（来源：会话默认注入的**系统内置 skill**、`activation: always`、或 agent `skillRefs` 引用 / activator 命中）；**Available Skills** = 未激活的**可发现菜单**，列 `name + description`（description 是**精确选型信号**，刻意保留——砍成纯 name 反而诱发盲选幻觉）；模型选中后经 `load_skill` 拉该技能完整 instructions（L2 菜单条目 → L3 完整正文），`search_skills` 则按关键词检索可发现技能——即**渐进式披露**。已 Active 的技能**不再**出现在 Available 菜单（二者去重）。菜单来源 = 当前 user 货架（**我的技能**）经 `SkillDiscoveryProvider`，按租户/用户作用域解析、不入进程共享 registry。
+_Avoid_: 把 Available 菜单当成「已加载能力」, 把两档当同一层, 把菜单全量正文注入（等于放弃渐进式披露）, 以为系统内置/always/agent 引用的技能会落在菜单里（它们是 Active）
 
 ### Descriptor 资产
 
@@ -311,6 +321,7 @@ _Avoid_: 把会话归属当跨域隔离键, 当 project 复活, 让能力包(kb/
 - **向量存储 (Vector Store)** 领域无关（infra，不设 port）；**Chunk** 的 payload 语义归 **知识库 (kb)**；agent-engine 的 memory/semantic-index 复用同一 `@cube-ai/embedding`，向量存取各自**直连共享 infra `vector-qdrant`**（不共享向量层、不抽 port）
 - **Tool 编排** 归运行时自身（agent-engine）；**Tool Handler** 经 contracts port 消费各 **AI 基础能力**，与 agent-engine 调能力同一依赖方向
 - **MCP 桥接** 的 **Tool 凭据** 独立于 LLM **凭据边界**；二者是两类凭据
+- **MCP 出站身份透传** 与 **Tool 凭据** 正交（「以谁的身份调」vs「用什么钥匙连」）：按每 server `authPassthrough`（`none` 默认 / `user`）在 turn 起点捕获用户 `Authorization+tenant+terminal`、经 `ToolHandlerCtx.callIdentity` carrier 携带注入出站 HTTP header；fail-closed、不懒读平台 ALS、不入 `ExecutionContext.principal`（engine 不 import ghcloud，静态 `feign_inner_invoke` 归 server 静态 headers）
 - **运行时自装配**：agent-engine 与（未来的）flow-core 各自装配 **Tool Handler**，不共享 **Tool 编排**
 - 前端只经 **统一前门** 的领域路由消费中台；**领域 SDK 家族** 按「领域+面」（`agent-sdk-{client*,console}` / `flow-sdk-{client,console}` / `kb-sdk-{client,console}` / `llm-sdk-console`）各自演进
 - **SDK Playground（验证沙箱）** 只消费 **领域 SDK 家族** + **统一前门**，用于内部验 SDK；不新增 API、不承载业务逻辑；未来若升格参考实现，仍经同一 SDK 面暴露能力
@@ -364,3 +375,4 @@ _Avoid_: 手工执行 init SQL, 共享单张 history 表, 把 migration 文件�
 - “provider” 同时被用于「模型目录里的厂商(provider/typeCode)」与「调用能力(LlmProviderPort)” —— resolved: 目录里的厂商归 **LLM 目录 (Catalog)**；调用能力才叫 **LLM 调用 (Provider)**
 - “网关” 易与 ghcloud 的 gateway-service 代理 façade 混淆 —— resolved: 此处 **LLM 网关** 特指中台 LLM 调用的网络面（OpenAI 兼容 + 能力匹配），不是平台路由代理
 - “tool-call” vs “tool 编排” —— resolved: **LLM 调用 (Provider)** 只产出/解析 wire 层 `tool_call`；查 descriptor、派发、consent、执行属 **Tool 编排**（agent-engine）
+- “search_skills 的检索域” —— 期望 vs 现状不一致：产品语义期望它能检索 **技能库（商城）里未安装** 的技能；当前 `SkillDiscoveryProvider.search()`（`shelf-skill-discovery.ts`）只检索**已安装且启用**的货架技能（`load_skill` 拉其完整正文）。是否新增市场检索路径 —— 待定（unresolved）

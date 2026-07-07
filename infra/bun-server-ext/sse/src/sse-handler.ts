@@ -82,6 +82,11 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
       const enc = new TextEncoder();
       const push = (s: string) => controller.enqueue(enc.encode(s));
 
+      // 立即 flush 一个 SSE 注释行作 preamble：把响应头 + 首字节尽快推给客户端，
+      // 使浏览器脱离 "waiting for server response"(TTFB)，并促使反代进入流式转发，
+      // 不必等首个业务事件。客户端解析器会忽略以 ":" 开头的注释行（RFC 6202）。
+      push(": ok\n\n");
+
       const onAbort = () => {
         try {
           unsubscribe?.();
@@ -156,7 +161,9 @@ export function createSessionSseStreamResponse(p: SessionSseStreamParams): Respo
 
   return new Response(stream, {
     headers: {
-      "Cache-Control": "no-store",
+      // no-transform 关键：禁止 nginx / CDN 对 SSE 做 gzip 等压缩转换（压缩会缓冲
+      // 响应体，而 X-Accel-Buffering 只管 proxy_buffering、管不到压缩）。
+      "Cache-Control": "no-cache, no-store, no-transform",
       Connection: "keep-alive",
       "Content-Type": "text/event-stream; charset=utf-8",
       "X-Accel-Buffering": "no",

@@ -526,6 +526,7 @@ describe("useAssistantReasoning", () => {
     expect(api.reasoning.lastReasoning.value).toEqual({ steps: [] });
 
     const ch = port.channel("sess-1", "turn-1");
+    const clientBefore = Date.now();
     ch.push({
       data: {
         event: "START",
@@ -560,15 +561,19 @@ describe("useAssistantReasoning", () => {
     await until(() => api.reasoning.lastReasoning.value?.steps[0]?.ok === true);
     const step = api.reasoning.lastReasoning.value!.steps[0]!;
     expect(step).toMatchObject({
-      endTime: 42,
       kind: "lifecycle",
       label: "开始处理",
       ok: true,
       point: "turnStart",
-      startTime: 10,
       stepId: "step-1",
       text: "先查资料",
     });
+    // 计时锚点取【客户端本地时钟】（不再落库服务端 data.time=10/42），且 end 不早于 start
+    expect(step.startTime).not.toBe(10);
+    expect(step.endTime).not.toBe(42);
+    expect(step.startTime).toBeGreaterThanOrEqual(clientBefore);
+    expect(step.endTime ?? 0).toBeGreaterThanOrEqual(step.startTime);
+    expect(step.endTime ?? 0).toBeLessThanOrEqual(Date.now());
     unmount();
   });
 });

@@ -333,6 +333,56 @@ describe("AssistantStore — send / streamEvents reducer", () => {
     store.dispose();
   });
 
+  test("message-reset-v1 清空进行中气泡：叙述乐观流入 → reset 清空 → 终答重新流入（Option B）", async () => {
+    const { port, pushEvent } = makeFakePort();
+    const store = createAssistantStore({ defaultAgentId: "a", engine: port });
+    await store.send("hi");
+    await nextTick();
+    // step 1：叙述乐观流进气泡
+    pushEvent("sess-1", {
+      data: { delta: { text: "我先查", type: "text" }, messageId: "srv-1", turnId: "1001" },
+      event: "message-delta-v1",
+    });
+    pushEvent("sess-1", { data: { delta: { text: "一下天气。", type: "text" }, turnId: "1001" }, event: "message-delta-v1" });
+    await nextTick();
+    let assistant = (snapshot(store).messagesBySessionId["sess-1"]! as AssistantMessage[]).find((m) => m.role === "assistant");
+    expect(assistant?.content).toBe("我先查一下天气。");
+    // 非 terminal 收尾 → 清空气泡
+    pushEvent("sess-1", { data: { messageId: "srv-1", reason: "tool-calls-completed", turnId: "1001" }, event: "message-reset-v1" });
+    await nextTick();
+    assistant = (snapshot(store).messagesBySessionId["sess-1"]! as AssistantMessage[]).find((m) => m.role === "assistant");
+    expect(assistant?.content).toBe("");
+    // 终答段重新逐字流入
+    pushEvent("sess-1", { data: { delta: { text: "建议 11:30 后拍摄。", type: "text" }, turnId: "1001" }, event: "message-delta-v1" });
+    await nextTick();
+    assistant = (snapshot(store).messagesBySessionId["sess-1"]! as AssistantMessage[]).find((m) => m.role === "assistant");
+    expect(assistant?.content).toBe("建议 11:30 后拍摄。");
+    store.dispose();
+  });
+
+  test("message-reset-v1 不影响 reasoning 思考树（叙述仍留思考区）", async () => {
+    const { port, pushEvent } = makeFakePort();
+    const store = createAssistantStore({ defaultAgentId: "a", engine: port });
+    await store.send("q");
+    await nextTick();
+    pushEvent("sess-1", {
+      data: { event: "START", kind: "lifecycle", label: "开始处理", point: "turnStart", stepId: "step-1", time: 1 },
+      event: "reasoning-step-v1",
+    });
+    pushEvent("sess-1", { data: { seqInStep: 1, stepId: "step-1", text: "我先查一下天气。" }, event: "reasoning-delta-v1" });
+    pushEvent("sess-1", {
+      data: { delta: { text: "我先查一下天气。", type: "text" }, messageId: "srv-1", turnId: "1001" },
+      event: "message-delta-v1",
+    });
+    await nextTick();
+    pushEvent("sess-1", { data: { messageId: "srv-1", reason: "tool-calls-completed", turnId: "1001" }, event: "message-reset-v1" });
+    await nextTick();
+    const assistant = (snapshot(store).messagesBySessionId["sess-1"]! as AssistantMessage[]).find((m) => m.role === "assistant");
+    expect(assistant?.content).toBe(""); // 气泡清空
+    expect(assistant?.reasoning?.steps?.[0]?.text).toBe("我先查一下天气。"); // 思考区保留
+    store.dispose();
+  });
+
   test("reasoning-step-v1 START + reasoning-delta-v1 累加进 assistant.reasoning", async () => {
     const { port, pushEvent } = makeFakePort();
     const store = createAssistantStore({ defaultAgentId: "a", engine: port });

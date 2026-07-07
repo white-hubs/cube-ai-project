@@ -5,6 +5,10 @@
 # Publishes all @cube-ai/* frontend SDK packages in dependency order.
 #
 # Workflow:
+# 0. interactive version bump (unless --no-bump / --dry-run): pick a semver
+#    release type (major/minor/patch/pre*/prerelease/release — alpha.N -> alpha.N+1),
+#    write every SDK package.json, sync bun.lock versions, optionally prepend a
+#    CHANGELOG entry, and commit the bump.
 # 1. git working tree clean check (unless --skip-git-check)
 # 2. bun install --frozen-lockfile
 # 3. bun run typecheck (all workspaces)
@@ -14,13 +18,21 @@
 # 7. bun publish in dependency order (see scripts/sdk-publish-manifest.ts)
 #
 # Usage:
-#   scripts/publish.sh                  # publish with default tag "alpha"
-#   scripts/publish.sh --dry-run        # inspect tarball contents only
-#   scripts/publish.sh --tag=latest     # promote to stable (blocked for pre-release versions)
-#   scripts/publish.sh --tag=alpha      # publish to the alpha channel (default)
-#   scripts/publish.sh --tag=rc         # publish to the release-candidate channel
-#   scripts/publish.sh --access=public  # scoped public release (default)
-#   scripts/publish.sh --skip-git-check # skip dirty workspace gate
+#   scripts/publish.sh                       # interactive bump, then publish (tag inferred from version)
+#   scripts/publish.sh --release-as=prerelease # non-interactive alpha.N -> alpha.N+1
+#   scripts/publish.sh --release-as=minor      # non-interactive minor bump
+#   scripts/publish.sh --release-as=1.2.3      # non-interactive explicit version
+#   scripts/publish.sh --no-bump               # publish the current version as-is (no bump/commit)
+#   scripts/publish.sh --yes                   # skip the bump confirmation prompt
+#   scripts/publish.sh --dry-run               # inspect tarball contents only (no bump/commit)
+#   scripts/publish.sh --tag=latest            # force dist-tag (default: preid for pre-release, latest for stable)
+#   scripts/publish.sh --tag=alpha             # publish to the alpha channel
+#   scripts/publish.sh --tag=rc                # publish to the release-candidate channel
+#   scripts/publish.sh --access=public         # scoped public release (default)
+#   scripts/publish.sh --skip-git-check        # skip dirty workspace gate
+#
+# Tag inference: when --tag is omitted, a pre-release version (contains "-")
+# publishes under its preid (e.g. alpha / rc) and a stable version under "latest".
 #
 # Requirements:
 # - bun >= 1.3
@@ -39,9 +51,13 @@ BOLD=$'\033[1m'
 RESET=$'\033[0m'
 
 DRY_RUN=""
-TAG="alpha"
+TAG=""
+TAG_EXPLICIT=0
 ACCESS="public"
 SKIP_GIT_CHECK=0
+NO_BUMP=0
+RELEASE_AS=""
+ASSUME_YES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,10 +67,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --tag)
       TAG="$2"
+      TAG_EXPLICIT=1
       shift 2
       ;;
     --tag=*)
       TAG="${1#*=}"
+      TAG_EXPLICIT=1
       shift
       ;;
     --access)
@@ -65,12 +83,29 @@ while [[ $# -gt 0 ]]; do
       ACCESS="${1#*=}"
       shift
       ;;
+    --release-as)
+      RELEASE_AS="$2"
+      shift 2
+      ;;
+    --release-as=*)
+      RELEASE_AS="${1#*=}"
+      shift
+      ;;
+    --no-bump)
+      NO_BUMP=1
+      shift
+      ;;
+    --yes|-y)
+      ASSUME_YES=1
+      shift
+      ;;
     --skip-git-check)
       SKIP_GIT_CHECK=1
       shift
       ;;
     -h|--help)
-      grep -E '^# ' "$0" | sed 's/^# //; s/^#$//'
+      # Print only the leading comment block (stop at first non-comment line).
+      awk 'BEGIN { h = 0 } /^#!/ { next } /^#/ { sub(/^# ?/, ""); print; h = 1; next } h { exit }' "$0"
       exit 0
       ;;
     *)
@@ -148,6 +183,36 @@ else
   log_warn "skipped per --skip-git-check"
 fi
 
+# ---- version bump (interactive semver + lockfile + optional CHANGELOG + commit) -
+if [[ $NO_BUMP -eq 0 && -z "$DRY_RUN" ]]; then
+  log_step "version bump (semver + lockfile + commit)"
+  BUMP_ARGS=()
+  [[ -n "$RELEASE_AS" ]] && BUMP_ARGS+=("$RELEASE_AS")
+  [[ $ASSUME_YES -eq 1 ]] && BUMP_ARGS+=("--yes")
+  bun scripts/bump-version.ts ${BUMP_ARGS[@]+"${BUMP_ARGS[@]}"}
+
+  NEW_VERSION="$(bun --print 'JSON.parse(await Bun.file("packages/contracts/package.json").text()).version')"
+
+  log_step "bun install (sync lockfile to ${NEW_VERSION})"
+  bun install
+  log_ok "lockfile synced"
+
+  log_step "git commit — chore(release): bump SDK packages to ${NEW_VERSION}"
+  for pkg in "${PACKAGES[@]}"; do
+    git add "$pkg/package.json"
+  done
+  git add bun.lock
+  if [[ -f CHANGELOG.md ]]; then
+    git add CHANGELOG.md
+  fi
+  git commit -m "chore(release): bump SDK packages to ${NEW_VERSION}"
+  log_ok "committed bump ${NEW_VERSION}"
+elif [[ -n "$DRY_RUN" ]]; then
+  log_warn "version bump skipped (dry-run — publishing current version)"
+else
+  log_warn "version bump skipped (--no-bump — publishing current version)"
+fi
+
 # ---- 2/6 bun install ---------------------------------------------------------
 log_step "2/6 bun install --frozen-lockfile"
 bun install --frozen-lockfile
@@ -187,9 +252,22 @@ if [[ $MISMATCH -eq 1 ]]; then
   exit 1
 fi
 
+# Infer the dist-tag from the version when the caller did not force one:
+# a pre-release (contains "-") goes to its preid (alpha / rc / …), a stable
+# version to "latest".
+if [[ $TAG_EXPLICIT -eq 0 ]]; then
+  if [[ "$VERSION" == *"-"* ]]; then
+    TAG="${VERSION#*-}"
+    TAG="${TAG%%.*}"
+  else
+    TAG="latest"
+  fi
+  log_ok "dist-tag inferred: ${TAG} (from version ${VERSION})"
+fi
+
 if [[ "$TAG" == "latest" && "$VERSION" == *"-"* ]]; then
   log_fail "Refusing to publish a pre-release version (${VERSION}) under --tag=latest."
-  log_fail "Use --tag=rc | --tag=next, or bump to a stable version first."
+  log_fail "Use --tag=alpha | --tag=rc | --tag=next, or bump to a stable version first."
   exit 1
 fi
 

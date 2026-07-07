@@ -95,6 +95,39 @@ const BIZ_ONTOLOGY_DISCOVERY_SIBLINGS: readonly string[] = [
  */
 export const HOST_POLICY_TOOL_STRATEGY_NAME = "host-policy";
 
+/**
+ * 单次 run（一个 turn）的 tachu 预算默认值。env 缺省时回退到这里。
+ * `maxTokens` 跨本轮所有 tool-loop step 累计；大工具结果 + 每步重发全量历史易累计触顶。
+ */
+const DEFAULT_RUN_MAX_TOKENS = 500_000;
+const DEFAULT_RUN_MAX_TOOL_CALLS = 500;
+const DEFAULT_RUN_MAX_WALL_TIME_MS = 3_000_000;
+
+/**
+ * 解析正整数 env（run 预算旋钮）。缺省 / 空串 / 非法 / 非正 → 回退默认值
+ * （fail-safe：绝不把预算降成 0 或 NaN 而误杀所有请求）。
+ * 让 {@link buildDefaultEngineConfig} 的 `budget` 线上可调而不改码。
+ */
+function positiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : fallback;
+}
+
+/**
+ * 布尔 env 开关（"1"/"true"/"yes"/"on" → true）。
+ *
+ * `AGENTIC_ENGINE_SKILL_EMBEDDING_DISABLED` 用于运行期彻底关掉引擎内 embedding：
+ * 不建 embeddingRuntime → semanticRetrievalFacade 回退到宿主无向量实现 →
+ * 技能激活 activation-core 不再发 embedding HTTP（退化为 keyword/sticky/pinned）。
+ * 仅清空 `AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL` 无效——模型会 fallback 到 text-embedding-3-small。
+ */
+function truthyEnv(name: string): boolean {
+  const v = process.env[name]?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
 export function buildDefaultEngineConfig(providerId: string, defaultModel: string): EngineConfig {
   const route: ModelRoute = { provider: providerId, model: defaultModel };
   return {
@@ -138,7 +171,11 @@ export function buildDefaultEngineConfig(providerId: string, defaultModel: strin
       archivePath: ".tachu/archive/cube-agentic-engine.jsonl",
       vectorIndexLimit: 1000,
     },
-    budget: { maxTokens: 500_000, maxToolCalls: 500, maxWallTimeMs: 3_000_000 },
+    budget: {
+      maxTokens: positiveIntEnv("AGENTIC_ENGINE_RUN_MAX_TOKENS", DEFAULT_RUN_MAX_TOKENS),
+      maxToolCalls: positiveIntEnv("AGENTIC_ENGINE_RUN_MAX_TOOL_CALLS", DEFAULT_RUN_MAX_TOOL_CALLS),
+      maxWallTimeMs: positiveIntEnv("AGENTIC_ENGINE_RUN_MAX_WALL_TIME_MS", DEFAULT_RUN_MAX_WALL_TIME_MS),
+    },
     safety: {
       maxInputSizeBytes: 5 * 1024 * 1024,
       maxRecursionDepth: 8,
@@ -218,7 +255,9 @@ export function assembleTachuRuntime(input: AssembleTachuRuntimeInput): Assemble
   const llmProvider =
     input.llmProvider ?? (input.provider instanceof LlmProviderPortBridge ? input.provider.getLlmProviderPort() : undefined);
 
-  if (llmProvider && typeof input.provider.embed === "function") {
+  const skillEmbeddingDisabled = truthyEnv("AGENTIC_ENGINE_SKILL_EMBEDDING_DISABLED");
+
+  if (!skillEmbeddingDisabled && llmProvider && typeof input.provider.embed === "function") {
     const memoryVectorSize = Number(process.env["AGENTIC_ENGINE_MEMORY_VECTOR_SIZE"] ?? "1536");
     const memoryTenant = Number(process.env["AGENTIC_ENGINE_MEMORY_TENANT_ID"] ?? "1");
     embeddingRuntime = createTurnAwareEmbeddingRuntime({
@@ -280,16 +319,17 @@ export function assembleTachuRuntime(input: AssembleTachuRuntimeInput): Assemble
       },
     });
   } else {
-    initWarnings.push("projection.disabled");
+    const status = skillEmbeddingDisabled ? "embedding.disabled.env" : "projection.disabled";
+    const reason = skillEmbeddingDisabled
+      ? "disabled_by_env: AGENTIC_ENGINE_SKILL_EMBEDDING_DISABLED"
+      : "provider does not implement embed()";
+    initWarnings.push(status);
     input.observability.emit({
       timestamp: Date.now(),
       correlation: ENGINE_INIT_CORRELATION,
       phase: "init",
       type: "warning",
-      payload: {
-        status: "projection.disabled",
-        reason: "provider does not implement embed()",
-      },
+      payload: { status, reason },
     });
   }
 

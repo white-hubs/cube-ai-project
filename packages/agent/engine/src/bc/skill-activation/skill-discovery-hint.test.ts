@@ -12,6 +12,13 @@ describe("SKILL_DISCOVERY_PROMPT_SUFFIX wording", () => {
   test("describes the no-tool-call turn instead", () => {
     expect(SKILL_DISCOVERY_PROMPT_SUFFIX).toContain("on turns where you answer without calling any tool");
   });
+
+  // F1 保留了 Available Skills 的 name+描述（精确选型信号，防盲选幻觉）；
+  // 提示词须与实际渲染一致——不得再声称「names only」。
+  test("describes Available Skills as a name+description menu, not names-only", () => {
+    expect(SKILL_DISCOVERY_PROMPT_SUFFIX).not.toContain("names only");
+    expect(SKILL_DISCOVERY_PROMPT_SUFFIX).toContain("short description");
+  });
 });
 
 describe("appendSkillDiscoveryHint", () => {

@@ -25,6 +25,7 @@ import { LocalFileService } from "../files/local-file.service";
 import { JobDataService } from "../jobs/job-data.service";
 import { EngineFactory, type AgentSnapshotShape } from "../tachu/engine-factory";
 import { computeIntentToolRouting, type IntentRoutingBlock } from "../tool-activation";
+import type { CallIdentity } from "../tools/tool-context";
 import type { SessionRepository } from "./repository/session.repository";
 import { REDIS_CLIENT_TOKEN, SESSION_REPO_TOKEN, TURN_LOCK_SERVICE_TOKEN, TURN_REPO_TOKEN } from "./session.tokens";
 import { extractUserVisibleAnswerText } from "./tachu-sse-mapper";
@@ -83,6 +84,11 @@ export interface StartTurnOptions {
   runtimeRefs?: RuntimeRefs;
   content?: MessageContentV1;
   attachments?: ImageAttachment[];
+  /**
+   * 调用方用户原始身份（出站 MCP 身份透传）；由控制器在请求上下文尚存时捕获后传入。
+   * turn 的 LLM 阶段 fire-and-forget、脱离原请求 ALS，故必须在此显式携带（不可事后懒读）。
+   */
+  callIdentity?: CallIdentity;
 }
 
 /**
@@ -121,15 +127,22 @@ export class TurnService {
    * Start Turn: acquire lock → optional idempotent replay → INSERT RUNNING → SSE → background LLM.
    */
   async startTurn(sessionId: string, tenant: number, prompt: string, options: StartTurnOptions = {}): Promise<string> {
+    const startTurnAt = Date.now();
     const turnId = this.sfid.next();
 
+    // 同步段各跳耗时（lock / DB 事务），随 turn.started 一并落日志，便于对比线上-本地。
+    let lockMs = 0;
+    let dbPersistMs = 0;
+
     let lockHeld = false;
+    const lockAt = Date.now();
     try {
       lockHeld = await this.turnLock.tryAcquire(sessionId, turnId, DEFAULT_LOCK_TTL_SEC);
     } catch (e: unknown) {
       if (e instanceof AgenticEngineError && e.httpStatus === 503) throw e;
       throw new AgenticEngineError(503, "UNAVAILABLE_LOCK_SERVICE", `Turn lock unavailable: ${String(e)}`, { sessionId });
     }
+    lockMs = Date.now() - lockAt;
 
     if (!lockHeld) {
       throw AgenticEngineError.fromCode("RESOURCE_CONFLICT_SESSION_BUSY", `Session ${sessionId} already has a running turn`, { sessionId });
@@ -167,6 +180,7 @@ export class TurnService {
     const attachments = options.attachments ?? [];
 
     let turnNo = 1;
+    const persistAt = Date.now();
     try {
       turnNo = await this.turns.insertRunningTurn({
         turnId,
@@ -199,6 +213,7 @@ export class TurnService {
       await this.turnLock.release(sessionId, turnId);
       throw e;
     }
+    dbPersistMs = Date.now() - persistAt;
     const started = TurnStartedEventSchema.parse({
       schema: "turn-started-v1",
       turnId,
@@ -218,6 +233,9 @@ export class TurnService {
         tenant,
         turnId,
         turnNo,
+        lockMs,
+        dbPersistMs,
+        syncTotalMs: Date.now() - startTurnAt,
         modelCode: options.modelCode ?? null,
         skillEmbeddingModelCode: options.skillEmbeddingModelCode ?? process.env["AGENTIC_ENGINE_SKILL_EMBEDDING_MODEL"] ?? null,
         idempotencyKey: idem ?? null,
@@ -244,6 +262,7 @@ export class TurnService {
       providerId: options.providerId?.trim() || undefined,
       userId: options.userId,
       scopes: options.scopes,
+      ...(options.callIdentity !== undefined ? { callIdentity: options.callIdentity } : {}),
       ...(options.runtimeRefs !== undefined ? { runtimeRefs: options.runtimeRefs } : {}),
     }).catch((err: unknown) => {
       this.log.error(
@@ -289,6 +308,7 @@ export class TurnService {
     providerId?: string;
     userId?: string;
     scopes?: readonly string[];
+    callIdentity?: CallIdentity;
     runtimeRefs?: RuntimeRefs;
   }): Promise<void> {
     const assistantMessageId = this.sfid.next();
@@ -304,13 +324,17 @@ export class TurnService {
 
     // 读取会话冻结的 agent snapshot。读不到不致命：tachu 会用默认 system prompt
     // 与 EngineFactory 的回退 model。
+    const snapshotLoadAt = Date.now();
     const agentSnapshot = await this.loadAgentSnapshot(arg.sessionId, arg.tenant);
+    const snapshotLoadMs = Date.now() - snapshotLoadAt;
+    const routeResolveAt = Date.now();
     const route = await this.tachuEngine.resolveEffectiveRoute({
       prompt: arg.prompt,
       content: arg.content,
       turnModelCode: arg.modelCode,
       ...(agentSnapshot !== null ? { agentSnapshot } : {}),
     });
+    const routeResolveMs = Date.now() - routeResolveAt;
     const resolvedModel = route.effectiveModelCode;
 
     const acContent = agentSnapshot?.agent?.content as { toolRefs?: unknown; intentRouting?: unknown } | undefined;
@@ -343,6 +367,8 @@ export class TurnService {
         turnId: arg.turnId,
         traceId: arg.turnId,
         resolvedModel,
+        snapshotLoadMs,
+        routeResolveMs,
         requestedModelCode: route.requestedModelCode,
         routeReason: route.reason,
         hasSnapshot: agentSnapshot !== null,
@@ -377,6 +403,9 @@ export class TurnService {
     let finalOutput: EngineOutput | undefined;
     let errorEmittedByMapper = false;
     let errorPayload: { code: string; message: string; retryable: boolean } | undefined;
+    // 首个引擎事件的到达时刻（相对 phase.start）：把 host 预取 + tachu 的
+    // 会话/安全/工具路由/技能激活(embedding) 等「首字前」开销收成一个可测数。
+    let firstEngineChunkLogged = false;
 
     try {
       for await (const chunk of this.tachuEngine.runStream({
@@ -385,6 +414,7 @@ export class TurnService {
         tenant: arg.tenant,
         ...(arg.userId !== undefined ? { userId: arg.userId } : {}),
         ...(arg.scopes !== undefined ? { scopes: arg.scopes } : {}),
+        ...(arg.callIdentity !== undefined ? { callIdentity: arg.callIdentity } : {}),
         prompt: arg.prompt,
         ...(arg.content !== undefined ? { content: arg.content } : {}),
         ...(arg.attachments !== undefined ? { attachments: arg.attachments } : {}),
@@ -394,6 +424,21 @@ export class TurnService {
         ...(agentSnapshot !== null ? { agentSnapshot } : {}),
         nextStreamId: () => this.sfid.next(),
       })) {
+        if (!firstEngineChunkLogged) {
+          firstEngineChunkLogged = true;
+          this.log.debug(
+            {
+              sessionId: arg.sessionId,
+              tenant: arg.tenant,
+              turnId: arg.turnId,
+              traceId: arg.turnId,
+              // startTime = phase.start 基准；此值 ≈ 首字前的全部准备开销。
+              sincePhaseStartMs: Date.now() - startTime,
+              firstChunkType: chunk.type,
+            },
+            "turn.llm.phase.firstEngineChunk",
+          );
+        }
         // 1. 翻译并 forward
         const sseEvents = mapStreamChunkToSseEvents(mapperState, chunk);
         for (const ev of sseEvents) {

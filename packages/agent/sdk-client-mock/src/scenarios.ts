@@ -272,6 +272,153 @@ export const REASONING_STREAMING: MockScenario = {
   ],
 };
 
+// ─── tool_loop_reset (Option B optimistic bubble streaming) ───────────────────
+
+const MOCK_TL_STEP1_ID = "1000000000000000021";
+const MOCK_TL_STEP2_ID = "1000000000000000022";
+const MOCK_TL_TOOL_CALL = "tcall_mock_ws_1";
+
+/**
+ * Scenario: Option B「正文气泡真流式」——乐观流 + 事后回溯清空。
+ *
+ * step 1 叙述乐观流进气泡（message-delta seq 1）→ 调工具 → 非 terminal 收尾时
+ * `message-reset-v1` 清空气泡（叙述仍留 reasoning 思考树）；step 2 终答再逐字流入
+ * （message-delta seq 2），气泡最终恒等于持久化正文。演示下游对 reset 的消费。
+ */
+export const TOOL_LOOP_RESET: MockScenario = {
+  name: "tool_loop_reset",
+  stream: [
+    ev({ schema: "turn-started-v1", startTime: NOW, turnId: MOCK_TURN_ID, turnNo: 1, userMessageId: MOCK_MSG_ID }),
+    ev({
+      event: "START",
+      kind: "lifecycle",
+      label: "开始处理",
+      point: "turnStart",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_LIFECYCLE_START_STEP_ID,
+      time: NOW + 5,
+      turnId: MOCK_TURN_ID,
+    }),
+    // step 1：叙述（思考区 + 乐观气泡）
+    ev({
+      event: "START",
+      kind: "tool-loop",
+      label: "工具循环第 1 轮",
+      meta: { maxSteps: 25, step: 1 },
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_TL_STEP1_ID,
+      time: NOW + 10,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      schema: "reasoning-delta-v1",
+      seqInStep: 1,
+      source: "tool-loop",
+      stepId: MOCK_TL_STEP1_ID,
+      text: "我先查一下明天的天气。",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      delta: { text: "我先查一下明天的天气。", type: "text" },
+      messageId: MOCK_MSG_ID,
+      schema: "message-delta-v1",
+      seqInTurn: 1,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      args: { query: "明天天气" },
+      meta: { activity: "web-search", consent: "NEVER", execution: "REMOTE" },
+      parentStepId: MOCK_TL_STEP1_ID,
+      schema: "tool-call-started-v1",
+      toolCallId: MOCK_TL_TOOL_CALL,
+      toolName: "mcp.web-search.web_search",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      durationMs: 40,
+      ok: true,
+      output: { summary: "多云 26°C" },
+      parentStepId: MOCK_TL_STEP1_ID,
+      schema: "tool-call-completed-v1",
+      toolCallId: MOCK_TL_TOOL_CALL,
+      toolName: "mcp.web-search.web_search",
+      turnId: MOCK_TURN_ID,
+    }),
+    // 非 terminal 收尾 → 清空气泡（叙述留思考区）
+    ev({ messageId: MOCK_MSG_ID, reason: "tool-calls-completed", schema: "message-reset-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      event: "END",
+      kind: "tool-loop",
+      label: "工具循环第 1 轮",
+      ok: true,
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_TL_STEP1_ID,
+      time: NOW + 60,
+      turnId: MOCK_TURN_ID,
+    }),
+    // step 2：最终答案（terminal，气泡保留）
+    ev({
+      event: "START",
+      kind: "tool-loop",
+      label: "工具循环第 2 轮",
+      meta: { maxSteps: 25, step: 2 },
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_TL_STEP2_ID,
+      time: NOW + 65,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      schema: "reasoning-delta-v1",
+      seqInStep: 1,
+      source: "tool-loop",
+      stepId: MOCK_TL_STEP2_ID,
+      text: "明天多云 26°C，建议 11:30 后拍摄。",
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      delta: { text: "明天多云 26°C，建议 11:30 后拍摄。", type: "text" },
+      messageId: MOCK_MSG_ID,
+      schema: "message-delta-v1",
+      seqInTurn: 2,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "END",
+      kind: "tool-loop",
+      label: "工具循环第 2 轮",
+      ok: true,
+      parentStepId: MOCK_LIFECYCLE_START_STEP_ID,
+      schema: "reasoning-step-v1",
+      stepId: MOCK_TL_STEP2_ID,
+      time: NOW + 110,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({
+      event: "END",
+      kind: "lifecycle",
+      label: "开始处理",
+      ok: true,
+      point: "turnStart",
+      schema: "reasoning-step-v1",
+      stepId: MOCK_LIFECYCLE_START_STEP_ID,
+      time: NOW + 115,
+      turnId: MOCK_TURN_ID,
+    }),
+    ev({ messageId: MOCK_MSG_ID, schema: "message-completed-v1", turnId: MOCK_TURN_ID }),
+    ev({
+      durationMs: 130,
+      endTime: NOW + 130,
+      finalMessageId: MOCK_MSG_ID,
+      schema: "turn-completed-v1",
+      tokenUsage: { input: 14, output: 22, total: 36 },
+      turnId: MOCK_TURN_ID,
+    }),
+  ],
+};
+
 // ─── Health scenarios (legacy) ────────────────────────────────────────────────
 
 export const HEALTH_UP: MockScenario = { name: "health.up" };
@@ -295,6 +442,7 @@ export const SCENARIOS: Record<string, MockScenario> = {
   health_up: HEALTH_UP,
   reasoning_streaming: REASONING_STREAMING,
   tool_approval: TOOL_APPROVAL,
+  tool_loop_reset: TOOL_LOOP_RESET,
   turn_streaming: TURN_STREAMING,
 };
 
