@@ -1,20 +1,13 @@
 // 实装 @tachu/core ExecutionBackend Port — BullMQ
 // ref: docs/detailed-design/03-core-adapters/task-executor.md §6.3 / §6.4
 // ref: docs/detailed-design/06-jobs/bullmq-protocol.md (queue naming; P1-07 深化)
-import type {
-  BackendInput,
-  BackendOutput,
-  ExecutionBackend,
-  ExecutionBackendKind,
-  ExecutionContext,
-  ExecutionTraits,
-} from '@tachu/core';
-import { HostError } from '@tachu/core';
-import type { JobsOptions } from 'bullmq';
-import { Queue } from 'bullmq';
+import type { BackendInput, BackendOutput, ExecutionBackend, ExecutionBackendKind, ExecutionContext, ExecutionTraits } from "@tachu/core";
+import { HostError } from "@tachu/core";
+import type { JobsOptions } from "bullmq";
+import { Queue } from "bullmq";
 
 /** BullMQ queue naming prefix enforcement constant */
-export const BULLMQ_QUEUE_PREFIX = 'agentic-engine-' as const;
+export const BULLMQ_QUEUE_PREFIX = "agentic-engine-" as const;
 
 /** Default queue name (06-jobs/bullmq-protocol.md §3) */
 export const BULLMQ_DEFAULT_QUEUE = `${BULLMQ_QUEUE_PREFIX}default` as const;
@@ -32,7 +25,7 @@ export interface BullMQBackendConfig {
 /** BullMQ job options subset */
 export interface BullMQJobOptions {
   attempts?: number;
-  backoff?: { type: 'exponential' | 'fixed'; delay: number };
+  backoff?: { type: "exponential" | "fixed"; delay: number };
   /** Job priority (lower number = higher priority) */
   priority?: number;
   /** Delay before processing in ms */
@@ -51,9 +44,9 @@ export interface EnqueueOptions {
 
 function extractJobsOptions(payload: Record<string, unknown>): JobsOptions {
   const o: JobsOptions = {};
-  if (typeof payload['priority'] === 'number') o.priority = payload['priority'];
-  if (typeof payload['delay'] === 'number') o.delay = payload['delay'];
-  if (typeof payload['attempts'] === 'number') o.attempts = payload['attempts'];
+  if (typeof payload["priority"] === "number") o.priority = payload["priority"];
+  if (typeof payload["delay"] === "number") o.delay = payload["delay"];
+  if (typeof payload["attempts"] === "number") o.attempts = payload["attempts"];
   return o;
 }
 
@@ -71,16 +64,16 @@ function extractJobsOptions(payload: Record<string, unknown>): JobsOptions {
  * ref: docs/detailed-design/06-jobs/bullmq-protocol.md §3 queue naming
  */
 export class BullMQExecutionBackendAdapter implements ExecutionBackend {
-  readonly name = 'cube-ai-bullmq-backend';
-  readonly kind: ExecutionBackendKind = 'custom';
+  readonly name = "cube-ai-bullmq-backend";
+  readonly kind: ExecutionBackendKind = "custom";
   readonly traits: ExecutionTraits = {
-    sideEffect: 'write',
+    sideEffect: "write",
     idempotent: false,
     requiresApproval: false,
     timeout: 30_000,
   };
 
-  private _queues = new Map<string, Queue>();
+  private queues = new Map<string, Queue>();
 
   constructor(private readonly config: BullMQBackendConfig) {
     const name = config.queueName ?? BULLMQ_DEFAULT_QUEUE;
@@ -93,9 +86,7 @@ export class BullMQExecutionBackendAdapter implements ExecutionBackend {
    */
   static validateQueueName(name: string): void {
     if (!name.startsWith(BULLMQ_QUEUE_PREFIX)) {
-      throw new Error(
-        `BullMQ queue name must start with '${BULLMQ_QUEUE_PREFIX}'; got: '${name}'`,
-      );
+      throw new Error(`BullMQ queue name must start with '${BULLMQ_QUEUE_PREFIX}'; got: '${name}'`);
     }
   }
 
@@ -105,36 +96,27 @@ export class BullMQExecutionBackendAdapter implements ExecutionBackend {
   private getQueue(queueName: string): Queue {
     BullMQExecutionBackendAdapter.validateQueueName(queueName);
 
-    if (!this._queues.has(queueName)) {
+    if (!this.queues.has(queueName)) {
       const q = new Queue(queueName, {
         connection: { url: this.config.redisUrl },
-        prefix: 'agentic:engine:bull',
+        prefix: "agentic:engine:bull",
         defaultJobOptions: this.config.defaultJobOptions,
       });
-      this._queues.set(queueName, q);
+      this.queues.set(queueName, q);
     }
-    return this._queues.get(queueName)!;
+    return this.queues.get(queueName)!;
   }
 
-  async execute(
-    input: BackendInput,
-    context: ExecutionContext,
-  ): Promise<BackendOutput> {
+  async execute(input: BackendInput, context: ExecutionContext): Promise<BackendOutput> {
     void context;
     const { payload } = input;
     const queueName =
-      (typeof payload['queueName'] === 'string' ? payload['queueName'] : undefined) ??
-      this.config.queueName ??
-      BULLMQ_DEFAULT_QUEUE;
+      (typeof payload["queueName"] === "string" ? payload["queueName"] : undefined) ?? this.config.queueName ?? BULLMQ_DEFAULT_QUEUE;
     BullMQExecutionBackendAdapter.validateQueueName(queueName);
 
     const jobName =
-      (typeof payload['jobName'] === 'string' && payload['jobName'].length > 0
-        ? payload['jobName']
-        : undefined) ??
-      (typeof payload['name'] === 'string' && (payload['name'] as string).length > 0
-        ? (payload['name'] as string)
-        : 'agentic-backend-job');
+      (typeof payload["jobName"] === "string" && payload["jobName"].length > 0 ? payload["jobName"] : undefined) ??
+      (typeof payload["name"] === "string" && (payload["name"] as string).length > 0 ? (payload["name"] as string) : "agentic-backend-job");
 
     const addOpts: JobsOptions = {
       ...extractJobsOptions(payload),
@@ -156,28 +138,22 @@ export class BullMQExecutionBackendAdapter implements ExecutionBackend {
         },
       };
     } catch (e) {
-      throw new HostError(
-        'UNAVAILABLE_QUEUE_BACKEND',
-        `queue backend unavailable: ${e instanceof Error ? e.message : String(e)}`,
-        { cause: e, retryable: true, context: { queueName } },
-      );
+      throw new HostError("UNAVAILABLE_QUEUE_BACKEND", `queue backend unavailable: ${e instanceof Error ? e.message : String(e)}`, {
+        cause: e,
+        retryable: true,
+        context: { queueName },
+      });
     }
   }
 
   /**
    * Engine-side convenience enqueue API (beyond @tachu/core Port).
    */
-  async enqueue(
-    taskId: string,
-    payload: Record<string, unknown>,
-    opts?: EnqueueOptions,
-  ): Promise<{ jobId: string }> {
+  async enqueue(taskId: string, payload: Record<string, unknown>, opts?: EnqueueOptions): Promise<{ jobId: string }> {
     const queueName = opts?.queueName ?? this.config.queueName ?? BULLMQ_DEFAULT_QUEUE;
 
     const jobName =
-      typeof payload['jobName'] === 'string' && payload['jobName'].length > 0
-        ? (payload['jobName'] as string)
-        : 'agentic-enqueue';
+      typeof payload["jobName"] === "string" && payload["jobName"].length > 0 ? (payload["jobName"] as string) : "agentic-enqueue";
 
     try {
       const queue = this.getQueue(queueName);
@@ -188,23 +164,23 @@ export class BullMQExecutionBackendAdapter implements ExecutionBackend {
       });
       return { jobId: String(job.id ?? taskId) };
     } catch (e) {
-      throw new HostError(
-        'UNAVAILABLE_QUEUE_BACKEND',
-        `queue backend unavailable: ${e instanceof Error ? e.message : String(e)}`,
-        { cause: e, retryable: true, context: { queueName } },
-      );
+      throw new HostError("UNAVAILABLE_QUEUE_BACKEND", `queue backend unavailable: ${e instanceof Error ? e.message : String(e)}`, {
+        cause: e,
+        retryable: true,
+        context: { queueName },
+      });
     }
   }
 
   async dispose(): Promise<void> {
-    for (const [, queue] of this._queues) {
+    for (const [, queue] of this.queues) {
       await queue.close();
     }
-    this._queues.clear();
+    this.queues.clear();
   }
 
   /** Expose for testing */
-  get _queuesForTest(): Map<string, Queue> {
-    return this._queues;
+  getQueuesForTest(): Map<string, Queue> {
+    return this.queues;
   }
 }

@@ -21,6 +21,7 @@ import { MetricsRegistry } from "./infra/observability/metrics-registry";
 import { createRateLimitMiddleware } from "./infra/rate-limit/rate-limit.middleware";
 import { RedisRateLimiter } from "./infra/rate-limit/redis-rate-limiter";
 import { NacosSecretsLoader } from "./infra/secrets/nacos-secrets.loader";
+import { provisionSfidNodeFromContainer } from "./infra/sfid/sfid-node-provisioning";
 import { createTenantContextMiddleware } from "./infra/tenant-guard/tenant-context.middleware";
 import { TenantContextService } from "./infra/tenant-guard/tenant-context.service";
 
@@ -107,6 +108,12 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   // P3-01: Nacos secrets fail-fast before any HTTP serving.
   const secretsLoader = container.resolve(NacosSecretsLoader) as NacosSecretsLoader;
   await secretsLoader.load();
+
+  // Fix A (串消息根因): 在任何会 mint SFID 的启动步骤之前确定进程唯一 nodeId。
+  // 显式 AGENTIC_ENGINE_NODE_ID → 用之；否则抢 Redis 节点租约；两者皆无 → fail-closed
+  // 拒绝启动（绝不静默默认 0，避免多副本 sessionId 碰撞）。
+  const sfidLog = (container.resolve(LoggerFactory) as LoggerFactory).getLogger("agentic.engine.sfid");
+  await provisionSfidNodeFromContainer(container, sfidLog);
 
   // P3-11: Descriptor loader (Nacos + local dir) — register tools before requests.
   const descriptorLoader = container.resolve(DescriptorLoader) as DescriptorLoader;

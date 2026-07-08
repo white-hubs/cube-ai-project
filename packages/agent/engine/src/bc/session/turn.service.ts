@@ -27,6 +27,7 @@ import { EngineFactory, type AgentSnapshotShape } from "../tachu/engine-factory"
 import { computeIntentToolRouting, type IntentRoutingBlock } from "../tool-activation";
 import type { CallIdentity } from "../tools/tool-context";
 import type { SessionRepository } from "./repository/session.repository";
+import { SESSION_ADMIN_SCOPE } from "./session-owner";
 import { REDIS_CLIENT_TOKEN, SESSION_REPO_TOKEN, TURN_LOCK_SERVICE_TOKEN, TURN_REPO_TOKEN } from "./session.tokens";
 import { extractUserVisibleAnswerText } from "./tachu-sse-mapper";
 import { createTachuSseMapperState, forceCloseActiveReasoning, mapStreamChunkToSseEvents } from "./tachu-sse-mapper";
@@ -127,6 +128,15 @@ export class TurnService {
    * Start Turn: acquire lock → optional idempotent replay → INSERT RUNNING → SSE → background LLM.
    */
   async startTurn(sessionId: string, tenant: number, prompt: string, options: StartTurnOptions = {}): Promise<string> {
+    // P3 — turn-start 归属门禁：只有 session 归属者（或本租户 admin）能驱动该 session。
+    // 与现有读路径 authz 语义对齐；非归属 / 未落库直接拒，绝不取锁、绝不插 turn。
+    // 这是「串消息」隔离的门禁面之一（配合全局唯一 sessionId），不再依赖脆弱的 ctx 透传。
+    const admin = options.scopes?.includes(SESSION_ADMIN_SCOPE) ?? false;
+    const owned = await this.sessions.findByIdAsOwner(tenant, sessionId, options.userId ?? "", { admin });
+    if (!owned) {
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_SESSION", `Session ${sessionId} not found`, { sessionId });
+    }
+
     const startTurnAt = Date.now();
     const turnId = this.sfid.next();
 

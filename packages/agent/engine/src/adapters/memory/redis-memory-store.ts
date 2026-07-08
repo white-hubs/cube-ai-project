@@ -1,16 +1,13 @@
 // 实装 @tachu/core MemorySystem Port — L1(进程内) + L2(Redis ioredis)
-// ref: P3-13 §3.2 / docs/detailed-design/03-core-adapters/memory.md §5；键：agentic:engine:memory:{tenant}:{sessionId}
-import type {
-  AdapterCallContext,
-  ContextWindow,
-  MemoryEntry,
-  MemorySystem,
-} from '@tachu/core';
-import { DEFAULT_ADAPTER_CALL_CONTEXT } from '@tachu/core';
-import Redis from 'ioredis';
-import { InMemoryStore } from './in-memory-store';
+// ref: P3-13 §3.2 / docs/detailed-design/03-core-adapters/memory.md §5
+// 键(B2)：agentic:engine:memory:{sessionId}（去 tenant，隔离靠唯一 sessionId + 归属门禁）
+import type { AdapterCallContext, ContextWindow, MemoryEntry, MemorySystem } from "@tachu/core";
+import { DEFAULT_ADAPTER_CALL_CONTEXT } from "@tachu/core";
+import Redis from "ioredis";
 
-/** Redis key TTL / tenant（`load`/`append` 的 ctx.tenant 优先于本配置） */
+import { InMemoryStore } from "./in-memory-store";
+
+/** Redis key TTL / tenant 配置 */
 export interface RedisMemoryStoreConfig {
   /** ioredis connection URL — from AGENTIC_ENGINE_REDIS_URL */
   redisUrl: string;
@@ -19,8 +16,8 @@ export interface RedisMemoryStoreConfig {
   /** L2 TTL，秒；默认 604800（7 天），P3-13 */
   ttlSeconds?: number;
   /**
-   * 租户 ID，参与 key：{prefix}{tenant}:{sessionId}。
-   * 当 `AdapterCallContext` 未带 `tenant` 时回退到此值（默认 1 或 AGENTIC_ENGINE_MEMORY_TENANT_ID）。
+   * 租户 ID —— B2 后**不再参与 key**（键只用 sessionId）。仍保留用于把 ctx.tenant
+   * 归一化后透传给别处（默认 1 或 AGENTIC_ENGINE_MEMORY_TENANT_ID）。
    */
   tenantId?: number;
   /**
@@ -40,25 +37,21 @@ export interface RedisMemoryStoreConfig {
  */
 export class RedisMemoryStore implements MemorySystem {
   private readonly l1 = new InMemoryStore();
-  private _redis: Redis | undefined;
+  private redisClient: Redis | undefined;
 
   private readonly keyPrefix: string;
   private readonly ttlSeconds: number;
   private readonly tenantId: number;
 
   constructor(private readonly config: RedisMemoryStoreConfig) {
-    this.keyPrefix = config.keyPrefix ?? 'agentic:engine:memory:';
-    this.ttlSeconds =
-      config.ttlSeconds ??
-      Number(process.env['AGENTIC_ENGINE_MEMORY_TTL_SECONDS'] ?? '604800');
-    this.tenantId =
-      config.tenantId ??
-      Number(process.env['AGENTIC_ENGINE_MEMORY_TENANT_ID'] ?? '1');
+    this.keyPrefix = config.keyPrefix ?? "agentic:engine:memory:";
+    this.ttlSeconds = config.ttlSeconds ?? Number(process.env["AGENTIC_ENGINE_MEMORY_TTL_SECONDS"] ?? "604800");
+    this.tenantId = config.tenantId ?? Number(process.env["AGENTIC_ENGINE_MEMORY_TENANT_ID"] ?? "1");
   }
 
   private getRedis(): Redis {
-    if (!this._redis) {
-      this._redis = this.config.redisFactory
+    if (!this.redisClient) {
+      this.redisClient = this.config.redisFactory
         ? this.config.redisFactory()
         : (() => {
             const client = new Redis(this.config.redisUrl, {
@@ -66,17 +59,17 @@ export class RedisMemoryStore implements MemorySystem {
               enableReadyCheck: false,
               maxRetriesPerRequest: 1,
             });
-            client.on('error', () => {
+            client.on("error", () => {
               /* reconnect noise — command failures surface at await sites */
             });
             return client;
           })();
     }
-    return this._redis;
+    return this.redisClient;
   }
 
   private async ensureConnected(r: Redis): Promise<void> {
-    if (r.status === 'wait' || r.status === 'connecting') {
+    if (r.status === "wait" || r.status === "connecting") {
       await r.connect();
     }
   }
@@ -89,9 +82,13 @@ export class RedisMemoryStore implements MemorySystem {
     };
   }
 
-  private redisKey(sessionId: string, ctx: AdapterCallContext): string {
-    const t = ctx.tenant ?? this.tenantId;
-    return `${this.keyPrefix}${t}:${sessionId}`;
+  /**
+   * B2：键去 tenant —— `{prefix}{sessionId}`。同一 sessionId 命中同一记忆空间，
+   * 隔离改由「全局唯一 sessionId + turn-start 归属门禁」承担；tenant 仍可留在 ctx
+   * 供别处使用，但不进键（修掉 loadFull 用默认租户读错记忆空间的 P2）。
+   */
+  private redisKey(sessionId: string): string {
+    return `${this.keyPrefix}${sessionId}`;
   }
 
   async load(sessionId: string, ctx: AdapterCallContext): Promise<ContextWindow> {
@@ -101,11 +98,11 @@ export class RedisMemoryStore implements MemorySystem {
 
     const redis = this.getRedis();
     await this.ensureConnected(redis);
-    const raw = await redis.lrange(this.redisKey(sessionId, eff), 0, -1);
+    const raw = await redis.lrange(this.redisKey(sessionId), 0, -1);
     if (raw.length === 0) {
       return { entries: [], tokenCount: 0, limit: 128_000 };
     }
-    const chronological = [...raw].reverse().map((s) => JSON.parse(s) as MemoryEntry);
+    const chronological = raw.toReversed().map((s) => JSON.parse(s) as MemoryEntry);
     let tokenCount = 0;
     for (const e of chronological) {
       tokenCount += estimateTokens(e);
@@ -133,7 +130,7 @@ export class RedisMemoryStore implements MemorySystem {
 
     const redis = this.getRedis();
     await this.ensureConnected(redis);
-    const key = this.redisKey(sessionId, eff);
+    const key = this.redisKey(sessionId);
     const payload = JSON.stringify(entry);
     const pipeline = redis.pipeline();
     pipeline.lpush(key, payload);
@@ -146,11 +143,7 @@ export class RedisMemoryStore implements MemorySystem {
     return this.l1.compress(sessionId);
   }
 
-  async recall(
-    sessionId: string,
-    query: string,
-    topK?: number,
-  ): Promise<MemoryEntry[]> {
+  async recall(sessionId: string, query: string, topK?: number): Promise<MemoryEntry[]> {
     return this.l1.recall(sessionId, query, topK);
   }
 
@@ -162,16 +155,13 @@ export class RedisMemoryStore implements MemorySystem {
     return this.l1.getSize(sessionId);
   }
 
-  async trim(
-    sessionId: string,
-    options?: { keepHead?: number; keepTail?: number },
-  ): Promise<void> {
+  async trim(sessionId: string, options?: { keepHead?: number; keepTail?: number }): Promise<void> {
     const eff = { ...DEFAULT_ADAPTER_CALL_CONTEXT, tenant: this.tenantId };
     await this.l1.trim(sessionId, options);
     const window = await this.l1.load(sessionId, eff);
     const redis = this.getRedis();
     await this.ensureConnected(redis);
-    const key = this.redisKey(sessionId, eff);
+    const key = this.redisKey(sessionId);
     const pipe = redis.pipeline();
     pipe.del(key);
     for (let i = window.entries.length - 1; i >= 0; i--) {
@@ -186,27 +176,23 @@ export class RedisMemoryStore implements MemorySystem {
     await this.l1.clear(sessionId);
     const redis = this.getRedis();
     await this.ensureConnected(redis);
-    const eff = { ...DEFAULT_ADAPTER_CALL_CONTEXT, tenant: this.tenantId };
-    await redis.del(this.redisKey(sessionId, eff));
+    await redis.del(this.redisKey(sessionId));
   }
 
   async dispose(): Promise<void> {
-    if (this._redis) {
-      await this._redis.quit();
-      this._redis = undefined;
+    if (this.redisClient) {
+      await this.redisClient.quit();
+      this.redisClient = undefined;
     }
   }
 
   /** Expose for testing (verify lazy init) */
-  get _redisForTest(): unknown {
-    return this._redis;
+  getRedisClientForTest(): unknown {
+    return this.redisClient;
   }
 }
 
 function estimateTokens(entry: MemoryEntry): number {
-  const content =
-    typeof entry.content === 'string'
-      ? entry.content
-      : JSON.stringify(entry.content);
+  const content = typeof entry.content === "string" ? entry.content : JSON.stringify(entry.content);
   return Math.ceil(content.length / 4);
 }
