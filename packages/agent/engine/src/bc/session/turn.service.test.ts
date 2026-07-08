@@ -1,19 +1,22 @@
-import { describe, test, expect, mock } from 'bun:test';
-import type { SessionSseEmitter } from '@cube-ai/bun-server-ext-sse';
-import type { OutboxWriter } from '@cube-ai/bun-server-ext-outbox';
-import type { EngineOutput, StreamChunk, StreamChunkPayload } from '@tachu/core';
-import { HostError } from '@tachu/core';
-import { TurnService } from './turn.service';
-import { TurnLockService } from './turn-lock.service';
-import { SfidService } from '../../infra/sfid/sfid.service';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import { LoggerFactory } from '../../infra/observability/logger.factory';
-import type { TurnRepository } from './turn.repository';
-import type { SessionRepository } from './repository/session.repository';
-import type Redis from 'ioredis';
-import type { EngineFactory } from '../tachu/engine-factory';
-import type { JobDataService } from '../jobs/job-data.service';
-import type { LocalFileService } from '../files/local-file.service';
+import type { EngineOutput, StreamChunk, StreamChunkPayload } from "@tachu/core";
+import { HostError } from "@tachu/core";
+import { describe, test, expect, mock } from "bun:test";
+import type Redis from "ioredis";
+
+import type { OutboxWriter } from "@cube-ai/bun-server-ext-outbox";
+import type { SessionSseEmitter } from "@cube-ai/bun-server-ext-sse";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import { LoggerFactory } from "../../infra/observability/logger.factory";
+import { SfidService } from "../../infra/sfid/sfid.service";
+import type { LocalFileService } from "../files/local-file.service";
+import type { JobDataService } from "../jobs/job-data.service";
+import type { EngineFactory } from "../tachu/engine-factory";
+import type { SessionRepository } from "./repository/session.repository";
+import { SESSION_ADMIN_SCOPE } from "./session-owner";
+import { TurnLockService } from "./turn-lock.service";
+import type { TurnRepository } from "./turn.repository";
+import { TurnService } from "./turn.service";
 
 /**
  * TurnService 单元测试 —— 公开行为契约：
@@ -25,29 +28,27 @@ import type { LocalFileService } from '../files/local-file.service';
  * 的 API（返回 `AsyncIterable<StreamChunk>`）保持一致。
  */
 
-const SESSION_ID = '1000000000000000001';
+const SESSION_ID = "1000000000000000001";
 const TENANT = 1;
 
-function makeOutput(opts?: {
-  tokenUsage?: { input: number; output: number; total: number };
-}): EngineOutput {
+function makeOutput(opts?: { tokenUsage?: { input: number; output: number; total: number } }): EngineOutput {
   return {
-    type: 'text',
-    content: 'ok',
+    type: "text",
+    content: "ok",
     steps: [],
     metadata: {
-      outcome: 'completed',
+      outcome: "completed",
       toolCalls: [],
       durationMs: 0,
       tokenUsage: opts?.tokenUsage ?? { input: 0, output: 0, total: 0 },
     },
     correlation: {
-      traceId:   't',
-      requestId: 't',
+      traceId: "t",
+      requestId: "t",
       sessionId: SESSION_ID,
-      turnId:    'turn-test',
+      turnId: "turn-test",
     },
-    deliveryMode: 'streaming',
+    deliveryMode: "streaming",
   };
 }
 
@@ -57,22 +58,26 @@ function asyncGenFrom(chunks: StreamChunkPayload[]) {
   };
 }
 
-function buildTurnService(o: {
-  lockAcquire?: boolean | Error;
-  insertTurnNo?: number;
-  redisGet?: string | null;
-  redisSet?: ReturnType<typeof mock>;
-  /** Chunks tachu Engine should yield. Defaults to a minimal delta+done. */
-  chunks?: StreamChunkPayload[];
-  /** Override runStream entirely (e.g. to throw). */
-  runStream?: ReturnType<typeof mock>;
-  resolveEffectiveRoute?: ReturnType<typeof mock>;
-  /** Session row for snapshot loading. null = no snapshot. */
-  sessionRow?: { sessionId: string; agentSnapshotJson: unknown } | null;
-  getTurnRow?: ReturnType<typeof mock>;
-  outboxAppend?: ReturnType<typeof mock>;
-  jobData?: JobDataService;
-} = {}): {
+function buildTurnService(
+  o: {
+    lockAcquire?: boolean | Error;
+    insertTurnNo?: number;
+    redisGet?: string | null;
+    redisSet?: ReturnType<typeof mock>;
+    /** Chunks tachu Engine should yield. Defaults to a minimal delta+done. */
+    chunks?: StreamChunkPayload[];
+    /** Override runStream entirely (e.g. to throw). */
+    runStream?: ReturnType<typeof mock>;
+    resolveEffectiveRoute?: ReturnType<typeof mock>;
+    /** Session row for snapshot loading. null = no snapshot. */
+    sessionRow?: { sessionId: string; agentSnapshotJson: unknown } | null;
+    /** Ownership-gate result (P3): truthy = owned/authorized, null = not owned → reject. */
+    ownedRow?: unknown | null;
+    getTurnRow?: ReturnType<typeof mock>;
+    outboxAppend?: ReturnType<typeof mock>;
+    jobData?: JobDataService;
+  } = {},
+): {
   service: TurnService;
   mocks: {
     sseEmit: ReturnType<typeof mock>;
@@ -80,6 +85,8 @@ function buildTurnService(o: {
     resolveEffectiveRoute: ReturnType<typeof mock>;
     cancel: ReturnType<typeof mock>;
     release: ReturnType<typeof mock>;
+    tryAcquire: ReturnType<typeof mock>;
+    findByIdAsOwner: ReturnType<typeof mock>;
     cancelDb: ReturnType<typeof mock>;
     completeDb: ReturnType<typeof mock>;
     markTurnError: ReturnType<typeof mock>;
@@ -93,11 +100,12 @@ function buildTurnService(o: {
   const sfidService = new SfidService();
 
   const release = mock(async () => {});
+  const tryAcquire = mock(async () => {
+    if (o.lockAcquire instanceof Error) throw o.lockAcquire;
+    return o.lockAcquire ?? true;
+  });
   const mockLock = {
-    tryAcquire: mock(async () => {
-      if (o.lockAcquire instanceof Error) throw o.lockAcquire;
-      return o.lockAcquire ?? true;
-    }),
+    tryAcquire,
     renew: mock(async () => true),
     release,
   } as unknown as TurnLockService;
@@ -117,31 +125,30 @@ function buildTurnService(o: {
       o.getTurnRow ??
       mock(async () => ({
         sessionId: SESSION_ID,
-        status: 'RUNNING',
+        status: "RUNNING",
         pipelineTrace: null,
       })),
   } as unknown as TurnRepository;
 
   const redis = {
     get: mock(async () => o.redisGet ?? null),
-    set: o.redisSet ?? mock(async () => 'OK'),
+    set: o.redisSet ?? mock(async () => "OK"),
   } as unknown as Redis;
 
   const sseEmit = mock(async () => {});
   const sseEmitter = { emit: sseEmit } as unknown as SessionSseEmitter;
 
   const defaultChunks: StreamChunkPayload[] = [
-    { type: 'delta', content: 'ok' },
-    { type: 'done', output: makeOutput() },
+    { type: "delta", content: "ok" },
+    { type: "done", output: makeOutput() },
   ];
-  const runStream =
-    o.runStream ?? mock(asyncGenFrom(o.chunks ?? defaultChunks));
+  const runStream = o.runStream ?? mock(asyncGenFrom(o.chunks ?? defaultChunks));
   const resolveEffectiveRoute =
     o.resolveEffectiveRoute ??
     mock(async (input?: { turnModelCode?: string }) => ({
-      effectiveModelCode: input?.turnModelCode ?? 'gpt-4o-mini',
-      effectiveProviderCode: 'agentic-platform-llm-catalog',
-      reason: 'DIRECT',
+      effectiveModelCode: input?.turnModelCode ?? "gpt-4o-mini",
+      effectiveProviderCode: "agentic-platform-llm-catalog",
+      reason: "DIRECT",
     }));
   const cancel = mock(() => {});
   const engineFactory = {
@@ -150,11 +157,12 @@ function buildTurnService(o: {
     resolveEffectiveRoute,
   } as unknown as EngineFactory;
 
-  const sessionRow = o.sessionRow === undefined
-    ? { sessionId: SESSION_ID, agentSnapshotJson: null }
-    : o.sessionRow;
+  const sessionRow = o.sessionRow === undefined ? { sessionId: SESSION_ID, agentSnapshotJson: null } : o.sessionRow;
+  const ownedRow = o.ownedRow === undefined ? { id: SESSION_ID, userId: "owner" } : o.ownedRow;
+  const findByIdAsOwner = mock(async () => ownedRow);
   const sessions = {
     findById: mock(async () => sessionRow),
+    findByIdAsOwner,
   } as unknown as SessionRepository;
 
   const outboxAppend = o.outboxAppend ?? mock(async () => {});
@@ -197,6 +205,8 @@ function buildTurnService(o: {
       resolveEffectiveRoute,
       cancel,
       release,
+      tryAcquire,
+      findByIdAsOwner,
       cancelDb,
       completeDb,
       markTurnError,
@@ -212,88 +222,87 @@ function buildTurnService(o: {
 function schemasFromSse(calls: unknown[][]): string[] {
   return calls.map((c) => {
     const row = c as unknown as [unknown, unknown, { payload: { schema?: string } }];
-    return row[2]?.payload?.schema ?? '';
+    return row[2]?.payload?.schema ?? "";
   });
 }
 
-describe('TurnService.startTurn — happy path', () => {
-  test('returns a valid SFID turnId when lock succeeds', async () => {
+describe("TurnService.startTurn — happy path", () => {
+  test("returns a valid SFID turnId when lock succeeds", async () => {
     const { service } = buildTurnService();
-    const turnId = await service.startTurn(SESSION_ID, TENANT, 'Hello');
+    const turnId = await service.startTurn(SESSION_ID, TENANT, "Hello");
     expect(turnId).toMatch(/^\d{19}$/);
   });
 
-  test('emits turn.started SSE (schema turn-started-v1) after lock succeeds', async () => {
+  test("emits turn.started SSE (schema turn-started-v1) after lock succeeds", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'Hello');
+    await service.startTurn(SESSION_ID, TENANT, "Hello");
     expect(mocks.sseEmit.mock.calls.length).toBeGreaterThanOrEqual(1);
     const arg = mocks.sseEmit.mock.calls[0]?.[2] as { payload: { schema?: string } };
-    expect(arg.payload.schema).toBe('turn-started-v1');
+    expect(arg.payload.schema).toBe("turn-started-v1");
   });
 
-  test('streaming chunks → SSE emits message.delta + message.completed + usage.delta-v2 + turn.completed', async () => {
+  test("streaming chunks → SSE emits message.delta + message.completed + usage.delta-v2 + turn.completed", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'Hello');
+    await service.startTurn(SESSION_ID, TENANT, "Hello");
     await new Promise((r) => setTimeout(r, 50));
 
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    expect(schemas.includes('message-delta-v1')).toBe(true);
-    expect(schemas.includes('message-completed-v1')).toBe(true);
-    expect(schemas.includes('usage-delta-v2')).toBe(true);
-    expect(schemas.includes('turn-completed-v1')).toBe(true);
+    expect(schemas.includes("message-delta-v1")).toBe(true);
+    expect(schemas.includes("message-completed-v1")).toBe(true);
+    expect(schemas.includes("usage-delta-v2")).toBe(true);
+    expect(schemas.includes("turn-completed-v1")).toBe(true);
   });
 
-  test('emits intent.routing SSE (matched) during LLM phase', async () => {
+  test("emits intent.routing SSE (matched) during LLM phase", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'Hello');
+    await service.startTurn(SESSION_ID, TENANT, "Hello");
     await new Promise((r) => setTimeout(r, 50));
     const ir = mocks.sseEmit.mock.calls
       .map((c) => c[2] as { sseEvent?: string; payload?: { schema?: string; state?: string } })
-      .find((x) => x.sseEvent === 'intent.routing' || x.payload?.schema === 'intent-routing-v1');
-    expect(ir?.payload?.schema).toBe('intent-routing-v1');
-    expect(ir?.payload?.state).toBe('matched');
+      .find((x) => x.sseEvent === "intent.routing" || x.payload?.schema === "intent-routing-v1");
+    expect(ir?.payload?.schema).toBe("intent-routing-v1");
+    expect(ir?.payload?.state).toBe("matched");
   });
 
-  test('emits effective-route-resolved-v1 before model output', async () => {
+  test("emits effective-route-resolved-v1 before model output", async () => {
     const { service, mocks } = buildTurnService({
       resolveEffectiveRoute: mock(async () => ({
-        effectiveModelCode: 'gpt-4.1-vision',
-        effectiveProviderCode: 'openai-compat',
-        reason: 'IMAGE_CAPABILITY_REROUTE',
+        effectiveModelCode: "gpt-4.1-vision",
+        effectiveProviderCode: "openai-compat",
+        reason: "IMAGE_CAPABILITY_REROUTE",
       })),
     });
-    await service.startTurn(SESSION_ID, TENANT, 'Hello', {
+    await service.startTurn(SESSION_ID, TENANT, "Hello", {
       content: {
-        schema: 'message-content-v1',
-        blocks: [{ type: 'image_ref', attachmentId: 'att_01' }],
+        schema: "message-content-v1",
+        blocks: [{ type: "image_ref", attachmentId: "att_01" }],
       },
-      attachments: [{ attachmentId: 'att_01', kind: 'image', fileId: 'file_01', mimeType: 'image/png' }],
-      modelCode: 'gpt-4o-mini',
-      providerCode: 'openai',
+      attachments: [{ attachmentId: "att_01", kind: "image", fileId: "file_01", mimeType: "image/png" }],
+      modelCode: "gpt-4o-mini",
+      providerCode: "openai",
     });
     await new Promise((r) => setTimeout(r, 50));
-    const emitted = mocks.sseEmit.mock.calls
-      .map((c) => c[2] as { sseEvent?: string; payload?: { schema?: string; reason?: string } });
-    const routeIndex = emitted.findIndex((event) => event.sseEvent === 'turn.route.resolved');
+    const emitted = mocks.sseEmit.mock.calls.map((c) => c[2] as { sseEvent?: string; payload?: { schema?: string; reason?: string } });
+    const routeIndex = emitted.findIndex((event) => event.sseEvent === "turn.route.resolved");
     const firstModelOutputIndex = emitted.findIndex(
-      (event) => event.payload?.schema === 'message-delta-v1' || event.payload?.schema === 'message-completed-v1',
+      (event) => event.payload?.schema === "message-delta-v1" || event.payload?.schema === "message-completed-v1",
     );
     const routeEvent = routeIndex >= 0 ? emitted[routeIndex] : undefined;
-    expect(routeEvent?.payload?.schema).toBe('effective-route-resolved-v1');
-    expect(routeEvent?.payload?.reason).toBe('IMAGE_CAPABILITY_REROUTE');
+    expect(routeEvent?.payload?.schema).toBe("effective-route-resolved-v1");
+    expect(routeEvent?.payload?.reason).toBe("IMAGE_CAPABILITY_REROUTE");
     expect(routeIndex).toBeGreaterThanOrEqual(0);
     expect(firstModelOutputIndex).toBeGreaterThan(routeIndex);
   });
 
-  test('intent.routing state empty when configured flow keywords do not match', async () => {
+  test("intent.routing state empty when configured flow keywords do not match", async () => {
     const snapshot = {
       agent: {
         content: {
-          prompt: 'p',
-          toolRefs: ['platform.flow.invoke', 'platform.knowledge.query'],
+          prompt: "p",
+          toolRefs: ["platform.flow.invoke", "platform.knowledge.query"],
           intentRouting: {
             enabled: true,
-            flows: [{ toolName: 'platform.flow.invoke', priority: 1, keywords: ['nope'] }],
+            flows: [{ toolName: "platform.flow.invoke", priority: 1, keywords: ["nope"] }],
           },
         },
       },
@@ -301,100 +310,100 @@ describe('TurnService.startTurn — happy path', () => {
     const { service, mocks } = buildTurnService({
       sessionRow: { sessionId: SESSION_ID, agentSnapshotJson: snapshot },
     });
-    await service.startTurn(SESSION_ID, TENANT, 'no keyword here');
+    await service.startTurn(SESSION_ID, TENANT, "no keyword here");
     await new Promise((r) => setTimeout(r, 50));
     const ir = mocks.sseEmit.mock.calls
       .map((c) => c[2] as { sseEvent?: string; payload?: { schema?: string; state?: string } })
-      .find((x) => x.sseEvent === 'intent.routing' || x.payload?.schema === 'intent-routing-v1');
-    expect(ir?.payload?.state).toBe('empty');
+      .find((x) => x.sseEvent === "intent.routing" || x.payload?.schema === "intent-routing-v1");
+    expect(ir?.payload?.state).toBe("empty");
   });
 
-  test('tool-call-start + tool-call-end → SSE emits tool.call.started + tool.call.completed', async () => {
+  test("tool-call-start + tool-call-end → SSE emits tool.call.started + tool.call.completed", async () => {
     const chunks: StreamChunkPayload[] = [
       {
-        type: 'tool-call-start',
-        callId: 'tcall_1',
-        tool: 'platform.knowledge.query',
+        type: "tool-call-start",
+        callId: "tcall_1",
+        tool: "platform.knowledge.query",
         argumentsPreview: '{"q":"x"}',
       },
       {
-        type: 'tool-call-end',
-        callId: 'tcall_1',
-        tool: 'platform.knowledge.query',
+        type: "tool-call-end",
+        callId: "tcall_1",
+        tool: "platform.knowledge.query",
         success: true,
         durationMs: 5,
       },
-      { type: 'done', output: makeOutput() },
+      { type: "done", output: makeOutput() },
     ];
     const { service, mocks } = buildTurnService({ chunks });
-    await service.startTurn(SESSION_ID, TENANT, 'Hello');
+    await service.startTurn(SESSION_ID, TENANT, "Hello");
     await new Promise((r) => setTimeout(r, 50));
 
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    expect(schemas.includes('tool-call-started-v1')).toBe(true);
-    expect(schemas.includes('tool-call-completed-v1')).toBe(true);
-    expect(schemas.includes('message-delta-v1')).toBe(true);
+    expect(schemas.includes("tool-call-started-v1")).toBe(true);
+    expect(schemas.includes("tool-call-completed-v1")).toBe(true);
+    expect(schemas.includes("message-delta-v1")).toBe(true);
   });
 
-  test('invokes engine.runStream with prompt, sessionId, tenant, turnId', async () => {
+  test("invokes engine.runStream with prompt, sessionId, tenant, turnId", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     expect(mocks.runStream.mock.calls.length).toBeGreaterThanOrEqual(1);
     const arg = mocks.runStream.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(arg.prompt).toBe('prompt');
+    expect(arg.prompt).toBe("prompt");
     expect(arg.sessionId).toBe(SESSION_ID);
     expect(arg.tenant).toBe(TENANT);
   });
 
-  test('forwards turn body modelCode as turnModelCode to engine.runStream', async () => {
+  test("forwards turn body modelCode as turnModelCode to engine.runStream", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'prompt', { modelCode: 'gpt-4.1' });
+    await service.startTurn(SESSION_ID, TENANT, "prompt", { modelCode: "gpt-4.1" });
     await new Promise((r) => setTimeout(r, 50));
     const arg = mocks.runStream.mock.calls[0]?.[0] as { turnModelCode?: string };
-    expect(arg.turnModelCode).toBe('gpt-4.1');
+    expect(arg.turnModelCode).toBe("gpt-4.1");
   });
 
-  test('forwards skillEmbeddingModelCode to engine.runStream', async () => {
+  test("forwards skillEmbeddingModelCode to engine.runStream", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'prompt', {
-      skillEmbeddingModelCode: 'text-embedding-3-large',
+    await service.startTurn(SESSION_ID, TENANT, "prompt", {
+      skillEmbeddingModelCode: "text-embedding-3-large",
     });
     await new Promise((r) => setTimeout(r, 50));
     const arg = mocks.runStream.mock.calls[0]?.[0] as { skillEmbeddingModelCode?: string };
-    expect(arg.skillEmbeddingModelCode).toBe('text-embedding-3-large');
+    expect(arg.skillEmbeddingModelCode).toBe("text-embedding-3-large");
   });
 
-  test('persists runtimeRefs in the inputEnvelope for this turn', async () => {
+  test("persists runtimeRefs in the inputEnvelope for this turn", async () => {
     const runtimeRefs = {
-      knowledgeBases: [{ kbId: 'kb-1', displayName: '产品知识库' }],
+      knowledgeBases: [{ kbId: "kb-1", displayName: "产品知识库" }],
     };
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'prompt', { runtimeRefs });
+    await service.startTurn(SESSION_ID, TENANT, "prompt", { runtimeRefs });
     const arg = mocks.insertRunningTurn.mock.calls[0]?.[0] as {
       inputEnvelope?: { runtimeRefs?: unknown };
     };
     expect(arg.inputEnvelope?.runtimeRefs).toEqual(runtimeRefs);
   });
 
-  test('persists multimodal content and attachments in the inputEnvelope', async () => {
+  test("persists multimodal content and attachments in the inputEnvelope", async () => {
     const content = {
-      schema: 'message-content-v1' as const,
+      schema: "message-content-v1" as const,
       blocks: [
-        { type: 'text' as const, text: 'compare' },
-        { type: 'image_ref' as const, attachmentId: 'att_01' },
+        { type: "text" as const, text: "compare" },
+        { type: "image_ref" as const, attachmentId: "att_01" },
       ],
     };
     const attachments = [
       {
-        attachmentId: 'att_01',
-        kind: 'image' as const,
-        fileId: 'file_01',
-        mimeType: 'image/png',
+        attachmentId: "att_01",
+        kind: "image" as const,
+        fileId: "file_01",
+        mimeType: "image/png",
       },
     ];
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'compare', { content, attachments });
+    await service.startTurn(SESSION_ID, TENANT, "compare", { content, attachments });
     const arg = mocks.insertRunningTurn.mock.calls[0]?.[0] as {
       inputEnvelope?: { content?: unknown; attachments?: unknown };
       userContentJson?: unknown;
@@ -412,46 +421,46 @@ describe('TurnService.startTurn — happy path', () => {
     });
   });
 
-  test('forwards runtimeRefs to engine.runStream', async () => {
+  test("forwards runtimeRefs to engine.runStream", async () => {
     const runtimeRefs = {
-      knowledgeBases: [{ kbId: 'kb-1', displayName: '产品知识库' }],
+      knowledgeBases: [{ kbId: "kb-1", displayName: "产品知识库" }],
     };
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'prompt', { runtimeRefs });
+    await service.startTurn(SESSION_ID, TENANT, "prompt", { runtimeRefs });
     await new Promise((r) => setTimeout(r, 50));
     const arg = mocks.runStream.mock.calls[0]?.[0] as { runtimeRefs?: unknown };
     expect(arg.runtimeRefs).toEqual(runtimeRefs);
   });
 
-  test('loads agent snapshot from SessionRepository and forwards it to engine.runStream', async () => {
+  test("loads agent snapshot from SessionRepository and forwards it to engine.runStream", async () => {
     const snapshot = {
-      agent: { content: { prompt: 'GLOBAL+AGENT+SUFFIX', modelConfig: { model: 'snap-default' } } },
+      agent: { content: { prompt: "GLOBAL+AGENT+SUFFIX", modelConfig: { model: "snap-default" } } },
     };
     const { service, mocks } = buildTurnService({
       sessionRow: { sessionId: SESSION_ID, agentSnapshotJson: snapshot },
     });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     const arg = mocks.runStream.mock.calls[0]?.[0] as { agentSnapshot?: unknown };
     expect(arg.agentSnapshot).toEqual(snapshot);
   });
 
-  test('completes turn in DB with tokenUsage from done.output.metadata', async () => {
+  test("completes turn in DB with tokenUsage from done.output.metadata", async () => {
     const chunks: StreamChunkPayload[] = [
-      { type: 'delta', content: 'ok' },
+      { type: "delta", content: "ok" },
       {
-        type: 'done',
+        type: "done",
         output: makeOutput({ tokenUsage: { input: 11, output: 22, total: 33 } }),
       },
     ];
     const { service, mocks } = buildTurnService({ chunks });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     expect(mocks.insertAssistantMessage.mock.calls.length).toBe(1);
     const insArg = mocks.insertAssistantMessage.mock.calls[0]?.[0] as {
       contentJson?: unknown;
     };
-    expect(insArg.contentJson).toEqual([{ type: 'text', text: 'ok' }]);
+    expect(insArg.contentJson).toEqual([{ type: "text", text: "ok" }]);
     expect(mocks.completeDb.mock.calls.length).toBe(1);
     const callArg = mocks.completeDb.mock.calls[0]?.[0] as {
       tokenUsage: { input: number; output: number; total: number };
@@ -459,93 +468,126 @@ describe('TurnService.startTurn — happy path', () => {
     expect(callArg.tokenUsage).toEqual({ input: 11, output: 22, total: 33 });
   });
 
-  test('insertRunningTurn stores user message id + prompt for messages row', async () => {
+  test("insertRunningTurn stores user message id + prompt for messages row", async () => {
     const { service, mocks } = buildTurnService();
-    await service.startTurn(SESSION_ID, TENANT, 'hello-user');
+    await service.startTurn(SESSION_ID, TENANT, "hello-user");
     const arg = mocks.insertRunningTurn.mock.calls[0]?.[0] as {
       userPromptText?: string;
       userMessageId?: string;
     };
-    expect(arg.userPromptText).toBe('hello-user');
+    expect(arg.userPromptText).toBe("hello-user");
     expect(arg.userMessageId).toMatch(/^\d{19}$/);
     const started = mocks.sseEmit.mock.calls[0]?.[2] as { payload: { userMessageId?: string } };
     expect(started.payload.userMessageId).toBe(arg.userMessageId);
   });
 
-  test('each call returns a different turnId', async () => {
+  test("each call returns a different turnId", async () => {
     const { service } = buildTurnService();
-    const t1 = await service.startTurn(SESSION_ID, TENANT, 'p1');
-    const t2 = await service.startTurn(SESSION_ID, TENANT, 'p2');
+    const t1 = await service.startTurn(SESSION_ID, TENANT, "p1");
+    const t2 = await service.startTurn(SESSION_ID, TENANT, "p2");
     expect(t1).not.toBe(t2);
   });
 });
 
-describe('TurnService.startTurn — error paths', () => {
-  test('error chunk from tachu → mapper emits turn.failed + DB.markTurnError (no duplicate emit)', async () => {
+describe("TurnService.startTurn — ownership gate (P3)", () => {
+  test("owner: findByIdAsOwner authorizes → turn proceeds", async () => {
+    const { service, mocks } = buildTurnService();
+    const turnId = await service.startTurn(SESSION_ID, TENANT, "Hello", { userId: "alice" });
+    expect(turnId).toMatch(/^\d{19}$/);
+    expect(mocks.findByIdAsOwner.mock.calls.length).toBe(1);
+    const args = mocks.findByIdAsOwner.mock.calls[0] as unknown as [number, string, string, { admin: boolean }];
+    expect(args[0]).toBe(TENANT);
+    expect(args[1]).toBe(SESSION_ID);
+    expect(args[2]).toBe("alice");
+    expect(args[3]).toEqual({ admin: false });
+  });
+
+  test("non-owner: rejects RESOURCE_NOT_FOUND_SESSION and never takes the lock or inserts a turn", async () => {
+    const { service, mocks } = buildTurnService({ ownedRow: null });
+    await expect(service.startTurn(SESSION_ID, TENANT, "Hello", { userId: "mallory" })).rejects.toMatchObject({
+      code: "RESOURCE_NOT_FOUND_SESSION",
+    });
+    expect(mocks.tryAcquire.mock.calls.length).toBe(0);
+    expect(mocks.insertRunningTurn.mock.calls.length).toBe(0);
+  });
+
+  test("admin scope: findByIdAsOwner is called with admin=true and the turn proceeds", async () => {
+    const { service, mocks } = buildTurnService();
+    await service.startTurn(SESSION_ID, TENANT, "Hello", {
+      userId: "ops",
+      scopes: [SESSION_ADMIN_SCOPE],
+    });
+    const args = mocks.findByIdAsOwner.mock.calls[0] as unknown as [number, string, string, { admin: boolean }];
+    expect(args[3]).toEqual({ admin: true });
+  });
+});
+
+describe("TurnService.startTurn — error paths", () => {
+  test("error chunk from tachu → mapper emits turn.failed + DB.markTurnError (no duplicate emit)", async () => {
     const chunks: StreamChunkPayload[] = [
       {
-        type: 'error',
-        error: new HostError('TACHU_FAIL', 'failure inside engine', { retryable: false }),
+        type: "error",
+        error: new HostError("TACHU_FAIL", "failure inside engine", { retryable: false }),
       },
     ];
     const { service, mocks } = buildTurnService({ chunks });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    const failedCount = schemas.filter((s) => s === 'turn-failed-v1').length;
+    const failedCount = schemas.filter((s) => s === "turn-failed-v1").length;
     expect(failedCount).toBe(1);
     expect(mocks.markTurnError.mock.calls.length).toBe(1);
   });
 
-  test('runStream itself throws → catch path emits turn.failed and DB.markTurnError', async () => {
+  test("runStream itself throws → catch path emits turn.failed and DB.markTurnError", async () => {
     const runStream = mock(async function* (): AsyncIterable<StreamChunk> {
-      throw new Error('engine crashed');
+      throw new Error("engine crashed");
       // eslint-disable-next-line no-unreachable
       yield {} as StreamChunk;
     });
     const { service, mocks } = buildTurnService({ runStream });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    expect(schemas.includes('turn-failed-v1')).toBe(true);
+    expect(schemas.includes("turn-failed-v1")).toBe(true);
     expect(mocks.markTurnError.mock.calls.length).toBe(1);
   });
 });
 
-describe('TurnService.startTurn — conflicts', () => {
-  test('throws RESOURCE_CONFLICT_SESSION_BUSY when lock returns false', async () => {
+describe("TurnService.startTurn — conflicts", () => {
+  test("throws RESOURCE_CONFLICT_SESSION_BUSY when lock returns false", async () => {
     const { service } = buildTurnService({ lockAcquire: false });
-    await expect(service.startTurn(SESSION_ID, TENANT, 'Hello')).rejects.toMatchObject({
-      code: 'RESOURCE_CONFLICT_SESSION_BUSY',
+    await expect(service.startTurn(SESSION_ID, TENANT, "Hello")).rejects.toMatchObject({
+      code: "RESOURCE_CONFLICT_SESSION_BUSY",
     });
   });
 
-  test('503 when Redis lock throws unavailable', async () => {
-    const err = new AgenticEngineError(503, 'UNAVAILABLE_LOCK_SERVICE', 'Redis down');
+  test("503 when Redis lock throws unavailable", async () => {
+    const err = new AgenticEngineError(503, "UNAVAILABLE_LOCK_SERVICE", "Redis down");
     const { service } = buildTurnService({ lockAcquire: err });
-    await expect(service.startTurn(SESSION_ID, TENANT, 'x')).rejects.toMatchObject({
+    await expect(service.startTurn(SESSION_ID, TENANT, "x")).rejects.toMatchObject({
       httpStatus: 503,
     });
   });
 });
 
-describe('TurnService.startTurn — idempotency', () => {
-  test('returns cached turnId when Idempotency-Key hits Redis', async () => {
-    const cached = JSON.stringify({ turnId: '1000000000000000002' });
+describe("TurnService.startTurn — idempotency", () => {
+  test("returns cached turnId when Idempotency-Key hits Redis", async () => {
+    const cached = JSON.stringify({ turnId: "1000000000000000002" });
     const { service, mocks } = buildTurnService({ redisGet: cached });
-    const turnId = await service.startTurn(SESSION_ID, TENANT, 'Hello', {
-      idempotencyKey: 'idem-1',
+    const turnId = await service.startTurn(SESSION_ID, TENANT, "Hello", {
+      idempotencyKey: "idem-1",
     });
-    expect(turnId).toBe('1000000000000000002');
+    expect(turnId).toBe("1000000000000000002");
     expect(mocks.release.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('TurnService — usage.llm_call outbox emission', () => {
-  test('emits usage.llm_call to outbox after successful turn', async () => {
+describe("TurnService — usage.llm_call outbox emission", () => {
+  test("emits usage.llm_call to outbox after successful turn", async () => {
     const outboxAppend = mock(async () => {});
     const { service } = buildTurnService({ outboxAppend });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     expect(outboxAppend.mock.calls.length).toBe(1);
     const call = outboxAppend.mock.calls[0] as unknown as [
@@ -559,43 +601,41 @@ describe('TurnService — usage.llm_call outbox emission', () => {
       },
     ];
     const row = call[1];
-    expect(row.channel).toBe('usage_event');
-    expect(row.eventType).toBe('usage.llm_call');
+    expect(row.channel).toBe("usage_event");
+    expect(row.eventType).toBe("usage.llm_call");
     expect(row.tenant).toBe(TENANT);
-    expect(row.target).toBe('agentic-usage-events');
+    expect(row.target).toBe("agentic-usage-events");
     expect(row.payloadJson.sessionId).toBe(SESSION_ID);
   });
 
-  test('outbox failure does not break turn completion', async () => {
+  test("outbox failure does not break turn completion", async () => {
     const outboxAppend = mock(async () => {
-      throw new Error('outbox down');
+      throw new Error("outbox down");
     });
     const { service, mocks } = buildTurnService({ outboxAppend });
-    await service.startTurn(SESSION_ID, TENANT, 'prompt');
+    await service.startTurn(SESSION_ID, TENANT, "prompt");
     await new Promise((r) => setTimeout(r, 50));
     expect(mocks.completeDb.mock.calls.length).toBe(1);
-    expect(
-      schemasFromSse(mocks.sseEmit.mock.calls).includes('turn-completed-v1'),
-    ).toBe(true);
+    expect(schemasFromSse(mocks.sseEmit.mock.calls).includes("turn-completed-v1")).toBe(true);
   });
 });
 
-describe('TurnService.cancel / complete', () => {
-  test('cancelTurn calls engine.cancel(sessionId, reason) and DB.cancelTurn + SSE turn.cancelled', async () => {
+describe("TurnService.cancel / complete", () => {
+  test("cancelTurn calls engine.cancel(sessionId, reason) and DB.cancelTurn + SSE turn.cancelled", async () => {
     const { service, mocks } = buildTurnService();
-    await service.cancelTurn('1000000000000000005', TENANT, 'USER_REQUEST');
+    await service.cancelTurn("1000000000000000005", TENANT, "USER_REQUEST");
 
     expect(mocks.cancel.mock.calls.length).toBe(1);
     const cancelArg = mocks.cancel.mock.calls[0] as unknown as [string, string?];
     expect(cancelArg[0]).toBe(SESSION_ID);
     expect(mocks.cancelDb.mock.calls.length).toBe(1);
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    expect(schemas.includes('turn-cancelled-v1')).toBe(true);
+    expect(schemas.includes("turn-cancelled-v1")).toBe(true);
   });
 
-  test('completeTurn writes token usage envelope and emits SSE', async () => {
+  test("completeTurn writes token usage envelope and emits SSE", async () => {
     const { service, mocks } = buildTurnService();
-    await service.completeTurn('1000000000000000006', TENANT, '1000000000000000007', {
+    await service.completeTurn("1000000000000000006", TENANT, "1000000000000000007", {
       input: 1,
       output: 2,
       total: 3,
@@ -603,6 +643,6 @@ describe('TurnService.cancel / complete', () => {
 
     expect(mocks.completeDb.mock.calls.length).toBe(1);
     const schemas = schemasFromSse(mocks.sseEmit.mock.calls);
-    expect(schemas.includes('turn-completed-v1')).toBe(true);
+    expect(schemas.includes("turn-completed-v1")).toBe(true);
   });
 });

@@ -30,6 +30,7 @@ import { MetricsRegistry } from "../../../packages/agent/engine/src/infra/observ
 import { createRateLimitMiddleware } from "../../../packages/agent/engine/src/infra/rate-limit/rate-limit.middleware";
 import { RedisRateLimiter } from "../../../packages/agent/engine/src/infra/rate-limit/redis-rate-limiter";
 import { NacosSecretsLoader } from "../../../packages/agent/engine/src/infra/secrets/nacos-secrets.loader";
+import { provisionSfidNodeFromContainer } from "../../../packages/agent/engine/src/infra/sfid/sfid-node-provisioning";
 import { createTenantContextMiddleware } from "../../../packages/agent/engine/src/infra/tenant-guard/tenant-context.middleware";
 import { TenantContextService } from "../../../packages/agent/engine/src/infra/tenant-guard/tenant-context.service";
 import { AiCenterAssembler } from "./assembler/ai-center-assembler";
@@ -96,6 +97,11 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
 
   const secretsLoader = container.resolve(NacosSecretsLoader) as NacosSecretsLoader;
   await secretsLoader.load();
+
+  // Fix A (串消息根因): 确定进程唯一 SFID nodeId（显式 env → Redis 节点租约 →
+  // fail-closed），必须在任何 mint SFID 的启动步骤之前。
+  const sfidLog = (container.resolve(LoggerFactory) as LoggerFactory).getLogger("agentic.engine.sfid");
+  await provisionSfidNodeFromContainer(container, sfidLog);
 
   const descriptorLoader = container.resolve(DescriptorLoader) as DescriptorLoader;
   await descriptorLoader.start();
