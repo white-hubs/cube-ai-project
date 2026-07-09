@@ -117,10 +117,6 @@ export function scoreSkillsByKeyword(
       }
     }
 
-    if (best <= 0) {
-      continue;
-    }
-
     const explicitSkillIntent = /(?:使用|用)[\u4e00-\u9fa5a-z0-9-]{2,40}技能/u.test(query) || /(?:load|use)\s+[\w-]+\s+skill/i.test(query);
 
     const chartIntent =
@@ -139,13 +135,44 @@ export function scoreSkillsByKeyword(
         queryNorm.includes("report")) &&
       (skill.tags?.includes("report") === true || skill.tags?.includes("dashboard") === true || skill.name === "html-output");
 
+    // Twin / UE5 scene control → model-interact（含「进入…漫游」等，不依赖描述子串先命中）
+    const modelInteractIntent =
+      (queryNorm.includes("切换天气") ||
+        queryNorm.includes("切换时间") ||
+        queryNorm.includes("白天") ||
+        queryNorm.includes("黄昏") ||
+        queryNorm.includes("夜晚") ||
+        queryNorm.includes("环游") ||
+        queryNorm.includes("漫游") ||
+        queryNorm.includes("俯瞰") ||
+        queryNorm.includes("鸟瞰") ||
+        queryNorm.includes("默认视角") ||
+        queryNorm.includes("驾驶模式") ||
+        queryNorm.includes("全屏") ||
+        queryNorm.includes("功能菜单") ||
+        queryNorm.includes("画质") ||
+        queryNorm.includes("设备详情") ||
+        queryNorm.includes("设备监控") ||
+        queryNorm.includes("开灯") ||
+        queryNorm.includes("关灯") ||
+        queryNorm.includes("照明回路")) &&
+      (skill.tags?.includes("model-command") === true ||
+        skill.tags?.includes("twin") === true ||
+        skill.tags?.includes("roam") === true ||
+        skill.name === "model-interact");
+
+    if (best <= 0 && !chartIntent && !reportIntent && !modelInteractIntent) {
+      continue;
+    }
+
     let promote =
       reason === "keyword:exact-name" ||
       reason === "keyword:exact-display" ||
       reason === "keyword:name-substring" ||
       (explicitSkillIntent && best >= 0.003) ||
       chartIntent ||
-      reportIntent;
+      reportIntent ||
+      modelInteractIntent;
 
     if (chartIntent && best < 0.9) {
       best = 0.9;
@@ -153,6 +180,9 @@ export function scoreSkillsByKeyword(
     } else if (reportIntent && best < 0.9) {
       best = 0.9;
       reason = "keyword:report-intent";
+    } else if (modelInteractIntent && best < 0.9) {
+      best = 0.9;
+      reason = "keyword:model-interact-intent";
     } else if (explicitSkillIntent && !promote) {
       promote = true;
       reason = `${reason}+explicit-skill-intent`;
