@@ -1,6 +1,6 @@
 {
   "name": "@cube-ai/agent-sdk-client-mock",
-  "version": "0.0.1-alpha.17",
+  "version": "0.0.1-alpha.18",
   "description": "In-process mock engine for SDK tests and local Storybook-style demos. Speaks the same Zod contracts as the real engine.",
   "files": [
     "dist",
