@@ -205,7 +205,10 @@ export const ProposeResultSchema = z.object({
 export type ProposeResult = z.infer<typeof ProposeResultSchema>;
 
 export const TenantDescriptorViewSchema = z.object({
-  /** head 版本内容（按 kind 再 parse） */
+  /**
+   * head 版本内容（按 kind 再 parse）。
+   * 技能列表 GET /skills 会省略 `instructions`（详情与六项配置），完整内容见 GET /skills/:id。
+   */
   content: z.unknown(),
   createTime: z.number(),
   hasUnpublishedChanges: z.boolean(),

@@ -69,6 +69,7 @@ function fakeListingRepo(over: Partial<DescriptorListingRepository> = {}): Descr
     list: mock(),
     unlist: mock(),
     browseListed: mock(),
+    getListed: mock(),
     ...over,
   } as unknown as DescriptorListingRepository;
 }

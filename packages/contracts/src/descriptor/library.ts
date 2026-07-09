@@ -12,6 +12,7 @@ const LibraryItemBaseSchema = z.object({
 });
 
 const TenantLibraryItemViewSchema = LibraryItemBaseSchema.extend({
+  /** 仅详情 GET 返回；browse 列表不含 content（避免列表带出 prompt/instructions）。 */
   content: z.unknown().optional(),
   sharedVersionNo: z.number().int().optional(),
   tier: z.literal("tenant"),

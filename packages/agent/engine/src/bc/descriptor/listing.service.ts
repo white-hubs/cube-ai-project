@@ -17,7 +17,10 @@ export interface DescriptorListingRepository {
   get(tenant: number, descriptorId: string): Promise<DescriptorListingView | null>;
   list(tenant: number, descriptorId: string, versionNo: number, actor: string): Promise<DescriptorListingView>;
   unlist(tenant: number, descriptorId: string, actor: string): Promise<DescriptorListingView>;
+  /** 库列表：仅元数据，不含 content 正文。 */
   browseListed(tenant: number, kind: "agent" | "skill"): Promise<LibraryItemView[]>;
+  /** 库详情：租户已上架项带完整 content。 */
+  getListed(tenant: number, kind: "agent" | "skill", ref: string): Promise<LibraryItemView | null>;
 }
 
 export interface LibraryBrowseOptions {
@@ -163,7 +166,11 @@ export class LibraryService {
     if (isEngineInternalLibraryRef(kind, ref)) {
       throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Library item not found: ${ref}`, { ref, kind });
     }
-    const item = (await this.browse(tenant, kind)).find((candidate) => candidate.ref === ref);
+    const listed = await this.listings.getListed(tenant, kind, ref);
+    if (listed) {
+      return listed;
+    }
+    const item = (await this.browse(tenant, kind, { tier: "system" })).find((candidate) => candidate.ref === ref);
     if (!item) {
       throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Library item not found: ${ref}`, { ref, kind });
     }
