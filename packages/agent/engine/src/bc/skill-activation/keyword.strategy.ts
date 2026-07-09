@@ -127,16 +127,32 @@ export function scoreSkillsByKeyword(
       (queryNorm.includes("图表") || queryNorm.includes("可视化")) &&
       (skill.tags?.includes("chart") === true || skill.name === "chart-output");
 
+    // Report / dashboard intent → html-output (sibling of chartIntent). Report-style
+    // asks are lower-frequency than charts, so html-output stays semantic (not resident);
+    // this promotes it to Active only when the turn actually asks for a report/看板/大屏.
+    const reportIntent =
+      (queryNorm.includes("报告") ||
+        queryNorm.includes("报表") ||
+        queryNorm.includes("看板") ||
+        queryNorm.includes("大屏") ||
+        queryNorm.includes("dashboard") ||
+        queryNorm.includes("report")) &&
+      (skill.tags?.includes("report") === true || skill.tags?.includes("dashboard") === true || skill.name === "html-output");
+
     let promote =
       reason === "keyword:exact-name" ||
       reason === "keyword:exact-display" ||
       reason === "keyword:name-substring" ||
       (explicitSkillIntent && best >= 0.003) ||
-      chartIntent;
+      chartIntent ||
+      reportIntent;
 
     if (chartIntent && best < 0.9) {
       best = 0.9;
       reason = "keyword:chart-intent";
+    } else if (reportIntent && best < 0.9) {
+      best = 0.9;
+      reason = "keyword:report-intent";
     } else if (explicitSkillIntent && !promote) {
       promote = true;
       reason = `${reason}+explicit-skill-intent`;
