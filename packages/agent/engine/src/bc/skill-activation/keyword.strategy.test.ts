@@ -88,34 +88,20 @@ describe("scoreSkillsByKeyword", () => {
     expect(chart?.promote).toBe(false);
   });
 
-  test("Chinese twin scene intent promotes model-interact to T0", () => {
+  test("model-interact matches via description keywords without dedicated intent promote", () => {
     const hits = scoreSkillsByKeyword("切换天气到晴天", [
       makeSkill({
         name: "model-interact",
         displayName: "模型交互",
-        description: "数字孪生模型操控：时间天气视角环游漫游",
+        description: "切换天气 切换时间 漫游 画质 数字孪生模型操控",
         tags: ["twin", "model-command", "ue5"],
       }),
     ]);
     expect(hits.length).toBe(1);
     expect(hits[0]?.skill.name).toBe("model-interact");
-    expect(hits[0]?.promote).toBe(true);
-    expect(hits[0]?.score).toBeGreaterThanOrEqual(0.9);
-    expect(hits[0]?.reason).toBe("keyword:model-interact-intent");
-  });
-
-  test("enter roam route intent promotes model-interact even without description hit", () => {
-    const hits = scoreSkillsByKeyword("进入办公区漫游路线", [
-      makeSkill({
-        name: "model-interact",
-        displayName: "模型交互",
-        description: "scene control sdk",
-        tags: ["twin", "model-command", "roam"],
-      }),
-    ]);
-    expect(hits[0]?.skill.name).toBe("model-interact");
-    expect(hits[0]?.promote).toBe(true);
-    expect(hits[0]?.reason).toBe("keyword:model-interact-intent");
+    expect(hits[0]?.reason).toBe("keyword:description-substring");
+    // 无 modelInteractIntent：不强制 promote，靠技能描述命中即可进入候选
+    expect(hits[0]?.promote).toBe(false);
   });
 
   test("excludes snapshot-pinned names", () => {

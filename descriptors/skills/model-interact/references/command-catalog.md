@@ -36,10 +36,16 @@
 
 ## toggleRevolve — 开启/关闭环游
 
-`params.value`：`true` 开启，`false` 关闭
+`params.value`：**必须**带布尔：`true` 开启，`false` 关闭。  
+已在环游时再发「开启」应输出 `true`（宿主幂等，不会误关）；关闭同理输出 `false`。  
+禁止无参纯翻转。
 
 ```json
 { "action": "toggleRevolve", "params": { "value": true } }
+```
+
+```json
+{ "action": "toggleRevolve", "params": { "value": false } }
 ```
 
 ## changePerspectiveDefault — 切换到默认视角
@@ -66,7 +72,12 @@
 
 ## changePerspectiveFloor — 切换到指定楼栋楼层视角
 
-`params.building`：楼栋名；`params.floor`：楼层（数字）
+- `params.building`：楼栋名关键词（禁止用 `buildingName`）
+- `params.floor`：楼层说法，可用数字/`3楼`/`顶层`/`底层` 等
+
+```json
+{ "action": "changePerspectiveFloor", "params": { "building": "华威一号楼", "floor": "顶层" } }
+```
 
 ```json
 { "action": "changePerspectiveFloor", "params": { "building": "行政大楼", "floor": 3 } }
