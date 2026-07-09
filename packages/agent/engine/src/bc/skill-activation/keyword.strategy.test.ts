@@ -88,6 +88,22 @@ describe("scoreSkillsByKeyword", () => {
     expect(chart?.promote).toBe(false);
   });
 
+  test("model-interact matches via description keywords without dedicated intent promote", () => {
+    const hits = scoreSkillsByKeyword("切换天气到晴天", [
+      makeSkill({
+        name: "model-interact",
+        displayName: "模型交互",
+        description: "切换天气 切换时间 漫游 画质 数字孪生模型操控",
+        tags: ["twin", "model-command", "ue5"],
+      }),
+    ]);
+    expect(hits.length).toBe(1);
+    expect(hits[0]?.skill.name).toBe("model-interact");
+    expect(hits[0]?.reason).toBe("keyword:description-substring");
+    // 无 modelInteractIntent：不强制 promote，靠技能描述命中即可进入候选
+    expect(hits[0]?.promote).toBe(false);
+  });
+
   test("excludes snapshot-pinned names", () => {
     const hits = scoreSkillsByKeyword(
       "chart-output",

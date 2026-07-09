@@ -86,6 +86,7 @@ export function buildShelfService(c: Container): ShelfService {
     new UserShelfRepositoryImpl(pool, sharedSfidService),
     buildListingRepository(c),
     new TenantDescriptorRepositoryImpl(pool, sharedSfidService),
+    buildSystemSource(c),
   );
 }
 

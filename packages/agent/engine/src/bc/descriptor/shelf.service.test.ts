@@ -69,6 +69,7 @@ function fakeListingRepo(over: Partial<DescriptorListingRepository> = {}): Descr
     list: mock(),
     unlist: mock(),
     browseListed: mock(),
+    getListed: mock(),
     ...over,
   } as unknown as DescriptorListingRepository;
 }
@@ -240,5 +241,61 @@ describe("ShelfService", () => {
 
     const listed = await svc.list(7, "bob", "agent");
     expect(listed.map((entry) => entry.targetId)).toEqual(["1934000000000000001"]);
+  });
+
+  test("empty agent shelf auto-installs system agents once", async () => {
+    const inserted: string[] = [];
+    let shelf: ShelfEntryView[] = [];
+    const shelfRepo = fakeShelfRepo({
+      listByUser: mock(async () => shelf),
+      findByTarget: mock(async (_t, _u, targetId) => shelf.find((e) => e.targetId === targetId) ?? null),
+      insertRef: mock(async (_t, _u, kind, targetId) => {
+        const entry = fakeEntry({
+          id: `she_${targetId}`,
+          targetKind: kind,
+          targetId,
+          displayName: targetId,
+          effectiveVersionNo: null,
+        });
+        inserted.push(targetId);
+        shelf = [...shelf, entry];
+        return entry;
+      }),
+    });
+    const systemSource = {
+      systemAgents: mock(async () => [
+        { name: "1934000000000000001", displayName: "安全智能体" },
+        { name: "1934000000000000002", displayName: "孪生智能体" },
+      ]),
+    };
+    const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo(), systemSource);
+
+    const first = await svc.list(7, "new-user", "agent");
+    expect(inserted).toEqual(["1934000000000000001", "1934000000000000002"]);
+    expect(first.map((e) => e.targetId)).toEqual(["1934000000000000001", "1934000000000000002"]);
+    expect(systemSource.systemAgents).toHaveBeenCalledTimes(1);
+
+    const second = await svc.list(7, "new-user", "agent");
+    expect(inserted).toHaveLength(2);
+    expect(second.map((e) => e.targetId)).toEqual(["1934000000000000001", "1934000000000000002"]);
+    expect(systemSource.systemAgents).toHaveBeenCalledTimes(1);
+  });
+
+  test("non-empty agent shelf skips system agent auto-install", async () => {
+    const shelfRepo = fakeShelfRepo({
+      listByUser: mock(async () => [fakeEntry({ targetId: "agt_mine", displayName: "我的助手" })]),
+      insertRef: mock(async () => {
+        throw new Error("should not insert");
+      }),
+    });
+    const systemSource = {
+      systemAgents: mock(async () => [{ name: "1934000000000000001", displayName: "安全智能体" }]),
+    };
+    const svc = new ShelfService(shelfRepo, fakeListingRepo(), fakeDescriptorRepo(), systemSource);
+
+    const listed = await svc.list(7, "bob", "agent");
+    expect(listed.map((e) => e.targetId)).toEqual(["agt_mine"]);
+    expect(systemSource.systemAgents).not.toHaveBeenCalled();
+    expect(shelfRepo.insertRef).not.toHaveBeenCalled();
   });
 });

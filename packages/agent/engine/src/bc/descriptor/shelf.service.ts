@@ -8,7 +8,7 @@ import {
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import { assertUserShelfInstallAllowed } from "./engine-internal-guard";
-import type { DescriptorListingRepository } from "./listing.service";
+import type { DescriptorListingRepository, LibrarySystemSource } from "./listing.service";
 import type { TenantDescriptorRepository } from "./tenant-descriptor.repository";
 
 export interface UserShelfRepository {
@@ -42,14 +42,40 @@ export class ShelfService {
     private readonly shelves: UserShelfRepository,
     private readonly listings: DescriptorListingRepository,
     private readonly descriptors: TenantDescriptorRepository,
+    /** 系统级 agent 源；缺省时不做新用户默认安装（单测 / 无 DescriptorLoader 场景）。 */
+    private readonly systemSource?: Pick<LibrarySystemSource, "systemAgents">,
   ) {}
 
   async list(tenant: number, userId: string, kind: "agent" | "skill", opts: ShelfListOptions = {}): Promise<ShelfEntryView[]> {
+    if (kind === "agent") {
+      await this.ensureDefaultSystemAgents(tenant, userId);
+    }
     const entries = filterUserVisibleShelfEntries(await this.shelves.listByUser(tenant, userId, kind));
     return entries
       .filter((entry) => opts.enabled === undefined || entry.enabled === opts.enabled)
       .filter((entry) => opts.source === undefined || entry.source === opts.source)
       .map((entry) => this.withRunnableStatus(entry));
+  }
+
+  /**
+   * 新用户货架为空时，把库中全部系统级智能体（descriptor 索引、非 engine-internal）
+   * 以 floating ref 装入「我的智能体」。已有任意货架条目则跳过，避免用户卸载后被反复塞回。
+   */
+  private async ensureDefaultSystemAgents(tenant: number, userId: string): Promise<void> {
+    if (!this.systemSource) return;
+    const existing = filterUserVisibleShelfEntries(await this.shelves.listByUser(tenant, userId, "agent"));
+    if (existing.length > 0) return;
+
+    const systemAgents = await this.systemSource.systemAgents();
+    for (const agent of systemAgents) {
+      const ref = agent.name?.trim();
+      if (!ref) continue;
+      try {
+        await this.install(tenant, userId, "agent", { ref, mode: "ref" });
+      } catch {
+        // 单个系统 agent 安装失败不阻塞其余；列表仍返回当前已成功写入的条目。
+      }
+    }
   }
 
   async install(tenant: number, userId: string, kind: "agent" | "skill", req: InstallRequest): Promise<ShelfEntryView> {

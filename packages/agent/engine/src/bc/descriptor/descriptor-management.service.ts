@@ -42,6 +42,16 @@ const CONTENT_SCHEMA: Record<TenantDescriptorKind, ZodType> = {
 
 const NULL_TX = null as unknown as TransactionContext;
 
+/** 技能列表摘要：去掉 instructions（含技能详情与六项配置），保留元数据。 */
+function stripSkillListContent(view: TenantDescriptorView): TenantDescriptorView {
+  const content = view.content;
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    return view;
+  }
+  const { instructions: _instructions, ...meta } = content as Record<string, unknown>;
+  return { ...view, content: meta };
+}
+
 /**
  * name 政策单点（ADR-0033）：租户内唯一 key，fail-closed 限定小写 kebab（displayName 可含中文，name 不可）。
  * 空 → "required"；非法字符集 → 明确 slug 报错。三面（create / fromDocument / MCP ops）统一经此。
@@ -387,8 +397,13 @@ export class DescriptorManagementService {
     return view;
   }
 
-  list(tenant: number, kind: TenantDescriptorKind): Promise<TenantDescriptorView[]> {
-    return this.repo.list(tenant, kind);
+  async list(tenant: number, kind: TenantDescriptorKind): Promise<TenantDescriptorView[]> {
+    const items = await this.repo.list(tenant, kind);
+    // 列表不返回正文：技能详情 / 六项配置在 instructions 里，点详情再 GET :id。
+    if (kind !== "skill") {
+      return items;
+    }
+    return items.map((item) => stripSkillListContent(item));
   }
 
   async get(tenant: number, id: string): Promise<TenantDescriptorView> {
