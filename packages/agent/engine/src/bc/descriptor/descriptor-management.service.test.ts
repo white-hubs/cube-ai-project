@@ -92,6 +92,43 @@ function fakeOutbox(): OutboxWriter {
 }
 
 describe("DescriptorManagementService — validation + lifecycle orchestration", () => {
+  test("list skills strips instructions (detail/six-config stay on GET :id)", async () => {
+    const repo = fakeRepo({
+      list: mock(async () => [
+        fakeView({
+          id: "skl_1",
+          kind: "skill",
+          name: "review",
+          content: {
+            displayName: "评审",
+            description: "审 diff",
+            instructions: "## 技能详情\n长文\n## 使用示例\n示例",
+            tags: ["t"],
+          },
+        }),
+      ]),
+    });
+    const svc = new DescriptorManagementService(repo);
+    const items = await svc.list(7, "skill");
+    expect(items).toHaveLength(1);
+    expect(items[0]?.content).toEqual({
+      displayName: "评审",
+      description: "审 diff",
+      tags: ["t"],
+    });
+    expect(JSON.stringify(items)).not.toContain("使用示例");
+  });
+
+  test("list agents keeps content unchanged", async () => {
+    const content = { prompt: "hi", displayName: "A" };
+    const repo = fakeRepo({
+      list: mock(async () => [fakeView({ id: "agt_1", kind: "agent", content })]),
+    });
+    const svc = new DescriptorManagementService(repo);
+    const items = await svc.list(7, "agent");
+    expect(items[0]?.content).toEqual(content);
+  });
+
   test("create rejects missing name", async () => {
     const svc = new DescriptorManagementService(fakeRepo());
     await expect(svc.create(1, "rule", { content: { content: "x" } })).rejects.toMatchObject({

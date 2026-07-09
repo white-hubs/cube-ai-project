@@ -1,7 +1,9 @@
-import type { Pool, RowDataPacket } from 'mysql2/promise';
-import type { DescriptorListingView, LibraryItemView } from '@cube-ai/contracts';
-import { AgenticEngineError } from '../../infra/errors/agentic-error';
-import type { DescriptorListingRepository } from './listing.service';
+import type { Pool, RowDataPacket } from "mysql2/promise";
+
+import type { DescriptorListingView, LibraryItemView } from "@cube-ai/contracts";
+
+import { AgenticEngineError } from "../../infra/errors/agentic-error";
+import type { DescriptorListingRepository } from "./listing.service";
 
 interface ListingRow extends RowDataPacket {
   descriptor_id: string;
@@ -14,13 +16,13 @@ interface ListingRow extends RowDataPacket {
 }
 
 interface LibraryRow extends ListingRow {
-  kind: 'agent' | 'skill';
+  kind: "agent" | "skill";
   content_json: unknown;
 }
 
 function toEpochMs(v: Date | string | number | null): number | null {
   if (v == null) return null;
-  if (typeof v === 'number') return v;
+  if (typeof v === "number") return v;
   if (v instanceof Date) return v.getTime();
   const t = new Date(v).getTime();
   return Number.isNaN(t) ? 0 : t;
@@ -28,8 +30,8 @@ function toEpochMs(v: Date | string | number | null): number | null {
 
 function parseJsonColumn(raw: unknown): unknown {
   if (raw == null) return null;
-  if (typeof raw === 'object') return raw;
-  if (typeof raw === 'string') {
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") {
     try {
       return JSON.parse(raw);
     } catch {
@@ -50,20 +52,32 @@ function listingView(row: ListingRow): DescriptorListingView {
   };
 }
 
-function tenantLibraryItem(row: LibraryRow): LibraryItemView {
+function tenantLibraryMeta(
+  row: LibraryRow,
+): Pick<LibraryItemView, "ref" | "kind" | "tier" | "displayName" | "description" | "tags" | "sharedVersionNo"> {
   const content = parseJsonColumn(row.content_json);
-  const meta = content && typeof content === 'object'
-    ? (content as Record<string, unknown>)
-    : {};
+  const meta = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
   return {
     ref: row.descriptor_id,
     kind: row.kind,
-    tier: 'tenant',
-    ...(typeof meta.displayName === 'string' ? { displayName: meta.displayName } : {}),
-    ...(typeof meta.description === 'string' ? { description: meta.description } : {}),
-    ...(Array.isArray(meta.tags) ? { tags: meta.tags.filter((t): t is string => typeof t === 'string') } : {}),
+    tier: "tenant",
+    ...(typeof meta.displayName === "string" ? { displayName: meta.displayName } : {}),
+    ...(typeof meta.description === "string" ? { description: meta.description } : {}),
+    ...(Array.isArray(meta.tags) ? { tags: meta.tags.filter((t): t is string => typeof t === "string") } : {}),
     sharedVersionNo: Number(row.shared_version_no),
-    content,
+  };
+}
+
+/** 库列表摘要：只暴露元数据，不含 prompt/instructions 等正文。 */
+function tenantLibraryItemSummary(row: LibraryRow): LibraryItemView {
+  return tenantLibraryMeta(row);
+}
+
+/** 库详情：同租户已上架资产可读完整 content（ADR-0030 D9）。 */
+function tenantLibraryItemDetail(row: LibraryRow): LibraryItemView {
+  return {
+    ...tenantLibraryMeta(row),
+    content: parseJsonColumn(row.content_json),
   };
 }
 
@@ -73,8 +87,8 @@ export class DescriptorListingRepositoryImpl implements DescriptorListingReposit
   private get pool(): Pool {
     if (!this.poolOrNull) {
       throw AgenticEngineError.fromCode(
-        'INTERNAL_UNKNOWN',
-        'MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL for descriptor listing',
+        "INTERNAL_UNKNOWN",
+        "MySQL pool is not configured — set AGENTIC_ENGINE_MYSQL_URL for descriptor listing",
         {},
       );
     }
@@ -91,12 +105,7 @@ export class DescriptorListingRepositoryImpl implements DescriptorListingReposit
     return rows[0] ? listingView(rows[0]) : null;
   }
 
-  async list(
-    tenant: number,
-    descriptorId: string,
-    versionNo: number,
-    actor: string,
-  ): Promise<DescriptorListingView> {
+  async list(tenant: number, descriptorId: string, versionNo: number, actor: string): Promise<DescriptorListingView> {
     const now = new Date();
     await this.pool.execute(
       `INSERT INTO descriptor_listing (
@@ -115,20 +124,12 @@ export class DescriptorListingRepositoryImpl implements DescriptorListingReposit
     );
     const view = await this.get(tenant, descriptorId);
     if (!view) {
-      throw AgenticEngineError.fromCode(
-        'INTERNAL_UNKNOWN',
-        'Descriptor listing not visible after list',
-        { descriptorId },
-      );
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Descriptor listing not visible after list", { descriptorId });
     }
     return view;
   }
 
-  async unlist(
-    tenant: number,
-    descriptorId: string,
-    actor: string,
-  ): Promise<DescriptorListingView> {
+  async unlist(tenant: number, descriptorId: string, actor: string): Promise<DescriptorListingView> {
     const now = new Date();
     const [res] = await this.pool.execute(
       `UPDATE descriptor_listing
@@ -138,24 +139,16 @@ export class DescriptorListingRepositoryImpl implements DescriptorListingReposit
     );
     const affected = (res as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
-      throw AgenticEngineError.fromCode(
-        'RESOURCE_NOT_FOUND_DESCRIPTOR',
-        `Descriptor listing not found: ${descriptorId}`,
-        { descriptorId },
-      );
+      throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Descriptor listing not found: ${descriptorId}`, { descriptorId });
     }
     const view = await this.get(tenant, descriptorId);
     if (!view) {
-      throw AgenticEngineError.fromCode(
-        'INTERNAL_UNKNOWN',
-        'Descriptor listing not visible after unlist',
-        { descriptorId },
-      );
+      throw AgenticEngineError.fromCode("INTERNAL_UNKNOWN", "Descriptor listing not visible after unlist", { descriptorId });
     }
     return view;
   }
 
-  async browseListed(tenant: number, kind: 'agent' | 'skill'): Promise<LibraryItemView[]> {
+  async browseListed(tenant: number, kind: "agent" | "skill"): Promise<LibraryItemView[]> {
     const [rows] = await this.pool.execute<LibraryRow[]>(
       `SELECT l.*, d.kind, v.content_json
        FROM descriptor_listing l
@@ -169,6 +162,23 @@ export class DescriptorListingRepositoryImpl implements DescriptorListingReposit
        ORDER BY l.update_time DESC`,
       [tenant, kind],
     );
-    return rows.map(tenantLibraryItem);
+    return rows.map(tenantLibraryItemSummary);
+  }
+
+  async getListed(tenant: number, kind: "agent" | "skill", ref: string): Promise<LibraryItemView | null> {
+    const [rows] = await this.pool.execute<LibraryRow[]>(
+      `SELECT l.*, d.kind, v.content_json
+       FROM descriptor_listing l
+       JOIN tenant_descriptors d
+         ON d.id = l.descriptor_id AND d.tenant = l.tenant AND d.deleted = 0
+       JOIN tenant_descriptor_versions v
+         ON v.descriptor_id = l.descriptor_id
+        AND v.tenant = l.tenant
+        AND v.version_no = l.shared_version_no
+       WHERE l.tenant = ? AND l.listed = 1 AND d.kind = ? AND l.descriptor_id = ?
+       LIMIT 1`,
+      [tenant, kind, ref],
+    );
+    return rows[0] ? tenantLibraryItemDetail(rows[0]) : null;
   }
 }

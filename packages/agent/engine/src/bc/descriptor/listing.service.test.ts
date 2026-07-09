@@ -66,10 +66,21 @@ function fakeListingRepo(over: Partial<DescriptorListingRepository> = {}): Descr
               tier: "tenant",
               displayName: "Support",
               sharedVersionNo: 1,
-              content: { prompt: "published" },
             } satisfies LibraryItemView,
           ]
         : [],
+    ),
+    getListed: mock(async (_tenant: number, kind: "agent" | "skill", ref: string) =>
+      kind === "agent" && ref === "agt_1"
+        ? ({
+            ref: "agt_1",
+            kind: "agent",
+            tier: "tenant",
+            displayName: "Support",
+            sharedVersionNo: 1,
+            content: { prompt: "published" },
+          } satisfies LibraryItemView)
+        : null,
     ),
     ...over,
   };
@@ -162,7 +173,6 @@ describe("LibraryService", () => {
       tier: "tenant",
       displayName: "Support",
       sharedVersionNo: 1,
-      content: { prompt: "published" },
     });
     expect(agents).toContainEqual({
       ref: "builtin-agent",
@@ -172,6 +182,7 @@ describe("LibraryService", () => {
       description: "system capability",
     });
     expect(JSON.stringify(agents)).not.toContain("must stay hidden");
+    expect(JSON.stringify(agents)).not.toContain("published");
 
     const skills = await svc.browse(7, "skill");
     expect(skills).toEqual([
@@ -205,7 +216,6 @@ describe("LibraryService", () => {
         tier: "tenant",
         displayName: "Support",
         sharedVersionNo: 1,
-        content: { prompt: "published" },
       },
     ]);
     expect(await svc.browse(7, "agent", { tier: "system" })).toEqual([

@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { AvailableToolViewSchema, InstallToolRequestSchema, LibraryItemViewSchema, PluginCatalogItemViewSchema } from "./index";
 
 describe("library item schemas", () => {
-  it("allows tenant library items to expose shared content", () => {
+  it("allows tenant library detail items to expose shared content", () => {
     const parsed = LibraryItemViewSchema.parse({
       content: { prompt: "Help support users." },
       description: "Helps support users",
@@ -17,6 +17,21 @@ describe("library item schemas", () => {
 
     expect(parsed.tier).toBe("tenant");
     expect(parsed.content).toEqual({ prompt: "Help support users." });
+  });
+
+  it("allows tenant library browse items without content", () => {
+    const parsed = LibraryItemViewSchema.parse({
+      description: "Helps support users",
+      displayName: "Support Agent",
+      kind: "skill",
+      ref: "skl_123",
+      sharedVersionNo: 2,
+      tags: ["ops"],
+      tier: "tenant",
+    });
+
+    expect(parsed.tier).toBe("tenant");
+    expect("content" in parsed).toBe(false);
   });
 
   it("keeps system library items opaque", () => {

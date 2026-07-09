@@ -97,11 +97,6 @@ if (run) {
         const library = await listings.browseListed(tenant, "agent");
         expect(library).toEqual([
           {
-            content: {
-              displayName: "Support Agent",
-              prompt: "published prompt",
-              tags: ["support"],
-            },
             displayName: "Support Agent",
             kind: "agent",
             ref: created.id,
@@ -110,6 +105,17 @@ if (run) {
             tier: "tenant",
           },
         ]);
+        expect(JSON.stringify(library)).not.toContain("published prompt");
+
+        const detail = await listings.getListed(tenant, "agent", created.id);
+        expect(detail).toMatchObject({
+          ref: created.id,
+          content: {
+            displayName: "Support Agent",
+            prompt: "published prompt",
+            tags: ["support"],
+          },
+        });
 
         const unlisted = await listings.unlist(tenant, created.id, "alice");
         expect(unlisted.listed).toBe(false);

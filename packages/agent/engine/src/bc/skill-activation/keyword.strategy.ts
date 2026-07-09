@@ -117,10 +117,6 @@ export function scoreSkillsByKeyword(
       }
     }
 
-    if (best <= 0) {
-      continue;
-    }
-
     const explicitSkillIntent = /(?:使用|用)[\u4e00-\u9fa5a-z0-9-]{2,40}技能/u.test(query) || /(?:load|use)\s+[\w-]+\s+skill/i.test(query);
 
     const chartIntent =
@@ -138,6 +134,10 @@ export function scoreSkillsByKeyword(
         queryNorm.includes("dashboard") ||
         queryNorm.includes("report")) &&
       (skill.tags?.includes("report") === true || skill.tags?.includes("dashboard") === true || skill.name === "html-output");
+
+    if (best <= 0 && !chartIntent && !reportIntent) {
+      continue;
+    }
 
     let promote =
       reason === "keyword:exact-name" ||
