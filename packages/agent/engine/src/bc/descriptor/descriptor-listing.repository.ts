@@ -52,15 +52,15 @@ function listingView(row: ListingRow): DescriptorListingView {
   };
 }
 
-function tenantLibraryMeta(
-  row: LibraryRow,
-): Pick<LibraryItemView, "ref" | "kind" | "tier" | "displayName" | "description" | "tags" | "sharedVersionNo"> {
+type TenantLibraryItemView = Extract<LibraryItemView, { tier: "tenant" }>;
+
+function tenantLibraryMeta(row: LibraryRow): TenantLibraryItemView {
   const content = parseJsonColumn(row.content_json);
   const meta = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
   return {
     ref: row.descriptor_id,
     kind: row.kind,
-    tier: "tenant",
+    tier: "tenant" as const,
     ...(typeof meta.displayName === "string" ? { displayName: meta.displayName } : {}),
     ...(typeof meta.description === "string" ? { description: meta.description } : {}),
     ...(Array.isArray(meta.tags) ? { tags: meta.tags.filter((t): t is string => typeof t === "string") } : {}),
