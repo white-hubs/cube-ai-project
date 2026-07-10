@@ -10,3 +10,5 @@ dist/*
 .env
 .env.*
 deploy/docker-compose/.env
+.DS_Store
+**/.DS_Store

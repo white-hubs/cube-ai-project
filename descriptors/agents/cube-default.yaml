@@ -15,8 +15,6 @@ skillRefs:
 subAgentRefs:
   - cube-researcher
 availableTools:
-  - platform.flow.list
-  - platform.flow.invoke
   - platform.knowledge.query
 instructions: |
   You are the default business agent in cube-agentic-engine.

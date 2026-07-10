@@ -92,12 +92,12 @@ describe("DescriptorLoader", () => {
     const { loaded, skipped } = await loader.loadFromDir("/mocked/dir");
     expect(loaded).toBe(2);
     expect(skipped).toBe(0);
-    expect(registry.size()).toBe(7);
+    expect(registry.size()).toBe(5);
     expect(registry.resolve("currentDate")?.execute).toBe("builtin:engine.current_date");
     expect(registry.resolve("image.qwen")?.execute).toBe("builtin:engine.image_qwen");
     expect(registry.resolve("platform.knowledge.query")?.execute).toBe("builtin:platform.knowledge.query");
-    expect(registry.resolve("platform.flow.list")?.execute).toBe("builtin:platform.flow.list");
-    expect(registry.resolve("platform.flow.invoke")?.execute).toBe("builtin:platform.flow.invoke");
+    expect(registry.resolve("platform.flow.list")).toBeUndefined();
+    expect(registry.resolve("platform.flow.invoke")).toBeUndefined();
   });
 
   test("异常文件不影响其他注册（registration-lifecycle §3.4）", async () => {
@@ -115,10 +115,12 @@ describe("DescriptorLoader", () => {
     const { loaded, skipped } = await loader.loadFromDir("/mocked/dir");
     expect(loaded).toBe(1);
     expect(skipped).toBe(1);
-    expect(registry.size()).toBe(6);
+    expect(registry.size()).toBe(4);
     expect(registry.resolve("currentDate")?.execute).toBe("builtin:engine.current_date");
     expect(registry.resolve("image.qwen")?.execute).toBe("builtin:engine.image_qwen");
     expect(registry.resolve("platform.knowledge.query")?.execute).toBe("builtin:platform.knowledge.query");
+    expect(registry.resolve("platform.flow.list")).toBeUndefined();
+    expect(registry.resolve("platform.flow.invoke")).toBeUndefined();
   });
 
   test("readdir 失败 → 返回 {loaded:0, skipped:0}，不 throw", async () => {
@@ -153,6 +155,7 @@ describe("DescriptorLoader", () => {
     const enoent = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     mock.module("node:fs/promises", () => ({
       readdir: async () => ["chart-output", "default"],
+      stat: async () => ({ isDirectory: () => true }),
       readFile: async (p: string) => {
         if (p.endsWith("/chart-output/SKILL.md")) {
           return [
@@ -216,6 +219,7 @@ describe("DescriptorLoader", () => {
     const enoent = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     mock.module("node:fs/promises", () => ({
       readdir: async () => ["bad-activation", "legacy-trigger"],
+      stat: async () => ({ isDirectory: () => true }),
       readFile: async (p: string) => {
         if (p.endsWith("/bad-activation/SKILL.md")) {
           return [
@@ -342,6 +346,7 @@ describe("DescriptorLoader", () => {
     const readPaths: string[] = [];
     mock.module("node:fs/promises", () => ({
       readdir: async () => ["chart-output"],
+      stat: async () => ({ isDirectory: () => true }),
       readFile: async (p: string) => {
         readPaths.push(p);
         if (p.endsWith("/chart-output/SKILL.md")) {
@@ -360,6 +365,45 @@ describe("DescriptorLoader", () => {
     await loader.loadSkillsFromDir("/repo/descriptors/skills");
     expect(skillRegistry.resolve("chart-output")?.instructions).toBe("markdown instructions");
     expect(readPaths.some((p) => p.endsWith("/chart-output/descriptor.yaml"))).toBe(false);
+  });
+
+  test("skills 扫描跳过 .DS_Store 与非目录条目，不打 invalid skill 警告", async () => {
+    const enoent = () => Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const warns: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warns.push(args.map(String).join(" "));
+    };
+
+    mock.module("node:fs/promises", () => ({
+      readdir: async () => [".DS_Store", "README.md", "chart-output"],
+      stat: async (p: string) => ({
+        isDirectory: () => basename(p) === "chart-output",
+      }),
+      readFile: async (p: string) => {
+        if (p.endsWith("/.DS_Store/SKILL.md") || p.endsWith("/README.md/SKILL.md")) {
+          throw Object.assign(new Error("ENOTDIR: not a directory"), { code: "ENOTDIR" });
+        }
+        if (p.endsWith("/chart-output/SKILL.md")) {
+          return ["---", "name: chart-output", "description: ok", "---", "Body."].join("\n");
+        }
+        throw enoent();
+      },
+    }));
+
+    try {
+      const registry = new DescriptorRegistryService(noopPin);
+      const skillRegistry = new SkillRegistryService();
+      const loader = new DescriptorLoader(registry, noopPin, skillRegistry);
+
+      const result = await loader.loadSkillsFromDir("/repo/descriptors/skills");
+      expect(result).toEqual({ loaded: 1, skipped: 0 });
+      expect(skillRegistry.resolve("chart-output")).toBeDefined();
+      expect(warns.some((line) => line.includes("skip invalid skill") && line.includes(".DS_Store"))).toBe(false);
+      expect(warns.some((line) => line.includes("skip invalid skill") && line.includes("README.md"))).toBe(false);
+    } finally {
+      console.warn = origWarn;
+    }
   });
 
   test("可扫描 agents 目录并建立 name->path 索引（lazy 前置）", async () => {
