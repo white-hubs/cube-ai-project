@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
  *
  * R24：Nacos HTTP 仅在 start() / 轮询时发出，不在模块 import 期连接。
  */
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { parse as parseYaml } from "yaml";
 
@@ -555,7 +555,16 @@ export class DescriptorLoader {
     const skills: SkillDescriptor[] = [];
 
     for (const entry of entries) {
+      // macOS Finder / VCS 噪音（.DS_Store、.git 等）与散落文件不是 skill 目录
+      if (entry.startsWith(".")) continue;
+
       const skillDir = join(dir, entry);
+      try {
+        if (!(await stat(skillDir)).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+
       const skillMdPath = join(skillDir, "SKILL.md");
       try {
         const markdown = await readOptionalFile(skillMdPath);
