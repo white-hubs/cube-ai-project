@@ -12,6 +12,8 @@ import {
 
 import { oauth2IntrospectionMiddleware } from "../../../packages/agent/engine/src/bc/auth/oauth2-introspection.middleware";
 import { DescriptorLoader } from "../../../packages/agent/engine/src/bc/descriptor/descriptor-loader";
+import { DescriptorRegistryService } from "../../../packages/agent/engine/src/bc/descriptor/descriptor-registry.service";
+import { buildManagementToolDescriptors } from "../../../packages/agent/engine/src/bc/tools/handlers/descriptor-ops";
 import { McpToolRegistrationWorker } from "../../../packages/agent/engine/src/bc/tools/mcp-tool-registration.worker";
 import { createVersionNegotiationMiddleware } from "../../../packages/agent/engine/src/infra/api/version-negotiation.middleware";
 import {
@@ -45,6 +47,27 @@ function parsePositiveRateLimitEnv(raw: string | undefined, fallback: number): n
   if (raw === undefined || raw.trim().length === 0) return fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * ADR-0027 §7：管理 ops 工具集在 loader 快照替换之后补登（与 engine bootstrap 对齐）。
+ * ai-center 是生产组合根；删掉 descriptors/tools YAML 影子后，这里必须显式注册。
+ */
+function registerManagementToolDescriptors(container: DiContainer): void {
+  let registry: DescriptorRegistryService;
+  try {
+    registry = container.resolve(DescriptorRegistryService) as DescriptorRegistryService;
+  } catch {
+    return;
+  }
+  for (const descriptor of buildManagementToolDescriptors()) {
+    if (registry.resolve(descriptor.name)) continue;
+    try {
+      registry.register(descriptor);
+    } catch (e) {
+      console.warn(`[ai-center] skip management descriptor ${descriptor.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 function resolveMcpRegistrationWorker(container: DiContainer): McpToolRegistrationWorker | null {
@@ -105,7 +128,9 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
 
   const descriptorLoader = container.resolve(DescriptorLoader) as DescriptorLoader;
   await descriptorLoader.start();
+  registerManagementToolDescriptors(container);
   descriptorLoader.reloadEvents.addEventListener("descriptor.reload", () => {
+    registerManagementToolDescriptors(container);
     triggerMcpToolRegistration(container, "descriptor.reload");
   });
 
