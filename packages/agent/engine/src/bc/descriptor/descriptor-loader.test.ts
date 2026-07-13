@@ -92,8 +92,9 @@ describe("DescriptorLoader", () => {
     const { loaded, skipped } = await loader.loadFromDir("/mocked/dir");
     expect(loaded).toBe(2);
     expect(skipped).toBe(0);
-    expect(registry.size()).toBe(5);
+    expect(registry.size()).toBe(6);
     expect(registry.resolve("currentDate")?.execute).toBe("builtin:engine.current_date");
+    expect(registry.resolve("session_recall")?.execute).toBe("builtin:engine.session_recall");
     expect(registry.resolve("image.qwen")?.execute).toBe("builtin:engine.image_qwen");
     expect(registry.resolve("platform.knowledge.query")?.execute).toBe("builtin:platform.knowledge.query");
     expect(registry.resolve("platform.flow.list")).toBeUndefined();
@@ -115,8 +116,9 @@ describe("DescriptorLoader", () => {
     const { loaded, skipped } = await loader.loadFromDir("/mocked/dir");
     expect(loaded).toBe(1);
     expect(skipped).toBe(1);
-    expect(registry.size()).toBe(4);
+    expect(registry.size()).toBe(5);
     expect(registry.resolve("currentDate")?.execute).toBe("builtin:engine.current_date");
+    expect(registry.resolve("session_recall")?.execute).toBe("builtin:engine.session_recall");
     expect(registry.resolve("image.qwen")?.execute).toBe("builtin:engine.image_qwen");
     expect(registry.resolve("platform.knowledge.query")?.execute).toBe("builtin:platform.knowledge.query");
     expect(registry.resolve("platform.flow.list")).toBeUndefined();

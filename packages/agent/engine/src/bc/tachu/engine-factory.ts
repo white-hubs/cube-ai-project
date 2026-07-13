@@ -911,7 +911,7 @@ export class EngineFactory {
    * 将 Descriptor BC 中的 Tool 同步到 Tachu 专用 Registry（见类注释）。
    *
    * - 若 `agentSnapshot.agent.content.toolRefs` 非空：只镜像其中在注册表里可解析的名称，
-   *   并并集 `currentDate`（若注册表存在该内置工具）。
+   *   并并集 `currentDate` / `session_recall`（若注册表存在该内置工具）。
    * - 若 `toolRefs` 缺失或为空：镜像当前注册表中的全部 Tool（兼容占位 Agent / 测试）。
    */
   private async mirrorDescriptorToolsToTachuIfNeeded(arg: TurnRunStreamInput): Promise<void> {

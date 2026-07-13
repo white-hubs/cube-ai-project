@@ -33,6 +33,7 @@ import { McpHandler } from "./handlers/mcp-handler";
 import { MemoryHandler } from "./handlers/memory-handler";
 import { OpenApiHandler } from "./handlers/openapi-handler";
 import { QwenImageHandler } from "./handlers/qwen-image-handler";
+import { SessionRecallHandler } from "./handlers/session-recall-handler";
 import { ShellHandler } from "./handlers/shell-handler";
 import { SqlHandler } from "./handlers/sql-handler";
 import { VectorHandler } from "./handlers/vector-handler";
@@ -139,6 +140,7 @@ export class ToolService {
     flowListHandler: FlowListHandler,
     knowledgeHandler: KnowledgeHandler,
     clockHandler: ClockHandler,
+    sessionRecallHandler: SessionRecallHandler,
     qwenImageHandler: QwenImageHandler,
     descriptorOpsHandler: DescriptorOpsHandler,
     @Inject(AUTHZ_TOKENS.AUTHZ_GATEWAY) private readonly authz: AuthzGatewayService,
@@ -163,6 +165,7 @@ export class ToolService {
       ["flowList" as HandlerKindValue, flowListHandler],
       ["knowledge" as HandlerKindValue, knowledgeHandler],
       ["clock", clockHandler],
+      ["sessionRecall" as HandlerKindValue, sessionRecallHandler],
       ["qwenImage" as HandlerKindValue, qwenImageHandler],
       ["descriptorOps" as HandlerKindValue, descriptorOpsHandler],
     ]);
@@ -422,6 +425,8 @@ export class ToolService {
     if (descriptor.execute.startsWith("mcp:")) return "mcp";
 
     if (descriptor.execute === "builtin:engine.current_date") return "clock";
+
+    if (descriptor.execute === "builtin:engine.session_recall") return "sessionRecall" as HandlerKindValue;
 
     if (descriptor.execute === "builtin:engine.image_qwen") return "qwenImage" as HandlerKindValue;
 

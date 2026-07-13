@@ -19,6 +19,8 @@ export const HANDLER_KINDS = [
   "qwenImage",
   /** 管理 ops 工具集（ADR-0027 §7）：把 descriptor 管理面 ops 包装为薄适配 Tool Handler */
   "descriptorOps",
+  /** 同 session MySQL transcript 按需召回（ADR-0036） */
+  "sessionRecall",
 ] as const;
 
 export type HandlerKindValue = (typeof HANDLER_KINDS)[number];

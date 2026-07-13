@@ -23,6 +23,7 @@ import { DescriptorRegistryService } from "./descriptor-registry.service";
 import {
   ENGINE_BUILTIN_TOOL_NAMES,
   ensureBuiltinCurrentDateDescriptor,
+  ensureBuiltinSessionRecallDescriptor,
   ensureBuiltinImageQwenDescriptor,
   ensureBuiltinPlatformToolDescriptors,
 } from "./engine-builtin-descriptors";
@@ -275,6 +276,7 @@ export class DescriptorLoader {
       warn("descriptor batch contained only reserved builtin names (e.g. currentDate); skipping replaceAllFromSnapshot");
     }
     ensureBuiltinCurrentDateDescriptor(this.registry);
+    ensureBuiltinSessionRecallDescriptor(this.registry);
     ensureBuiltinImageQwenDescriptor(this.registry);
     ensureBuiltinPlatformToolDescriptors(this.registry);
   }
@@ -328,6 +330,7 @@ export class DescriptorLoader {
     }
 
     ensureBuiltinCurrentDateDescriptor(this.registry);
+    ensureBuiltinSessionRecallDescriptor(this.registry);
     ensureBuiltinImageQwenDescriptor(this.registry);
     ensureBuiltinPlatformToolDescriptors(this.registry);
     info("startup descriptor loading complete");

@@ -5,6 +5,7 @@ import {
   DISABLED_ENGINE_BUILTIN_TOOL_NAMES,
   buildImageQwenDescriptor,
   buildPlatformToolDescriptors,
+  buildSessionRecallDescriptor,
   ensureBuiltinPlatformToolDescriptors,
 } from "./engine-builtin-descriptors";
 import type { ToolEffectiveVersionSource } from "./tool-effective-version.provider";
@@ -15,6 +16,14 @@ const noopPin: ToolEffectiveVersionSource = {
 };
 
 describe("engine builtin descriptors", () => {
+  test("session_recall descriptor parses and pins execute ref", () => {
+    const d = buildSessionRecallDescriptor();
+    expect(d.name).toBe("session_recall");
+    expect(d.execute).toBe("builtin:engine.session_recall");
+    expect(d.handler?.kind).toBe("sessionRecall");
+    expect(d.description).toContain("CURRENT session");
+  });
+
   test("image.qwen descriptor parses and pins execute ref", () => {
     const d = buildImageQwenDescriptor();
     expect(d.name).toBe("image.qwen");

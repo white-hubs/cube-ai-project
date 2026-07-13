@@ -1,7 +1,7 @@
 import { shouldOmitImageQwenFromMirror } from "./host-gating-policy";
 
 /**
- * 计算本轮应镜像到 tachu 的工具名集合（含 `currentDate` / `image.qwen` 并集规则）。
+ * 计算本轮应镜像到 tachu 的工具名集合（含 `currentDate` / `session_recall` / `image.qwen` 并集规则）。
  */
 export interface ToolMirrorRegistryLike {
   resolve(name: string): { name: string } | undefined;
@@ -19,7 +19,7 @@ export interface ComputeTachuToolMirrorForPromptOptions {
 }
 
 /**
- * - `toolRefs` 非空：仅白名单内可解析名称 + 强制并集 `currentDate`（若注册表存在）。
+ * - `toolRefs` 非空：仅白名单内可解析名称 + 强制并集 `currentDate` / `session_recall`（若注册表存在）。
  * - 同上并集 `image.qwen`（若注册表存在且未 `omitImageQwen`）— 文生图默认可见。
  * - `toolRefs` 缺失或空：镜像注册表全部工具（与 EngineFactory 原语义一致）。
  */
@@ -42,6 +42,9 @@ export function computeTachuToolMirrorNames(
   }
   if (registry.resolve("currentDate")) {
     names.add("currentDate");
+  }
+  if (registry.resolve("session_recall")) {
+    names.add("session_recall");
   }
   if (!options?.omitImageQwen && registry.resolve("image.qwen")) {
     names.add("image.qwen");

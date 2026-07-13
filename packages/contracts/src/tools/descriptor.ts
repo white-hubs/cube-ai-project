@@ -53,6 +53,7 @@ export const HandlerKind = z.enum([
   "clock",
   "qwenImage",
   "descriptorOps",
+  "sessionRecall",
 ]);
 export type HandlerKind = z.infer<typeof HandlerKind>;
 
