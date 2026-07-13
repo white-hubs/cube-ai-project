@@ -130,6 +130,10 @@ _Avoid_: 让 flow 依赖 engine 的 tool bc, 抽公共 tool 装配层
 运行时在 tool-loop 开始前、按 **agent 声明** 主动预跑一次发现/检索类工具，把结果注入本轮上下文的 host 侧准备机制；让（尤其能力较弱的）模型无需自己多步发现即可拿到接地事实（如知识检索命中、数据实体清单），从而不必盲猜标识符。**知识检索预取** 与 **数据实体（ontology）预取** 是它的两个实例，共用同一 host 预取原语；触发源可不同（前者由本轮 runtime 引用触发、后者由 agent 声明触发），但都不改 **Tool 编排** 的循环语义。领域专属知识（调哪个工具、如何取参）只住 **声明式资产**，不下沉进通用运行时代码。
 _Avoid_: 把它当 tool-loop 内的一次普通 tool 调用, 在通用运行时代码里硬编码某 MCP server 的工具名, 与 **Tool 编排** 混为一谈, 把它当模型「能力」而非 host 准备步
 
+**会话召回 (session_recall)**:
+引擎内置**常驻**工具：按需从本 session 的 MySQL `messages`（与 UI `listMessages` 同源）取回历史 user/assistant 正文，供模型在指代「上一份报告」等场景主动调用。超 `maxChars` 时返回 `mode: summary` + `truncated`。属同会话按需深挖（ADR-0036）；**不**替代后续「turn start 热窗回灌」的 L1 连续性，**不**覆盖用户级跨 session `memory_recall`。
+_Avoid_: 用 Qdrant memory.search 冒充对话权威, 把同会话连续性只做成可选工具且永不回灌热窗, 与跨 session 记忆混名
+
 **规则激活 (Rule Activation)**:
 rule descriptor 上的**激活轴**，只回答「规则正文**何时**进入本轮上下文」（对齐业界 rule 系统 Cursor/Copilot/Continue/Cline，本仓自持类型、词汇对齐 tachu `Activation`）：`always`（全局常驻）· `manual`（仅显式点名）· `semantic`（按相关性经工具按需拉取）· `path`（命中文件 glob 时）。缺省视为 `always`。它**不表达** block/annotate/validate（那属 guard/hook）。规则不再一律全塞 system prompt——激活轴决定该规则本轮是否注入（组装统一交 tachu `PromptAssembler`，落 system 段、每轮重算、不入 memory，ADR-0032）。**激活轴是四类描述符（rule/skill/tool/agent）共用的唯一词汇**（tachu rc.13：skill 从旧 `trigger` 收敛到 `activation`，`explicit`→`manual`；`trigger` 词汇彻底移除）——skill 缺省回落 `semantic`（非 `always`）。
 _Avoid_: 把它当 loop 的 phase 轴（tachu 旧 `RuleScope` 的证伪设计）, 把「配置了就一定生效」当默认（非法声明 fail-closed 拒装，不静默降级到最宽松档）, 与 guard/校验语义混为一谈

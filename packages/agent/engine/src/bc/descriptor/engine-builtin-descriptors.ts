@@ -4,6 +4,7 @@ import type { DescriptorRegistryService } from "./descriptor-registry.service";
 
 export const ENGINE_BUILTIN_TOOL_NAMES = [
   "currentDate",
+  "session_recall",
   "image.qwen",
   "platform.knowledge.query",
   "platform.flow.list",
@@ -63,6 +64,86 @@ export function buildCurrentDateDescriptor(): ToolDescriptor {
 export function ensureBuiltinCurrentDateDescriptor(registry: DescriptorRegistryService): void {
   if (registry.resolve("currentDate")) return;
   registry.register(buildCurrentDateDescriptor());
+}
+
+const SESSION_RECALL_DESCRIPTOR_RAW = {
+  schemaVersion: 1,
+  kind: "TOOL" as const,
+  name: "session_recall",
+  displayName: "Session transcript recall",
+  description:
+    "Recalls prior messages in the CURRENT session from durable transcript (same source as chat history UI). Use when the user refers to earlier turns (e.g. previous report, prior answer) or when session context seems missing. Optional query filters by substring. Returns { mode, truncated, messages }. mode=summary means content was compressed to fit maxChars — ask again with a tighter query if detail is missing. Scope is this session only; not cross-session memory.",
+  isPreset: true,
+  version: "1.0.0",
+  meta: {
+    execution: "LOCAL" as const,
+    consent: "NEVER" as const,
+    requiresPrincipal: "USER" as const,
+    timeoutMs: 15_000,
+    idempotent: true,
+    sideEffects: ["read:engine.session.messages"],
+  },
+  inputSchema: {
+    type: "object" as const,
+    additionalProperties: false,
+    properties: {
+      query: {
+        type: "string",
+        description: "Optional case-insensitive substring to filter message text (e.g. report title keywords).",
+      },
+      maxChars: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200_000,
+        description: "Max total characters of returned message text before summary mode (default 32000).",
+      },
+      limit: {
+        type: "integer",
+        minimum: 1,
+        maximum: 200,
+        description: "Max messages to load chronologically (default 200).",
+      },
+    },
+  },
+  outputSchema: {
+    type: "object" as const,
+    properties: {
+      mode: { type: "string", description: "full | summary" },
+      truncated: { type: "boolean" },
+      messages: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            turnId: { type: "string" },
+            role: { type: "string" },
+            text: { type: "string" },
+            createTime: { type: "integer" },
+          },
+        },
+      },
+    },
+  },
+  requires: { principal: "USER" as const, oauthScope: [], obo: null },
+  execute: "builtin:engine.session_recall",
+  handler: { kind: "sessionRecall" as const, config: {} },
+  category: "PLATFORM" as const,
+  tags: ["session", "recall", "builtin", "engine"],
+} as const;
+
+export function buildSessionRecallDescriptor(): ToolDescriptor {
+  const parsed = ToolDescriptorSchema.safeParse(SESSION_RECALL_DESCRIPTOR_RAW);
+  if (!parsed.success) {
+    throw new Error(`session_recall builtin descriptor invalid: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
+
+/** 若注册表尚无 `session_recall`，注册引擎内置描述符（ADR-0036）。 */
+export function ensureBuiltinSessionRecallDescriptor(registry: DescriptorRegistryService): void {
+  if (registry.resolve("session_recall")) return;
+  registry.register(buildSessionRecallDescriptor());
 }
 
 const IMAGE_QWEN_DESCRIPTOR_RAW = {
