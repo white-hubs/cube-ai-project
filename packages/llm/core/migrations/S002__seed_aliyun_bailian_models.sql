@@ -50,7 +50,7 @@ VALUES
     -- 向量与重排序
     (900000000000002150, 900000000000001007, 'text-embedding-v4', 'Text Embedding V4', '向量', 80, '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'openai', 'embedding', 0, 0),
     (900000000000002151, 900000000000001007, 'tongyi-embedding-vision-plus', 'Tongyi Embedding Vision Plus', '向量', 81, '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'openai', 'embedding,vision', 0, 0),
-    (900000000000002152, 900000000000001007, 'qwen3-rerank', 'Qwen3 Rerank', '重排序', 82, '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'jina_rerank', 'rerank', 0, 0),
+    (900000000000002152, 900000000000001007, 'qwen3-rerank', 'Qwen3 Rerank', '重排序', 82, '/resource/v1/ai-application/getModel.png', 'https://llm-rsqnz4dqml5koq8p.cn-beijing.maas.aliyuncs.com/compatible-api/v1/reranks', 'openai_rerank', 'rerank', 0, 0),
     -- 语音 / 音乐
     (900000000000002160, 900000000000001007, 'cosyvoice-v3.5-plus', 'CosyVoice V3.5 Plus', '语音合成', 90, '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, 'speech_synthesis', 0, 0),
     (900000000000002161, 900000000000001007, 'fun-asr-realtime', 'Fun ASR Realtime', '语音识别', 91, '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, 'speech_recognition', 0, 0),
@@ -80,7 +80,7 @@ VALUES
     (900000000000003021, 'dashscope', 'aliyun-bailian', 'contains', 'happyhorse', 'HappyHorse', 'HappyHorse', '视频生成', '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, NULL, NULL, NULL, 'video_generation', 0, 105),
     (900000000000003022, 'dashscope', 'aliyun-bailian', 'prefix', 'text-embedding', 'Text Embedding', 'Embedding', '向量', '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'openai', NULL, NULL, NULL, 'embedding', 0, 125),
     (900000000000003023, 'dashscope', 'aliyun-bailian', 'prefix', 'tongyi-embedding', 'Tongyi Embedding', 'Embedding', '向量', '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'openai', NULL, NULL, NULL, 'embedding,vision', 0, 125),
-    (900000000000003024, 'dashscope', 'aliyun-bailian', 'prefix', 'qwen3-rerank', 'Qwen Rerank', 'Rerank', '重排序', '/resource/v1/ai-application/getModel.png', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'jina_rerank', NULL, NULL, NULL, 'rerank', 0, 125),
+    (900000000000003024, 'dashscope', 'aliyun-bailian', 'prefix', 'qwen3-rerank', 'Qwen Rerank', 'Rerank', '重排序', '/resource/v1/ai-application/getModel.png', 'https://llm-rsqnz4dqml5koq8p.cn-beijing.maas.aliyuncs.com/compatible-api/v1/reranks', 'openai_rerank', NULL, NULL, NULL, 'rerank', 0, 125),
     (900000000000003025, 'dashscope', 'aliyun-bailian', 'prefix', 'cosyvoice', 'CosyVoice', 'CosyVoice', '语音合成', '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, NULL, NULL, NULL, 'speech_synthesis', 0, 105),
     (900000000000003026, 'dashscope', 'aliyun-bailian', 'prefix', 'fun-asr', 'Fun ASR', 'ASR', '语音识别', '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, NULL, NULL, NULL, 'speech_recognition', 0, 105),
     (900000000000003027, 'dashscope', 'aliyun-bailian', 'prefix', 'fun-music', 'Fun Music', 'Music', '音乐生成', '/resource/v1/ai-application/qwen.png', 'https://dashscope.aliyuncs.com', NULL, NULL, NULL, NULL, 'music_generation', 0, 105),

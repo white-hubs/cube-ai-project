@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { type Pool } from "mysql2/promise";
 
-import { buildKbMysqlConfigFromEnv, hasKbMysqlConfigFromEnv } from "./kb-mysql-database.service";
+import { KbMysqlDatabaseService, buildKbMysqlConfigFromEnv, hasKbMysqlConfigFromEnv } from "./kb-mysql-database.service";
 
 const ENV_KEYS = [
   "MYSQL_HOST",
@@ -110,5 +111,122 @@ describe("hasKbMysqlConfigFromEnv", () => {
   test("true with MYSQL_HOST", () => {
     setEnv({ MYSQL_HOST: "somewhere" });
     expect(hasKbMysqlConfigFromEnv()).toBe(true);
+  });
+});
+
+class FakeMysqlConnection {
+  public beginCalls = 0;
+  public commitCalls = 0;
+  public queryCalls: string[] = [];
+  public releaseCalls = 0;
+  public rollbackCalls = 0;
+
+  public async beginTransaction(): Promise<void> {
+    this.beginCalls += 1;
+  }
+
+  public async commit(): Promise<void> {
+    this.commitCalls += 1;
+  }
+
+  public async query(sql: string): Promise<[unknown[], unknown[]]> {
+    this.queryCalls.push(sql);
+    return [[{ executor: "connection" }], []];
+  }
+
+  public release(): void {
+    this.releaseCalls += 1;
+  }
+
+  public async rollback(): Promise<void> {
+    this.rollbackCalls += 1;
+  }
+}
+
+class FakeMysqlPool {
+  public readonly connection = new FakeMysqlConnection();
+  public getConnectionCalls = 0;
+  public queryCalls: string[] = [];
+
+  public async getConnection(): Promise<FakeMysqlConnection> {
+    this.getConnectionCalls += 1;
+    return this.connection;
+  }
+
+  public async query(sql: string): Promise<[unknown[], unknown[]]> {
+    this.queryCalls.push(sql);
+    return [[{ executor: "pool" }], []];
+  }
+}
+
+function createTransactionTestService(pool: FakeMysqlPool): KbMysqlDatabaseService {
+  return new KbMysqlDatabaseService(
+    { database: "test", host: "127.0.0.1", password: "", port: 3306, user: "root" },
+    pool as unknown as Pool,
+  );
+}
+
+describe("KbMysqlDatabaseService transactions", () => {
+  test("uses one acquired connection for every query in the transaction and commits", async () => {
+    const pool = new FakeMysqlPool();
+    const service = createTransactionTestService(pool);
+
+    const result = await service.runInTransaction(async () => {
+      const rows = await service.query<{ executor: string }>("SELECT 1");
+      await service.query("UPDATE document_record SET status = ?", ["parsing"]);
+      return rows[0]?.executor;
+    });
+
+    expect(result).toBe("connection");
+    expect(pool.queryCalls).toEqual([]);
+    expect(pool.connection.queryCalls).toEqual(["SELECT 1", "UPDATE document_record SET status = ?"]);
+    expect(pool.getConnectionCalls).toBe(1);
+    expect(pool.connection.beginCalls).toBe(1);
+    expect(pool.connection.commitCalls).toBe(1);
+    expect(pool.connection.rollbackCalls).toBe(0);
+    expect(pool.connection.releaseCalls).toBe(1);
+  });
+
+  test("rolls back and releases the connection when work fails", async () => {
+    const pool = new FakeMysqlPool();
+    const service = createTransactionTestService(pool);
+
+    await expect(
+      service.runInTransaction(async () => {
+        await service.query("INSERT INTO import_job (id) VALUES (?)", ["202"]);
+        throw new Error("outbox insert failed");
+      }),
+    ).rejects.toThrow("outbox insert failed");
+
+    expect(pool.connection.commitCalls).toBe(0);
+    expect(pool.connection.rollbackCalls).toBe(1);
+    expect(pool.connection.releaseCalls).toBe(1);
+  });
+
+  test("nested transaction scopes join the active connection", async () => {
+    const pool = new FakeMysqlPool();
+    const service = createTransactionTestService(pool);
+
+    await service.runInTransaction(async () => {
+      await service.runInTransaction(async () => {
+        await service.query("SELECT nested");
+      });
+    });
+
+    expect(pool.getConnectionCalls).toBe(1);
+    expect(pool.connection.beginCalls).toBe(1);
+    expect(pool.connection.commitCalls).toBe(1);
+    expect(pool.connection.queryCalls).toEqual(["SELECT nested"]);
+  });
+
+  test("queries outside a transaction continue to use the pool", async () => {
+    const pool = new FakeMysqlPool();
+    const service = createTransactionTestService(pool);
+
+    const rows = await service.query<{ executor: string }>("SELECT outside");
+
+    expect(rows[0]?.executor).toBe("pool");
+    expect(pool.queryCalls).toEqual(["SELECT outside"]);
+    expect(pool.getConnectionCalls).toBe(0);
   });
 });

@@ -39,6 +39,10 @@ export class DocumentChunkEntity {
   document_id!: string;
 
   @Column()
+  /** Versioned rebuild generation; only document_record.active_generation_id is visible. */
+  generation_id!: string;
+
+  @Column()
   file_name!: string;
 
   @Column()
@@ -58,6 +62,10 @@ export class DocumentChunkEntity {
 
   @Column()
   embedding_text!: string;
+
+  @Column({ nullable: true })
+  /** sha256(embeddingText|modelCode|instructionProfile|algoVersion)（W3.5） */
+  embedding_fingerprint!: string | null;
 
   @Column()
   /** 分段正文字符数（与 text_content 长度一致，便于列表展示与统计） */
@@ -117,4 +125,22 @@ export class DocumentChunkEntity {
 
   @Column({ nullable: true })
   property_namespace!: string | null;
+
+  @Column({ nullable: true })
+  /** 自 document_record 反规范化（W4.1 词法腿过滤） */
+  doc_type!: string | null;
+
+  @Column({ nullable: true })
+  lang!: string | null;
+
+  @Column({ nullable: true })
+  tags_json!: string | null;
+
+  @Column({ nullable: true })
+  /** NULL/空 = 租户内可见（兼容期）；非空则需与 allowedGroupIds 交集 */
+  acl_group_ids_json!: string | null;
+
+  @Column({ nullable: true })
+  /** 文档 create_time 反规范化，供 Qdrant payload */
+  doc_created_at!: Date | null;
 }

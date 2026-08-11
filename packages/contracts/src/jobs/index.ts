@@ -18,6 +18,8 @@ export {
   BullMQJobPayloadSchema,
   type BullMQJobPayload,
   JobQueueNameSchema,
+  KB_INGEST_QUEUE_NAME,
+  KB_VECTOR_RECONCILE_QUEUE_NAME,
   type JobQueueName,
   JobPrincipalSnapshotSchema,
   type JobPrincipalSnapshot,

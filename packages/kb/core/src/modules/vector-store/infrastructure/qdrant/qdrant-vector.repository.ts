@@ -11,6 +11,11 @@ import {
   buildStableQdrantPointId,
 } from "@cube-ai/vector-qdrant";
 
+import {
+  buildDocumentAccessQdrantMustClauses,
+  type DocumentMetadataFilters,
+  type KbAclIdentity,
+} from "../../access/document-access-filter";
 import { APP_CONFIG_TOKEN, type AppConfig } from "@/config/app.config";
 
 export interface QdrantPointPayload extends Record<string, unknown> {
@@ -40,6 +45,18 @@ export interface QdrantPointPayload extends Record<string, unknown> {
   propertyNamespace?: string | null;
   retrievalProfile?: string | null;
   tenantId?: string | null;
+  chunkRole?: string | null;
+  qualityScore?: number | null;
+  qualityReasons?: string[] | null;
+  retrievableByDefault?: boolean | null;
+  /** W4.1 document metadata + ACL (written on upsert; filtered on search) */
+  docType?: string | null;
+  lang?: string | null;
+  tags?: string[] | null;
+  aclGroupIds?: string[] | null;
+  createdAt?: string | null;
+  /** W3.1 versioned rebuild generation. Missing means legacy data. */
+  generationId?: string;
 }
 
 export interface QdrantSearchResult {
@@ -64,6 +81,10 @@ export interface QdrantVectorRepositorySearchParams {
   documentId?: string;
   documentIds?: string[];
   scoreThreshold?: number;
+  /** Server-resolved ACL identity; never from client filter body. */
+  identity?: KbAclIdentity | null;
+  allowedGroupIds?: readonly string[];
+  filters?: DocumentMetadataFilters | null;
 }
 
 export { buildStableQdrantPointId };
@@ -105,10 +126,17 @@ export class QdrantVectorRepository {
       }
     }
 
-    const must: { key: string; match: { value: string } }[] = [];
+    const must: unknown[] = [];
     if (scopedTenantId !== null) {
       must.push({ key: "tenantId", match: { value: scopedTenantId } });
     }
+    must.push(
+      ...buildDocumentAccessQdrantMustClauses({
+        allowedGroupIds: params.allowedGroupIds,
+        filters: params.filters,
+        identity: params.identity,
+      }),
+    );
 
     if (must.length === 0 && should.length === 0) {
       return undefined;
@@ -124,7 +152,7 @@ export class QdrantVectorRepository {
     return filter;
   }
 
-  private buildDeleteFilter(documentId: string): QdrantFilter {
+  private buildDeleteFilter(documentId: string, generationId?: string): QdrantFilter {
     const scopedTenantId = this.getScopedTenantIdForFilter();
     const must: { key: string; match: { value: string } }[] = [
       {
@@ -135,6 +163,9 @@ export class QdrantVectorRepository {
     if (scopedTenantId !== null) {
       must.push({ key: "tenantId", match: { value: scopedTenantId } });
     }
+    if (generationId !== undefined) {
+      must.push({ key: "generationId", match: { value: generationId } });
+    }
     return { must };
   }
 
@@ -142,6 +173,17 @@ export class QdrantVectorRepository {
     await this.vectorIndex.ensureCollection({
       collectionName: this.config.qdrantCollectionName,
       dense: { size: this.config.qdrantVectorSize },
+      payloadIndexes: {
+        aclGroupIds: "keyword",
+        chunkId: "keyword",
+        createdAt: "datetime",
+        docType: "keyword",
+        documentId: "keyword",
+        generationId: "keyword",
+        lang: "keyword",
+        tags: "keyword",
+        tenantId: "keyword",
+      },
       sparse: {},
     });
   }
@@ -181,5 +223,27 @@ export class QdrantVectorRepository {
 
   public async deleteByDocument(documentId: string): Promise<void> {
     await this.vectorIndex.delete(this.config.qdrantCollectionName, this.buildDeleteFilter(documentId));
+  }
+
+  public async deleteByDocumentGeneration(documentId: string, generationId: string): Promise<void> {
+    await this.vectorIndex.delete(this.config.qdrantCollectionName, this.buildDeleteFilter(documentId, generationId));
+  }
+
+  /** Scroll all point ids for a document (reconcile / dual-write diff). */
+  public async listPointIdsByDocument(documentId: string): Promise<string[]> {
+    return this.vectorIndex.scrollPointIds(this.config.qdrantCollectionName, this.buildDeleteFilter(documentId));
+  }
+
+  public async listPointIdsByDocumentGeneration(documentId: string, generationId: string): Promise<string[]> {
+    return this.vectorIndex.scrollPointIds(this.config.qdrantCollectionName, this.buildDeleteFilter(documentId, generationId));
+  }
+
+  public async deleteByPointIds(pointIds: string[]): Promise<void> {
+    await this.vectorIndex.deleteByPointIds(this.config.qdrantCollectionName, pointIds);
+  }
+
+  public async getVectorsByPointIds(pointIds: string[]): Promise<Map<string, QdrantUpsertPoint["vectors"]>> {
+    const points = await this.vectorIndex.retrieveByPointIds(this.config.qdrantCollectionName, pointIds);
+    return new Map(points.map((point) => [point.id, point.vectors]));
   }
 }

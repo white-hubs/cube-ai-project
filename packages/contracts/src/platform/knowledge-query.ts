@@ -20,10 +20,15 @@ export const KnowledgeQueryRequestSchema = z.object({
 export type KnowledgeQueryRequest = z.infer<typeof KnowledgeQueryRequestSchema>;
 
 export const KnowledgeHitSchema = z.object({
+  // Optional on the cross-platform wire for backwards compatibility with
+  // remote knowledge providers. The in-repo KB adapter always populates it.
+  chunkId: z.string().min(1).optional(),
   docId: z.string().min(1),
   kbId: z.string().min(1).optional(),
   link: z.string().optional(),
+  pageNo: z.number().int().min(0).nullable().optional(),
   score: z.number().min(0).max(1),
+  sectionId: z.string().min(1).optional(),
   snippet: z.string(),
   title: z.string().optional(),
 });

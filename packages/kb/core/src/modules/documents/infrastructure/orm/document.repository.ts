@@ -61,6 +61,18 @@ export class DocumentRepositoryOrm extends BaseRepository<DocumentEntity> {
     return Array.isArray(result) && result[0] ? (result[0] as DocumentEntity) : null;
   }
 
+  /** Includes soft-deleted rows — used by vector reconcile for deleted-document orphan cleanup. */
+  public async findByIdIncludingDeleted(id: string | number): Promise<DocumentEntity | null> {
+    const sc = this.scopeFilter();
+    const params: unknown[] = [id, ...sc.params];
+    let sql = `SELECT * FROM ${this.tableName} WHERE ${this.primaryKey} = ?`;
+    if (sc.sql) {
+      sql += ` AND ${sc.sql}`;
+    }
+    const result = await this.executeQuery<DocumentEntity>(sql, params);
+    return Array.isArray(result) && result[0] ? (result[0] as DocumentEntity) : null;
+  }
+
   /**
    * 按目录汇总未删除文档数量与 size 总和（用于目录列表展示）。
    */
@@ -212,6 +224,68 @@ export class DocumentRepositoryOrm extends BaseRepository<DocumentEntity> {
     }
     await this.executeQuery(sql, params);
     return (await this.findById(id)) as DocumentEntity;
+  }
+
+  /**
+   * Atomically activate a validated chunk generation.
+   *
+   * The expected-generation guard prevents two rebuilds based on the same manifest
+   * from both committing. The monotonic SFID guard prevents an older import job that
+   * finishes late from overwriting a newer job's generation.
+   */
+  public async activateGeneration(params: {
+    documentPatch?: Pick<Partial<DocumentEntity>, "doc_type" | "lang" | "tags_json" | "acl_group_ids_json" | "metadata_json">;
+    documentId: string;
+    expectedGenerationId: string;
+    generationId: string;
+    sourceJobId?: string;
+  }): Promise<boolean> {
+    const sc = this.scopeFilter();
+    const audit = this.getAuditInfo();
+    const now = formatMysqlDateTimeShanghai();
+    const sourceJobId = params.sourceJobId ?? null;
+    const patchEntries = (["doc_type", "lang", "tags_json", "acl_group_ids_json", "metadata_json"] as const)
+      .filter((key) => params.documentPatch?.[key] !== undefined)
+      .map((key) => [key, params.documentPatch?.[key]] as const);
+    const assignments = ["active_generation_id = ?"];
+    const values: unknown[] = [params.generationId];
+    if (sourceJobId !== null) {
+      assignments.push("active_generation_job_id = ?");
+      values.push(sourceJobId);
+    }
+    assignments.push(
+      ...patchEntries.map(([key]) => `${key} = ?`),
+      "update_by = ?",
+      "update_time = ?",
+      "updater_id = ?",
+      "updater_type = ?",
+    );
+    values.push(
+      ...patchEntries.map(([, value]) => value),
+      audit.by,
+      now,
+      audit.id,
+      audit.type,
+      params.documentId,
+      params.expectedGenerationId,
+    );
+    let sql = `UPDATE ${this.tableName}
+      SET ${assignments.join(", ")}
+      WHERE ${this.primaryKey} = ? AND active_generation_id = ? AND (deleted IS NULL OR deleted = 0)`;
+    if (sourceJobId !== null) {
+      sql += " AND (active_generation_job_id IS NULL OR CAST(active_generation_job_id AS UNSIGNED) <= CAST(? AS UNSIGNED))";
+      values.push(sourceJobId);
+    }
+    if (sc.sql) {
+      sql += ` AND ${sc.sql}`;
+      values.push(...sc.params);
+    }
+    await this.executeQuery(sql, values);
+
+    const active = await this.findById(params.documentId);
+    return (
+      active?.active_generation_id === params.generationId && (sourceJobId === null || active.active_generation_job_id === sourceJobId)
+    );
   }
 
   public async logicalDelete(id: string | number): Promise<boolean> {

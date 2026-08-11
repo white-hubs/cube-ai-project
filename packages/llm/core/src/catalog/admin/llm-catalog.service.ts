@@ -50,7 +50,12 @@ const ENDPOINT_TYPE_ENUM: EndpointTypeVo[] = [
   { code: "azure_openai", description: "Azure OpenAI 协议", displayName: "Azure OpenAI" },
   { code: "new_api", description: "OpenAI 兼容网关协议", displayName: "New API" },
   { code: "openai_image", description: "OpenAI Images API 协议", displayName: "图像生成 (OpenAI)" },
-  { code: "jina_rerank", description: "Jina Rerank API 协议", displayName: "Jina 重排序" },
+  { code: "jina_rerank", description: "Jina Rerank API 协议（运行时未支持；生产请用 openai_rerank）", displayName: "Jina 重排序" },
+  {
+    code: "openai_rerank",
+    description: "OpenAI 兼容 Rerank（POST …/reranks；DashScope qwen3-rerank）",
+    displayName: "OpenAI Rerank",
+  },
   { code: "volcengine_ark", description: "火山方舟 Ark OpenAI 兼容 API（/api/v3）", displayName: "火山方舟" },
   { code: "geekai", description: "极客智坊模型代理 OpenAI 兼容 API（https://geekai.co/api/v1）", displayName: "极客智坊" },
 ];

@@ -36,13 +36,35 @@ describe("KnowledgeQueryPort mapping", () => {
     };
 
     expect(mapSearchItemToKnowledgeHit(item, "dir-1")).toEqual({
+      chunkId: "doc-1-0",
       docId: "doc-1",
       kbId: "dir-1",
-      link: undefined,
+      pageNo: 1,
       score: 0.82,
+      sectionId: "s1",
       snippet: "aggregated snippet text",
       title: "guide.pdf",
     });
+  });
+
+  test("W1.3-H1: mapped KnowledgeHit exposes structured chunk anchor without a fake link", () => {
+    const item: SearchItem = {
+      chunkId: "chunk-a",
+      chunkIndex: 0,
+      chunkType: "paragraph",
+      documentId: "doc-a",
+      fileName: "a.pdf",
+      headingPath: [],
+      pageNo: null,
+      rankScore: 0.5,
+      score: 0.5,
+      sourceType: "pdf",
+      text: "body",
+    };
+    const hit = mapSearchItemToKnowledgeHit(item, "dir-1");
+    expect(hit.chunkId).toBe("chunk-a");
+    expect(hit.pageNo).toBeNull();
+    expect(hit.link).toBeUndefined();
   });
 
   test("query delegates to retrievalService.searchByDirectory per kbId", async () => {

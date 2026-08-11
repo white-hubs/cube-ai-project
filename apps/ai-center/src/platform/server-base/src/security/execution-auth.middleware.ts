@@ -73,7 +73,19 @@ export function createExecutionAuthMiddleware(deps: {
       const builtinMatch = builtinKey !== "" && apiKeysMatch(builtinKey, rawApiKey);
       if (record || builtinMatch) {
         const tenantRaw = resolveTenantHeader(ctx);
-        const tenantId = record?.project_id?.trim() || tenantRaw || null;
+        // Registered keys are tenant-scoped. `project_id` is the legacy reader
+        // field name; ADR-0012 retired project as an isolation dimension.
+        // Never let a caller replace the key's tenant with an arbitrary header.
+        const registeredTenantId = record?.project_id?.trim() ?? "";
+        if (record && registeredTenantId === "") {
+          throw new UnauthorizedException("API key is not bound to a tenant");
+        }
+        if (record && tenantRaw !== "" && tenantRaw !== registeredTenantId) {
+          throw new UnauthorizedException("API key tenant does not match request tenant");
+        }
+        // FLOW-AUTH-01 accepted exception: the builtin system key keeps its
+        // dynamic tenant header until the Flow knowledge-retrieval callback is redesigned.
+        const tenantId = record ? registeredTenantId : tenantRaw || null;
         return developerApiAls.run(
           {
             apiKeyId: record?.id ?? "builtin-system",
@@ -81,7 +93,14 @@ export function createExecutionAuthMiddleware(deps: {
             accessLevel: record?.access_level ?? "system",
             tenantId,
           },
-          () => tenantContextAls.run({ tenantId: tenantRaw, bypassTenantIsolation: tenantRaw === "" }, () => next()),
+          () =>
+            tenantContextAls.run(
+              {
+                tenantId: record ? registeredTenantId : tenantRaw,
+                bypassTenantIsolation: record ? false : tenantRaw === "",
+              },
+              () => next(),
+            ),
         );
       }
     }

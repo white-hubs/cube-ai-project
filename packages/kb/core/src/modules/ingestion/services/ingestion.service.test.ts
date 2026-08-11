@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { makeMockAppConfig } from "../../../test-helpers/mock-app-config";
 import { OverlapTextChunker } from "../chunkers/overlap-text.chunker";
 import { IngestionService } from "./ingestion.service";
 
@@ -198,10 +199,11 @@ class FakeOverlapTextChunker {
 }
 
 class FakeVectorizationService {
-  public calls: { documentId: string; chunks: unknown[] }[] = [];
+  public calls: { documentId: string; chunks: unknown[]; options?: unknown }[] = [];
 
-  public async indexDocumentChunks(documentId: string, chunks: unknown[]) {
-    this.calls.push({ chunks, documentId });
+  public async indexDocumentChunks(documentId: string, chunks: unknown[], options?: unknown) {
+    this.calls.push({ chunks, documentId, options });
+    return { embeddedCount: chunks.length, forceFull: false };
   }
 }
 
@@ -209,9 +211,16 @@ describe("IngestionService", () => {
   test("previews document chunks without calling vectorization service", async () => {
     const parserRegistry = new FakeParserRegistry();
     parserRegistry.primaryParser = new FakePrimaryParser();
+    const fallbackParser = new FakeFallbackParser();
+    parserRegistry.fallbackParser = fallbackParser;
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.pdf", { type: "application/pdf" });
     const chunks = await service.previewDocumentChunks({
@@ -222,6 +231,7 @@ describe("IngestionService", () => {
     expect(chunks).toHaveLength(1);
     expect(vectorizationService.calls).toHaveLength(0);
     expect(chunks[0]?.text).toBe("Alpha body");
+    expect(fallbackParser.parseCalls).toBe(0);
   });
 
   test("uses structured chunks returned by parser without calling local chunker", async () => {
@@ -229,7 +239,12 @@ describe("IngestionService", () => {
     parserRegistry.primaryParser = new FakePrimaryParser();
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.pdf", { type: "application/pdf" });
     const result = await service.ingestDocument({
@@ -271,12 +286,141 @@ describe("IngestionService", () => {
     ]);
   });
 
-  test("re-chunks docling structured chunks with runtime separator and overlap options", async () => {
+  test("skips low-quality structured chunks before vectorization", async () => {
     const parserRegistry = new FakeParserRegistry();
-    parserRegistry.primaryParser = new FakePrimaryParser();
+    parserRegistry.primaryParser = {
+      async parse() {
+        return {
+          chunks: [
+            {
+              chunkIndex: 0,
+              displayText: "<unknown>",
+              embeddingText: "封面\n<unknown>",
+              sectionId: "page:1",
+              headingPath: [],
+              pageNo: 1,
+              chunkType: "paragraph",
+              orderInSection: 0,
+              captionText: null,
+              pictureDescription: null,
+            },
+            {
+              chunkIndex: 1,
+              displayText: "本文件必不可少的条款如下。",
+              embeddingText: "规范性引用文件\n本文件必不可少的条款如下。",
+              sectionId: "sec-1",
+              headingPath: ["规范性引用文件"],
+              pageNo: 7,
+              chunkType: "paragraph",
+              orderInSection: 0,
+              captionText: null,
+              pictureDescription: null,
+            },
+          ],
+          fileName: "demo.pdf",
+          sourceType: "pdf",
+          text: "<unknown>\n本文件必不可少的条款如下。",
+        };
+      },
+    };
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
+
+    const result = await service.ingestDocument({
+      document: { id: "11", mime_type: "application/pdf", name: "demo.pdf", tenant_id: "p8" },
+      file: new File(["hello"], "demo.pdf", { type: "application/pdf" }),
+    } as never);
+
+    expect(result.chunkCount).toBe(1);
+    const kept = vectorizationService.calls[0]?.chunks[0] as {
+      chunkId?: string;
+      chunkRole?: string;
+      qualityScore?: number;
+      retrievableByDefault?: boolean;
+      text?: string;
+    };
+    expect(kept).toMatchObject({
+      chunkId: "11-1",
+      chunkRole: "body",
+      retrievableByDefault: true,
+      text: "本文件必不可少的条款如下。",
+    });
+    expect(kept.qualityScore ?? 0).toBeGreaterThan(0.5);
+  });
+
+  test("W1.2-H1: preserves structured semantic chunks when textChunkMode is auto (default)", async () => {
+    // Long paragraph that WOULD split on separator if rechunkParsedChunks ran (pre-W1.2 bug).
+    const longParagraph = "alpha###beta###gamma###delta###epsilon###zeta";
+    const parserRegistry = new FakeParserRegistry();
+    parserRegistry.primaryParser = {
+      async parse() {
+        return {
+          chunks: [
+            {
+              chunkIndex: 0,
+              displayText: longParagraph,
+              embeddingText: `Doc title\n${longParagraph}`,
+              sectionId: "sec-1",
+              headingPath: ["Doc title"],
+              pageNo: 1,
+              chunkType: "paragraph",
+              orderInSection: 0,
+              captionText: null,
+              pictureDescription: null,
+            },
+          ],
+          fileName: "demo.pdf",
+          sourceType: "pdf",
+          text: longParagraph,
+        };
+      },
+    };
+    const overlapTextChunker = new FakeOverlapTextChunker();
+    const vectorizationService = new FakeVectorizationService();
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
+
+    const result = await service.ingestDocument({
+      chunkingOptions: {
+        separator: "###",
+        chunkSize: 8,
+        chunkOverlap: 0,
+        textChunkMode: "auto",
+      } as never,
+      document: { id: "11", mime_type: "application/pdf", name: "demo.pdf", tenant_id: "p8" },
+      file: new File(["hello"], "demo.pdf", { type: "application/pdf" }),
+    } as never);
+
+    expect(result.chunkCount).toBe(1);
+    expect(vectorizationService.calls[0]?.chunks).toEqual([
+      expect.objectContaining({
+        chunkId: "11-0",
+        text: longParagraph,
+      }),
+    ]);
+    expect(overlapTextChunker.calls).toHaveLength(0);
+  });
+
+  test("W1.2-H2: re-chunks structured chunks when textChunkMode is block", async () => {
+    const parserRegistry = new FakeParserRegistry();
+    const overlapTextChunker = new FakeOverlapTextChunker();
+    const vectorizationService = new FakeVectorizationService();
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     parserRegistry.primaryParser = {
       async parse() {
@@ -308,11 +452,13 @@ describe("IngestionService", () => {
         separator: "###",
         chunkSize: 8,
         chunkOverlap: 0,
+        textChunkMode: "block",
       } as never,
       document: { id: "11", mime_type: "application/pdf", name: "demo.pdf", tenant_id: "p8" },
       file,
     } as never);
 
+    expect(result.chunkCount).toBeGreaterThan(1);
     expect(result.chunkCount).toBe(3);
     expect(result.totalCharCount).toBe(sumChunkTextLengths(vectorizationService.calls[0]?.chunks));
     expect(overlapTextChunker.calls).toHaveLength(0);
@@ -338,13 +484,47 @@ describe("IngestionService", () => {
     ]);
   });
 
+  test("W1.2-H3: fallback plain text still uses overlap chunker", async () => {
+    const parserRegistry = new FakeParserRegistry();
+    parserRegistry.primaryParser = new FakeThrowingParser();
+    parserRegistry.fallbackParser = new FakeFallbackParser();
+    const overlapTextChunker = new FakeOverlapTextChunker();
+    const vectorizationService = new FakeVectorizationService();
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
+
+    const file = new File(["hello"], "demo.txt", { type: "text/plain" });
+    const result = await service.ingestDocument({
+      chunkingOptions: {
+        chunkSize: 64,
+        chunkOverlap: 8,
+        textChunkMode: "auto",
+      } as never,
+      document: { id: "11", mime_type: "text/plain", name: "demo.txt", tenant_id: "p8" },
+      file,
+    });
+
+    expect(result.chunkCount).toBe(1);
+    expect(overlapTextChunker.calls).toHaveLength(1);
+    expect(vectorizationService.calls).toHaveLength(1);
+  });
+
   test("falls back to local parser and chunker when docling parser fails", async () => {
     const parserRegistry = new FakeParserRegistry();
     parserRegistry.primaryParser = new FakeThrowingParser();
     parserRegistry.fallbackParser = new FakeFallbackParser();
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.txt", { type: "text/plain" });
     const result = await service.ingestDocument({
@@ -364,7 +544,12 @@ describe("IngestionService", () => {
     parserRegistry.fallbackParser = new FakeFallbackParser();
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.txt", { type: "text/plain" });
     const result = await service.ingestDocument({
@@ -387,7 +572,12 @@ describe("IngestionService", () => {
       chunkSize: 256,
     });
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "sdk.txt", { type: "text/plain" });
     const result = await service.ingestDocument({
@@ -417,7 +607,12 @@ describe("IngestionService", () => {
     parserRegistry.primaryParser = new FakeStructuredTableParser();
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const result = await service.ingestDocument({
@@ -448,7 +643,12 @@ describe("IngestionService", () => {
     parserRegistry.primaryParser = new FakeSpecialChunkParser();
     const overlapTextChunker = new FakeOverlapTextChunker();
     const vectorizationService = new FakeVectorizationService();
-    const service = new IngestionService(parserRegistry as never, overlapTextChunker as never, vectorizationService as never);
+    const service = new IngestionService(
+      parserRegistry as never,
+      overlapTextChunker as never,
+      vectorizationService as never,
+      makeMockAppConfig(),
+    );
 
     const file = new File(["hello"], "demo.vtt", { type: "text/vtt" });
     const result = await service.ingestDocument({

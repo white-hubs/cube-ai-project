@@ -1,5 +1,6 @@
 import { type DatabaseService } from "@dangao/bun-server";
-import mysql, { type Pool } from "mysql2/promise";
+import mysql, { type Pool, type PoolConnection } from "mysql2/promise";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export interface KbMysqlConfig {
   host: string;
@@ -8,6 +9,13 @@ export interface KbMysqlConfig {
   user: string;
   password: string;
 }
+
+/** Transaction boundary implemented by the same mysql2 connection used by KB repositories. */
+export interface KbTransactionRunner {
+  runInTransaction<T>(work: () => Promise<T>): Promise<T>;
+}
+
+export type KbTransactionalDatabaseService = DatabaseService & KbTransactionRunner;
 
 function envString(key: string, fallback: string): string {
   const raw = Bun.env[key] ?? process.env[key];
@@ -64,10 +72,13 @@ export function hasKbMysqlConfigFromEnv(): boolean {
 }
 
 /** Static mysql2 adapter for compiled Bun binaries (ADR-0013). */
-export class KbMysqlDatabaseService {
-  private pool: Pool | null = null;
+export class KbMysqlDatabaseService implements KbTransactionRunner {
+  private readonly transactionConnection = new AsyncLocalStorage<PoolConnection>();
 
-  public constructor(private readonly config: KbMysqlConfig) {}
+  public constructor(
+    private readonly config: KbMysqlConfig,
+    private pool: Pool | null = null,
+  ) {}
 
   public async initialize(): Promise<void> {
     if (this.pool) {
@@ -91,14 +102,45 @@ export class KbMysqlDatabaseService {
     if (!this.pool) {
       throw new Error("KB MySQL connection is not initialized");
     }
-    const [rows] = await this.pool.query(sql, params);
+    const executor = this.transactionConnection.getStore() ?? this.pool;
+    const [rows] = await executor.query(sql, params);
     if (/^\s*(SELECT|SHOW|DESCRIBE|WITH)\b/iu.test(sql)) {
       return Array.isArray(rows) ? (rows as T[]) : [];
     }
     return [];
   }
+
+  /**
+   * Run all KB queries in `work` on one mysql2 connection.
+   * Nested calls join the active transaction (REQUIRED semantics).
+   */
+  public async runInTransaction<T>(work: () => Promise<T>): Promise<T> {
+    if (!this.pool) {
+      throw new Error("KB MySQL connection is not initialized");
+    }
+    if (this.transactionConnection.getStore()) {
+      return work();
+    }
+
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await this.transactionConnection.run(connection, work);
+      await connection.commit();
+      return result;
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original failure; connection release below prevents pool exhaustion.
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 }
 
-export function createKbMysqlDatabaseServiceFromEnv(): DatabaseService {
-  return new KbMysqlDatabaseService(buildKbMysqlConfigFromEnv()) as unknown as DatabaseService;
+export function createKbMysqlDatabaseServiceFromEnv(): KbTransactionalDatabaseService {
+  return new KbMysqlDatabaseService(buildKbMysqlConfigFromEnv()) as unknown as KbTransactionalDatabaseService;
 }

@@ -19,6 +19,8 @@ export interface CollectionSpec {
   sparse?: SparseVectorSpec | null;
   /** When true (default if sparse configured), validate existing collection has hybrid schema. */
   requireHybridSchema?: boolean;
+  /** Payload fields used in filters and their required Qdrant index schema. */
+  payloadIndexes?: Record<string, "keyword" | "integer" | "float" | "bool" | "geo" | "text" | "datetime">;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -93,6 +95,7 @@ export class QdrantCollectionService {
           `Qdrant collection "${spec.collectionName}" requires dense vector "${denseName}". Recreate or migrate the collection.`,
         );
       }
+      await this.ensurePayloadIndexes(spec, record);
       return;
     } catch (error) {
       const message = getErrorMessage(error);
@@ -116,5 +119,41 @@ export class QdrantCollectionService {
     }
 
     await client.createCollection(spec.collectionName, createPayload as never);
+    await this.ensurePayloadIndexes(spec, null);
+  }
+
+  private async ensurePayloadIndexes(spec: CollectionSpec, collection: Record<string, unknown> | null): Promise<void> {
+    const required = Object.entries(spec.payloadIndexes ?? {});
+    if (required.length === 0) {
+      return;
+    }
+    const client = await this.qdrantClient.getClient();
+    if (!client.createPayloadIndex) {
+      throw new Error(`Qdrant client cannot ensure payload indexes for collection "${spec.collectionName}"`);
+    }
+    const rawSchema = collection?.payload_schema;
+    const payloadSchema = rawSchema && typeof rawSchema === "object" ? (rawSchema as Record<string, unknown>) : {};
+    for (const [fieldName, expectedType] of required) {
+      const existing = payloadSchema[fieldName];
+      const actualType =
+        typeof existing === "string"
+          ? existing
+          : existing && typeof existing === "object"
+            ? (existing as { data_type?: unknown }).data_type
+            : undefined;
+      if (typeof actualType === "string") {
+        if (actualType.toLowerCase() !== expectedType) {
+          throw new Error(
+            `Qdrant payload index "${fieldName}" in collection "${spec.collectionName}" is ${actualType}; expected ${expectedType}`,
+          );
+        }
+        continue;
+      }
+      await client.createPayloadIndex(spec.collectionName, {
+        field_name: fieldName,
+        field_schema: expectedType,
+        wait: true,
+      });
+    }
   }
 }

@@ -63,6 +63,9 @@ export function createInnerProviderFromCatalogRuntimeConfig(cfg: LlmModelRuntime
     const embedder = new DoubaoMultimodalEmbedProvider({
       apiKey: cfg.apiKey,
       baseURL: cfg.apiBaseUrl,
+      embedBatchSize: readEnvInteger("DOUBAO_EMBED_BATCH_SIZE", 1, 1),
+      embedConcurrency: readEnvInteger("DOUBAO_EMBED_CONCURRENCY", 4, 1),
+      maxRetries: readEnvInteger("DOUBAO_EMBED_MAX_RETRIES", 3, 0),
       model: cfg.modelCode,
     });
     return {
@@ -120,8 +123,14 @@ export function createInnerProviderFromCatalogRuntimeConfig(cfg: LlmModelRuntime
         `image generation endpointType '${cfg.endpointType}' must use ImageGenerationPort, not chat provider`,
       );
     }
-    case "gemini":
+    case "openai_rerank":
     case "jina_rerank": {
+      throw new LlmProviderError(
+        "UPSTREAM_LLM_UNAVAILABLE",
+        `rerank endpointType '${cfg.endpointType}' must use RerankPort, not chat provider`,
+      );
+    }
+    case "gemini": {
       throw new LlmProviderError(
         "UPSTREAM_LLM_UNAVAILABLE",
         `endpointType ${cfg.endpointType} not yet supported (out of scope for current workstream)`,
@@ -135,6 +144,15 @@ export function createInnerProviderFromCatalogRuntimeConfig(cfg: LlmModelRuntime
       throw new LlmProviderError("UPSTREAM_LLM_UNAVAILABLE", `unknown endpointType ${String(exhaustive)}`);
     }
   }
+}
+
+function readEnvInteger(name: string, fallback: number, minimum: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= minimum ? parsed : fallback;
 }
 
 function runtimeConfigHash(cfg: LlmModelRuntimeConfig): string {

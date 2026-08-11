@@ -20,3 +20,5 @@ export * from "./provider/noop-provider";
 export * from "./provider/image/dashscope-text2image-provider";
 export * from "./provider/image/geekai-nano-banana-provider";
 export * from "./provider/image/catalog-image-provider";
+export * from "./provider/openai-compat-rerank-provider";
+export * from "./provider/catalog-rerank-provider";

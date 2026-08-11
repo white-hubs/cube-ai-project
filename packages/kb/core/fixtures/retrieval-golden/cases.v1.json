@@ -1,0 +1,129 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "clause-normative-refs",
+      "query": "规范性引用文件有哪些要求",
+      "profileHint": "semantic",
+      "relevant": [
+        { "documentId": "doc-pdf-spec", "chunkId": "pdf-clause-2-1", "grade": 2 },
+        { "documentId": "doc-pdf-spec", "chunkId": "pdf-clause-2-2", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "clause-safety-requirements",
+      "query": "电气安全防护距离应满足什么条件",
+      "profileHint": "semantic",
+      "relevant": [
+        { "documentId": "doc-pdf-spec", "chunkId": "pdf-clause-5-3", "grade": 2 },
+        { "documentId": "doc-pdf-spec", "chunkId": "pdf-clause-5-1", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "clause-acceptance-criteria",
+      "query": "出厂验收合格判据",
+      "profileHint": "semantic",
+      "relevant": [
+        { "documentId": "doc-pdf-accept", "chunkId": "pdf-accept-7-2", "grade": 2 },
+        { "documentId": "doc-pdf-accept", "chunkId": "pdf-accept-7-1", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "entity-device-code",
+      "query": "A-102",
+      "profileHint": "entity",
+      "relevant": [
+        { "documentId": "doc-assets", "chunkId": "asset-row-a102", "grade": 2 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "entity-part-number",
+      "query": "PN-88C-4401",
+      "profileHint": "entity",
+      "relevant": [
+        { "documentId": "doc-parts", "chunkId": "part-pn-88c", "grade": 2 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "entity-serial-mixed",
+      "query": "研发中心3号265CBRS",
+      "profileHint": "entity",
+      "relevant": [
+        { "documentId": "doc-assets", "chunkId": "asset-row-cbrs", "grade": 2 },
+        { "documentId": "doc-assets", "chunkId": "asset-row-a102", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "nav-chapter-deploy",
+      "query": "第3章 部署架构",
+      "profileHint": "navigation",
+      "relevant": [
+        { "documentId": "doc-handbook", "chunkId": "nav-ch3-deploy", "grade": 2 },
+        { "documentId": "doc-handbook", "chunkId": "nav-ch3-overview", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "nav-appendix-glossary",
+      "query": "附录A 术语表",
+      "profileHint": "navigation",
+      "relevant": [
+        { "documentId": "doc-handbook", "chunkId": "nav-appendix-a", "grade": 2 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "nav-system-overview",
+      "query": "第1章 系统概述",
+      "profileHint": "navigation",
+      "relevant": [
+        { "documentId": "doc-handbook", "chunkId": "nav-system-overview", "grade": 2 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "table-asset-row",
+      "query": "设备编码 设备名称 所属机房",
+      "profileHint": "table",
+      "relevant": [
+        { "documentId": "doc-assets", "chunkId": "asset-table-header", "grade": 2 },
+        { "documentId": "doc-assets", "chunkId": "asset-row-a102", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "table-sla-metrics",
+      "query": "可用性 SLA 目标值",
+      "profileHint": "table",
+      "relevant": [
+        { "documentId": "doc-sla", "chunkId": "sla-table-availability", "grade": 2 },
+        { "documentId": "doc-sla", "chunkId": "sla-table-latency", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "semantic-false-alarm",
+      "query": "如何降低误报并减少人工复核成本",
+      "profileHint": "semantic",
+      "relevant": [
+        { "documentId": "doc-solution", "chunkId": "sem-false-alarm", "grade": 2 },
+        { "documentId": "doc-solution", "chunkId": "sem-overview", "grade": 1 }
+      ],
+      "k": [1, 3, 5]
+    },
+    {
+      "id": "no-answer-quantum-coffee-policy",
+      "query": "量子咖啡机跨星系保修政策",
+      "profileHint": "semantic",
+      "expectNoAnswer": true,
+      "relevant": [],
+      "k": [1, 3, 5]
+    }
+  ]
+}

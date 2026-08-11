@@ -1,7 +1,19 @@
-import { ApiBody, ApiOperation, ApiResponse, BadRequestException, Body, Controller, POST } from "@dangao/bun-server";
+import {
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  BadRequestException,
+  Body,
+  ContextParam,
+  Controller,
+  POST,
+  type Context,
+} from "@dangao/bun-server";
 
 import { parsePlatformDocumentSyncContext } from "../../../port/document-platform-sync.port";
+import { extractTraceIdHeader, resolveRetrievalTraceId } from "../feedback/retrieval-trace";
 import { RetrievalService } from "../services/retrieval.service";
+import { parseSearchMetadataFilters } from "./search-filters";
 
 function parseSimilarityThreshold(raw: unknown): number | undefined {
   if (raw === undefined || raw === null) {
@@ -26,11 +38,11 @@ export class SearchController {
    * @param body.query 检索问题/关键词（必填）
    * @param body.topK 返回候选数量（默认 5）
    * @param body.documentId 可选：限制在指定文档内检索
-   * @param body.similarityThreshold 可选：相似度阈值 [0,1]，滑块语义；仅返回 score 大于该值的分段（与响应 `score` 一致）；0 或未传表示不过滤
+   * @param body.similarityThreshold 可选：绝对相关度阈值 [0,1]；仅返回 score 大于该值的分段；未传用服务端默认，显式 0 表示不过滤
    */
   @ApiOperation({
     description:
-      "根据 query 进行向量相似度检索；可选 documentId 将范围限制到单个文档。可选 similarityThreshold：仅保留最终得分 score 大于阈值的分段（典型 UI 为 0~1 滑块）。",
+      "根据 query 进行混合检索（向量+词法）并规则重排；可选 documentId 限制单文档。score 为绝对相关度（非文档内相对归一）。可选 similarityThreshold：仅保留 score > 阈值的分段；未传使用服务端默认阈值，显式传 0 关闭过滤。短词查询要求正文/标题命中关键词；低质分段（如 <unknown>）不会返回。",
     operationId: "search",
     summary: "向量检索",
   })
@@ -40,15 +52,31 @@ export class SearchController {
     schema: {
       properties: {
         documentId: { description: "可选：限制在指定文档内检索", type: "string" },
+        filters: {
+          description:
+            "可选元数据 AND 过滤（createdAtFrom/createdAtTo/docType/lang/tags）。ACL 由服务端身份注入，禁止客户端传 allowedGroupIds。",
+          properties: {
+            createdAtFrom: { description: "文档创建时间下界（含，ISO-8601）", format: "date-time", type: "string" },
+            createdAtTo: { description: "文档创建时间上界（含，ISO-8601）", format: "date-time", type: "string" },
+            docType: { type: "string" },
+            lang: { type: "string" },
+            tags: { items: { type: "string" }, type: "array" },
+          },
+          type: "object",
+        },
         query: { description: "检索问题/关键词（必填）", type: "string" },
         similarityThreshold: {
           description:
-            "可选，[0,1]。滑块型参数：与响应中 score（最终相关性，0~1）比较，仅返回 score > similarityThreshold 的分段；为 0 或未传时不做该层过滤。",
+            "可选，[0,1]。与响应中 score（绝对相关度，0~1）比较，仅返回 score > similarityThreshold 的分段；未传时使用服务端默认阈值；显式传 0 表示不做该层过滤。",
           maximum: 1,
           minimum: 0,
           type: "number",
         },
-        topK: { description: "返回候选数量（默认 5）", type: "number" },
+        topK: { description: "返回候选数量上限（默认 5；宁缺毋滥，不强行凑满）", type: "number" },
+        traceId: {
+          description: "可选：与 KnowledgeQueryRequest.traceId / feedback.traceId 对齐的关联 id（也可用 X-Trace-Id）",
+          type: "string",
+        },
       },
       required: ["query"],
       type: "object",
@@ -58,6 +86,7 @@ export class SearchController {
     description: "检索结果",
     schema: {
       properties: {
+        traceId: { description: "回显的关联 id（若请求提供）", type: "string" },
         items: {
           items: {
             properties: {
@@ -73,18 +102,18 @@ export class SearchController {
               keywords: { description: "关键词", items: { type: "string" }, type: "array" },
               pageNo: { description: "页码", nullable: true, type: "number" },
               propertyNamespace: { description: "属性命名空间", nullable: true, type: "string" },
-              rankScore: { description: "规则重排后的最终得分", type: "number" },
+              rankScore: { description: "规则重排后的绝对相关度（与 score 同源）", type: "number" },
               retrievalProfile: { description: "检索画像", type: "string" },
               rowEnd: { description: "结束行", nullable: true, type: "number" },
               rowStart: { description: "起始行", nullable: true, type: "number" },
-              score: { description: "最终排序得分（可能包含规则重排加权）", type: "number" },
+              score: { description: "最终绝对相关度（RRF+规则加权后 clamp 到 0~1，不做文档内相对归一）", type: "number" },
               sectionId: { description: "逻辑章节标识", type: "string" },
               sheetName: { description: "工作表名", nullable: true, type: "string" },
               sourceType: { description: "数据来源类型", type: "string" },
               startTime: { description: "起始时间", nullable: true, type: "string" },
               tableId: { description: "表格 id", nullable: true, type: "string" },
               text: { description: "chunk 文本内容", type: "string" },
-              vectorScore: { description: "原始向量召回得分", type: "number" },
+              vectorScore: { description: "召回层得分（hybrid RRF，调试用）", type: "number" },
             },
             type: "object",
           },
@@ -96,7 +125,18 @@ export class SearchController {
     status: 200,
   })
   @POST("/")
-  public async search(@Body() body: { query?: string; topK?: number; documentId?: string; similarityThreshold?: number }) {
+  public async search(
+    @Body()
+    body: {
+      query?: string;
+      topK?: number;
+      documentId?: string;
+      similarityThreshold?: number;
+      filters?: unknown;
+      traceId?: unknown;
+    },
+    @ContextParam() ctx?: Context,
+  ) {
     if (!body?.query || typeof body.query !== "string") {
       throw new BadRequestException("query is required");
     }
@@ -110,15 +150,22 @@ export class SearchController {
       }
     }
     const similarityThreshold = parseSimilarityThreshold(body.similarityThreshold);
+    const filters = parseSearchMetadataFilters(body.filters);
 
     const documentId = body.documentId !== undefined ? String(body.documentId).trim() : undefined;
+    const traceId = resolveRetrievalTraceId({
+      bodyTraceId: body.traceId,
+      headerTraceId: ctx ? extractTraceIdHeader(ctx.request.headers) : null,
+    });
 
-    return this.retrievalService.search({
+    const result = await this.retrievalService.search({
       documentId,
+      filters,
       query: body.query,
       similarityThreshold,
       topK: typeof body.topK === "number" ? body.topK : 5,
     });
+    return traceId ? { ...result, traceId } : result;
   }
 
   /**
@@ -144,7 +191,7 @@ export class SearchController {
             properties: {
               documentId: { description: "文档主键", type: "string" },
               similarityThreshold: {
-                description: "可选，[0,1]。仅该文档：保留 score > similarityThreshold；为 0 或未传则不做该层过滤。",
+                description: "可选，[0,1]。仅该文档：保留 score > similarityThreshold；未传用服务端默认；显式 0 关闭过滤。",
                 maximum: 1,
                 minimum: 0,
                 type: "number",
@@ -181,18 +228,18 @@ export class SearchController {
               keywords: { description: "关键词", items: { type: "string" }, type: "array" },
               pageNo: { description: "页码", nullable: true, type: "number" },
               propertyNamespace: { description: "属性命名空间", nullable: true, type: "string" },
-              rankScore: { description: "规则重排后的最终得分", type: "number" },
+              rankScore: { description: "规则重排后的绝对相关度（与 score 同源）", type: "number" },
               retrievalProfile: { description: "检索画像", type: "string" },
               rowEnd: { description: "结束行", nullable: true, type: "number" },
               rowStart: { description: "起始行", nullable: true, type: "number" },
-              score: { description: "最终排序得分（可能包含规则重排加权）", type: "number" },
+              score: { description: "最终绝对相关度（RRF+规则加权后 clamp 到 0~1）", type: "number" },
               sectionId: { description: "逻辑章节标识", type: "string" },
               sheetName: { description: "工作表名", nullable: true, type: "string" },
               sourceType: { description: "数据来源类型", type: "string" },
               startTime: { description: "起始时间", nullable: true, type: "string" },
               tableId: { description: "表格 id", nullable: true, type: "string" },
               text: { description: "chunk 文本内容", type: "string" },
-              vectorScore: { description: "原始向量召回得分", type: "number" },
+              vectorScore: { description: "召回层得分（hybrid RRF，调试用）", type: "number" },
             },
             type: "object",
           },
@@ -259,11 +306,11 @@ export class SearchController {
    * @param body.query 检索问题/关键词（必填）
    * @param body.topK 返回候选数量（默认 5）
    * @param body.directoryId 目录主键（必填）
-   * @param body.similarityThreshold 可选：相似度阈值 [0,1]，滑块语义；仅返回 score 大于该值的分段
+   * @param body.similarityThreshold 可选：绝对相关度阈值 [0,1]；未传用服务端默认，显式 0 表示不过滤
    */
   @ApiOperation({
     description:
-      "先根据 directoryId 查询目录下的文档集合，再进行向量检索并合并候选。可选 similarityThreshold：仅保留 score 大于阈值的分段。",
+      "先根据 directoryId 查询目录下的文档集合，再混合检索并合并候选。score 为绝对相关度；可选 similarityThreshold（未传用默认，显式 0 关闭）。",
     operationId: "searchByDirectory",
     summary: "目录检索",
   })
@@ -273,15 +320,26 @@ export class SearchController {
     schema: {
       properties: {
         directoryId: { description: "目录主键（必填）", type: "string" },
+        filters: {
+          description: "可选元数据 AND 过滤（createdAtFrom/createdAtTo/docType/lang/tags）。ACL 由服务端身份注入。",
+          properties: {
+            createdAtFrom: { description: "文档创建时间下界（含，ISO-8601）", format: "date-time", type: "string" },
+            createdAtTo: { description: "文档创建时间上界（含，ISO-8601）", format: "date-time", type: "string" },
+            docType: { type: "string" },
+            lang: { type: "string" },
+            tags: { items: { type: "string" }, type: "array" },
+          },
+          type: "object",
+        },
         query: { description: "检索问题/关键词（必填）", type: "string" },
         similarityThreshold: {
           description:
-            "可选，[0,1]。滑块型参数：与响应中 score 比较，仅返回 score > similarityThreshold 的分段；为 0 或未传时不做该层过滤。",
+            "可选，[0,1]。与响应中 score 比较，仅返回 score > similarityThreshold 的分段；未传时使用服务端默认阈值；显式传 0 表示不做该层过滤。",
           maximum: 1,
           minimum: 0,
           type: "number",
         },
-        topK: { description: "返回候选数量（默认 5）", type: "number" },
+        topK: { description: "返回候选数量上限（默认 5）", type: "number" },
       },
       required: ["query", "directoryId"],
       type: "object",
@@ -306,18 +364,18 @@ export class SearchController {
               keywords: { description: "关键词", items: { type: "string" }, type: "array" },
               pageNo: { description: "页码", nullable: true, type: "number" },
               propertyNamespace: { description: "属性命名空间", nullable: true, type: "string" },
-              rankScore: { description: "规则重排后的最终得分", type: "number" },
+              rankScore: { description: "规则重排后的绝对相关度（与 score 同源）", type: "number" },
               retrievalProfile: { description: "检索画像", type: "string" },
               rowEnd: { description: "结束行", nullable: true, type: "number" },
               rowStart: { description: "起始行", nullable: true, type: "number" },
-              score: { description: "最终排序得分（可能包含规则重排加权）", type: "number" },
+              score: { description: "最终绝对相关度（RRF+规则加权后 clamp 到 0~1）", type: "number" },
               sectionId: { description: "逻辑章节标识", type: "string" },
               sheetName: { description: "工作表名", nullable: true, type: "string" },
               sourceType: { description: "数据来源类型", type: "string" },
               startTime: { description: "起始时间", nullable: true, type: "string" },
               tableId: { description: "表格 id", nullable: true, type: "string" },
               text: { description: "chunk 文本内容", type: "string" },
-              vectorScore: { description: "原始向量召回得分", type: "number" },
+              vectorScore: { description: "召回层得分（hybrid RRF，调试用）", type: "number" },
             },
             type: "object",
           },
@@ -329,7 +387,9 @@ export class SearchController {
     status: 200,
   })
   @POST("/by-directory")
-  public async searchByDirectory(@Body() body: { query?: string; topK?: number; directoryId?: string; similarityThreshold?: number }) {
+  public async searchByDirectory(
+    @Body() body: { query?: string; topK?: number; directoryId?: string; similarityThreshold?: number; filters?: unknown },
+  ) {
     if (!body?.query || typeof body.query !== "string") {
       throw new BadRequestException("query is required");
     }
@@ -337,8 +397,10 @@ export class SearchController {
       throw new BadRequestException("topK must be a positive number");
     }
     const similarityThreshold = parseSimilarityThreshold(body.similarityThreshold);
+    const filters = parseSearchMetadataFilters(body.filters);
     return this.retrievalService.searchByDirectory({
       directoryId: body.directoryId ?? "0",
+      filters,
       query: body.query,
       similarityThreshold,
       topK: typeof body.topK === "number" ? body.topK : 5,

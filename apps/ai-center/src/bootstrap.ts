@@ -1,7 +1,12 @@
 import type { Application } from "@dangao/bun-server";
 import { ExceptionFilterRegistry } from "@dangao/bun-server";
 
-import { createExecutionAuthMiddleware, createSubjectUserBridgeMiddleware, loadAppConfig } from "@cube-ai/ai-center/platform/server-base";
+import {
+  createExecutionAuthMiddleware,
+  createSubjectUserBridgeMiddleware,
+  loadAppConfig,
+  loadServerIdleTimeoutMs,
+} from "@cube-ai/ai-center/platform/server-base";
 import { createDeveloperRateLimitMiddleware, createTenantContextMiddleware as createFlowTenantContextMiddleware } from "@cube-ai/flow-core";
 import { FlowService } from "@cube-ai/flow-studio";
 import {
@@ -100,14 +105,16 @@ function startMcpToolRegistrationWorker(container: DiContainer): void {
 export interface BootstrapOptions {
   port?: number;
   hostname?: string;
+  serverIdleTimeoutMs?: number;
 }
 
 export async function bootstrap(options: BootstrapOptions = {}): Promise<Application> {
   const port = options.port ?? Number(Bun.env.AI_CENTER_PORT ?? Bun.env.AGENTIC_ENGINE_PORT ?? process.env.AGENTIC_ENGINE_PORT ?? 3000);
   const hostname =
     options.hostname ?? Bun.env.AI_CENTER_HOSTNAME ?? Bun.env.AGENTIC_ENGINE_HOSTNAME ?? process.env.AGENTIC_ENGINE_HOSTNAME ?? "0.0.0.0";
+  const serverIdleTimeoutMs = options.serverIdleTimeoutMs ?? (await loadServerIdleTimeoutMs());
 
-  const assembler = new AiCenterAssembler({ port, hostname });
+  const assembler = new AiCenterAssembler({ port, hostname, idleTimeout: serverIdleTimeoutMs });
   const app = assembler.assemble();
   const container = app.getContainer();
 
@@ -212,8 +219,15 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   registerLifecycleHooks(app);
 
   const mysqlUrl = Bun.env.AGENTIC_ENGINE_MYSQL_URL ?? process.env.AGENTIC_ENGINE_MYSQL_URL ?? "";
-  if (mysqlUrl) await runAllDomainMigrations(mysqlUrl);
+  if (mysqlUrl) {
+    process.stdout.write(`${JSON.stringify({ msg: "ai-center.domain-migrations.starting" })}\n`);
+    await runAllDomainMigrations(mysqlUrl);
+    process.stdout.write(`${JSON.stringify({ msg: "ai-center.domain-migrations.completed" })}\n`);
+  } else {
+    process.stdout.write(`${JSON.stringify({ msg: "ai-center.domain-migrations.skipped" })}\n`);
+  }
 
+  process.stdout.write(`${JSON.stringify({ msg: "ai-center.http-listen.starting", hostname, port, serverIdleTimeoutMs })}\n`);
   await app.listen(port, hostname);
 
   // ── Flow gRPC server ────────────────────────────────────────────────────
@@ -240,6 +254,10 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Applica
   });
 
   startMcpToolRegistrationWorker(container);
+
+  // W3.3: IngestWorkerService starts via OnModuleInit during app.listen()
+  // (nested IngestionModule provider is not on the root container).
+
   return app;
 }
 
