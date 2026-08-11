@@ -38,10 +38,12 @@ export function mapSearchItemToKnowledgeHit(item: SearchItem, kbId: string): Kno
   const snippet = (item.text && item.text.trim()) || "";
   const score = Math.min(1, Math.max(0, item.rankScore ?? item.score ?? 0));
   return {
+    chunkId: item.chunkId,
     docId: item.documentId,
     kbId,
-    link: undefined,
+    ...(item.pageNo !== undefined ? { pageNo: item.pageNo } : {}),
     score,
+    ...(item.sectionId ? { sectionId: item.sectionId } : {}),
     snippet,
     title: item.fileName || item.headingPath?.at(-1),
   };
@@ -58,11 +60,14 @@ export class KnowledgeQueryPortImpl implements KnowledgeQueryPort {
     }
 
     const tenantId = mapTenantToProjectId(req.tenant);
+    // ACL groups resolved inside retrieval via resolveAllowedGroupIds(identity) only — never from client filters.
+    const identity = req.userToken ? { userToken: req.userToken } : undefined;
     return tenantContextAls.run({ tenantId }, async () => {
       const perDirectory = await Promise.all(
         directoryIds.map(async (directoryId) => {
           const result = await this.retrievalService.searchByDirectory({
             directoryId,
+            identity,
             query: req.query,
             similarityThreshold: req.scoreThreshold,
             topK: req.topK,

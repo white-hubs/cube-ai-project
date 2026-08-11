@@ -355,6 +355,7 @@
         "@cube-ai/vector-qdrant": "workspace:*",
         "@dangao/bun-server": "catalog:bun-server",
         "@qdrant/js-client-rest": "catalog:vector",
+        "bullmq": "catalog:queue",
         "jszip": "catalog:storage",
         "mammoth": "catalog:storage",
         "mysql2": "catalog:",

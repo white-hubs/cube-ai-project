@@ -1,5 +1,6 @@
 export {
   loadAppConfig,
+  loadServerIdleTimeoutMs,
   APP_CONFIG_TOKEN,
   resetAppConfigCacheForTests,
   type AppConfig,

@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { type LlmCatalogPort, LlmEndpointTypeSchema, LlmModelRuntimeConfigSchema, LlmProviderSummarySchema } from "./llm-catalog";
 
 describe("LlmCatalogPort contracts", () => {
-  it("LlmEndpointTypeSchema enumerates exactly the 13 supported codes", () => {
+  it("LlmEndpointTypeSchema enumerates exactly the 14 supported codes", () => {
     const expected = [
       "openai",
       "openai_response",
@@ -13,6 +13,7 @@ describe("LlmCatalogPort contracts", () => {
       "new_api",
       "openai_image",
       "jina_rerank",
+      "openai_rerank",
       "ollama",
       "geekai",
       "dashscope",

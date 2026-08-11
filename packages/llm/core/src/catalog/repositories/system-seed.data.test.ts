@@ -29,6 +29,7 @@ describe("AUTHORITATIVE_SYSTEM_CATALOG_SEED", () => {
       "new_api",
       "openai_image",
       "jina_rerank",
+      "openai_rerank",
       "ollama",
       "geekai",
       "dashscope",
@@ -38,5 +39,20 @@ describe("AUTHORITATIVE_SYSTEM_CATALOG_SEED", () => {
     for (const r of AUTHORITATIVE_SYSTEM_CATALOG_SEED.matchRules ?? []) {
       expect(known.has(r.endpoint_type as string)).toBe(true);
     }
+  });
+
+  it("H4: seeds qwen3-rerank under dashscope with openai_rerank", () => {
+    const endpoint = "https://llm-rsqnz4dqml5koq8p.cn-beijing.maas.aliyuncs.com/compatible-api/v1/reranks";
+    const model = (AUTHORITATIVE_SYSTEM_CATALOG_SEED.models ?? []).find((m) => m.model_code === "qwen3-rerank");
+    expect(model).toBeDefined();
+    expect(model?.api_base_url).toBe(endpoint);
+    expect(model?.endpoint_type).toBe("openai_rerank");
+    expect(model?.system_provider_id).toBe("900000000000001007");
+    expect(model?.model_types).toContain("rerank");
+
+    const exactRule = (AUTHORITATIVE_SYSTEM_CATALOG_SEED.matchRules ?? []).find((r) => r.pattern === "qwen3-rerank");
+    expect(exactRule?.api_base_url).toBe(endpoint);
+    expect(exactRule?.endpoint_type).toBe("openai_rerank");
+    expect(exactRule?.provider_type_code).toBe("dashscope");
   });
 });

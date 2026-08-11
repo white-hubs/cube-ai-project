@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS document_record (
   chunk_overlap INT NULL,
   table_chunk_mode VARCHAR(64) NULL,
   text_chunk_mode VARCHAR(64) NULL,
+  content_checksum CHAR(64) NULL,
+  embedding_model_code VARCHAR(128) NULL,
+  active_generation_id VARCHAR(64) NOT NULL DEFAULT 'legacy',
+  active_generation_job_id VARCHAR(64) NULL,
+  doc_type VARCHAR(64) NULL,
+  lang VARCHAR(32) NULL,
+  tags_json JSON NULL,
+  acl_group_ids_json JSON NULL,
+  metadata_json JSON NULL,
   KEY idx_document_record_directory (directory_id),
   KEY idx_document_record_tenant (tenant_id),
   KEY idx_document_record_deleted (deleted)
@@ -87,6 +96,7 @@ CREATE TABLE IF NOT EXISTS document_chunk (
   updater_type VARCHAR(64) NULL,
   update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   document_id VARCHAR(64) NOT NULL,
+  generation_id VARCHAR(64) NOT NULL DEFAULT 'legacy',
   file_name VARCHAR(512) NOT NULL,
   source_type VARCHAR(64) NOT NULL,
   chunk_id VARCHAR(128) NOT NULL,
@@ -94,6 +104,7 @@ CREATE TABLE IF NOT EXISTS document_chunk (
   chunk_index INT NOT NULL,
   text_content MEDIUMTEXT NOT NULL,
   embedding_text MEDIUMTEXT NOT NULL,
+  embedding_fingerprint CHAR(64) NULL,
   char_count INT NOT NULL DEFAULT 0,
   recall_count INT NOT NULL DEFAULT 0,
   section_id VARCHAR(256) NOT NULL,
@@ -113,9 +124,32 @@ CREATE TABLE IF NOT EXISTS document_chunk (
   end_time VARCHAR(64) NULL,
   cue_index INT NULL,
   property_namespace VARCHAR(256) NULL,
-  UNIQUE KEY uk_document_chunk_chunk_id (chunk_id),
+  doc_type VARCHAR(64) NULL,
+  lang VARCHAR(32) NULL,
+  tags_json JSON NULL,
+  acl_group_ids_json JSON NULL,
+  doc_created_at DATETIME NULL,
+  UNIQUE KEY uk_document_chunk_generation_chunk (document_id, generation_id, chunk_id),
   UNIQUE KEY uk_document_chunk_qdrant_point_id (qdrant_point_id),
   KEY idx_document_chunk_document (document_id),
-  KEY idx_document_chunk_tenant (tenant_id)
+  KEY idx_document_chunk_active_generation (document_id, generation_id, deleted),
+  KEY idx_document_chunk_tenant (tenant_id),
+  FULLTEXT KEY ft_document_chunk_lexical (text_content, embedding_text, heading_path, keywords_text, headers_text) WITH PARSER ngram
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS search_feedback (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  tenant_id VARCHAR(64) NOT NULL,
+  trace_id VARCHAR(128) NOT NULL,
+  feedback_type VARCHAR(32) NOT NULL,
+  query TEXT NOT NULL,
+  hit_chunk_ids_json JSON NULL,
+  comment TEXT NULL,
+  create_by VARCHAR(64) NOT NULL DEFAULT 'system',
+  creator_id VARCHAR(64) NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_search_feedback_tenant_trace (tenant_id, trace_id),
+  KEY idx_search_feedback_tenant_time (tenant_id, create_time),
+  KEY idx_search_feedback_tenant_type (tenant_id, feedback_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 `;

@@ -10,6 +10,9 @@ export type ChunkType = "paragraph" | "table" | "picture" | "list" | "text" | "t
 
 export type RetrievalProfile = "semantic-qa" | "entity-lookup" | "navigation" | "timeline";
 
+/** 内容角色：影响默认是否可检索（封面/目录可入库但默认不召回） */
+export type ChunkContentRole = "body" | "toc" | "cover" | "header_footer" | "noise" | "structured";
+
 export interface ChunkSemanticMetadata {
   sheetName?: string | null;
   tableId?: string | null;
@@ -22,6 +25,14 @@ export interface ChunkSemanticMetadata {
   cueIndex?: number | null;
   propertyNamespace?: string | null;
   retrievalProfile?: RetrievalProfile;
+  /** 质量策略推断的内容角色 */
+  chunkRole?: ChunkContentRole;
+  /** 质量分 0~1 */
+  qualityScore?: number;
+  /** 质量原因码 */
+  qualityReasons?: string[];
+  /** 默认是否参与检索 */
+  retrievableByDefault?: boolean;
 }
 
 export const DEFAULT_CHUNK_SEPARATOR = "\n\n";
@@ -66,6 +77,10 @@ export interface TextChunkRecord extends ChunkSemanticMetadata {
   chunkIndex: number;
   text: string;
   embeddingText: string;
+  /** W3.5: hash(embeddingText + modelCode + instructionProfile + algoVersion) */
+  embeddingFingerprint?: string;
+  /** W3.1 staging/active generation. Missing means legacy data. */
+  generationId?: string;
   tenantId: string | null;
   sourceType: string;
   fileName: string;
@@ -76,6 +91,13 @@ export interface TextChunkRecord extends ChunkSemanticMetadata {
   orderInSection: number;
   captionText: string | null;
   pictureDescription: string | null;
+  /** W4.1 denormalized document metadata for dual-leg filters / Qdrant payload */
+  docType?: string | null;
+  lang?: string | null;
+  tags?: string[] | null;
+  aclGroupIds?: string[] | null;
+  /** ISO / MySQL datetime string of document create_time */
+  docCreatedAt?: string | null;
 }
 
 export interface ParsedDocumentContent {
@@ -136,6 +158,15 @@ export interface ChunkPreviewItem extends ChunkSemanticMetadata {
 export interface ChunkPreviewResult {
   items: ChunkPreviewItem[];
   chunkCount: number;
+  /** Synchronous preview outcome. ready responses contain the completed preview items. */
+  previewStatus: "ready" | "failed" | "unsupported";
+  /**
+   * By-id preview only: persisted pipeline state for an explicit failure/unsupported result.
+   */
+  documentStatus?: DocumentStatus;
+  parseStatus?: ParseStatus;
+  indexStatus?: IndexStatus;
+  errorMessage?: string | null;
 }
 
 export interface DocumentChunkListItem extends ChunkSemanticMetadata {
@@ -154,4 +185,14 @@ export interface DocumentChunkListItem extends ChunkSemanticMetadata {
   charCount: number;
   /** 该分段被检索命中次数（累计） */
   recallCount: number;
+}
+
+/** Read-only source detail returned to retrieval consumers. Internal embeddingText is intentionally excluded. */
+export interface DocumentChunkDetail extends Omit<DocumentChunkListItem, "embeddingText"> {
+  documentId: string;
+  fileName: string;
+  sourceType: string;
+  docType?: string | null;
+  lang?: string | null;
+  tags?: string[];
 }

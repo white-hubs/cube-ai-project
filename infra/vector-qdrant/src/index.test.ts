@@ -16,9 +16,15 @@ class FakeQdrantRestClient {
   public readonly getCollectionCalls: string[] = [];
   public readonly countCalls: { collectionName: string; payload: Record<string, unknown> }[] = [];
   public readonly createCollectionCalls: { name: string; payload: Record<string, unknown> }[] = [];
+  public readonly createPayloadIndexCalls: {
+    collectionName: string;
+    payload: { field_name: string; field_schema: string; wait?: boolean };
+  }[] = [];
   public countResult = 1;
   public getCollectionError: Error | null = null;
   public existingCollection: Record<string, unknown> | null = null;
+  public retrieveResult: { id: unknown; payload?: Record<string, unknown>; vector?: unknown }[] = [];
+  public readonly retrieveCalls: { collectionName: string; payload: Record<string, unknown> }[] = [];
 
   async upsert(collectionName: string, payload: Record<string, unknown>): Promise<void> {
     this.upsertCalls.push({ collectionName, payload });
@@ -59,6 +65,21 @@ class FakeQdrantRestClient {
 
   async createCollection(name: string, payload: Record<string, unknown>): Promise<void> {
     this.createCollectionCalls.push({ name, payload });
+  }
+
+  async createPayloadIndex(collectionName: string, payload: { field_name: string; field_schema: string; wait?: boolean }): Promise<void> {
+    this.createPayloadIndexCalls.push({ collectionName, payload });
+  }
+
+  async scroll(collectionName: string, payload: Record<string, unknown>) {
+    void collectionName;
+    void payload;
+    return { next_page_offset: null, points: [] as { id: unknown; payload?: Record<string, unknown> }[] };
+  }
+
+  async retrieve(collectionName: string, payload: Record<string, unknown>) {
+    this.retrieveCalls.push({ collectionName, payload });
+    return this.retrieveResult;
   }
 }
 
@@ -142,6 +163,45 @@ describe("QdrantCollectionService", () => {
         sparse: {},
       }),
     ).rejects.toThrow("requires hybrid dense+sparse schema");
+  });
+
+  test("creates missing payload indexes and rejects a wrong existing schema", async () => {
+    const qdrantClient = new FakeQdrantClient();
+    qdrantClient.restClient.existingCollection = {
+      config: {
+        params: {
+          sparse_vectors: { sparse: {} },
+          vectors: { dense: { size: 1024 } },
+        },
+      },
+      payload_schema: { tenantId: { data_type: "keyword" } },
+    };
+    const service = new QdrantCollectionService(qdrantClient);
+
+    await service.ensureCollection({
+      collectionName: "ai_server_documents",
+      dense: { size: 1024 },
+      payloadIndexes: { documentId: "keyword", tenantId: "keyword" },
+      sparse: {},
+    });
+    expect(qdrantClient.restClient.createPayloadIndexCalls).toEqual([
+      {
+        collectionName: "ai_server_documents",
+        payload: { field_name: "documentId", field_schema: "keyword", wait: true },
+      },
+    ]);
+
+    qdrantClient.restClient.existingCollection.payload_schema = {
+      documentId: { data_type: "integer" },
+    };
+    await expect(
+      service.ensureCollection({
+        collectionName: "ai_server_documents",
+        dense: { size: 1024 },
+        payloadIndexes: { documentId: "keyword" },
+        sparse: {},
+      }),
+    ).rejects.toThrow("expected keyword");
   });
 });
 
@@ -251,6 +311,38 @@ describe("QdrantVectorIndex", () => {
 
     expect(qdrantClient.restClient.countCalls).toHaveLength(0);
     expect(qdrantClient.restClient.deleteCalls).toHaveLength(0);
+  });
+
+  test("retrieves named dense and sparse vectors for generation copying", async () => {
+    const qdrantClient = new FakeQdrantClient();
+    qdrantClient.restClient.retrieveResult = [
+      {
+        id: "point-1",
+        payload: { chunkId: "chunk-1" },
+        vector: {
+          [DENSE_VECTOR_NAME]: [0.1, 0.2, 0.3],
+          [SPARSE_VECTOR_NAME]: SPARSE_VECTOR,
+        },
+      },
+      { id: "invalid", vector: [0.9, 0.8] },
+    ];
+    const index = new QdrantVectorIndex(qdrantClient, new QdrantCollectionService(qdrantClient));
+
+    const points = await index.retrieveByPointIds("ai_server_documents", ["point-1", "invalid"]);
+
+    expect(qdrantClient.restClient.retrieveCalls).toEqual([
+      {
+        collectionName: "ai_server_documents",
+        payload: { ids: ["point-1", "invalid"], with_payload: true, with_vector: true },
+      },
+    ]);
+    expect(points).toEqual([
+      {
+        id: "point-1",
+        payload: { chunkId: "chunk-1" },
+        vectors: { dense: [0.1, 0.2, 0.3], sparse: SPARSE_VECTOR },
+      },
+    ]);
   });
 });
 

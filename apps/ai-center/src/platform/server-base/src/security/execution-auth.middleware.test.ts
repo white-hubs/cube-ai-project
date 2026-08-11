@@ -142,4 +142,46 @@ describe("execution auth middleware", () => {
 
     expect(seenTenant).toBe(true);
   });
+
+  test("binds a registered API key to its stored tenant", async () => {
+    const middleware = createExecutionAuthMiddleware({
+      accessTokenReader: { verifyAccessToken: () => null },
+      apiKeyReader: {
+        verifyApiKeyRaw: async () => ({ id: "key-1", project_id: "42" }) as never,
+      },
+    });
+    let seenTenant: string | null | undefined;
+
+    await middleware(createCtx("/kb/search", { "x-api-key": "registered-key" }) as never, async () => {
+      seenTenant = tenantContextAls.getStore()?.tenantId;
+    });
+
+    expect(seenTenant).toBe("42");
+  });
+
+  test("rejects a registered API key used with another tenant header", async () => {
+    const middleware = createExecutionAuthMiddleware({
+      accessTokenReader: { verifyAccessToken: () => null },
+      apiKeyReader: {
+        verifyApiKeyRaw: async () => ({ id: "key-1", project_id: "42" }) as never,
+      },
+    });
+
+    await expect(
+      middleware(createCtx("/kb/search", { "x-api-key": "registered-key", tenant: "other-tenant" }) as never, async () => {}),
+    ).rejects.toThrow("API key tenant does not match request tenant");
+  });
+
+  test("rejects a registered API key without a tenant binding", async () => {
+    const middleware = createExecutionAuthMiddleware({
+      accessTokenReader: { verifyAccessToken: () => null },
+      apiKeyReader: {
+        verifyApiKeyRaw: async () => ({ id: "key-1", project_id: null }) as never,
+      },
+    });
+
+    await expect(
+      middleware(createCtx("/kb/search", { "x-api-key": "registered-key", tenant: "42" }) as never, async () => {}),
+    ).rejects.toThrow("API key is not bound to a tenant");
+  });
 });

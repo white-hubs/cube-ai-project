@@ -98,4 +98,35 @@ export class ImportJobRepositoryOrm extends BaseRepository<ImportJobEntity> {
     await this.executeQuery(sql, params);
     return (await this.findById(id)) as ImportJobEntity;
   }
+
+  /**
+   * Pending/processing rows left after an outbox/worker interruption.
+   * Ordered oldest-first so recovery matches the original schedule order.
+   */
+  public async listRecoverableJobs(limit = 200): Promise<ImportJobEntity[]> {
+    return this.listRecoverableJobsPage({ limit });
+  }
+
+  /** Keyset-paged recovery scan; avoids the startup-only first-200 loss window. */
+  public async listRecoverableJobsPage(params: { limit?: number; after?: { createTime: Date; id: string } }): Promise<ImportJobEntity[]> {
+    const sc = this.scopeFilter();
+    const limit = params.limit ?? 200;
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 1000) : 200;
+    const queryParams: unknown[] = [];
+    let sql = `SELECT * FROM ${this.tableName}
+      WHERE (deleted IS NULL OR deleted = 0)
+        AND status IN ('pending', 'processing')`;
+    if (params.after) {
+      sql += " AND (create_time > ? OR (create_time = ? AND id > ?))";
+      queryParams.push(params.after.createTime, params.after.createTime, params.after.id);
+    }
+    if (sc.sql) {
+      sql += ` AND ${sc.sql}`;
+      queryParams.push(...sc.params);
+    }
+    sql += ` ORDER BY create_time ASC, id ASC LIMIT ?`;
+    queryParams.push(safeLimit);
+    const result = await this.executeQuery<ImportJobEntity>(sql, queryParams);
+    return Array.isArray(result) ? result : [];
+  }
 }

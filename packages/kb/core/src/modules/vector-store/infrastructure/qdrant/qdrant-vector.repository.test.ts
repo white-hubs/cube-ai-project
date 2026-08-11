@@ -12,6 +12,10 @@ class FakeQdrantRestClient {
   public readonly deleteCalls: { collectionName: string; payload: Record<string, unknown> }[] = [];
   public readonly getCollectionCalls: string[] = [];
   public readonly createCollectionCalls: { name: string; payload: Record<string, unknown> }[] = [];
+  public readonly createPayloadIndexCalls: {
+    collectionName: string;
+    payload: { field_name: string; field_schema: string; wait?: boolean };
+  }[] = [];
   public readonly countCalls: { collectionName: string; payload: Record<string, unknown> }[] = [];
   public countResult = 1;
   public getCollectionError: Error | null = null;
@@ -60,6 +64,19 @@ class FakeQdrantRestClient {
   public async createCollection(name: string, payload: Record<string, unknown>): Promise<void> {
     this.createCollectionCalls.push({ name, payload });
     this.getCollectionError = null;
+  }
+
+  public async createPayloadIndex(
+    collectionName: string,
+    payload: { field_name: string; field_schema: string; wait?: boolean },
+  ): Promise<void> {
+    this.createPayloadIndexCalls.push({ collectionName, payload });
+  }
+
+  public async scroll(collectionName: string, payload: Record<string, unknown>) {
+    void collectionName;
+    void payload;
+    return { next_page_offset: null, points: [] as { id: unknown; payload?: Record<string, unknown> }[] };
   }
 }
 
@@ -133,6 +150,9 @@ describe("QdrantVectorRepository", () => {
       topK: 5,
     });
 
+    const expectedAclMust = {
+      should: [{ is_null: { key: "aclGroupIds" } }, { is_empty: { key: "aclGroupIds" } }],
+    };
     expect(qdrantClient.restClient.queryCalls[0]?.payload).toEqual({
       limit: 5,
       prefetch: [
@@ -141,6 +161,7 @@ describe("QdrantVectorRepository", () => {
           using: "dense",
           limit: 5,
           filter: {
+            must: [expectedAclMust],
             should: [
               { key: "documentId", match: { value: "1" } },
               { key: "documentId", match: { value: 1 } },
@@ -153,6 +174,7 @@ describe("QdrantVectorRepository", () => {
           using: "sparse",
           limit: 5,
           filter: {
+            must: [expectedAclMust],
             should: [
               { key: "documentId", match: { value: "1" } },
               { key: "documentId", match: { value: 1 } },
@@ -165,6 +187,30 @@ describe("QdrantVectorRepository", () => {
     });
     expect(results[0]?.score).toBe(0.91);
     expect(qdrantClient.restClient.getCollectionCalls.length).toBeGreaterThan(0);
+  });
+
+  test("W4.1-H1: vector search filter denies ACL-tagged docs without group overlap", async () => {
+    const qdrantClient = new FakeQdrantClient();
+    const repository = new QdrantVectorRepository(makeMockAppConfig(), qdrantClient, new QdrantCollectionService(qdrantClient));
+
+    await repository.search({
+      denseVector: [0.1, 0.2, 0.3],
+      filters: { docType: "standard" },
+      identity: { groupIds: ["eng"] },
+      sparseVector: SPARSE_VECTOR,
+      topK: 3,
+    });
+
+    const firstQuery = qdrantClient.restClient.queryCalls[0];
+    expect(firstQuery).toBeDefined();
+    const filter = (firstQuery!.payload as { prefetch: { filter: Record<string, unknown> }[] }).prefetch[0]?.filter;
+    const must = filter?.must as Record<string, unknown>[];
+    expect(Array.isArray(must)).toBe(true);
+    const aclClause = must.find((item) => Array.isArray((item as { should?: unknown }).should));
+    expect(aclClause).toBeDefined();
+    const should = (aclClause as { should: Record<string, unknown>[] }).should;
+    expect(should.some((item) => (item as { match?: { any?: string[] } }).match?.any?.includes("eng"))).toBe(true);
+    expect(must.some((item) => (item as { key?: string }).key === "docType")).toBe(true);
   });
 
   test("creates missing collection before search instead of failing with Not Found", async () => {

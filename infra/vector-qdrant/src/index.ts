@@ -36,6 +36,12 @@ export interface VectorQueryHit {
   payload: Record<string, unknown>;
 }
 
+export interface RetrievedVectorPoint {
+  id: string;
+  payload: Record<string, unknown>;
+  vectors: { dense: number[]; sparse: SparseVector | null };
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -146,6 +152,92 @@ export class QdrantVectorIndex {
     }
 
     await client.delete(collectionName, { filter });
+  }
+
+  async scrollPointIds(collectionName: string, filter: QdrantFilter): Promise<string[]> {
+    const client = await this.qdrantClient.getClient();
+    try {
+      await client.getCollection(collectionName);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return [];
+      }
+      throw error;
+    }
+
+    const ids: string[] = [];
+    let offset: unknown;
+    do {
+      const page = await client.scroll(collectionName, {
+        filter,
+        limit: 256,
+        ...(offset === undefined ? {} : { offset }),
+        with_payload: false,
+        with_vector: false,
+      });
+      for (const point of page.points) {
+        ids.push(String(point.id));
+      }
+      offset = page.next_page_offset ?? null;
+    } while (offset !== null && offset !== undefined);
+    return ids;
+  }
+
+  async deleteByPointIds(collectionName: string, pointIds: string[]): Promise<void> {
+    if (pointIds.length === 0) {
+      return;
+    }
+    const client = await this.qdrantClient.getClient();
+    try {
+      await client.getCollection(collectionName);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
+    await client.delete(collectionName, { points: pointIds });
+  }
+
+  async retrieveByPointIds(collectionName: string, pointIds: string[]): Promise<RetrievedVectorPoint[]> {
+    if (pointIds.length === 0) {
+      return [];
+    }
+    const client = await this.qdrantClient.getClient();
+    if (!client.retrieve) {
+      return [];
+    }
+    const points = await client.retrieve(collectionName, {
+      ids: pointIds,
+      with_payload: true,
+      with_vector: true,
+    });
+    return points.flatMap((point) => {
+      const vectors = point.vector;
+      if (!vectors || typeof vectors !== "object" || Array.isArray(vectors)) {
+        return [];
+      }
+      const named = vectors as Record<string, unknown>;
+      const dense = named[DENSE_VECTOR_NAME];
+      const sparse = named[SPARSE_VECTOR_NAME];
+      if (!Array.isArray(dense) || !dense.every((value) => typeof value === "number")) {
+        return [];
+      }
+      const normalizedSparse =
+        sparse &&
+        typeof sparse === "object" &&
+        Array.isArray((sparse as SparseVector).indices) &&
+        Array.isArray((sparse as SparseVector).values)
+          ? (sparse as SparseVector)
+          : null;
+      return [
+        {
+          id: String(point.id),
+          payload: point.payload ?? {},
+          vectors: { dense, sparse: normalizedSparse },
+        },
+      ];
+    });
   }
 }
 

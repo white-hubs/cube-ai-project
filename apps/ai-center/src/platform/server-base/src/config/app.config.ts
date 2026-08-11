@@ -156,6 +156,17 @@ let cachedAppConfig: AppConfig | null = null;
 const DEFAULT_SERVER_IDLE_TIMEOUT_MS = 240000;
 const MAX_BUN_SERVER_IDLE_TIMEOUT_MS = 255000;
 
+function resolveServerIdleTimeoutMs(fileConfig: AppConfigFile): number {
+  const raw =
+    getCliArg("server-idle-timeout-ms") ??
+    (fileConfig.serverIdleTimeoutMs !== undefined ? String(fileConfig.serverIdleTimeoutMs) : null) ??
+    process.env.CUBE_SERVER_IDLE_TIMEOUT_MS?.trim() ??
+    String(DEFAULT_SERVER_IDLE_TIMEOUT_MS);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_SERVER_IDLE_TIMEOUT_MS;
+  return Math.min(Math.floor(parsed), MAX_BUN_SERVER_IDLE_TIMEOUT_MS);
+}
+
 function resolvePaths(file: AppConfigFile): AppPaths {
   const DATA_DIR = "/app/data";
   return {
@@ -263,13 +274,20 @@ async function loadConfigFile(): Promise<AppConfigFile> {
   }
 }
 
+/**
+ * Resolve only the Bun HTTP idle timeout before the application/container exists.
+ * The complete config remains lazy so Nacos may load credentials before loadAppConfig().
+ */
+export async function loadServerIdleTimeoutMs(): Promise<number> {
+  return resolveServerIdleTimeoutMs(await loadConfigFile());
+}
+
 async function resolveAppConfigUncached(): Promise<AppConfig> {
   const fileConfig = await loadConfigFile();
 
   const cliAppName = getCliArg("app-name");
   const cliPort = getCliArg("port");
   const cliHostname = getCliArg("hostname");
-  const cliServerIdleTimeoutMs = getCliArg("server-idle-timeout-ms");
   const cliMysqlHost = getCliArg("mysql-host");
   const cliMysqlPort = getCliArg("mysql-port");
   const cliMysqlDb = getCliArg("mysql-database");
@@ -313,17 +331,7 @@ async function resolveAppConfigUncached(): Promise<AppConfig> {
   const name = cliAppName?.trim() || fileConfig.name?.trim() || process.env.APP_NAME?.trim() || "@cube-ai/bootstrap";
   const portStr = cliPort ?? (fileConfig.port !== undefined ? String(fileConfig.port) : null) ?? process.env.PORT ?? "3210";
   const hostname = cliHostname ?? fileConfig.hostname ?? process.env.HOSTNAME ?? "0.0.0.0";
-  const serverIdleTimeoutMs = (() => {
-    const raw =
-      cliServerIdleTimeoutMs ??
-      (fileConfig.serverIdleTimeoutMs !== undefined ? String(fileConfig.serverIdleTimeoutMs) : null) ??
-      process.env.CUBE_SERVER_IDLE_TIMEOUT_MS?.trim() ??
-      String(DEFAULT_SERVER_IDLE_TIMEOUT_MS);
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_SERVER_IDLE_TIMEOUT_MS;
-    const ms = Math.floor(parsed);
-    return Math.min(ms, MAX_BUN_SERVER_IDLE_TIMEOUT_MS);
-  })();
+  const serverIdleTimeoutMs = resolveServerIdleTimeoutMs(fileConfig);
   const mysqlHost = cliMysqlHost ?? fileConfig.mysqlHost ?? process.env.MYSQL_HOST ?? "localhost";
   const mysqlPortStr =
     cliMysqlPort ?? (fileConfig.mysqlPort !== undefined ? String(fileConfig.mysqlPort) : null) ?? process.env.MYSQL_PORT ?? "3306";

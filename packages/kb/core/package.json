@@ -15,7 +15,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "eval:golden": "bun test src/modules/vector-store/eval/retrieval-golden.fixture.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:storage",
@@ -25,6 +26,7 @@
     "@cube-ai/vector-qdrant": "workspace:*",
     "@dangao/bun-server": "catalog:bun-server",
     "@qdrant/js-client-rest": "catalog:vector",
+    "bullmq": "catalog:queue",
     "jszip": "catalog:storage",
     "mammoth": "catalog:storage",
     "mysql2": "catalog:",

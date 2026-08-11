@@ -119,4 +119,40 @@ export class DocumentEntity {
   @Column({ nullable: true })
   /** 文本分段模式（分段参数快照） */
   text_chunk_mode!: string | null;
+
+  @Column({ nullable: true })
+  /** 源文件字节 sha256；未变更 reindex 可跳过 embed（W3.5） */
+  content_checksum!: string | null;
+
+  @Column({ nullable: true })
+  /** 上次成功索引使用的 embedding modelCode（W3.5） */
+  embedding_model_code!: string | null;
+
+  @Column()
+  /** 当前可检索的 chunk/Qdrant generation；重建成功后一次切换。 */
+  active_generation_id!: string;
+
+  @Column({ nullable: true })
+  /** 最近一次获准切换 active generation 的导入任务；用于拒绝旧任务晚到覆盖。 */
+  active_generation_job_id!: string | null;
+
+  @Column({ nullable: true })
+  /** 文档类型（W4.1 metadata filter） */
+  doc_type!: string | null;
+
+  @Column({ nullable: true })
+  /** 语言代码（W4.1 metadata filter） */
+  lang!: string | null;
+
+  @Column({ nullable: true })
+  /** 标签 JSON 数组（W4.1 metadata filter，AND） */
+  tags_json!: string | null;
+
+  @Column({ nullable: true })
+  /** ACL 组 id JSON 数组；NULL/空 = 租户内可见（兼容期） */
+  acl_group_ids_json!: string | null;
+
+  @Column({ nullable: true })
+  /** 自定义元数据 JSON bag（W4.1） */
+  metadata_json!: string | null;
 }

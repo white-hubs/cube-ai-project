@@ -59,4 +59,10 @@ describe("SearchController", () => {
       BadRequestException,
     );
   });
+
+  test("W4.2-H3: echoes retrieval traceId for feedback correlation", async () => {
+    const controller = new SearchController(new FakeRetrievalService() as never);
+    const result = await controller.search({ query: "hello", traceId: "trace-echo-1" });
+    expect(result).toMatchObject({ traceId: "trace-echo-1" });
+  });
 });

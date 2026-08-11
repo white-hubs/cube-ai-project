@@ -47,6 +47,8 @@ describe("JobQueueNameSchema", () => {
   it("accepts M1 active queue names", () => {
     expect(() => JobQueueNameSchema.parse("agentic-engine-long-running-jobs")).not.toThrow();
     expect(() => JobQueueNameSchema.parse("agentic-engine-cleanup")).not.toThrow();
+    expect(() => JobQueueNameSchema.parse("agentic-kb-ingest")).not.toThrow();
+    expect(() => JobQueueNameSchema.parse("agentic-kb-vector-reconcile")).not.toThrow();
   });
 
   it("rejects unknown queue name", () => {

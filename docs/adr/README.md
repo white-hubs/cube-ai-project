@@ -51,6 +51,7 @@
 | ADR-0034          | [引擎内置 skill 与租户会话默认注入 —— default-reasoning/chart-output 全局常驻、不可声明/退订，成本经技能正文精简而非激活门控收敛](./ADR-0034-engine-internal-skills-and-default-session-injection.md) | Accepted       |
 | ADR-0035          | [正文气泡真流式 —— 乐观转发 tool-loop-delta + `message-reset-v1` 事后回溯清空（Option B），一致性由 done 对账兜底，tachu 零改动（扩展 ADR-0022 / ADR-0008）](./ADR-0035-final-answer-live-streaming-and-message-reset.md) | Accepted       |
 | ADR-0036          | [常驻 session_recall 工具（同会话按需召回 MySQL transcript）+ 会话连续性演进（L1 回灌 / L2 compaction / L3 memory_recall）](./ADR-0036-session-recall-tool-and-continuity-roadmap.md) | Accepted       |
+| ADR-0037          | [KB 文本精排采用 DashScope qwen3-rerank（openai_rerank）；允许与豆包 embedding 跨厂商，凭据仍走 llm-core catalog](./ADR-0037-kb-rerank-qwen3-dashscope.md) | Accepted       |
 
 > 编号 0020/0021/0023–0026 曾在代码注释中被引用（多为 tachu 侧决策编号或本仓遗留占位），经核查上游 tachu / tachu-docs 均无对应正式文档，已从代码注释中移除、改写为事实描述，不建档。0019/0022 同样曾长期悬空引用，但分量较重（横跨中间件链路 / SSE 语义多个文件），已补档见上表。本仓新增文档化 ADR 由 0027 续接。其中原挂 0023 占位的 chart-output「engine-internal + 默认注入」设计，经审计确认为 load-bearing，已正式建档为 ADR-0034（代码注释同步改引）。
 

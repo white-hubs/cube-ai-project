@@ -18,6 +18,11 @@ const LlmEndpointTypes = [
   "new_api",
   "openai_image",
   "jina_rerank",
+  /**
+   * OpenAI-compatible rerank (`POST …/reranks`)。
+   * 生产路径：DashScope compatible-mode + `qwen3-rerank`（见 RerankPort）。
+   */
+  "openai_rerank",
   /** ghcloud / Ollama 等 OpenAI 兼容 HTTP 服务；与 `openai` 同走 OpenAICompatProvider */
   "ollama",
   /** 极客智坊原生协议（当前 Catalog 仅接 nano-banana 文生图族） */

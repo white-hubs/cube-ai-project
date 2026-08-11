@@ -103,7 +103,22 @@ describe("DocumentController", () => {
           textChunkMode: "merge",
         },
       },
+      { forceFull: false },
     ]);
+  });
+
+  test("parses forceFull from reindex body (W3.5 / W3.3 compatible)", async () => {
+    const documentService = new FakeDocumentService();
+    const controller = new DocumentController(documentService as never, null as never);
+
+    await controller.reindex(
+      {
+        getBody: async () => ({ forceFull: true }),
+      } as never,
+      "99",
+    );
+
+    expect(documentService.reindexCalls[0]?.[3]).toEqual({ forceFull: true });
   });
 
   test("parses upload preview request from multipart form data", async () => {

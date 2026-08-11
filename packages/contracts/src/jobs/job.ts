@@ -22,7 +22,14 @@ export type JobKind = z.infer<typeof JobKindSchema>;
  * Queue names accepted in `jobs.queue`.
  * M1 only activates LONG_RUNNING_JOBS and CLEANUP (bullmq-protocol §1).
  */
-export const JobQueueNameSchema = z.enum(["agentic-engine-long-running-jobs", "agentic-engine-cleanup"]);
+export const KB_INGEST_QUEUE_NAME = "agentic-kb-ingest" as const;
+export const KB_VECTOR_RECONCILE_QUEUE_NAME = "agentic-kb-vector-reconcile" as const;
+export const JobQueueNameSchema = z.enum([
+  "agentic-engine-long-running-jobs",
+  "agentic-engine-cleanup",
+  KB_INGEST_QUEUE_NAME,
+  KB_VECTOR_RECONCILE_QUEUE_NAME,
+]);
 export type JobQueueName = z.infer<typeof JobQueueNameSchema>;
 
 // ─── BullMQ minimal payload (J3 §2.1) ────────────────────────────────────────

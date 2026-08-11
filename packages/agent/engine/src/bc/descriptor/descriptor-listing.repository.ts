@@ -68,17 +68,37 @@ function tenantLibraryMeta(
   };
 }
 
+type TenantLibraryItemView = Extract<LibraryItemView, { tier: "tenant" }>;
+
 /** 库列表摘要：只暴露元数据，不含 prompt/instructions 等正文。 */
 function tenantLibraryItemSummary(row: LibraryRow): LibraryItemView {
-  return tenantLibraryMeta(row);
+  const meta = tenantLibraryMeta(row);
+  const item: TenantLibraryItemView = {
+    kind: meta.kind,
+    ref: meta.ref,
+    tier: "tenant",
+    ...(meta.displayName !== undefined ? { displayName: meta.displayName } : {}),
+    ...(meta.description !== undefined ? { description: meta.description } : {}),
+    ...(meta.tags !== undefined ? { tags: meta.tags } : {}),
+    ...(meta.sharedVersionNo !== undefined ? { sharedVersionNo: meta.sharedVersionNo } : {}),
+  };
+  return item;
 }
 
 /** 库详情：同租户已上架资产可读完整 content（ADR-0030 D9）。 */
 function tenantLibraryItemDetail(row: LibraryRow): LibraryItemView {
-  return {
-    ...tenantLibraryMeta(row),
+  const meta = tenantLibraryMeta(row);
+  const item: TenantLibraryItemView = {
+    kind: meta.kind,
+    ref: meta.ref,
+    tier: "tenant",
     content: parseJsonColumn(row.content_json),
+    ...(meta.displayName !== undefined ? { displayName: meta.displayName } : {}),
+    ...(meta.description !== undefined ? { description: meta.description } : {}),
+    ...(meta.tags !== undefined ? { tags: meta.tags } : {}),
+    ...(meta.sharedVersionNo !== undefined ? { sharedVersionNo: meta.sharedVersionNo } : {}),
   };
+  return item;
 }
 
 export class DescriptorListingRepositoryImpl implements DescriptorListingRepository {

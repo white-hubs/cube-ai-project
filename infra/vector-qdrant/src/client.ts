@@ -13,6 +13,15 @@ export interface QdrantRestClientLike {
     collectionName: string,
     payload: Record<string, unknown>,
   ): Promise<{ points: { id: unknown; score: number; payload?: Record<string, unknown> }[] }>;
+  scroll(
+    collectionName: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ points: { id: unknown; payload?: Record<string, unknown> }[]; next_page_offset?: unknown }>;
+  retrieve?(
+    collectionName: string,
+    payload: Record<string, unknown>,
+  ): Promise<{ id: unknown; payload?: Record<string, unknown>; vector?: unknown }[]>;
+  createPayloadIndex?(collectionName: string, payload: { field_name: string; field_schema: string; wait?: boolean }): Promise<unknown>;
   createCollection(name: string, payload: Record<string, unknown>): Promise<unknown>;
 }
 

@@ -89,7 +89,10 @@ export class BullMqJobDispatcher implements OutboxDispatcherI {
     }
 
     await this.enqueue.add(row.target, payload, {
-      attempts: 3,
+      attempts:
+        typeof payload.maxAttempts === "number" && Number.isInteger(payload.maxAttempts) && payload.maxAttempts > 0
+          ? Math.min(payload.maxAttempts, 20)
+          : 3,
       backoff: { delay: 1_000, type: "exponential" },
       jobId,
     });

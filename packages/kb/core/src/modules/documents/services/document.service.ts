@@ -1,16 +1,19 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@dangao/bun-server";
+import { BadRequestException, DATABASE_SERVICE_TOKEN, Inject, Injectable, NotFoundException } from "@dangao/bun-server";
 
 import { APP_CONFIG_TOKEN, type AppConfig } from "../../../config/app.config";
+import { type KbTransactionRunner } from "../../../infrastructure/orm/kb-mysql-database.service";
 import {
   DOCUMENT_PLATFORM_SYNC_PORT_TOKEN,
   type DocumentPlatformSyncPort,
   type PlatformDocumentSyncContext,
 } from "../../../port/document-platform-sync.port";
+import { documentMetadataFromEntity } from "../../common/document-metadata";
 import {
   type ChunkPreviewItem,
   type ChunkPreviewResult,
   type ChunkingOptions,
   DEFAULT_CHUNK_SEPARATOR,
+  type DocumentChunkDetail,
   type DocumentChunkListItem,
   type DocumentStatus,
   type ImportJobStatus,
@@ -19,11 +22,14 @@ import {
   type TextChunkRecord,
 } from "../../common/document-types";
 import { ImportJobRepositoryOrm } from "../../ingestion/infrastructure/orm/import-job.repository";
+import { INGEST_SCHEDULER_TOKEN, type IngestScheduler } from "../../ingestion/services/ingest-scheduler";
 import { IngestionService } from "../../ingestion/services/ingestion.service";
 import { ParserRegistryService } from "../../ingestion/services/parser-registry.service";
 import { ObjectStorageService } from "../../object-storage/services/object-storage.service";
 import { DocumentChunkRepositoryOrm } from "../../vector-store/infrastructure/qdrant/document-chunk.repository";
 import { QdrantVectorRepository } from "../../vector-store/infrastructure/qdrant/qdrant-vector.repository";
+import { documentChunkEntityToRecord } from "../../vector-store/services/chunk-entity-mapper";
+import { VectorReconcileService } from "../../vector-store/services/vector-reconcile.service";
 import { VectorizationService } from "../../vector-store/services/vectorization.service";
 import { type DocumentEntity } from "../infrastructure/orm/document.entity";
 import { DocumentRepositoryOrm } from "../infrastructure/orm/document.repository";
@@ -35,6 +41,20 @@ export interface UploadDocumentResult {
   importJobId: string;
   status: DocumentStatus;
   supportedForParsing: boolean;
+}
+
+export interface ReindexDocumentOptions {
+  /** W3.5 / W3.3-compatible: force full wipe + re-embed. */
+  forceFull?: boolean;
+}
+
+/** W4.1 document metadata + ACL (written on create / patch; denormalized at ingest). */
+export interface DocumentMetadataInput {
+  docType?: string | null;
+  lang?: string | null;
+  tags?: string[] | null;
+  aclGroupIds?: string[] | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 @Injectable()
@@ -49,8 +69,11 @@ export class DocumentService {
     private readonly qdrantVectorRepository: QdrantVectorRepository,
     private readonly documentChunkRepository: DocumentChunkRepositoryOrm,
     private readonly vectorizationService: VectorizationService,
+    private readonly vectorReconcileService: VectorReconcileService,
     @Inject(DOCUMENT_PLATFORM_SYNC_PORT_TOKEN)
     private readonly documentPlatformSync: DocumentPlatformSyncPort,
+    @Inject(INGEST_SCHEDULER_TOKEN) private readonly ingestScheduler: IngestScheduler,
+    @Inject(DATABASE_SERVICE_TOKEN) private readonly transactionRunner: KbTransactionRunner,
   ) {}
 
   private parseHeadingPath(raw: string | string[] | undefined): string[] {
@@ -151,6 +174,19 @@ export class DocumentService {
     };
   }
 
+  private toDocumentChunkDetail(row: Record<string, unknown>): DocumentChunkDetail {
+    const { embeddingText: _embeddingText, ...display } = this.toDocumentChunkListItem(row);
+    return {
+      ...display,
+      docType: typeof row.doc_type === "string" ? row.doc_type : null,
+      documentId: String(row.document_id ?? ""),
+      fileName: String(row.file_name ?? ""),
+      lang: typeof row.lang === "string" ? row.lang : null,
+      sourceType: String(row.source_type ?? ""),
+      tags: this.parseHeadingPath(row.tags_json as string | string[] | undefined),
+    };
+  }
+
   private mergeKeywordList(existing: string[], add?: string[], remove?: string[]): string[] {
     const removeSet = new Set((remove ?? []).map((item) => (typeof item === "string" ? item.trim() : "")).filter((item) => item !== ""));
     const next = existing.filter((item) => !removeSet.has(item.trim()));
@@ -227,11 +263,35 @@ export class DocumentService {
     };
   }
 
+  private serializeMetadataFields(metadata?: DocumentMetadataInput): Partial<DocumentEntity> {
+    if (!metadata) {
+      return {};
+    }
+    const patch: Partial<DocumentEntity> = {};
+    if (metadata.docType !== undefined) {
+      patch.doc_type = metadata.docType === null || metadata.docType.trim() === "" ? null : metadata.docType.trim();
+    }
+    if (metadata.lang !== undefined) {
+      patch.lang = metadata.lang === null || metadata.lang.trim() === "" ? null : metadata.lang.trim();
+    }
+    if (metadata.tags !== undefined) {
+      patch.tags_json = metadata.tags === null ? null : JSON.stringify(metadata.tags);
+    }
+    if (metadata.aclGroupIds !== undefined) {
+      patch.acl_group_ids_json = metadata.aclGroupIds === null ? null : JSON.stringify(metadata.aclGroupIds);
+    }
+    if (metadata.metadata !== undefined) {
+      patch.metadata_json = metadata.metadata === null ? null : JSON.stringify(metadata.metadata);
+    }
+    return patch;
+  }
+
   public async uploadDocument(
     file: File,
     directoryId: string,
     chunkingOptions?: ChunkingOptions,
     presetDocumentId?: string,
+    metadata?: DocumentMetadataInput,
   ): Promise<UploadDocumentResult> {
     if (!(file instanceof File)) {
       throw new BadRequestException("file is required");
@@ -253,7 +313,7 @@ export class DocumentService {
       objectKey,
     });
 
-    const document = await this.documentRepository.createDocument({
+    const documentPayload = {
       ...(presetDocumentId?.trim() ? { id: presetDocumentId.trim() } : {}),
       char_count: 0,
       chunk_overlap: resolvedChunkingOptions.chunkOverlap,
@@ -273,7 +333,40 @@ export class DocumentService {
       storage_key: putResult.storageKey,
       table_chunk_mode: resolvedChunkingOptions.tableChunkMode,
       text_chunk_mode: resolvedChunkingOptions.textChunkMode,
-    } as Partial<DocumentEntity>);
+      ...this.serializeMetadataFields(metadata),
+    } as Partial<DocumentEntity>;
+
+    if (supportedForParsing && this.config.ingestionAsyncEnabled) {
+      try {
+        return await this.transactionRunner.runInTransaction(async () => {
+          const document = await this.documentRepository.createDocument(documentPayload);
+          const importJob = await this.importJobRepository.createJob({
+            chunk_count: 0,
+            document_id: document.id,
+            error_message: null,
+            status: "pending",
+          });
+          return this.enqueueIngest({
+            document,
+            importJobId: importJob.id,
+            resolvedChunkingOptions,
+            supportedForParsing,
+          });
+        });
+      } catch (error) {
+        try {
+          await this.objectStorageService.deleteObject({
+            bucket: putResult.storageBucket,
+            objectKey: putResult.storageKey,
+          });
+        } catch {
+          // MySQL remains authoritative; storage orphan cleanup needs operations reconciliation.
+        }
+        throw error;
+      }
+    }
+
+    const document = await this.documentRepository.createDocument(documentPayload);
 
     const importJob = await this.importJobRepository.createJob({
       chunk_count: 0,
@@ -291,36 +384,13 @@ export class DocumentService {
       };
     }
 
-    const ingestionResult = await this.ingestionService.ingestDocument({
-      chunkingOptions: resolvedChunkingOptions,
+    return this.runSyncIngest({
       document,
       file,
-    });
-
-    await this.documentRepository.update(document.id, {
-      char_count: ingestionResult.totalCharCount,
-      chunk_overlap: resolvedChunkingOptions.chunkOverlap,
-      chunk_separator: resolvedChunkingOptions.separator,
-      chunk_size: resolvedChunkingOptions.chunkSize,
-      error_message: ingestionResult.errorMessage,
-      index_status: ingestionResult.indexStatus,
-      parse_status: ingestionResult.parseStatus,
-      status: ingestionResult.documentStatus,
-      table_chunk_mode: resolvedChunkingOptions.tableChunkMode,
-      text_chunk_mode: resolvedChunkingOptions.textChunkMode,
-    });
-    await this.importJobRepository.update(importJob.id, {
-      chunk_count: ingestionResult.chunkCount,
-      error_message: ingestionResult.errorMessage,
-      status: ingestionResult.importJobStatus,
-    });
-
-    return {
-      documentId: document.id,
       importJobId: importJob.id,
-      status: ingestionResult.documentStatus,
+      resolvedChunkingOptions,
       supportedForParsing,
-    };
+    });
   }
 
   public async listDocuments(): Promise<DocumentJson[]> {
@@ -349,6 +419,38 @@ export class DocumentService {
     };
   }
 
+  /** Update document metadata/ACL with an atomic versioned payload refresh. */
+  public async updateDocumentMetadata(documentId: string, metadata: DocumentMetadataInput): Promise<DocumentJson> {
+    const existing = await this.documentRepository.findById(documentId);
+    if (!existing) {
+      throw new NotFoundException(`document not found: ${documentId}`);
+    }
+    const patch = this.serializeMetadataFields(metadata);
+    if (Object.keys(patch).length === 0) {
+      return documentEntityToJson(existing);
+    }
+    const rows = await this.documentChunkRepository.findByDocumentId(documentId);
+    if (rows.length === 0) {
+      const updated = await this.documentRepository.update(documentId, patch);
+      return documentEntityToJson(updated);
+    }
+
+    const nextEntity = { ...existing, ...patch };
+    const snapshot = documentMetadataFromEntity(nextEntity);
+    const chunks = rows.map((row) => ({
+      ...documentChunkEntityToRecord(row),
+      aclGroupIds: snapshot.aclGroupIds,
+      docCreatedAt: snapshot.docCreatedAt,
+      docType: snapshot.docType,
+      lang: snapshot.lang,
+      tags: snapshot.tags,
+    }));
+    await this.vectorizationService.indexDocumentChunks(documentId, chunks, {
+      documentPatchOnActivate: patch,
+    });
+    return documentEntityToJson(nextEntity);
+  }
+
   public async previewDocumentChunks(file: File, chunkingOptions?: ChunkingOptions): Promise<ChunkPreviewResult> {
     const chunks = await this.ingestionService.previewDocumentChunks({
       chunkingOptions: this.resolveChunkingOptions(chunkingOptions),
@@ -363,6 +465,7 @@ export class DocumentService {
     return {
       chunkCount: chunks.length,
       items: chunks.map((chunk) => this.toChunkPreviewItem(chunk)),
+      previewStatus: "ready",
     };
   }
 
@@ -373,12 +476,68 @@ export class DocumentService {
       throw new NotFoundException(`document not found: ${documentId}`);
     }
     const rows = await this.documentChunkRepository.findByDocumentId(documentId);
-    const items = rows.map((row) =>
-      this.documentChunkListItemToPreviewItem(this.toDocumentChunkListItem(row as unknown as Record<string, unknown>)),
-    );
+    if (rows.length > 0) {
+      const items = rows.map((row) =>
+        this.documentChunkListItemToPreviewItem(this.toDocumentChunkListItem(row as unknown as Record<string, unknown>)),
+      );
+      return {
+        chunkCount: items.length,
+        items,
+        previewStatus: "ready",
+      };
+    }
+    if (document.status === "failed" || document.parse_status === "failed" || document.index_status === "failed") {
+      return {
+        chunkCount: 0,
+        documentStatus: document.status,
+        errorMessage: document.error_message,
+        indexStatus: document.index_status,
+        items: [],
+        parseStatus: document.parse_status,
+        previewStatus: "failed",
+      };
+    }
+    if (document.status === "unsupported" || document.parse_status === "unsupported" || document.index_status === "unsupported") {
+      return {
+        chunkCount: 0,
+        documentStatus: document.status,
+        errorMessage: document.error_message,
+        indexStatus: document.index_status,
+        items: [],
+        parseStatus: document.parse_status,
+        previewStatus: "unsupported",
+      };
+    }
+
+    // Preview is a read-only synchronous operation. Upload/reindex may ingest in the
+    // background, but preview must not return an empty success merely because no active
+    // chunks exist yet.
+    const bytes = await this.objectStorageService.getObject({
+      bucket: document.storage_bucket,
+      objectKey: document.storage_key,
+    });
+    const file = new File([bytes], document.name, { type: document.mime_type });
+    const chunks = await this.ingestionService.previewDocumentChunks({
+      chunkingOptions: this.resolveChunkingOptions({
+        chunkOverlap: document.chunk_overlap ?? undefined,
+        chunkSize: document.chunk_size ?? undefined,
+        separator: document.chunk_separator ?? undefined,
+        tableChunkMode:
+          document.table_chunk_mode === "auto" || document.table_chunk_mode === "row" || document.table_chunk_mode === "window"
+            ? document.table_chunk_mode
+            : undefined,
+        textChunkMode:
+          document.text_chunk_mode === "auto" || document.text_chunk_mode === "block" || document.text_chunk_mode === "merge"
+            ? document.text_chunk_mode
+            : undefined,
+      }),
+      document,
+      file,
+    });
     return {
-      chunkCount: items.length,
-      items,
+      chunkCount: chunks.length,
+      items: chunks.map((chunk) => this.toChunkPreviewItem(chunk)),
+      previewStatus: "ready",
     };
   }
 
@@ -391,6 +550,18 @@ export class DocumentService {
     return {
       items: rows.map((row) => this.toDocumentChunkListItem(row as unknown as Record<string, unknown>)),
     };
+  }
+
+  public async getDocumentChunkDetail(chunkId: string): Promise<DocumentChunkDetail> {
+    const normalized = chunkId.trim();
+    if (normalized === "") {
+      throw new NotFoundException("chunk not found");
+    }
+    const row = await this.documentChunkRepository.findByChunkId(normalized);
+    if (!row) {
+      throw new NotFoundException(`chunk not found: ${normalized}`);
+    }
+    return this.toDocumentChunkDetail(row as unknown as Record<string, unknown>);
   }
 
   public async updateDocumentChunk(
@@ -407,7 +578,20 @@ export class DocumentService {
       throw new NotFoundException(`document not found: ${documentId}`);
     }
     const chunk = await this.buildUpdatedChunkRecord(document, chunkId, text, keywordMutations);
-    await this.vectorizationService.indexDocumentChunk(chunk);
+    const activeRows = await this.documentChunkRepository.findByDocumentId(documentId);
+    let replaced = false;
+    const chunks = activeRows.map((row) => {
+      const current = documentChunkEntityToRecord(row);
+      if (current.chunkId !== chunkId) {
+        return current;
+      }
+      replaced = true;
+      return { ...current, ...chunk, embeddingFingerprint: undefined };
+    });
+    if (!replaced) {
+      throw new NotFoundException(`chunk is no longer active: ${chunkId}`);
+    }
+    await this.vectorizationService.indexDocumentChunks(documentId, chunks);
     const updated = await this.documentChunkRepository.findByDocumentIdAndChunkId(documentId, chunkId);
     if (!updated) {
       throw new NotFoundException(`chunk not found after update: ${chunkId}`);
@@ -421,18 +605,31 @@ export class DocumentService {
       throw new NotFoundException(`document not found: ${documentId}`);
     }
 
-    await this.objectStorageService.deleteObject({
-      bucket: document.storage_bucket,
-      objectKey: document.storage_key,
-    });
-    await this.qdrantVectorRepository.deleteByDocument(documentId);
+    // MySQL logicalDelete first (authoritative) — avoids "vectors gone, doc still previewable".
     await this.documentRepository.logicalDelete(documentId);
+    await this.documentChunkRepository.logicalDeleteByDocument(documentId);
+
+    try {
+      await this.qdrantVectorRepository.deleteByDocument(documentId);
+    } catch {
+      await this.vectorReconcileService.scheduleReconcile(documentId, "DELETE_DOCUMENT");
+    }
+
+    try {
+      await this.objectStorageService.deleteObject({
+        bucket: document.storage_bucket,
+        objectKey: document.storage_key,
+      });
+    } catch {
+      // Object cleanup is best-effort after MySQL delete; vectors handled above / via reconcile.
+    }
   }
 
   public async reindexDocument(
     documentId: string,
     chunkingOptions?: ChunkingOptions,
     syncContext?: PlatformDocumentSyncContext,
+    reindexOptions?: ReindexDocumentOptions,
   ): Promise<UploadDocumentResult> {
     await this.documentPlatformSync.ensureDocumentAvailable(documentId, syncContext);
     const document = await this.documentRepository.findById(documentId);
@@ -441,6 +638,22 @@ export class DocumentService {
     }
 
     const resolvedChunkingOptions = this.resolveChunkingOptions(chunkingOptions);
+    const modelCode = this.config.embeddingModel.trim();
+    // W3.5-H3: modelCode change forces full re-embed.
+    const forceFull =
+      reindexOptions?.forceFull === true ||
+      (document.embedding_model_code != null && document.embedding_model_code !== "" && document.embedding_model_code !== modelCode);
+    const supportedForParsing = this.parserRegistryService.isSupported(document.name, document.mime_type);
+
+    if (this.config.ingestionAsyncEnabled) {
+      return this.createAsyncImportJobAndEnqueue({
+        document,
+        forceFull,
+        resolvedChunkingOptions,
+        supportedForParsing,
+      });
+    }
+
     const bytes = await this.objectStorageService.getObject({
       bucket: document.storage_bucket,
       objectKey: document.storage_key,
@@ -451,37 +664,124 @@ export class DocumentService {
       chunk_count: 0,
       document_id: document.id,
       error_message: null,
-      status: "processing",
+      status: "pending",
     });
 
-    const ingestionResult = await this.ingestionService.ingestDocument({
-      chunkingOptions: resolvedChunkingOptions,
+    return this.runSyncIngest({
       document,
       file,
+      forceFull,
+      importJobId: importJob.id,
+      modelCode,
+      resolvedChunkingOptions,
+      supportedForParsing,
     });
-    await this.documentRepository.update(document.id, {
+  }
+
+  private async createAsyncImportJobAndEnqueue(params: {
+    document: DocumentEntity;
+    resolvedChunkingOptions: Required<ChunkingOptions>;
+    supportedForParsing: boolean;
+    forceFull?: boolean;
+  }): Promise<UploadDocumentResult> {
+    return this.transactionRunner.runInTransaction(async () => {
+      const importJob = await this.importJobRepository.createJob({
+        chunk_count: 0,
+        document_id: params.document.id,
+        error_message: null,
+        status: "pending",
+      });
+      return this.enqueueIngest({
+        ...params,
+        importJobId: importJob.id,
+      });
+    });
+  }
+
+  private async enqueueIngest(params: {
+    document: DocumentEntity;
+    importJobId: string;
+    resolvedChunkingOptions: Required<ChunkingOptions>;
+    supportedForParsing: boolean;
+    forceFull?: boolean;
+  }): Promise<UploadDocumentResult> {
+    await this.documentRepository.update(params.document.id, {
+      chunk_overlap: params.resolvedChunkingOptions.chunkOverlap,
+      chunk_separator: params.resolvedChunkingOptions.separator,
+      chunk_size: params.resolvedChunkingOptions.chunkSize,
+      error_message: null,
+      index_status: "pending",
+      parse_status: "pending",
+      status: "parsing",
+      table_chunk_mode: params.resolvedChunkingOptions.tableChunkMode,
+      text_chunk_mode: params.resolvedChunkingOptions.textChunkMode,
+    });
+    await this.importJobRepository.update(params.importJobId, {
+      error_message: null,
+      status: "pending",
+    });
+    await this.ingestScheduler.schedule({
+      attempt: 1,
+      chunkOverlap: params.resolvedChunkingOptions.chunkOverlap,
+      chunkSize: params.resolvedChunkingOptions.chunkSize,
+      documentId: String(params.document.id),
+      forceFull: params.forceFull,
+      importJobId: params.importJobId,
+      maxAttempts: this.config.ingestionMaxAttempts,
+      separator: params.resolvedChunkingOptions.separator,
+      tableChunkMode: params.resolvedChunkingOptions.tableChunkMode,
+      tenantId: params.document.tenant_id,
+      textChunkMode: params.resolvedChunkingOptions.textChunkMode,
+    });
+    return {
+      documentId: params.document.id,
+      importJobId: params.importJobId,
+      status: "parsing",
+      supportedForParsing: params.supportedForParsing,
+    };
+  }
+
+  private async runSyncIngest(params: {
+    document: DocumentEntity;
+    file: File;
+    importJobId: string;
+    resolvedChunkingOptions: Required<ChunkingOptions>;
+    supportedForParsing: boolean;
+    forceFull?: boolean;
+    modelCode?: string;
+  }): Promise<UploadDocumentResult> {
+    const ingestionResult = await this.ingestionService.ingestDocument({
+      chunkingOptions: params.resolvedChunkingOptions,
+      document: params.document,
+      file: params.file,
+      forceFull: params.forceFull,
+      modelCode: params.modelCode,
+      sourceJobId: params.importJobId,
+    });
+    await this.documentRepository.update(params.document.id, {
       char_count: ingestionResult.totalCharCount,
-      chunk_overlap: resolvedChunkingOptions.chunkOverlap,
-      chunk_separator: resolvedChunkingOptions.separator,
-      chunk_size: resolvedChunkingOptions.chunkSize,
+      chunk_overlap: params.resolvedChunkingOptions.chunkOverlap,
+      chunk_separator: params.resolvedChunkingOptions.separator,
+      chunk_size: params.resolvedChunkingOptions.chunkSize,
+      content_checksum: ingestionResult.contentChecksum,
+      embedding_model_code: ingestionResult.embeddingModelCode,
       error_message: ingestionResult.errorMessage,
       index_status: ingestionResult.indexStatus,
       parse_status: ingestionResult.parseStatus,
       status: ingestionResult.documentStatus,
-      table_chunk_mode: resolvedChunkingOptions.tableChunkMode,
-      text_chunk_mode: resolvedChunkingOptions.textChunkMode,
+      table_chunk_mode: params.resolvedChunkingOptions.tableChunkMode,
+      text_chunk_mode: params.resolvedChunkingOptions.textChunkMode,
     });
-    await this.importJobRepository.update(importJob.id, {
+    await this.importJobRepository.update(params.importJobId, {
       chunk_count: ingestionResult.chunkCount,
       error_message: ingestionResult.errorMessage,
       status: ingestionResult.importJobStatus,
     });
-
     return {
-      documentId: document.id,
-      importJobId: importJob.id,
+      documentId: params.document.id,
+      importJobId: params.importJobId,
       status: ingestionResult.documentStatus,
-      supportedForParsing: this.parserRegistryService.isSupported(document.name, document.mime_type),
+      supportedForParsing: params.supportedForParsing,
     };
   }
 

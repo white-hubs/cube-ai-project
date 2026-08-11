@@ -17,8 +17,10 @@ import { z } from "zod";
  *   - usage.job_duration → UsageJobDurationPayload
  *
  * Additional outbox payload types (non-usage):
- *   - grant.approve    → GrantApprovePayload
- *   - session.end      → SessionEndPayload
+ *   - grant.approve         → GrantApprovePayload
+ *   - session.end           → SessionEndPayload
+ *   - kb.vector.reconcile   → KbVectorReconcilePayload
+ *   - kb.ingest             → KbIngestPayload
  *
  * Note: z.discriminatedUnion() requires ZodObject members (not ZodEffects).
  * Cross-field validation rules are available via the *StrictSchema exports.
@@ -182,6 +184,57 @@ export const SessionEndPayloadSchema = z.object({
 });
 export type SessionEndPayload = z.infer<typeof SessionEndPayloadSchema>;
 
+// ─── kb.vector.reconcile ───────────────────────────────────────────────────
+
+/** Outbox event type for MySQL-authoritative vector reconcile (W3.1). */
+export const KB_VECTOR_RECONCILE_EVENT_TYPE = "kb.vector.reconcile" as const;
+
+/**
+ * Non-usage outbox payload: kb vector store reconcile (schema: kb.vector.reconcile.v1).
+ * MySQL is authoritative; consumers call the shared VectorReconcileService.
+ */
+export const KbVectorReconcilePayloadSchema = z.object({
+  documentId: z.string().min(1).max(64),
+  jobId: z
+    .string()
+    .regex(/^\d{1,19}$/u)
+    .optional(),
+  maxAttempts: z.number().int().min(1).max(20).optional(),
+  occurredTime: z.number().int().nonnegative(),
+  reason: z.enum(["FULL_INDEX", "SINGLE_CHUNK", "DELETE_DOCUMENT", "MANUAL"]),
+  schema: z.literal("kb.vector.reconcile.v1"),
+  tenantId: z.string().min(1).max(64).optional(),
+});
+export type KbVectorReconcilePayload = z.infer<typeof KbVectorReconcilePayloadSchema>;
+
+// ─── kb.ingest ─────────────────────────────────────────────────────────────
+
+/** Outbox event type for async document ingestion (W3.3). */
+export const KB_INGEST_EVENT_TYPE = "kb.ingest" as const;
+
+/**
+ * Non-usage outbox payload: kb document ingest (schema: kb.ingest.v1).
+ * HTTP enqueues; worker claims → IngestionService.ingestDocument.
+ * `forceFull` is reserved for W3.5 incremental re-embed.
+ */
+export const KbIngestPayloadSchema = z.object({
+  attempt: z.number().int().min(1).optional(),
+  chunkOverlap: z.number().int().nonnegative().optional(),
+  chunkSize: z.number().int().positive().optional(),
+  documentId: z.string().min(1).max(64),
+  /** Reserved for W3.5 — when true, worker must full re-embed (ignored until W3.5). */
+  forceFull: z.boolean().optional(),
+  importJobId: z.string().min(1).max(64),
+  maxAttempts: z.number().int().min(1).max(20).optional(),
+  occurredTime: z.number().int().nonnegative(),
+  schema: z.literal("kb.ingest.v1"),
+  separator: z.string().max(64).optional(),
+  tableChunkMode: z.enum(["auto", "row", "window"]).optional(),
+  tenantId: z.string().max(64).nullable().optional(),
+  textChunkMode: z.enum(["auto", "block", "merge"]).optional(),
+});
+export type KbIngestPayload = z.infer<typeof KbIngestPayloadSchema>;
+
 // ─── Discriminated union (all known outbox payload types) ─────────────────
 
 export const OutboxPayloadSchema = z.discriminatedUnion("schema", [
@@ -190,5 +243,7 @@ export const OutboxPayloadSchema = z.discriminatedUnion("schema", [
   UsageJobDurationPayloadSchema,
   GrantApprovePayloadSchema,
   SessionEndPayloadSchema,
+  KbVectorReconcilePayloadSchema,
+  KbIngestPayloadSchema,
 ]);
 export type OutboxPayload = z.infer<typeof OutboxPayloadSchema>;

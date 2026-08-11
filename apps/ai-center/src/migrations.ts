@@ -20,6 +20,8 @@ const DOMAIN_MIGRATIONS = [
 
 export async function runAllDomainMigrations(mysqlUrl: string): Promise<void> {
   for (const domain of DOMAIN_MIGRATIONS) {
+    process.stdout.write(`${JSON.stringify({ msg: "ai-center.domain-migration.starting", historyTable: domain.historyTable })}\n`);
     await createMigrationRunner({ mysqlUrl, ...domain }).run();
+    process.stdout.write(`${JSON.stringify({ msg: "ai-center.domain-migration.completed", historyTable: domain.historyTable })}\n`);
   }
 }

@@ -57,6 +57,15 @@ describe("KnowledgeQueryPort contracts", () => {
     expect(ok.truncated).toBe(true);
   });
 
+  it("Response: preserves a structured chunk source anchor when provided", () => {
+    const ok = KnowledgeQueryResponseSchema.parse({
+      hits: [{ chunkId: "c1", docId: "d1", pageNo: 2, score: 0.9, sectionId: "s1", snippet: "abc" }],
+    });
+    expect(ok.hits[0]?.chunkId).toBe("c1");
+    expect(ok.hits[0]?.pageNo).toBe(2);
+    expect(ok.hits[0]?.sectionId).toBe("s1");
+  });
+
   it("Response: defaults truncated to false when omitted", () => {
     const ok = KnowledgeQueryResponseSchema.parse({ hits: [] });
     expect(ok.truncated).toBe(false);

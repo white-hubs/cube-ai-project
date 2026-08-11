@@ -91,6 +91,18 @@ describe("BullMqJobDispatcher", () => {
     await expect(dispatcher.dispatch(makeRow({ channel: "message_service" }))).rejects.toThrow("unexpected channel");
   });
 
+  it("uses a bounded payload maxAttempts for durable KB jobs", async () => {
+    const add = mock((_q: string, _p: Record<string, unknown>, _o: unknown) => Promise.resolve());
+    const dispatcher = new BullMqJobDispatcher({ add });
+    await dispatcher.dispatch(
+      makeRow({
+        payloadJson: { jobId: "1234567890123456789", maxAttempts: 7 },
+        target: "agentic-kb-ingest",
+      }),
+    );
+    expect(add.mock.calls[0]?.[2]).toMatchObject({ attempts: 7 });
+  });
+
   it("BullMQ add 失败时向上抛出", async () => {
     const enqueue: BullMqEnqueuePort = {
       add: mock(() => Promise.reject(new Error("redis down"))),

@@ -40,11 +40,35 @@ export interface DocumentJson {
     tableChunkMode: ChunkingOptions["tableChunkMode"] | null;
     textChunkMode: ChunkingOptions["textChunkMode"] | null;
   };
+  /** W4.1 metadata + ACL */
+  docType: string | null;
+  lang: string | null;
+  tags: string[] | null;
+  aclGroupIds: string[] | null;
+}
+
+function parseJsonStringArray(raw: unknown): string[] | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : null;
+  } catch {
+    return null;
+  }
 }
 
 export function documentEntityToJson(entity: DocumentEntity): DocumentJson {
   const deleted = entity.deleted;
   return {
+    aclGroupIds: parseJsonStringArray(entity.acl_group_ids_json),
     charCount: typeof entity.char_count === "number" ? entity.char_count : Number(entity.char_count ?? 0),
     chunkingOptions: {
       chunkOverlap:
@@ -69,10 +93,12 @@ export function documentEntityToJson(entity: DocumentEntity): DocumentJson {
     creatorType: entity.creator_type,
     deleted: deleted === null || deleted === undefined ? null : String(deleted),
     directoryId: entity.directory_id === null || entity.directory_id === undefined ? null : String(entity.directory_id),
+    docType: entity.doc_type ?? null,
     errorMessage: entity.error_message,
     extension: entity.extension,
     id: String(entity.id),
     indexStatus: entity.index_status,
+    lang: entity.lang ?? null,
     mimeType: entity.mime_type,
     name: entity.name,
     parseStatus: entity.parse_status,
@@ -81,6 +107,7 @@ export function documentEntityToJson(entity: DocumentEntity): DocumentJson {
     status: entity.status,
     storageBucket: entity.storage_bucket,
     storageKey: entity.storage_key,
+    tags: parseJsonStringArray(entity.tags_json),
     tenantId: entity.tenant_id,
     updateBy: entity.update_by,
     updateTime: entity.update_time,

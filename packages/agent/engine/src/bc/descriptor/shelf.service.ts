@@ -71,7 +71,7 @@ export class ShelfService {
       const ref = agent.name?.trim();
       if (!ref) continue;
       try {
-        await this.install(tenant, userId, "agent", { ref, mode: "ref" });
+        await this.install(tenant, userId, "agent", { ref, mode: "ref", pin: false });
       } catch {
         // 单个系统 agent 安装失败不阻塞其余；列表仍返回当前已成功写入的条目。
       }

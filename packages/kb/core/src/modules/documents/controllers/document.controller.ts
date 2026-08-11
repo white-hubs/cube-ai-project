@@ -18,7 +18,7 @@ import {
 import { parsePlatformDocumentSyncContext } from "../../../port/document-platform-sync.port";
 import { type ChunkingOptions, type TableChunkMode, type TextChunkMode } from "../../common/document-types";
 import { PlatformSourceImportService } from "../../ingestion/platform-source-import.service";
-import { DocumentService } from "../services/document.service";
+import { type DocumentMetadataInput, DocumentService } from "../services/document.service";
 
 function parseOptionalPositiveInteger(value: unknown, fieldName: string): number | undefined {
   if (value === null || value === undefined || value === "") {
@@ -74,6 +74,83 @@ function parseStringArray(value: unknown, fieldName: string): string[] {
       throw new BadRequestException(`invalid ${fieldName}: expected array of strings`);
     }
     out.push(item);
+  }
+  return out;
+}
+
+function parseJsonStringArrayField(raw: unknown, fieldName: string): string[] | undefined {
+  if (raw === null || raw === undefined || raw === "") {
+    return undefined;
+  }
+  if (typeof raw !== "string") {
+    throw new BadRequestException(`${fieldName} must be a JSON string array when provided`);
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
+      throw new BadRequestException(`${fieldName} must be a JSON string array`);
+    }
+    return parsed.map((item) => (item as string).trim()).filter((item) => item !== "");
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+    throw new BadRequestException(`${fieldName} must be valid JSON`);
+  }
+}
+
+function parseDocumentMetadataFromForm(formData: FormData): DocumentMetadataInput | undefined {
+  const docTypeRaw = formData.get("docType");
+  const langRaw = formData.get("lang");
+  const tags = parseJsonStringArrayField(formData.get("tags"), "tags");
+  const aclGroupIds = parseJsonStringArrayField(formData.get("aclGroupIds"), "aclGroupIds");
+  const metadata: DocumentMetadataInput = {};
+  if (typeof docTypeRaw === "string" && docTypeRaw.trim() !== "") {
+    metadata.docType = docTypeRaw.trim();
+  }
+  if (typeof langRaw === "string" && langRaw.trim() !== "") {
+    metadata.lang = langRaw.trim();
+  }
+  if (tags !== undefined) {
+    metadata.tags = tags;
+  }
+  if (aclGroupIds !== undefined) {
+    metadata.aclGroupIds = aclGroupIds;
+  }
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function parseDocumentMetadataBody(body: {
+  docType?: unknown;
+  lang?: unknown;
+  tags?: unknown;
+  aclGroupIds?: unknown;
+  metadata?: unknown;
+}): DocumentMetadataInput {
+  const out: DocumentMetadataInput = {};
+  if (body.docType !== undefined) {
+    if (body.docType !== null && typeof body.docType !== "string") {
+      throw new BadRequestException("docType must be a string or null");
+    }
+    out.docType = body.docType === null ? null : body.docType.trim();
+  }
+  if (body.lang !== undefined) {
+    if (body.lang !== null && typeof body.lang !== "string") {
+      throw new BadRequestException("lang must be a string or null");
+    }
+    out.lang = body.lang === null ? null : body.lang.trim();
+  }
+  if (body.tags !== undefined) {
+    out.tags = body.tags === null ? null : parseStringArray(body.tags, "tags");
+  }
+  if (body.aclGroupIds !== undefined) {
+    out.aclGroupIds = body.aclGroupIds === null ? null : parseStringArray(body.aclGroupIds, "aclGroupIds");
+  }
+  if (body.metadata !== undefined) {
+    if (body.metadata !== null && (typeof body.metadata !== "object" || Array.isArray(body.metadata))) {
+      throw new BadRequestException("metadata must be an object or null");
+    }
+    out.metadata = body.metadata as Record<string, unknown> | null;
   }
   return out;
 }
@@ -244,7 +321,8 @@ export class DocumentController {
    */
   @POST("/upload")
   @ApiOperation({
-    description: "将文件上传到指定知识库目录（directoryId 必填）。",
+    description:
+      "将文件上传到指定知识库目录（directoryId 必填）。当前默认同步等待解析、分段、向量化和索引完成；仅显式设置 INGESTION_ASYNC_ENABLED=true 时改为入队返回。",
     operationId: "uploadDocument",
     summary: "上传文档",
   })
@@ -308,7 +386,46 @@ export class DocumentController {
         tableChunkMode: formData.get("tableChunkMode"),
         textChunkMode: formData.get("textChunkMode"),
       }),
+      undefined,
+      parseDocumentMetadataFromForm(formData),
     );
+  }
+
+  @PUT("/:id/metadata")
+  @ApiOperation({
+    description:
+      "更新文档元数据与 ACL（docType/lang/tags/aclGroupIds）。已索引文档通过 versioned generation 原子刷新 MySQL chunk 与 Qdrant payload；旧数据 aclGroupIds 为空时租户内仍可见。",
+    operationId: "updateDocumentMetadata",
+    summary: "更新文档元数据/ACL",
+  })
+  @ApiBody({
+    description: "文档元数据与 ACL",
+    required: true,
+    schema: {
+      properties: {
+        aclGroupIds: { items: { type: "string" }, nullable: true, type: "array" },
+        docType: { nullable: true, type: "string" },
+        lang: { nullable: true, type: "string" },
+        metadata: { additionalProperties: true, nullable: true, type: "object" },
+        tags: { items: { type: "string" }, nullable: true, type: "array" },
+      },
+      type: "object",
+    },
+  })
+  @ApiResponse({ description: "更新后的文档", status: 200 })
+  public async updateMetadata(
+    @Param("id")
+    @ApiParam({
+      description: "文档主键",
+      in: "path",
+      name: "id",
+      required: true,
+      schema: { type: "string" },
+    })
+    id: string,
+    @Body() body: { docType?: unknown; lang?: unknown; tags?: unknown; aclGroupIds?: unknown; metadata?: unknown },
+  ) {
+    return this.documentService.updateDocumentMetadata(id, parseDocumentMetadataBody(body ?? {}));
   }
 
   /**
@@ -380,21 +497,30 @@ export class DocumentController {
 
   @POST("/:id/preview")
   @ApiOperation({
-    description: "根据 documentId 从数据库读取已入库的分段，返回只读预览结果（与解析/索引时入库的数据一致）。",
+    description:
+      "根据 documentId 预览分段：已有持久化 chunks 时直接返回；普通未拆分文档从对象存储读取原文件并在当前请求内执行只读拆分，不写入 embedding/MySQL chunks/Qdrant。明确失败或不支持格式时返回对应终态。",
     operationId: "previewDocumentChunksById",
     summary: "预览已上传文档分段",
   })
   @ApiResponse({
-    description: "已入库分段预览结果",
+    description: "已持久化或本次只读拆分得到的分段；明确失败/不支持时返回终态",
     schema: {
       properties: {
         chunkCount: { description: "分段总数", type: "number" },
+        documentStatus: { description: "文档失败/不支持时的状态", nullable: true, type: "string" },
+        errorMessage: { description: "摄入错误；无错误时为空", nullable: true, type: "string" },
+        indexStatus: { description: "文档失败/不支持时的索引状态", nullable: true, type: "string" },
         items: {
           items: {
             properties: chunkPreviewItemOpenApiProperties,
             type: "object",
           },
           type: "array",
+        },
+        parseStatus: { description: "文档失败/不支持时的解析状态", nullable: true, type: "string" },
+        previewStatus: {
+          description: "同步预览结果：ready/failed/unsupported",
+          type: "string",
         },
       },
       type: "object",
@@ -489,6 +615,43 @@ export class DocumentController {
     return this.documentService.listDocumentChunks(id);
   }
 
+  @GET("/chunks/:chunkId")
+  @ApiOperation({
+    description: "按 chunkId 查询当前租户内的只读来源详情；不存在与错租户统一返回 404，不返回 embeddingText。",
+    operationId: "getDocumentChunkDetail",
+    summary: "查询分段来源详情",
+  })
+  @ApiResponse({
+    description: "分段来源详情",
+    schema: {
+      properties: {
+        chunkId: { type: "string" },
+        documentId: { type: "string" },
+        fileName: { type: "string" },
+        headingPath: { items: { type: "string" }, type: "array" },
+        pageNo: { nullable: true, type: "number" },
+        sectionId: { type: "string" },
+        sourceType: { type: "string" },
+        text: { type: "string" },
+      },
+      type: "object",
+    },
+    status: 200,
+  })
+  public async getChunkDetail(
+    @Param("chunkId")
+    @ApiParam({
+      description: "分段主键",
+      in: "path",
+      name: "chunkId",
+      required: true,
+      schema: { type: "string" },
+    })
+    chunkId: string,
+  ) {
+    return this.documentService.getDocumentChunkDetail(chunkId);
+  }
+
   @PUT("/:documentId/chunks/:chunkId")
   @ApiOperation({
     description:
@@ -565,7 +728,8 @@ export class DocumentController {
    */
   @POST("/:id/reindex")
   @ApiOperation({
-    description: "对指定文档触发重新解析与向量索引。",
+    description:
+      "对指定文档重新解析、分段、向量化并重建索引。当前默认同步等待全部步骤完成；仅显式设置 INGESTION_ASYNC_ENABLED=true 时改为入队返回。",
     operationId: "reindexDocument",
     summary: "文档重建索引",
   })
@@ -589,6 +753,10 @@ export class DocumentController {
       properties: {
         chunkOverlap: { description: "可选：分段重叠长度", type: "number" },
         chunkSize: { description: "可选：分段最大长度", type: "number" },
+        forceFull: {
+          description: "可选：true 时全量 wipe + re-embed（W3.5；与 W3.3 队列字段兼容）",
+          type: "boolean",
+        },
         separator: { description: "可选：分段标识符，如 \\n\\n", type: "string" },
         tableChunkMode: { ...openApiTableChunkModeProperty, description: `可选。${openApiTableChunkModeProperty.description}` },
         textChunkMode: { ...openApiTextChunkModeProperty, description: `可选。${openApiTextChunkModeProperty.description}` },
@@ -617,7 +785,10 @@ export class DocumentController {
       tableChunkMode: payload.tableChunkMode,
       textChunkMode: payload.textChunkMode,
     });
-    return this.documentService.reindexDocument(id, chunkingOptions, parsePlatformDocumentSyncContext(payload, chunkingOptions));
+    const forceFull = payload.forceFull === true || payload.forceFull === "true";
+    return this.documentService.reindexDocument(id, chunkingOptions, parsePlatformDocumentSyncContext(payload, chunkingOptions), {
+      forceFull,
+    });
   }
 
   @POST("/import-from-platform")

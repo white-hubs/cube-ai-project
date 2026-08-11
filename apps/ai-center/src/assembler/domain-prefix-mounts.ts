@@ -26,6 +26,7 @@ import { FlowStudioController } from "../../../../packages/flow/studio/src/http/
 import { DocumentDirectoryController } from "../../../../packages/kb/core/src/modules/documents/controllers/document-directory.controller";
 import { DocumentController } from "../../../../packages/kb/core/src/modules/documents/controllers/document.controller";
 import { SearchController } from "../../../../packages/kb/core/src/modules/vector-store/controllers/search.controller";
+import { SearchFeedbackController } from "../../../../packages/kb/core/src/modules/vector-store/feedback/search-feedback.controller";
 import { LlmCatalogAdminController } from "../../../../packages/llm/core/src/http/llm-catalog-admin.controller";
 import { LlmProvidersController } from "../../../../packages/llm/core/src/http/llm-providers.controller";
 
@@ -94,6 +95,7 @@ export const DOMAIN_PREFIX_MOUNTS: DomainPrefixMount[] = [
 
   // kb consumption
   { base: "/kb/search", controller: SearchController },
+  { base: "/kb/search", controller: SearchFeedbackController },
 
   // kb management
   { base: "/kb/console/documents", controller: DocumentController },

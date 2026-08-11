@@ -203,6 +203,7 @@ export class DoclingClient {
       headers.Authorization = `Bearer ${options.apiKey}`;
     }
 
+    const startedAt = Date.now();
     const response = await fetch(`${options.baseUrl.replace(/\/$/u, "")}/v1/chunk/hybrid/file`, {
       body: this.buildRequestForm(input, {
         enablePictureDescription,
@@ -215,13 +216,21 @@ export class DoclingClient {
 
     if (!response.ok) {
       const message = await response.text();
+      console.warn(
+        `[docling] hybrid failed file=${input.filename} status=${response.status} wallMs=${Date.now() - startedAt} pictureDescription=${enablePictureDescription}`,
+      );
       if (shouldRetryWithoutPictureDescription(response.status, message, enablePictureDescription)) {
         return this.requestDocling(input, options, false);
       }
       throw new Error(`Docling 解析失败: ${response.status} ${message}`);
     }
 
-    return (await response.json()) as DoclingChunkResponse;
+    const payload = (await response.json()) as DoclingChunkResponse & { processing_time?: number };
+    const chunkCount = Array.isArray(payload.chunks) ? payload.chunks.length : 0;
+    console.info(
+      `[docling] hybrid ok file=${input.filename} chunks=${chunkCount} wallMs=${Date.now() - startedAt} processingTime=${payload.processing_time ?? "n/a"} pictureDescription=${enablePictureDescription}`,
+    );
+    return payload;
   }
 
   public async parseAndChunk(input: ParserInput): Promise<ParsedDocumentContent> {

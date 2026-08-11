@@ -369,6 +369,7 @@ export class LlmTypeAdapterService {
       typeCode === "new_api" ||
       typeCode === "openai_image" ||
       typeCode === "jina_rerank" ||
+      typeCode === "openai_rerank" ||
       typeCode === "volcengine_ark" ||
       typeCode === "geekai"
     ) {

@@ -41,8 +41,24 @@ export class BullMqEnqueueAdapter implements BullMqEnqueuePort {
   }
 }
 
+export interface OutboxRedisEnvironment {
+  AGENTIC_ENGINE_REDIS_URL?: string;
+  BUN_REDIS_URL?: string;
+  REDIS_URL?: string;
+}
+
+export function resolveOutboxRedisUrl(redisUrl?: string, env: OutboxRedisEnvironment = process.env as OutboxRedisEnvironment): string {
+  return (
+    redisUrl?.trim() ||
+    env.AGENTIC_ENGINE_REDIS_URL?.trim() ||
+    env.REDIS_URL?.trim() ||
+    env.BUN_REDIS_URL?.trim() ||
+    "redis://127.0.0.1:6379/0"
+  );
+}
+
 export function buildRedisForBullMq(redisUrl?: string): Redis {
-  const url = redisUrl ?? process.env["AGENTIC_ENGINE_REDIS_URL"] ?? "redis://127.0.0.1:6379/0";
+  const url = resolveOutboxRedisUrl(redisUrl);
   const client = new Redis(url, {
     lazyConnect: true,
     maxRetriesPerRequest: null,

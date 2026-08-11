@@ -94,6 +94,41 @@ describe("OutboxPayloadSchema — discriminated union", () => {
     expect(result.success).toBe(true);
   });
 
+  test("parses kb.vector.reconcile.v1 by schema discriminant", () => {
+    const payload = {
+      documentId: "101",
+      occurredTime: Date.now(),
+      reason: "FULL_INDEX",
+      schema: "kb.vector.reconcile.v1",
+    };
+    const result = OutboxPayloadSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.schema).toBe("kb.vector.reconcile.v1");
+    }
+  });
+
+  test("parses kb.ingest.v1 with optional forceFull hook", () => {
+    const payload = {
+      attempt: 1,
+      documentId: "101",
+      forceFull: true,
+      importJobId: "202",
+      occurredTime: Date.now(),
+      schema: "kb.ingest.v1",
+      tenantId: "tenant-a",
+    };
+    const result = OutboxPayloadSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.schema).toBe("kb.ingest.v1");
+      if (result.data.schema === "kb.ingest.v1") {
+        expect(result.data.forceFull).toBe(true);
+        expect(result.data.importJobId).toBe("202");
+      }
+    }
+  });
+
   test("rejects unknown schema discriminant", () => {
     const payload = {
       occurredTime: Date.now(),

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { resetAppConfigCacheForTests, loadAppConfig, resolveConfigPathFrom } from "./app.config";
+import { loadAppConfig, loadServerIdleTimeoutMs, resetAppConfigCacheForTests, resolveConfigPathFrom } from "./app.config";
 
 const tempDirs: string[] = [];
 
@@ -189,6 +189,7 @@ describe("loadAppConfig", () => {
     try {
       const config = await loadAppConfig();
       expect(config.serverIdleTimeoutMs).toBe(180000);
+      expect(await loadServerIdleTimeoutMs()).toBe(180000);
     } finally {
       if (originalAppConfigPath === undefined) {
         delete process.env.APP_CONFIG_PATH;

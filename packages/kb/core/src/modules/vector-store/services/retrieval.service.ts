@@ -1,5 +1,7 @@
 import { Inject, Injectable } from "@dangao/bun-server";
 
+import type { RerankPort } from "@cube-ai/contracts/platform";
+
 import { APP_CONFIG_TOKEN, type AppConfig } from "../../../config/app.config";
 import { runKbUpstreamStep } from "../../../infrastructure/upstream-error";
 import {
@@ -7,8 +9,10 @@ import {
   type DocumentPlatformSyncPort,
   type PlatformDocumentSyncContext,
 } from "../../../port/document-platform-sync.port";
+import { chunkQualityPolicyFromConfig, isRetrievableChunk } from "../../common/chunk-quality";
 import { type ChunkType, type RetrievalProfile, type SearchItem } from "../../common/document-types";
 import { DocumentRepositoryOrm } from "../../documents/infrastructure/orm/document.repository";
+import type { DocumentMetadataFilters, KbAclIdentity } from "../access/document-access-filter";
 import {
   EmbeddingProvider,
   type EmbeddingProvider as EmbeddingProviderContract,
@@ -17,16 +21,29 @@ import {
 import { resolveChunkRetrievalProfile, resolveQueryRetrievalProfile } from "../infrastructure/embeddings/retrieval-profile";
 import { DocumentChunkRepositoryOrm } from "../infrastructure/qdrant/document-chunk.repository";
 import { QdrantVectorRepository } from "../infrastructure/qdrant/qdrant-vector.repository";
+import { isKeywordLikeQuery } from "./keyword-like-query";
+import { allocateMultiDocumentRerankBudget, modelRerankOnce } from "./model-rerank";
+import { recordModelRerankAttempt, recordModelRerankFallback, recordModelRerankSuccess } from "./retrieval-operational-metrics";
+import { selectRetrievalQualityCandidates } from "./retrieval-quality-selection";
+
+export { allocateMultiDocumentRerankBudget, modelRerankOnce, rerankDisplayText, clampRerankScore } from "./model-rerank";
+export { isKeywordLikeQuery } from "./keyword-like-query";
+export type { DocumentMetadataFilters, KbAclIdentity } from "../access/document-access-filter";
 
 export interface RetrievalSearchParams {
   query: string;
   topK: number;
   documentId?: string;
   /**
-   * 可选，[0,1]。与响应中 `score` 同源（对 `rankScore` clamp 到 [0,1] 后比较）。
-   * 仅保留 **score > similarityThreshold** 的分段；≤0 或未传表示不做该层过滤。
+   * 可选，[0,1]。与响应中 `score` 同源（绝对相关度，clamp 到 [0,1] 后比较）。
+   * 仅保留 **score > similarityThreshold** 的分段。
+   * 未传时使用 `retrievalDefaultSimilarityThreshold`；显式传 ≤0 表示关闭该层过滤。
    */
   similarityThreshold?: number;
+  /** Server-injected identity for ACL; never trust client `allowedGroupIds`. */
+  identity?: KbAclIdentity | null;
+  /** Optional metadata AND filters (docType / lang / tags). */
+  filters?: DocumentMetadataFilters | null;
 }
 
 /** 多文档检索：每个文档独立的 topK 与 similarityThreshold。 */
@@ -41,10 +58,26 @@ export interface RetrievalMultiDocumentSearchParams {
   query: string;
   documents: RetrievalMultiDocumentSpec[];
   platformSync?: PlatformDocumentSyncContext;
+  identity?: KbAclIdentity | null;
+  filters?: DocumentMetadataFilters | null;
+}
+
+export interface RetrievalDirectorySearchParams {
+  query: string;
+  topK: number;
+  directoryId: string;
+  similarityThreshold?: number;
+  identity?: KbAclIdentity | null;
+  filters?: DocumentMetadataFilters | null;
 }
 
 export interface RetrievalSearchResult {
   items: SearchItem[];
+  /**
+   * Optional correlation id echoed from the HTTP/search caller (W4.2-H3).
+   * Same field name as KnowledgeQueryRequest.traceId / feedback.traceId.
+   */
+  traceId?: string;
 }
 
 type VectorSearchResult = Awaited<ReturnType<QdrantVectorRepository["search"]>>[number];
@@ -52,7 +85,18 @@ type VectorSearchResult = Awaited<ReturnType<QdrantVectorRepository["search"]>>[
 type RankedSearchResult = VectorSearchResult & {
   rankScore: number;
   lexicalScore: number;
+  modelRerankScore?: number;
 };
+
+type ModelRerankRoute = "/kb/search" | "/kb/search/by-directory" | "/kb/search/by-documents";
+
+function isErrorWithCode(value: unknown): value is { code: string } {
+  return typeof value === "object" && value !== null && "code" in value && typeof value.code === "string";
+}
+
+function elapsedMs(startedAt: number): number {
+  return Number(Math.max(0, performance.now() - startedAt).toFixed(3));
+}
 
 type SectionChunkRows = Awaited<ReturnType<DocumentChunkRepositoryOrm["findByDocumentIdAndSectionId"]>>;
 type LexicalChunkRows = Awaited<ReturnType<DocumentChunkRepositoryOrm["searchLexicalChunks"]>>;
@@ -82,7 +126,21 @@ export class RetrievalService {
     private readonly documentChunkRepository: DocumentChunkRepositoryOrm,
     @Inject(DOCUMENT_PLATFORM_SYNC_PORT_TOKEN)
     private readonly documentPlatformSync?: DocumentPlatformSyncPort,
+    private readonly rerankPort?: RerankPort,
   ) {}
+
+  private resolveRerankTenant(): number {
+    // Model catalog access is a service-level concern, matching KB embedding.
+    // Request tenant context continues to scope KB data, but must not select model credentials.
+    const raw = Bun.env.KB_EMBEDDING_TENANT ?? process.env.KB_EMBEDDING_TENANT ?? "1";
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1;
+  }
+
+  private resolveRerankModelCode(): string {
+    const configured = this.config.retrievalRerankModel.trim();
+    return configured !== "" ? configured : "qwen3-rerank";
+  }
 
   private normalizeQuery(query: string, maxQueryLength: number): string {
     return query.replaceAll(/\s+/gu, " ").trim().slice(0, maxQueryLength);
@@ -191,41 +249,80 @@ export class RetrievalService {
   }
 
   /**
-   * 按文档内最高分归一化 rankScore，使同一 chunk 在 by-documents / by-directory / search(documentId) 下得分一致，
-   * 且单文档内最佳命中可接近 1.0（避免 RRF 在多 chunk 文档内被压到 0.x）。
+   * 检索侧质量策略：优先用 payload 中持久化的 role/score；
+   * 否则现场评估。封面/目录默认不召回，noise/占位符不返回。
    */
-  private normalizeRankScoresPerDocument(ranked: RankedSearchResult[]): RankedSearchResult[] {
-    const groups = new Map<string, RankedSearchResult[]>();
-    for (const result of ranked) {
-      const documentId = this.normalizeDocumentId(result.payload.documentId);
-      const bucket = groups.get(documentId) ?? [];
-      bucket.push(result);
-      groups.set(documentId, bucket);
-    }
-
-    const normalized: RankedSearchResult[] = [];
-    for (const group of groups.values()) {
-      const maxRankScore = group.reduce((max, item) => Math.max(max, item.rankScore), 0);
-      if (maxRankScore <= 0) {
-        normalized.push(...group);
-        continue;
-      }
-      for (const item of group) {
-        normalized.push({
-          ...item,
-          rankScore: Number((item.rankScore / maxRankScore).toFixed(6)),
-        });
-      }
-    }
-    return normalized;
+  private filterLowQualityChunks(ranked: RankedSearchResult[]): RankedSearchResult[] {
+    const policy = chunkQualityPolicyFromConfig(this.config);
+    return ranked.filter((result) => {
+      const payload = result.payload;
+      return isRetrievableChunk(
+        {
+          chunkRole: typeof payload.chunkRole === "string" ? payload.chunkRole : null,
+          chunkType: typeof payload.chunkType === "string" ? payload.chunkType : null,
+          embeddingText: typeof payload.embeddingText === "string" ? payload.embeddingText : null,
+          headingPath: Array.isArray(payload.headingPath) ? payload.headingPath : null,
+          pageNo: typeof payload.pageNo === "number" ? payload.pageNo : null,
+          qualityScore: typeof payload.qualityScore === "number" ? payload.qualityScore : null,
+          retrievableByDefault: typeof payload.retrievableByDefault === "boolean" ? payload.retrievableByDefault : null,
+          sectionId: typeof payload.sectionId === "string" ? payload.sectionId : null,
+          text: String(payload.text ?? ""),
+        },
+        policy,
+      );
+    });
   }
 
-  /** 按最终相关性得分过滤；与 `buildSearchItem` 中写入的 `score` 一致（应在文档内归一化之后调用）。 */
-  private filterBySimilarityThreshold(ranked: RankedSearchResult[], similarityThreshold?: number): RankedSearchResult[] {
-    if (similarityThreshold === undefined || !Number.isFinite(similarityThreshold) || similarityThreshold <= 0) {
+  private chunkMatchesKeywordQuery(result: RankedSearchResult, query: string): boolean {
+    const haystack = this.normalizeForMatch(
+      [
+        this.parseHeadingPath(result.payload.headingPath).join(" "),
+        String(result.payload.text ?? ""),
+        this.parseStringArray(result.payload.headers).join(" "),
+        this.parseStringArray(result.payload.keywords).join(" "),
+      ].join(" "),
+    );
+    if (haystack === "") {
+      return false;
+    }
+    const full = this.normalizeForMatch(query);
+    if (full !== "" && haystack.includes(full)) {
+      return true;
+    }
+    const terms = this.buildQueryTerms(query).filter((term) => term.length >= 2);
+    return terms.some((term) => haystack.includes(term));
+  }
+
+  private filterKeywordTermMatch(ranked: RankedSearchResult[], query: string): RankedSearchResult[] {
+    if (!isKeywordLikeQuery(query)) {
       return ranked;
     }
-    return ranked.filter((r) => this.clampScoreToUnitInterval(r.rankScore) > similarityThreshold);
+    return ranked.filter((result) => this.chunkMatchesKeywordQuery(result, query));
+  }
+
+  /** KB receives an already-searchable query; conversational rewriting belongs to the Agent. */
+  private async recallForQuery(params: {
+    normalizedQuery: string;
+    prefetchTopK: number;
+    documentId?: string;
+    identity?: KbAclIdentity | null;
+    filters?: DocumentMetadataFilters | null;
+  }): Promise<RankedSearchResult[]> {
+    const query = params.normalizedQuery;
+    const access = { filters: params.filters, identity: params.identity };
+    const queryProfile = resolveQueryRetrievalProfile(query);
+    const [queryVector] = await this.embeddingProvider.embed([query], "query", [{ retrievalProfile: queryProfile }]);
+    if (!queryVector || queryVector.dense.length === 0) {
+      return [];
+    }
+    if (params.documentId) {
+      return this.recallAndRankForDocument(query, query, queryVector, {
+        documentId: params.documentId,
+        prefetchTopK: params.prefetchTopK,
+        ...access,
+      });
+    }
+    return this.recallAndRankGlobal(query, query, queryVector, params.prefetchTopK, access);
   }
 
   private resolvePayloadRetrievalProfile(payload: VectorSearchResult["payload"]): RetrievalProfile {
@@ -472,24 +569,70 @@ export class RetrievalService {
     await this.documentChunkRepository.incrementChunkRecallCount(deltas);
   }
 
+  private accessSearchArgs(params: { identity?: KbAclIdentity | null; filters?: DocumentMetadataFilters | null }): {
+    identity?: KbAclIdentity | null;
+    filters?: DocumentMetadataFilters | null;
+  } {
+    return {
+      ...(params.identity !== undefined ? { identity: params.identity } : {}),
+      ...(params.filters !== undefined ? { filters: params.filters } : {}),
+    };
+  }
+
+  /**
+   * Qdrant cannot join document_record.active_generation_id. Validate every
+   * vector hit against MySQL so staging/obsolete generations are never visible.
+   */
+  private async filterActiveVectorGeneration(results: VectorSearchResult[]): Promise<VectorSearchResult[]> {
+    if (
+      typeof (this.documentChunkRepository as unknown as { findActiveChunkReferenceKeys?: unknown }).findActiveChunkReferenceKeys !==
+      "function"
+    ) {
+      return results;
+    }
+    const refs = results.map((result) => ({
+      chunkId: String(result.payload.chunkId ?? ""),
+      documentId: this.normalizeDocumentId(result.payload.documentId),
+      generationId: typeof result.payload.generationId === "string" ? result.payload.generationId : "legacy",
+    }));
+    const active = await this.documentChunkRepository.findActiveChunkReferenceKeys(refs);
+    return results.filter((result) => {
+      const generationId = typeof result.payload.generationId === "string" ? result.payload.generationId : "legacy";
+      const key = `${this.normalizeDocumentId(result.payload.documentId)}\u0001${String(result.payload.chunkId ?? "")}\u0001${generationId}`;
+      return active.has(key);
+    });
+  }
+
+  private vectorRecallTopK(topK: number): number {
+    const supportsGenerationValidation =
+      typeof (this.documentChunkRepository as unknown as { findActiveChunkReferenceKeys?: unknown }).findActiveChunkReferenceKeys ===
+      "function";
+    return supportsGenerationValidation ? topK * 2 : topK;
+  }
+
   /** 全库（或当前 project）向量+词法召回与排序，不截断 topK。 */
   private async recallAndRankGlobal(
     normalizedQuery: string,
     rawQuery: string,
     queryVector: EmbeddingVector,
     prefetchTopK: number,
+    access?: { identity?: KbAclIdentity | null; filters?: DocumentMetadataFilters | null },
   ): Promise<RankedSearchResult[]> {
     const config = this.config;
-    const results = await this.qdrantVectorRepository.search({
+    const accessArgs = this.accessSearchArgs(access ?? {});
+    const rawResults = await this.qdrantVectorRepository.search({
       denseVector: queryVector.dense,
       scoreThreshold: config.retrievalScoreThreshold > 0 ? config.retrievalScoreThreshold : undefined,
       sparseVector: queryVector.sparse,
-      topK: prefetchTopK,
+      topK: this.vectorRecallTopK(prefetchTopK),
+      ...accessArgs,
     });
+    const results = (await this.filterActiveVectorGeneration(rawResults)).slice(0, prefetchTopK);
     const lexicalRows = await this.documentChunkRepository.searchLexicalChunks({
       query: normalizedQuery,
       terms: this.buildLexicalTerms(rawQuery),
       topK: prefetchTopK,
+      ...accessArgs,
     });
     const mergedResults = this.mergeRecallResults(results, lexicalRows);
     return this.rankResults(mergedResults, normalizedQuery, config.retrievalRerankEnabled);
@@ -505,21 +648,27 @@ export class RetrievalService {
     params: {
       prefetchTopK: number;
       documentId: string;
+      identity?: KbAclIdentity | null;
+      filters?: DocumentMetadataFilters | null;
     },
   ): Promise<RankedSearchResult[]> {
     const config = this.config;
-    const results = await this.qdrantVectorRepository.search({
+    const accessArgs = this.accessSearchArgs(params);
+    const rawResults = await this.qdrantVectorRepository.search({
       denseVector: queryVector.dense,
       documentId: params.documentId,
       scoreThreshold: config.retrievalScoreThreshold > 0 ? config.retrievalScoreThreshold : undefined,
       sparseVector: queryVector.sparse,
-      topK: params.prefetchTopK,
+      topK: this.vectorRecallTopK(params.prefetchTopK),
+      ...accessArgs,
     });
+    const results = (await this.filterActiveVectorGeneration(rawResults)).slice(0, params.prefetchTopK);
     const lexicalRows = await this.documentChunkRepository.searchLexicalChunks({
       documentId: params.documentId,
       query: normalizedQuery,
       terms: this.buildLexicalTerms(rawQuery),
       topK: params.prefetchTopK,
+      ...accessArgs,
     });
     const mergedResults = this.mergeRecallResults(results, lexicalRows).filter((result) =>
       this.documentIdsMatch(result.payload.documentId, params.documentId),
@@ -527,56 +676,171 @@ export class RetrievalService {
     return this.rankResults(mergedResults, normalizedQuery, config.retrievalRerankEnabled);
   }
 
-  private finalizeRankedResults(
+  /**
+   * quality / keyword filters after recall+rule pre-rank (pipeline stage before model rerank).
+   */
+  private prepareCandidatesForRerank(ranked: RankedSearchResult[], query: string): RankedSearchResult[] {
+    const qualityFiltered = this.filterLowQualityChunks(ranked);
+    return this.filterKeywordTermMatch(qualityFiltered, query);
+  }
+
+  private async loadDenseVectorsForDiversification(ranked: readonly RankedSearchResult[]): Promise<Map<string, readonly number[]>> {
+    if (!this.config.retrievalDiversificationEnabled || ranked.length < 2) {
+      return new Map();
+    }
+    const repository = this.qdrantVectorRepository as Partial<Pick<QdrantVectorRepository, "getVectorsByPointIds">>;
+    if (typeof repository.getVectorsByPointIds !== "function") {
+      return new Map();
+    }
+    try {
+      const vectors = await repository.getVectorsByPointIds.call(
+        this.qdrantVectorRepository,
+        ranked.map((candidate) => String(candidate.id)),
+      );
+      return new Map([...vectors].map(([id, vector]) => [id, vector.dense]));
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          candidateCount: ranked.length,
+          errorCode: isErrorWithCode(error) ? error.code : undefined,
+          errorName: error instanceof Error ? error.name : typeof error,
+          event: "fallback",
+          ns: "kb.retrieval.diversification",
+          reason: "vector-retrieve-failed",
+        }),
+      );
+      return new Map();
+    }
+  }
+
+  /** Independent score floor + exact/dedupe/section/MMR + dynamic TopK. */
+  private async applyThresholdAndTopK(
     ranked: RankedSearchResult[],
-    params: { topK: number; similarityThreshold?: number },
-  ): RankedSearchResult[] {
-    const normalized = this.normalizeRankScoresPerDocument(ranked);
-    const afterThreshold = this.filterBySimilarityThreshold(normalized, params.similarityThreshold);
-    return afterThreshold.toSorted((left, right) => right.rankScore - left.rankScore || right.score - left.score).slice(0, params.topK);
+    params: { query: string; topK: number; similarityThreshold?: number },
+  ): Promise<RankedSearchResult[]> {
+    const denseVectors = await this.loadDenseVectorsForDiversification(ranked);
+    return selectRetrievalQualityCandidates(ranked, {
+      denseVectors,
+      diversificationEnabled: this.config.retrievalDiversificationEnabled,
+      exactMatchReserve: this.config.retrievalExactMatchReserve,
+      fallbackSimilarityThreshold: this.config.retrievalDefaultSimilarityThreshold,
+      maxChunksPerSection: this.config.retrievalMaxChunksPerSection,
+      mmrLambda: this.config.retrievalMmrLambda,
+      query: params.query,
+      requestedSimilarityThreshold: params.similarityThreshold,
+      rerankMinScore: this.config.retrievalRerankMinScore,
+      topK: params.topK,
+    });
   }
 
   /**
-   * 单次向量+词法召回与排序，不写入召回计数（由上层统一汇总后写入）。
+   * Explicit pipeline stage: merged vector/lexical recall → modelRerankOnce (at most once).
+   * On RerankPort failure: keep rule order; never empty when candidates exist (W2.2-H2).
    */
-  private async searchSingleDocument(
-    normalizedQuery: string,
-    rawQuery: string,
-    queryVector: EmbeddingVector,
-    params: {
-      topK: number;
-      documentId: string;
-      similarityThreshold?: number;
-    },
-  ): Promise<SearchItem[]> {
-    const config = this.config;
-    const prefetchTopK = Math.max(params.topK, params.topK * 3, config.retrievalPrefetchTopK);
-    const ranked = await this.recallAndRankForDocument(normalizedQuery, rawQuery, queryVector, {
-      documentId: params.documentId,
-      prefetchTopK,
-    });
-    const finalized = this.finalizeRankedResults(ranked, params);
-    const sectionChunksCache = new Map<string, Promise<SectionChunkRows>>();
+  private async modelRerankOnceStage(
+    candidates: RankedSearchResult[],
+    query: string,
+    route: ModelRerankRoute = "/kb/search",
+  ): Promise<RankedSearchResult[]> {
+    const modelCode = this.resolveRerankModelCode();
+    const tenant = this.resolveRerankTenant();
+    const logContext = {
+      candidateCount: candidates.length,
+      inputCount: Math.min(candidates.length, this.config.retrievalRerankInputTopN),
+      modelCode,
+      route,
+      tenant,
+    };
 
-    return Promise.all(finalized.map((result) => this.buildSearchItem(result, sectionChunksCache)));
+    if (!this.config.retrievalModelRerankEnabled) {
+      if (route === "/kb/search/by-documents") {
+        console.info(JSON.stringify({ ...logContext, event: "skipped", ns: "kb.retrieval.model-rerank", reason: "disabled" }));
+      }
+      return candidates;
+    }
+    if (!this.rerankPort) {
+      if (route === "/kb/search/by-documents") {
+        console.warn(JSON.stringify({ ...logContext, event: "skipped", ns: "kb.retrieval.model-rerank", reason: "provider-unavailable" }));
+      }
+      return candidates;
+    }
+    if (candidates.length === 0) {
+      if (route === "/kb/search/by-documents") {
+        console.info(JSON.stringify({ ...logContext, event: "skipped", ns: "kb.retrieval.model-rerank", reason: "no-candidates" }));
+      }
+      return candidates;
+    }
+
+    const startedAt = recordModelRerankAttempt();
+    console.info(JSON.stringify({ ...logContext, event: "started", ns: "kb.retrieval.model-rerank" }));
+    try {
+      const reranked = await modelRerankOnce({
+        candidates,
+        inputTopN: this.config.retrievalRerankInputTopN,
+        modelCode,
+        query,
+        rerankPort: this.rerankPort,
+        tenant,
+      });
+      recordModelRerankSuccess(startedAt);
+      console.info(
+        JSON.stringify({
+          ...logContext,
+          durationMs: elapsedMs(startedAt),
+          event: "succeeded",
+          ns: "kb.retrieval.model-rerank",
+          resultCount: reranked.length,
+        }),
+      );
+      return reranked;
+    } catch (error) {
+      recordModelRerankFallback(startedAt);
+      console.warn(
+        JSON.stringify({
+          ...logContext,
+          durationMs: elapsedMs(startedAt),
+          errorCode: isErrorWithCode(error) ? error.code : undefined,
+          errorName: error instanceof Error ? error.name : typeof error,
+          event: "fallback",
+          ns: "kb.retrieval.model-rerank",
+        }),
+      );
+      return candidates;
+    }
+  }
+
+  /**
+   * recall* → prepare → modelRerankOnce → applyThresholdAndTopK (global / single-doc / by-directory).
+   */
+  private async finalizeWithOptionalModelRerank(
+    ranked: RankedSearchResult[],
+    params: { topK: number; query: string; route?: ModelRerankRoute; similarityThreshold?: number },
+  ): Promise<RankedSearchResult[]> {
+    const prepared = this.prepareCandidatesForRerank(ranked, params.query);
+    const reranked = await this.modelRerankOnceStage(prepared, params.query, params.route);
+    return this.applyThresholdAndTopK(reranked, {
+      query: params.query,
+      similarityThreshold: params.similarityThreshold,
+      topK: params.topK,
+    });
   }
 
   public async search(params: RetrievalSearchParams): Promise<RetrievalSearchResult> {
     const config = this.config;
     const normalizedQuery = this.normalizeQuery(params.query, config.retrievalMaxQueryLength);
-    const queryProfile = resolveQueryRetrievalProfile(normalizedQuery);
-    const [queryVector] = await this.embeddingProvider.embed([normalizedQuery], "query", [{ retrievalProfile: queryProfile }]);
-    if (!queryVector || queryVector.dense.length === 0) {
+    if (normalizedQuery === "") {
       return { items: [] };
     }
     const prefetchTopK = Math.max(params.topK, params.topK * 3, config.retrievalPrefetchTopK);
-    const ranked = params.documentId
-      ? await this.recallAndRankForDocument(normalizedQuery, params.query, queryVector, {
-          documentId: params.documentId,
-          prefetchTopK,
-        })
-      : await this.recallAndRankGlobal(normalizedQuery, params.query, queryVector, prefetchTopK);
-    const finalized = this.finalizeRankedResults(ranked, {
+    const ranked = await this.recallForQuery({
+      documentId: params.documentId,
+      filters: params.filters,
+      identity: params.identity,
+      normalizedQuery,
+      prefetchTopK,
+    });
+    const finalized = await this.finalizeWithOptionalModelRerank(ranked, {
+      query: normalizedQuery,
       similarityThreshold: params.similarityThreshold,
       topK: params.topK,
     });
@@ -588,8 +852,7 @@ export class RetrievalService {
   }
 
   /**
-   * 多文档检索：query 只嵌入一次；对每个文档分别限定召回范围并应用各自的 topK / similarityThreshold，
-   * 最终按请求中 `documents` 顺序拼接各文档结果。
+   * 多文档检索：各文档召回后拼接 → 统一 modelRerankOnce → 按 documentId 分组截断各 topK → 按请求顺序 flat。
    */
   public async searchMultiByDocuments(params: RetrievalMultiDocumentSearchParams): Promise<RetrievalSearchResult> {
     if (this.documentPlatformSync) {
@@ -602,43 +865,74 @@ export class RetrievalService {
 
     const config = this.config;
     const normalizedQuery = this.normalizeQuery(params.query, config.retrievalMaxQueryLength);
-    const queryProfile = resolveQueryRetrievalProfile(normalizedQuery);
-    const [queryVector] = await runKbUpstreamStep("embedding", () =>
-      this.embeddingProvider.embed([normalizedQuery], "query", [{ retrievalProfile: queryProfile }]),
-    );
-    if (!queryVector || queryVector.dense.length === 0) {
+    if (normalizedQuery === "") {
       return { items: [] };
     }
 
-    const itemGroups = await runKbUpstreamStep("vector-search", () =>
+    const access = { filters: params.filters, identity: params.identity };
+    const recalled = await runKbUpstreamStep("vector-search", () =>
       Promise.all(
-        params.documents.map((spec) => {
+        params.documents.map(async (spec) => {
           const topK = typeof spec.topK === "number" ? spec.topK : 5;
-          return this.searchSingleDocument(normalizedQuery, params.query, queryVector, {
+          const prefetchTopK = Math.max(topK, topK * 3, config.retrievalPrefetchTopK);
+          const ranked = await this.recallForQuery({
             documentId: spec.documentId,
-            similarityThreshold: spec.similarityThreshold,
-            topK,
+            filters: access.filters,
+            identity: access.identity,
+            normalizedQuery,
+            prefetchTopK,
           });
+          return {
+            prepared: this.prepareCandidatesForRerank(ranked, normalizedQuery),
+            spec: { ...spec, topK },
+          };
         }),
       ),
     );
+
+    const mergedCandidates =
+      this.config.retrievalModelRerankEnabled && this.rerankPort
+        ? allocateMultiDocumentRerankBudget(
+            recalled.map((entry) => entry.prepared),
+            this.config.retrievalRerankInputTopN,
+          )
+        : recalled.flatMap((entry) => entry.prepared);
+    const reranked = await this.modelRerankOnceStage(mergedCandidates, normalizedQuery, "/kb/search/by-documents");
+
+    const byDocumentId = new Map<string, RankedSearchResult[]>();
+    for (const result of reranked) {
+      const documentId = this.normalizeDocumentId(result.payload.documentId);
+      const bucket = byDocumentId.get(documentId);
+      if (bucket) {
+        bucket.push(result);
+      } else {
+        byDocumentId.set(documentId, [result]);
+      }
+    }
+
+    const sectionChunksCache = new Map<string, Promise<SectionChunkRows>>();
+    const itemGroups: SearchItem[][] = [];
+    for (const entry of recalled) {
+      const documentId = this.normalizeDocumentId(entry.spec.documentId);
+      const docCandidates = byDocumentId.get(documentId) ?? [];
+      const finalized = await this.applyThresholdAndTopK(docCandidates, {
+        query: normalizedQuery,
+        similarityThreshold: entry.spec.similarityThreshold,
+        topK: entry.spec.topK,
+      });
+      itemGroups.push(await Promise.all(finalized.map((result) => this.buildSearchItem(result, sectionChunksCache))));
+    }
+
     const items = itemGroups.flat();
     await this.recordRecallCounts(items);
     await this.recordChunkRecallCounts(items);
     return { items };
   }
 
-  public async searchByDirectory(params: {
-    query: string;
-    topK: number;
-    directoryId: string;
-    similarityThreshold?: number;
-  }): Promise<RetrievalSearchResult> {
+  public async searchByDirectory(params: RetrievalDirectorySearchParams): Promise<RetrievalSearchResult> {
     const config = this.config;
     const normalizedQuery = this.normalizeQuery(params.query, config.retrievalMaxQueryLength);
-    const queryProfile = resolveQueryRetrievalProfile(normalizedQuery);
-    const [queryVector] = await this.embeddingProvider.embed([normalizedQuery], "query", [{ retrievalProfile: queryProfile }]);
-    if (!queryVector || queryVector.dense.length === 0) {
+    if (normalizedQuery === "") {
       return { items: [] };
     }
 
@@ -648,16 +942,23 @@ export class RetrievalService {
     }
 
     const prefetchTopK = Math.max(params.topK, params.topK * 3, config.retrievalPrefetchTopK);
+    const access = { filters: params.filters, identity: params.identity };
     const perDocumentRanked = await Promise.all(
       documentIds.map((documentId) =>
-        this.recallAndRankForDocument(normalizedQuery, params.query, queryVector, {
+        this.recallForQuery({
           documentId,
+          filters: access.filters,
+          identity: access.identity,
+          normalizedQuery,
           prefetchTopK,
         }),
       ),
     );
+    // Cross-document concat; vector/lexical fusion already happened per document.
     const mergedRanked = perDocumentRanked.flat();
-    const finalized = this.finalizeRankedResults(mergedRanked, {
+    const finalized = await this.finalizeWithOptionalModelRerank(mergedRanked, {
+      query: normalizedQuery,
+      route: "/kb/search/by-directory",
       similarityThreshold: params.similarityThreshold,
       topK: params.topK,
     });
