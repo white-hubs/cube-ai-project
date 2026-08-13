@@ -377,6 +377,143 @@ describe("OpenAiCompatProvider", () => {
     expect(res.toolCalls?.[0]?.arguments).toEqual({ year: 2026 });
   });
 
+  it("normalizes separator-variant upstream stream tool names to declared tools", async () => {
+    const upstreamFrame = {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                function: {
+                  arguments: JSON.stringify({ keyword: "待办" }),
+                  name: "mcp_biz-ontology-search_ontology",
+                },
+                id: "call_mixed",
+                index: 0,
+                type: "function",
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+    const sse = [`data: ${JSON.stringify(upstreamFrame)}`, "", "data: [DONE]", ""].join("\n");
+    const diagnosticFetch: FetchLike = async () =>
+      new Response(sse, {
+        headers: { "Content-Type": "text/event-stream" },
+        status: 200,
+      });
+    const provider = new OpenAiCompatProvider({
+      apiKey: "sk-test",
+      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      fetch: diagnosticFetch as typeof fetch,
+      model: "qwen3.6-flash",
+    });
+
+    const chunks = [];
+    for await (const chunk of provider.chatStream({
+      messages: [{ role: "user", content: "查询待办" }],
+      modelCode: "qwen3.6-flash",
+      tenant: 1,
+      tools: [{ name: "mcp.biz-ontology.search_ontology", inputSchema: { type: "object" } }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    expect(
+      chunks.find((chunk) => chunk.type === "tool-call-complete" && chunk.call.name === "mcp.biz-ontology.search_ontology"),
+    ).toBeDefined();
+  });
+
+  it("rewrites historical separator-variant assistant tool names back to canonical wire names", async () => {
+    let capturedBody: unknown;
+    const capturingFetch: FetchLike = async (_input, init) => {
+      capturedBody = JSON.parse(String(init?.body ?? "{}"));
+      return Response.json({
+        choices: [{ finish_reason: "stop", message: { content: "ok", role: "assistant" } }],
+      });
+    };
+    const provider = new OpenAiCompatProvider({
+      apiKey: "sk-test",
+      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      fetch: capturingFetch as typeof fetch,
+      model: "qwen3.6-flash",
+    });
+
+    await provider.chat({
+      messages: [
+        { role: "user", content: "查询待办" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              arguments: { keyword: "待办" },
+              id: "call_bad_history",
+              name: "mcp_biz-ontology.search_ontology",
+            },
+          ],
+        },
+      ],
+      modelCode: "qwen3.6-flash",
+      tenant: 1,
+      tools: [{ name: "mcp.biz-ontology.search_ontology", inputSchema: { type: "object" } }],
+    });
+
+    const body = capturedBody as {
+      messages?: { tool_calls?: { function?: { name?: string } }[] }[];
+      tools?: { function?: { name?: string } }[];
+    };
+    expect(body.tools?.[0]?.function?.name).toBe("mcp_biz-ontology_search_ontology");
+    expect(body.messages?.[1]?.tool_calls?.[0]?.function?.name).toBe("mcp_biz-ontology_search_ontology");
+  });
+
+  it("aligns visible system tool names with OpenAI wire tool names on the first request", async () => {
+    let capturedBody: unknown;
+    const capturingFetch: FetchLike = async (_input, init) => {
+      capturedBody = JSON.parse(String(init?.body ?? "{}"));
+      return Response.json({
+        choices: [{ finish_reason: "stop", message: { content: "ok", role: "assistant" } }],
+      });
+    };
+    const provider = new OpenAiCompatProvider({
+      apiKey: "sk-test",
+      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      fetch: capturingFetch as typeof fetch,
+      model: "qwen3.6-flash",
+    });
+
+    await provider.chat({
+      messages: [
+        {
+          role: "system",
+          content: "## Tool Definitions\n- mcp.biz-ontology.search_ontology: search\n- mcp.biz-ontology.resolve_business_query: resolve",
+        },
+        { role: "user", content: "查询待办" },
+      ],
+      modelCode: "qwen3.6-flash",
+      tenant: 1,
+      tools: [
+        { name: "mcp.biz-ontology.search_ontology", inputSchema: { type: "object" } },
+        { name: "mcp.biz-ontology.resolve_business_query", inputSchema: { type: "object" } },
+      ],
+    });
+
+    const body = capturedBody as {
+      messages?: { content?: string }[];
+      tools?: { function?: { name?: string } }[];
+    };
+    expect(body.tools?.map((tool) => tool.function?.name)).toEqual([
+      "mcp_biz-ontology_search_ontology",
+      "mcp_biz-ontology_resolve_business_query",
+    ]);
+    expect(body.messages?.[0]?.content).toContain("mcp_biz-ontology_search_ontology");
+    expect(body.messages?.[0]?.content).toContain("mcp_biz-ontology_resolve_business_query");
+    expect(body.messages?.[0]?.content).not.toContain("mcp.biz-ontology.search_ontology");
+    expect(body.messages?.[0]?.content).not.toContain("mcp.biz-ontology.resolve_business_query");
+  });
+
   it("embed returns dense vectors (G3 sparse optional on openai path)", async () => {
     const embeddingFetch: FetchLike = async () =>
       Response.json({

@@ -543,6 +543,7 @@ const OPENAI_TOOL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/u;
 class OpenAiToolNameMap {
   private readonly toWire = new Map<string, string>();
   private readonly fromWire = new Map<string, string>();
+  private readonly fromSeparatorInsensitive = new Map<string, string | null>();
 
   static fromRequest(req: LlmChatRequest): OpenAiToolNameMap {
     const map = new OpenAiToolNameMap();
@@ -554,7 +555,7 @@ class OpenAiToolNameMap {
         continue;
       }
       for (const call of message.toolCalls ?? []) {
-        map.encode(call.name);
+        map.encodeHistorical(call.name);
       }
     }
     return map;
@@ -568,6 +569,7 @@ class OpenAiToolNameMap {
     if (OPENAI_TOOL_NAME_PATTERN.test(canonical)) {
       this.toWire.set(canonical, canonical);
       this.fromWire.set(canonical, canonical);
+      this.registerSeparatorInsensitive(canonical, canonical);
       return canonical;
     }
     const base = canonical.replace(/[^a-zA-Z0-9_-]/gu, "_") || "tool";
@@ -579,12 +581,48 @@ class OpenAiToolNameMap {
     }
     this.toWire.set(canonical, wire);
     this.fromWire.set(wire, canonical);
+    this.registerSeparatorInsensitive(canonical, canonical);
+    this.registerSeparatorInsensitive(wire, canonical);
     return wire;
   }
 
-  decode(wire: string): string {
-    return this.fromWire.get(wire) ?? wire;
+  encodeHistorical(name: string): string {
+    return this.encode(this.decode(name));
   }
+
+  decode(wire: string): string {
+    return this.fromWire.get(wire) ?? this.fromSeparatorInsensitive.get(normalizeToolNameSeparators(wire)) ?? wire;
+  }
+
+  rewriteVisibleToolNames(content: string): string {
+    let rewritten = content;
+    const entries = [...this.toWire.entries()]
+      .filter(([canonicalName, wireName]) => canonicalName !== wireName)
+      .toSorted(([left], [right]) => right.length - left.length);
+    for (const [canonicalName, wireName] of entries) {
+      rewritten = rewritten.split(canonicalName).join(wireName);
+    }
+    return rewritten;
+  }
+
+  private registerSeparatorInsensitive(name: string, canonical: string): void {
+    const key = normalizeToolNameSeparators(name);
+    if (!key) {
+      return;
+    }
+    const existing = this.fromSeparatorInsensitive.get(key);
+    if (existing === undefined) {
+      this.fromSeparatorInsensitive.set(key, canonical);
+      return;
+    }
+    if (existing !== canonical) {
+      this.fromSeparatorInsensitive.set(key, null);
+    }
+  }
+}
+
+function normalizeToolNameSeparators(name: string): string {
+  return name.replace(/[^a-zA-Z0-9]+/gu, "_").replace(/^_+|_+$/gu, "");
 }
 
 function toolsToOpenAI(
@@ -607,7 +645,9 @@ function toolsToOpenAI(
 function messagesToOpenAI(messages: LlmMessage[], toolNames: OpenAiToolNameMap): OpenAiChatMessage[] {
   const out: OpenAiChatMessage[] = [];
   for (const m of messages) {
-    if (m.role === "system" || m.role === "user") {
+    if (m.role === "system") {
+      out.push({ content: toolNames.rewriteVisibleToolNames(m.content), role: m.role });
+    } else if (m.role === "user") {
       out.push({ content: m.content, role: m.role });
     } else if (m.role === "assistant") {
       const base: OpenAiChatMessage = {
@@ -618,7 +658,7 @@ function messagesToOpenAI(messages: LlmMessage[], toolNames: OpenAiToolNameMap):
         base.tool_calls = m.toolCalls.map((tc) => ({
           function: {
             arguments: JSON.stringify(tc.arguments ?? {}),
-            name: toolNames.encode(tc.name),
+            name: toolNames.encodeHistorical(tc.name),
           },
           id: tc.id,
           type: "function" as const,
