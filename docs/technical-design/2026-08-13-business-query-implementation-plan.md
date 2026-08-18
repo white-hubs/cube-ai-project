@@ -44,13 +44,13 @@
 | 序号 | 能力项 | 当前状态 | 必须整改内容 | 达标门阀 |
 | --- | --- | --- | --- | --- |
 | G-01 | `ask_business_data` platform service | partial | 补真实环境验收、完整浏览器交互、性能基线；复杂问数不得回退到不安全路径 | 后端服务、页面验证、真实问数、性能报告均通过；普通响应不含内部信息 |
-| G-02 | 旧 `query_database` 普通 MCP tool 物理清理 | partial | 扫描并清理 prompt/export/descriptors/custom agents/旧路由残留；旧引用 fail-closed | 旧工具不可注册、不可 discovery、旧引用有失败关闭测试 |
+| G-02 | 旧 `query_database` 普通 MCP tool 物理清理 | blocked_real_env | 已清零：biz mcp/backend/descriptors/assemble-tachu-runtime 均无残留，fail-closed 已接入（biz-ontology-tool-guard）；仅剩 custom-agent 动态配置无法静态扫全，需真实环境复验 | 旧工具不可注册、不可 discovery、旧引用有失败关闭测试 |
 | G-03 | API contract 冻结 | partial | 补 stream contract、debug contract 页面交互、真实联调；前端不再依赖同步整包 JSON | API 类型、stream 事件、页面消费、contract 测试一致 |
 | G-04 | BusinessDomainPage 配置中心 | partial | 保存 dirty、requires_rebuild、Eval/Workbench 消费、真实页面交互闭环 | 页面新增/编辑/保存/重建/跳转真实可用；测试覆盖 |
 | G-05 | 候选域启用/禁用 | partial | domain_key 显式保存、多 connection UX、`${ENV}` placeholder 防泄漏 | 保存不会展开真实密钥；候选域状态与路由诊断一致 |
 | G-06 | 关键词闭环 | partial | 保存后 semantic dirty、热生效/重建边界提示、`matched_keywords` 测试 | 关键词配置、召回、diagnostics、重建提示闭环 |
-| G-07 | semantic index repository 抽象 | partial | repository/provider/catalog 结构清晰；Qdrant smoke 真实验证 | 本地/测试 Qdrant 写入和查询通过；文档与代码结构一致 |
-| G-08 | semantic index 内容可解释 | partial | 展示 domain/entity/field/synonym/query_example/question_bank/metric/dimension/resolver/relationship/multi_step_template 数量、indexed_at、dirty 原因、last_error | status/rebuild 返回与页面展示一致，有页面断言 |
+| G-07 | semantic index repository 抽象 | blocked_real_env | 结构已清晰：embedding_provider.py + vector_repository.py 已拆分；Qdrant smoke 真实验证（需真实容器） | 本地/测试 Qdrant 写入和查询通过；文档与代码结构一致 |
+| G-08 | semantic index 内容可解释 | blocked_real_env | 后端 content_summary 14 key + 前端 semanticIndexContentRows 13 类标签已对齐；需浏览器真实交互验收 | status/rebuild 返回与页面展示一致，有页面断言 |
 | G-09 | display policy | partial | 明确页面可编辑边界、隐藏原因 diagnostics、防止移除默认安全基线 | 用户配置不能破坏安全兜底；隐藏字段原因可审计 |
 | G-10 | access policy / 字段条件约束 | partial | 实体级条件页面保存、上下文变量、缺字段 skip/not_applicable、缺变量 fail-closed 全闭环 | 页面配置会被 SQL 约束执行器消费；无任意 SQL where 编辑 |
 | G-11 | `_metrics.yaml` 管理 | partial | 指标/维度/过滤字段表格化真实保存、dirty、平台生成 SQL 只读预览 | 保存后 schema 校验、索引 dirty、问数命中、测试均通过 |
@@ -60,7 +60,7 @@
 | G-15 | EvalPage 业务问数门阀 | partial | 50 条人工 eval、分类指标、门阀报告；准确性、安全性、澄清质量分项 | 未达门阀不得合入；报告必须关联 config_fingerprint |
 | G-16 | WorkbenchPage 问数调试 | partial | 调试路径闭环；普通用户不得回到任意 SQL 路径 | Workbench 调试入口只走安全问数 API |
 | G-17 | OntologyEditorPage 资产编辑 | partial | 实体配置真实浏览器保存、业务域 dirty 联动、配置持久化验收 | 实体页配置保存后被业务域页、runtime、索引状态消费 |
-| G-18 | MCP 配置导出动态验证问题 | partial | 无候选域不生成问数验证；有候选域从实体/verified query 动态生成；禁止硬编码风险管控 | exporter 测试证明无硬编码、无空验证、无旧工具引用 |
+| G-18 | MCP 配置导出动态验证问题 | blocked_real_env | 已动态化：无候选域不生成、有候选域从实体生成、无硬编码；需 verified query 优先 + 真实导出验收 | exporter 测试证明无硬编码、无空验证、无旧工具引用 |
 | G-19 | cube/ghcloud 安全投影 | blocked_real_env | 真实 MCP/Agent/应用对话复验；pagination/timeline 不泄漏内部字段 | 最终答案不含 SQL/MCP URI/tool args/raw id/code；真实端到端截图/日志留证 |
 | G-20 | 合入门阀 | conflict_with_plan | 建立统一门阀报告，替代分散测试口头证明 | 后端、前端、MCP、cube、ghcloud、eval、真实联调全部达标后才可合入 |
 
@@ -88,7 +88,7 @@
 | BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
-| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal`（草案校验）+ `propose_business_query_plan`（scene=business_query_plan 调 LLM 生成 JSON 草案、失败返回澄清）已实现；仍需 SQL AST 二次校验、eval gate、人工确认链路 | proposal guard + llm_fallback 单测通过；SQL 二次校验/人工确认待补 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；eval gate 待补 |
 | BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL）；仍需运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入 + 审核流闭环待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
@@ -639,6 +639,10 @@ pnpm test:run -- --runInBand
     - 新增 `service.py::_join_plan`：主实体字段无关键词命中、但同连接 relationship 的 target 字段命中时，生成 1-hop JOIN plan（provenance=same_connection_join）；`_plan` 接入该触发点。
     - 测试：新增 `test_business_query_join_plan.py` 2 用例（关联实体字段触发 / 主实体字段跳过）；全量后端 pytest 通过。
     - 遗留：真实 JOIN 场景 eval + 浏览器验收。
+
+19. 状态精化 + BQ-M06 SQL 校验核查：
+    - BQ-M06「SQL AST 二次校验」核查：已由 `sql_executor.py` 覆盖——`check_sql`（只读）、`ban_other_connection_views`（跨 connection 防呆）、`enforce_constraints`（租户/软删除 AST 约束），任何 SQL 执行前必经；文档 249 行「尚未具备」为过时描述，BQ-M06 状态已更新。
+    - 0.1.1 状态精化：G-02（旧工具清理）、G-07（repository 抽象）、G-08（内容可解释）、G-18（exporter 动态化）由 `partial` 改为 `blocked_real_env`（代码已完整，只差真实环境/浏览器验收）。
 
 ---
 
