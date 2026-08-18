@@ -638,6 +638,91 @@ describe("EngineFactory", () => {
     ).toBe(true);
   });
 
+  test("runStream injects prefetch context through the shared projector (no raw SQL/tenant leak)", async () => {
+    const provider = createCaptureProvider();
+    const groundingDesc = ToolDescriptor.parse({
+      schemaVersion: 1,
+      kind: "TOOL",
+      name: "platform.flow.list",
+      displayName: "List flows",
+      isPreset: true,
+      version: "1.0.0",
+      meta: {
+        execution: "LOCAL",
+        consent: "NEVER",
+        requiresPrincipal: "USER",
+        timeoutMs: 15_000,
+        idempotent: true,
+        sideEffects: [],
+      },
+      inputSchema: { type: "object", properties: {} },
+      outputSchema: { type: "object", properties: {} },
+      requires: { principal: "USER", oauthScope: [], obo: null },
+      execute: "builtin:platform.flow.list",
+    });
+    const mockRegistry = {
+      listAll: () => [groundingDesc],
+      resolve: (name: string) => (name === "platform.flow.list" ? groundingDesc : undefined),
+    } as unknown as DescriptorRegistryService;
+    const toolService = {
+      invoke: async () => ({
+        entities: ["alarm", "device"],
+        marker: "GROUNDING-INDEX-MARKER",
+        sql: "SELECT id FROM ai_sm_risk_unit",
+        tenant: 1,
+        tenant_id: 2,
+        session_id: "s-1",
+        round_num: 0,
+        raw_rows: [{ id: 1, tenant: 1 }],
+        deleted: 0,
+      }),
+    } satisfies Pick<ToolService, "invoke">;
+    const observabilityEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const observability: ObservabilityEmitter = {
+      emit(ev) {
+        observabilityEvents.push({ type: ev.type, payload: ev.payload ?? {} });
+      },
+      on: () => () => {},
+      off: () => {},
+      setMasker: () => {},
+    };
+    const factory = testEngineFactory(provider, observability, mockRegistry, toolService as ToolService);
+
+    await drain(
+      factory.runStream({
+        sessionId: "SESSION-GROUNDING-PROJECTION",
+        turnId: "TURN-GROUNDING-PROJECTION",
+        tenant: 58197260,
+        prompt: "统计各设备的告警数量",
+        agentSnapshot: {
+          agent: {
+            content: {
+              prompt: "BASE-PROMPT",
+              groundingPrefetch: [{ tool: "platform.flow.list", args: { connection: "", entity: "_index" } }],
+            },
+          },
+        },
+        nextStreamId: (() => {
+          let n = 0;
+          return () => `stream-${++n}`;
+        })(),
+      }),
+    );
+
+    const injected = provider.capturedMessages
+      .flatMap((msgs) => msgs)
+      .find(
+        (m) => m.role === "system" && typeof m.content === "string" && m.content.includes("预取接地事实"),
+      );
+    expect(injected).toBeDefined();
+    const content = (injected as { content: string }).content;
+    expect(content).toContain("GROUNDING-INDEX-MARKER");
+    // 预取结果经同一投影器后，SQL/租户/软删除/审计字段不得进入 Agent Context。
+    for (const leaked of ["SELECT", "ai_sm_risk_unit", '"sql"', '"tenant"', '"tenant_id"', '"deleted"', '"session_id"', '"round_num"', '"raw_rows"']) {
+      expect(content).not.toContain(leaked);
+    }
+  });
+
   test("runStream skips a groundingPrefetch entry whose tool is not registered this turn (no invoke)", async () => {
     const provider = createCaptureProvider();
     const invocations: string[] = [];

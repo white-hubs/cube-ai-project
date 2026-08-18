@@ -260,11 +260,15 @@ function formatRetrievedKnowledgeContext(output: unknown, refs: readonly Runtime
   ].join("\n");
 }
 
-function renderPrefetchOutput(output: unknown): string {
+function renderPrefetchOutput(tool: string, output: unknown): string {
   if (output == null) return "";
-  if (typeof output === "string") return truncateText(output.trim(), 4000);
+  // prefetch 与主链路共用同一安全投影器：禁止对原始 object 直接 JSON.stringify，
+  // 先经 projectToolResultForModel 剥离 SQL/connection/raw rows/tool args 等敏感字段。
+  const projected = projectToolResultForModel(tool, output);
+  if (projected == null) return "";
+  if (typeof projected === "string") return truncateText(projected.trim(), 4000);
   try {
-    return truncateText(JSON.stringify(output), 4000);
+    return truncateText(JSON.stringify(projected), 4000);
   } catch {
     return "";
   }
@@ -272,7 +276,7 @@ function renderPrefetchOutput(output: unknown): string {
 
 /** Format one grounding-prefetch tool output into an Agent Context block. */
 function formatGroundingPrefetchContext(tool: string, output: unknown): string {
-  const body = renderPrefetchOutput(output);
+  const body = renderPrefetchOutput(tool, output);
   if (!body) return "";
   return [`## 预取接地事实（来自 ${tool}，本轮已代为查询，请据此选用真实标识符，勿臆造）`, body].join("\n");
 }
