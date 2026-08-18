@@ -89,7 +89,7 @@
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` 已实现（同 connection、显式 relationship、1-hop、join 标识符防注入、分页只主实体）；仍需跨实体字段匹配触发点接入 `_plan` | join validator/SQL generator 单测通过；触发点接入待补 |
 | BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal`（草案校验）+ `propose_business_query_plan`（scene=business_query_plan 调 LLM 生成 JSON 草案、失败返回澄清）已实现；仍需 SQL AST 二次校验、eval gate、人工确认链路 | proposal guard + llm_fallback 单测通过；SQL 二次校验/人工确认待补 |
-| BQ-M07 | todo | 是 | pending candidate：动态成功计划只进入 pending，不变 verified，不保存 SQL | candidate 写入与审核流测试通过 |
+| BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL）；仍需运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入 + 审核流闭环待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
 | BQ-P03 | verified | 是，需回归 | PAGE_TOKEN_EXPIRED 保持安全响应 | 过期测试通过 |
@@ -629,6 +629,11 @@ pnpm test:run -- --runInBand
     - 约束：只生成 entity/metrics/dimensions/filters 草案，不生成 SQL、不引用 raw rows。
     - 测试：新增 `test_business_query_llm_fallback.py` 4 用例（合法/非法字段/SQL/上游异常）；全量后端 pytest 通过。
     - 遗留：SQL AST 二次校验、eval gate、人工确认链路（BQ-M07）待补，`llm_fallback.enabled` 保持 false。
+
+17. BQ-M07 pending candidate 写入落地（据文档 8.11/5.5.16）：
+    - 新增 `settings.py::save_pending_verified_query_candidate`：运行时验证成功的 plan 沉淀为 `_verified_queries.yaml` 的 `review.state=pending` 候选，不保存可执行 SQL。
+    - 测试：新增 `test_business_query_pending_candidate.py` 3 用例（pending 状态、追加不覆盖、未知域）；全量后端 pytest 通过。
+    - 遗留：运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环待补。
 
 ---
 
