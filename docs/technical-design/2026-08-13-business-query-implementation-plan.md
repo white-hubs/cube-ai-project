@@ -654,7 +654,7 @@ pnpm test:run -- --runInBand
     - 事实：`service.py::validate_same_connection_join` 原读取 relationship 顶层 `allowed_for_join`，与 OntologyEditorPage 写入的 `relationships[].business_query.usage.allowed_for_join`、以及 `semantic_index.py`/`list_profile.py`/`multi_step_validator.py` 的读取位置不一致。
     - 修复：`validate_same_connection_join` 改为读 `business_query.usage.allowed_for_join`；测试 fixture 对齐规范 schema，新增「未声明 allowed_for_join 时 fail-closed」负向测试（`test_business_query_join_plan.py`）。
     - 测试：`test_business_query_join_plan.py` + `test_business_query_same_connection_join.py` 11 用例通过；后端全量 pytest 通过。
-    - 遗留（BQ-M05 仍未闭合项）：真实 JOIN 场景 eval + 浏览器验收；JOIN 计划对关联实体自然语言过滤（enum filter where 拼接）尚未接入。
+    - 遗留（BQ-M05 仍未闭合项）：真实 JOIN 场景 eval + 浏览器验收。
 
 22. G-18 MCP 导出 verified query 优先 + 死代码清理：
     - 新增 `service.py::business_query_verification_question`（公共 API）：优先取候选域 verified query 首个问题模式，回退为首个实体展示名，无候选域返回 None。
@@ -685,6 +685,11 @@ pnpm test:run -- --runInBand
     - 修复：`list`（intent=list，单域列表投影）与 `clarification`（intent=clarification）拆分为独立分类；`eval_runner` required_categories 更新为 7 类，ambiguity 特殊豁免（no-entity-context/signals/routing）替换为 clarification。
     - 测试：`test_business_query_eval_runner.py` payload 7 分类；`test_business_query_service.py` 断言 list/clarification 独立；后端全量 pytest 通过。
     - 遗留：`resolver`/`multi_step_count`/`multi_step_list` 分类仍依赖 G-14 资产（`_resolvers.yaml`/`_multi_step_queries.yaml` 真实业务口径）落地。
+
+28. BQ-M05 JOIN 关联实体枚举过滤（where 拼接）落地：
+    - 事实：`_join_plan` 原先生成 JOIN 时不带过滤条件，`build_same_connection_join_select` 的 `filters` 参数被闲置，与「JOIN 也支持受控过滤」的合同不符。
+    - 修复：`_join_plan` 从目标实体抽取自然语言枚举过滤（`_enum_filters`）转为 `RuntimeFilter`，并以 target 视图限定列名（`target_view.field`）避免两表同名列歧义；`_runtime_filter_clause`/`_build_runtime_where` 增加可选 `qualifier` 参数（默认空，向后兼容）；`QueryPlan.filters` 一并写入供 diagnostics 展示。
+    - 测试：`test_business_query_join_plan.py` 新增「关联实体枚举过滤 + 视图限定」用例；后端全量 pytest 通过。
 
 ---
 
