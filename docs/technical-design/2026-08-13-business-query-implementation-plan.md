@@ -612,6 +612,12 @@ pnpm test:run -- --runInBand
     - 测试：新增 `test_business_query_plan_proposal.py` 5 用例（合法/非法字段/SQL 注入/非对象）；全量后端 pytest 通过。
     - 遗留：LLM fallback 调用集成（prompt/schema）待补，`llm_fallback.enabled` 保持 false。
 
+14. service.py 拆分 + 澄清硬编码修复：
+    - 拆分：`models.py`（数据类 FieldMeta/EntityMeta/DomainMeta/QueryPlan/DisplayColumnSpec/RuntimeFilter）、`semantic.py`（_normalize_text/_field_score/_entity_score/_domain_score/_best_entity）、`plan_proposal.py`（validate_plan_proposal）；service.py 2165→1992 行，re-export 保持向后兼容。
+    - 硬编码：`_clarification` 澄清示例原写死「风险单元/固有风险等级/重大风险」，违反矩阵 15.5；改为 `_clarification_examples()` 从候选域动态生成，无候选域返回通用文案。
+    - Qdrant 实现核查：`semantic_index.py` 已按「仓储接口 + 工厂模式」落地——`SemanticVectorRepository`(Protocol) + `InMemorySemanticVectorRepository`/`QdrantSemanticVectorRepository` 两实现 + `create_repository()` 工厂按 `repository` 配置选择；`EmbeddingProvider`(Protocol) + `QwenEmbeddingProvider` + `create_embedding_provider()` 工厂。符合计划 10.4 抽象要求；但单文件承载多职责仍是 G-07「结构清晰」的遗留。
+    - 全量后端 pytest 通过。
+
 ---
 
 ## 2. 事实依据
