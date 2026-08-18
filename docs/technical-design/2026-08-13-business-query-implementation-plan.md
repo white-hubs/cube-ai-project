@@ -88,8 +88,8 @@
 | BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
-| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；eval gate 待补 |
-| BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL）；仍需运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入 + 审核流闭环待补 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（语义/关键词路由低置信或歧义时最多一次 LLM 兜底，未启用/失败/非法草案返回澄清）；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入测试通过；eval gate 待补 |
+| BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL），运行时触发已接入（LLM fallback 成功后 `_save_llm_fallback_pending_candidate` 调用）；仍需人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入测试通过；审核流闭环待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
 | BQ-P03 | verified | 是，需回归 | PAGE_TOKEN_EXPIRED 保持安全响应 | 过期测试通过 |
@@ -628,12 +628,14 @@ pnpm test:run -- --runInBand
     - 新增 `llm_fallback.py::propose_business_query_plan`：用 `scene=business_query_plan` 调 `LlmClient.chat` 生成 JSON plan 草案，经 `validate_plan_proposal` 校验，失败/超时/非法返回 None（调用方返回澄清）。
     - 约束：只生成 entity/metrics/dimensions/filters 草案，不生成 SQL、不引用 raw rows。
     - 测试：新增 `test_business_query_llm_fallback.py` 4 用例（合法/非法字段/SQL/上游异常）；全量后端 pytest 通过。
-    - 遗留：SQL AST 二次校验、eval gate、人工确认链路（BQ-M07）待补，`llm_fallback.enabled` 保持 false。
+    - 主路径接入：`service.py::_llm_fallback_resolved` 在 `_resolve_domain_plan` 低置信/歧义（resolved=None）时调用，汇总候选域实体后最多一次调 LLM，经 `_plan_from_proposal` 生成 SQL 仍由 platform 控制；未启用/无实体/失败/非法草案返回澄清。测试 3 用例（构建 match / 禁用返回 None / 端到端 answered + provenance=llm_proposal）。
+    - 遗留：LLM fallback 独立 eval gate、人工确认链路（BQ-M07 审核流）待补，`llm_fallback.enabled` 保持 false。
 
-17. BQ-M07 pending candidate 写入落地（据文档 8.11/5.5.16）：
+17. BQ-M07 pending candidate 写入与运行时触发落地（据文档 8.11/5.5.16）：
     - 新增 `settings.py::save_pending_verified_query_candidate`：运行时验证成功的 plan 沉淀为 `_verified_queries.yaml` 的 `review.state=pending` 候选，不保存可执行 SQL。
-    - 测试：新增 `test_business_query_pending_candidate.py` 3 用例（pending 状态、追加不覆盖、未知域）；全量后端 pytest 通过。
-    - 遗留：运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环待补。
+    - 运行时触发：`service.py::_save_llm_fallback_pending_candidate` 在 LLM fallback 计划（provenance=llm_proposal）执行成功后调用，只存 semantic plan（metrics/dimensions/filters），候选写入失败不影响已成功返回的结果。
+    - 测试：`test_business_query_pending_candidate.py` 3 用例 + `test_business_query_service.py` 端到端断言 pending 候选已沉淀且不含 SQL；全量后端 pytest 通过。
+    - 遗留：人工 Accept/Edit/Dismiss 审核流闭环待补。
 
 18. BQ-M05 跨实体字段匹配触发点落地（据文档 8.9.1/8.7）：
     - 新增 `service.py::_join_plan`：主实体字段无关键词命中、但同连接 relationship 的 target 字段命中时，生成 1-hop JOIN plan（provenance=same_connection_join）；`_plan` 接入该触发点。
@@ -643,6 +645,10 @@ pnpm test:run -- --runInBand
 19. 状态精化 + BQ-M06 SQL 校验核查：
     - BQ-M06「SQL AST 二次校验」核查：已由 `sql_executor.py` 覆盖——`check_sql`（只读）、`ban_other_connection_views`（跨 connection 防呆）、`enforce_constraints`（租户/软删除 AST 约束），任何 SQL 执行前必经；文档 249 行「尚未具备」为过时描述，BQ-M06 状态已更新。
     - 0.1.1 状态精化：G-02（旧工具清理）、G-07（repository 抽象）、G-08（内容可解释）、G-18（exporter 动态化）由 `partial` 改为 `blocked_real_env`（代码已完整，只差真实环境/浏览器验收）。
+
+20. `llm_fallback.enabled` 缺省值一致性修复：
+    - 事实：`config.yaml` 与 `config.yaml.template` 均为 `llm_fallback.enabled: false`（默认关闭，确定性 planner + 语义索引是主路径），但 `backend/config.py::_default_config()` 仍为 `enabled: True`，缺省配置下会与模板口径不一致。
+    - 修复：`backend/config.py::_default_config()` 的 `llm_fallback.enabled` 改为 `False`，与模板/落地事实 #5 对齐，避免缺省配置错误开启 LLM fallback。
 
 ---
 
