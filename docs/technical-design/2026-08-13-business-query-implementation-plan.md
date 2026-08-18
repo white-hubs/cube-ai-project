@@ -662,6 +662,20 @@ pnpm test:run -- --runInBand
     - 死代码清理：移除 `service.py` 无调用方的 `_domain_connection_name`/`_merge_wheres`、未使用的 `Iterable` 导入、`_join_plan` 未使用的 `caller_context_values` 参数。
     - 测试：`test_mcp_config_exporter.py` 改为验证公共 API 行为；`test_business_query_service.py` 新增 verified query 优先 + 实体回退 2 用例；后端全量 pytest 通过。
 
+23. MCP `ask_business_data` outputSchema 补齐 interpretation/confidence/suggestions/_meta（据文档 7.2/8.2）：
+    - `tool_response.py` 新增 `interpretation_payload`/`confidence_payload`/`suggestions_payload`/`enrich_ask_business_data_payload`：从 service 的 `diagnostics.plan`/`routing_trace` 派生 interpretation（question/matchedEntities/matchedMetrics/matchedDimensions/filters）、confidence（verified_query→high、llm_proposal→medium、其余 high/matched_semantic_fields）、suggestions（澄清 options.example）。
+    - `server_stdio.py` outputSchema 声明 interpretation/confidence/suggestions；structuredContent 补齐这些字段；`CallToolResult` 增加 `_meta`（`cube.ai/audit`，只放 duration/provenance，不臆造 SQL 指纹）。
+    - `tools.py::_safe_business_query_result` 复用同一投影并透传 question；移除重复死代码 return。
+    - 测试：`test_business_query_mcp_contract.py` 断言 outputSchema 声明与 structured payload 派生；后端全量 pytest 通过。
+
+24. cube grounding/prefetch 走同一安全投影器（据计划 11.3）：
+    - `packages/agent/engine/src/bc/tachu/engine-factory.ts::renderPrefetchOutput` 原先对原始 object 直接 `JSON.stringify` 注入 Agent Context；改为先经 `projectToolResultForModel` 剥离 SQL/connection/raw rows/tool args/tenant/deleted 后渲染。
+    - 测试：`engine-factory.test.ts` 新增「预取结果注入 system prompt 时不含 SQL/租户/软删除/审计字段」用例；`bun run typecheck` 全绿；34 pass。
+
+25. BQ-L03「formatter」口径澄清（待设计明确，不臆造）：
+    - 事实：设计文档 5.5.18.3 的 `display_fields` 具体 schema 只含 `field/label/mask/enum_ref`；「formatter」仅出现在矩阵/正文列举（「label/mask/enum_ref/formatter 等配置」），无具体 schema、无合法值枚举、无投影示例；biz 前后端与 MCP 代码均无 formatter 字段。
+    - 结论：`label/mask/enum_ref` 细粒度投影已落地并测试；「formatter」因设计未给 schema 无法落地，不臆造字段。如需落地须先在 5.5.18.3 定义 formatter 合法值与投影规则。
+
 ---
 
 ## 2. 事实依据
