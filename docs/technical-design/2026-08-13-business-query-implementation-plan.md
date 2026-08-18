@@ -104,7 +104,7 @@
 | BQ-F07 | implemented | 是 | semantic dirty 联动：`_domain_fingerprint` 覆盖 domain 目录全部 `*.yaml`（含 resolver/multi-step/list_profile/relationship 资产），保存资产后 fingerprint 自动变化使 `dirty=true`，无需显式标记 | Vue/API 测试 + 真实页面状态通过（浏览器交互待验） |
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
 | BQ-S02 | verified | 是，需回归 | content_summary 展示：`_semantic_content_summary` 返回 `asset_type_counts` 及 13 个 doc_count 字段，前端 `semanticIndexContentRows` 13 类标签渲染 | status/rebuild 返回与页面展示测试通过 |
-| BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已通过 normal（detail/lookup）/ambiguity（clarification）分类覆盖；resolver/multi_step_count/multi_step_list 待 G-14 资产落地 | eval 分类测试通过（list/clarification 已有覆盖） |
+| BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已拆分为独立分类（不再复用 normal/ambiguity 桶）；resolver/multi_step_count/multi_step_list 待 G-14 资产落地 | eval 分类测试通过（list/clarification 独立分类已覆盖） |
 | BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）与 field/filter/group-by 命中率（`field_filter_groupby`，field/filter/group-by 三项齐备）；仍需补 resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截 + field_mismatch + filter_mismatch + group_by_mismatch；期望值由生成器推导 normal 重要字段/枚举过滤字段与 aggregate/topn 的 group-by 字段 |
 | BQ-C01 | verified | 是，需回归 | MCP contract：`ask_business_data` 输入/输出支持分页，普通 content 无 diagnostics；2026-08-18 已补 `page_size/page_token` schema、stdio 转发、tools 薄封装安全 JSON、structured payload 安全 pagination | MCP contract 7 passed；structuredContent 安全；普通 content 只保留摘要文本 |
 | BQ-G01 | todo / blocked_real_env | 是 | 应用对话 guard 回归：pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 + 真实 Agent 对话验收 |
@@ -679,6 +679,12 @@ pnpm test:run -- --runInBand
 26. BQ 状态口径修正（verified 标签不再虚高，两处矩阵对齐）：
     - 事实：0.1.2 矩阵与 5.5.20 清单中，BQ-M03/M04、BQ-F02/F03/F04/F05 原标 `verified`，但其「是否必须整改」为「需真实验收」（浏览器真实交互/真实跨库多步），与 `verified`（=测试、review、文档均完成）语义矛盾，也与同表 `implemented`（=代码完成、未过全部门阀）语义不一致。
     - 修复：两处矩阵的 BQ-M03/M04、BQ-F02/F03/F04/F05 统一由 `verified` 改为 `implemented`，与 BQ-R05/BQ-L02/BQ-L03/BQ-L04/BQ-F06/BQ-F07 等「代码完成、真实验收待补」条目一致。
+
+27. eval 分类独立化（list/clarification 不再复用 normal/ambiguity 桶）：
+    - 事实：`eval_set.py` 原把列表类 case（「列出…」「有哪些…」）归入 `normal`、澄清类 case 归入 `ambiguity`（intent=clarification），与 5.5.20.1 BQ-E01 要求的独立分类不符。
+    - 修复：`list`（intent=list，单域列表投影）与 `clarification`（intent=clarification）拆分为独立分类；`eval_runner` required_categories 更新为 7 类，ambiguity 特殊豁免（no-entity-context/signals/routing）替换为 clarification。
+    - 测试：`test_business_query_eval_runner.py` payload 7 分类；`test_business_query_service.py` 断言 list/clarification 独立；后端全量 pytest 通过。
+    - 遗留：`resolver`/`multi_step_count`/`multi_step_list` 分类仍依赖 G-14 资产（`_resolvers.yaml`/`_multi_step_queries.yaml` 真实业务口径）落地。
 
 ---
 
