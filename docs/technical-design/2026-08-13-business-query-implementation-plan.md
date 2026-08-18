@@ -60,7 +60,7 @@
 | G-15 | EvalPage 业务问数门阀 | partial | 50 条人工 eval、分类指标、门阀报告；准确性、安全性、澄清质量分项 | 未达门阀不得合入；报告必须关联 config_fingerprint |
 | G-16 | WorkbenchPage 问数调试 | partial | 调试路径闭环；普通用户不得回到任意 SQL 路径 | Workbench 调试入口只走安全问数 API |
 | G-17 | OntologyEditorPage 资产编辑 | partial | 实体配置真实浏览器保存、业务域 dirty 联动、配置持久化验收 | 实体页配置保存后被业务域页、runtime、索引状态消费 |
-| G-18 | MCP 配置导出动态验证问题 | blocked_real_env | 已动态化：无候选域不生成、有候选域从实体生成、无硬编码；需 verified query 优先 + 真实导出验收 | exporter 测试证明无硬编码、无空验证、无旧工具引用 |
+| G-18 | MCP 配置导出动态验证问题 | blocked_real_env | 已动态化：无候选域不生成、有候选域从实体生成、无硬编码；verified query 优先已实现（`business_query_verification_question` 公共 API，导出器不再访问私有 `_configured_domains`/`_load_entities`）；需真实导出验收 | exporter 测试证明无硬编码、无空验证、无旧工具引用、verified query 优先 |
 | G-19 | cube/ghcloud 安全投影 | blocked_real_env | 真实 MCP/Agent/应用对话复验；pagination/timeline 不泄漏内部字段 | 最终答案不含 SQL/MCP URI/tool args/raw id/code；真实端到端截图/日志留证 |
 | G-20 | 合入门阀 | conflict_with_plan | 建立统一门阀报告，替代分散测试口头证明 | 后端、前端、MCP、cube、ghcloud、eval、真实联调全部达标后才可合入 |
 
@@ -128,7 +128,7 @@
 | EvalPage 业务问数门阀 | `eval_set.py/eval_runner.py` 有基础能力；已新增专用 `/business-query/eval-sets`、`/business-query/eval-runs`、`/business-query/eval-review`；eval set system 写入 `domain_key/config_fingerprint`；运行门阀前会拒绝 stale eval set；人工 review 状态会写回 `_eval_set.yaml` | EvalPage 已新增“业务问数安全门阀”区域，消费专用 business-query eval API 并展示 domain_key/config_fingerprint/review_state/metrics/issues；已新增“全部标记 reviewed（人工确认）”按钮与 `eval_set_fingerprint` 过期提示；旧评测区域仍保留 | `_eval_set.yaml` 支持业务问数候选、fingerprint 与 case/system review 状态 | 2026-08-17 局部门阀：后端 22 passed；EvalPage business-query 测试 1 passed；前端 API 13 passed；前端 typecheck 通过 | partial | 继续补完整准确性分项、旧 `/api/ai/eval/*` 迁移策略、真实 50 条人工评测数据与真实执行报告 |
 | WorkbenchPage 问数调试 | 可调用 business query chat/debug API | Workbench 顶部已新增“业务问数调试走 ask_business_data”跳转，避免普通问数回到 SQL 编辑/执行路径 | N/A | 2026-08-17 局部门阀：WorkbenchPage business-query 测试 1 passed；前端 typecheck 通过 | partial | 后续可做内嵌调试面板；仍需确保普通用户任意 SQL 入口不作为业务问数路径 |
 | OntologyEditorPage 业务问数资产编辑 | 后端可读实体 synonyms/query_examples/enum_values/constraints/list_profile/relationship usage；实体级 `business_query` 条件会被 executor/validator 消费；`list_profile.value_match.type=context` 已进入 schema 校验与运行时计划器；未声明过滤意图会在 plan 阶段 fail-closed | 页面保留 query_examples.sql 编辑但明确为历史/内部辅助资产；已新增问数语义索引 dirty 强提示、保存后通知、编辑 synonyms/query_examples/enum_values 时设置 dirty hint，并提供跳转业务域页查看/重建入口；已新增单实体条件结构化编辑、`list_profile` 表格编辑、relationship usage 表格配置；`list_profile.filter_fields.value_match` 页面开放 enum/resolver/context；dict 不开放编辑但只读提示并原样保留；resolver 文案改为“仅多步模板”；跨库文案改为 platform service 多步编排 | 实体 YAML 中已有 synonyms/query_examples/enum_values/constraints/business_query/list_profile/relationships.business_query.usage；保存实体会使 domain fingerprint 变化，由业务域页展示 fresh/dirty | 2026-08-18 局部门阀：OntologyEditorPage business-query 源码契约测试覆盖 context 值匹配、dict 只读保留、resolver 不隐式跨域提示；前端 typecheck 通过；仍未跑浏览器真实保存交互 | partial | 继续补真实交互测试、保存后业务域 dirty 状态联动验收 |
-| MCP 配置导出动态验证问题 | `export_with_test` 验证问题已动态化：无候选域不生成 `ask_business_data` 步骤，有候选域从首个实体 `display_name` 生成问题文案；`search_ontology`/`read_ontology` 提示已去具体实体硬编码 | AISettingsPage 消费 `verification_questions` 展示 | 默认不得写死风险管控 | `test_mcp_config_exporter.py` 3 用例覆盖无候选域、动态生成、无硬编码 | partial | 继续补 verified query 优先的动态问题来源与真实导出验收 |
+| MCP 配置导出动态验证问题 | `export_with_test` 验证问题已动态化：无候选域不生成 `ask_business_data` 步骤，有候选域优先取 verified query 问题模式、回退到首个实体 `display_name` 生成问题文案（经 `business_query_verification_question` 公共 API）；`search_ontology`/`read_ontology` 提示已去具体实体硬编码 | AISettingsPage 消费 `verification_questions` 展示 | 默认不得写死风险管控 | `test_mcp_config_exporter.py` 3 用例覆盖无候选域、动态生成、无硬编码 | partial | 继续补真实导出验收（浏览器/MCP 客户端） |
 | cube/ghcloud 安全投影 | cube tool-result projection/final guard/progress 已有测试；ghcloud UI progressText 已接 | 应用对话 UI 已改部分 | N/A | cube/ghcloud 有关键测试，但真实端到端未复验 | blocked_real_env | 真实 MCP/Agent 对话复验最终答案不含 SQL/MCP URI/tool args/raw id/code |
 | 合入门阀 | 后端/前端/cube/ghcloud 分散测试存在；业务问数 eval 已有 fingerprint/review 基础门槛 | 页面/E2E 不完整 | eval 人工 review 入口已实现，但真实 50 条用例尚未由人逐条确认并跑真实环境报告 | 当前测试不能证明完整计划通过 | conflict_with_plan | 建立门阀执行脚本/报告；未完成项不得标 `done` |
 
@@ -655,6 +655,12 @@ pnpm test:run -- --runInBand
     - 修复：`validate_same_connection_join` 改为读 `business_query.usage.allowed_for_join`；测试 fixture 对齐规范 schema，新增「未声明 allowed_for_join 时 fail-closed」负向测试（`test_business_query_join_plan.py`）。
     - 测试：`test_business_query_join_plan.py` + `test_business_query_same_connection_join.py` 11 用例通过；后端全量 pytest 通过。
     - 遗留（BQ-M05 仍未闭合项）：真实 JOIN 场景 eval + 浏览器验收；JOIN 计划对关联实体自然语言过滤（enum filter where 拼接）尚未接入。
+
+22. G-18 MCP 导出 verified query 优先 + 死代码清理：
+    - 新增 `service.py::business_query_verification_question`（公共 API）：优先取候选域 verified query 首个问题模式，回退为首个实体展示名，无候选域返回 None。
+    - `mcp_config_exporter.py` 改用该公共 API，不再访问私有 `_configured_domains`/`_load_entities`（延迟 import 保留，避免模块级循环依赖）。
+    - 死代码清理：移除 `service.py` 无调用方的 `_domain_connection_name`/`_merge_wheres`、未使用的 `Iterable` 导入、`_join_plan` 未使用的 `caller_context_values` 参数。
+    - 测试：`test_mcp_config_exporter.py` 改为验证公共 API 行为；`test_business_query_service.py` 新增 verified query 优先 + 实体回退 2 用例；后端全量 pytest 通过。
 
 ---
 
