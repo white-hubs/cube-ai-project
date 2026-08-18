@@ -105,7 +105,7 @@
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
 | BQ-S02 | verified | 是，需回归 | content_summary 展示：`_semantic_content_summary` 返回 `asset_type_counts` 及 13 个 doc_count 字段，前端 `semanticIndexContentRows` 13 类标签渲染 | status/rebuild 返回与页面展示测试通过 |
 | BQ-E01 | todo | 是 | eval 分类扩展：list/resolver/multi_step_count/multi_step_list/clarification | eval 分类测试通过 |
-| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，5.5.15 =100%）；仍需补 field/filter/group-by 命中率、resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截；field/filter/group-by 期望值需人工 review 后才有数据 |
+| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）与 field/filter/group-by 命中率（`field_filter_groupby`，group-by 维度）；仍需补 filter 命中率、resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截 + group_by_mismatch；field/filter/group-by 期望值由生成器推导 aggregate/topn 的 group-by 字段 |
 | BQ-C01 | verified | 是，需回归 | MCP contract：`ask_business_data` 输入/输出支持分页，普通 content 无 diagnostics；2026-08-18 已补 `page_size/page_token` schema、stdio 转发、tools 薄封装安全 JSON、structured payload 安全 pagination | MCP contract 7 passed；structuredContent 安全；普通 content 只保留摘要文本 |
 | BQ-G01 | todo / blocked_real_env | 是 | 应用对话 guard 回归：pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 + 真实 Agent 对话验收 |
 
@@ -575,6 +575,21 @@ pnpm test:run -- --runInBand
      - `eval_runner` 新增 `_assert_non_business_query_rejection`（非问数 case 返回 answered 即报 `non_business_query_recalled`）、`non_business_query_rejection` 指标、`required_categories` 纳入 `non_business_query`、validate 豁免其 domain/entity/expected_signals、`_assert_signals`/`expected_signals` 统计排除该分类；
      - 重新落盘 `_eval_set.yaml`（50 条，含 2 条非问数）。
    - 测试：`test_business_query_eval_runner.py` 适配并新增非问数误召回拦截正例；全量后端 pytest 通过。
+
+8. field/filter/group-by 命中率指标补齐（5.5.15「field/filter/group-by 命中率 ≥85%」的 group-by 维度）：
+   - 缺陷：`eval_runner.py` 无 field/filter/group-by 分项，5.5.15 的 field/filter/group-by 门阀无法执行。
+   - 修复：
+     - `eval_set.py` 生成器为 aggregate/topn 用例生成 `expected_dimensions`（group-by 字段 = 枚举字段名）；`_case`/`add`/`add_limited` 透传 `expected_dimensions`/`expected_filters`；
+     - `eval_runner.py` 新增 `_assert_field_filter_groupby`（plan.dimensions 覆盖 expected_dimensions、plan.filters 字段覆盖 expected_filters，缺则报 `group_by_mismatch`/`filter_mismatch`）与 `field_filter_groupby` 指标（仅统计有期望值的 case）；
+     - 重新落盘 `_eval_set.yaml`（aggregate/topn 用例含 expected_dimensions）。
+   - 测试：`test_business_query_eval_runner.py` 新增 group_by_mismatch 正例；全量后端 pytest 通过。
+   - 遗留：filter 命中率（expected_filters 期望值）、resolver 命中率、跨域 step order、列表安全投影仍待实现。
+
+9. 基线固化：三仓库 git 提交 + `ontology_workspaces` 出仓（按用户确认其为页面配置后的运行时产物）：
+   - cube-ai-project：`34cc780`（投影/guard/progress/descriptor 清理/文档）
+   - biz-ontology-platform：`f3d345f`（business_query 语义层/eval/前端）+ `c07d6e8`（field/filter/group-by）+ `chore(gitignore)`（ontology_workspaces 出仓）
+   - ghcloud ai-application：`2b0aa9b9d1`（tool-payload-visibility/progress thinking）
+   - `.gitignore` 将 `ontology_workspaces/` 由跟踪改为忽略。
 
 ---
 
