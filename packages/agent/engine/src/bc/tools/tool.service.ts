@@ -20,7 +20,7 @@ import { GrantService } from "../authz/grant.service";
 import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
 import { JOBS_SCHEDULER_TOKEN } from "../jobs/jobs.module";
 import type { SchedulerService } from "../jobs/scheduler.service";
-import type { ToolHandler } from "./handlers/base-handler";
+import type { ToolHandler, ToolHandlerInvokeOptions } from "./handlers/base-handler";
 import { ClockHandler } from "./handlers/clock-handler";
 import { descriptorOpFromExecute } from "./handlers/descriptor-ops";
 import { DescriptorOpsHandler } from "./handlers/descriptor-ops-handler";
@@ -171,7 +171,12 @@ export class ToolService {
     ]);
   }
 
-  async invoke(toolName: string, input: unknown, ctx: ToolHandlerCtx, options?: { toolCallId?: string }): Promise<unknown> {
+  async invoke(
+    toolName: string,
+    input: unknown,
+    ctx: ToolHandlerCtx,
+    options?: { toolCallId?: string; onProgress?: ToolHandlerInvokeOptions["onProgress"] },
+  ): Promise<unknown> {
     const descriptor = this.registry.resolve(toolName);
     if (!descriptor) {
       throw AgenticEngineError.fromCode("RESOURCE_NOT_FOUND_DESCRIPTOR", `Tool descriptor not found: ${toolName}`);
@@ -299,7 +304,10 @@ export class ToolService {
         },
         "tool.invoke.start",
       );
-      const result = await handler.invoke(handlerInput, ctx);
+      const result = await handler.invoke(handlerInput, ctx, {
+        ...(toolCallId ? { toolCallId } : {}),
+        ...(options?.onProgress ? { onProgress: options.onProgress } : {}),
+      });
       this.log.debug(
         {
           phase: "ok",

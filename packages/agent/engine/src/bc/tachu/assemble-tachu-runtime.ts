@@ -63,16 +63,16 @@ export interface AssembleTachuRuntimeResult {
 }
 
 /**
- * biz-ontology 查库动作工具 → 同域「发现/列举」兄弟工具（tachu rc.10 discoveryExpansion，ADR-0031）。
+ * biz-ontology 高层业务问数工具 → 同域「发现/列举」兄弟工具（tachu rc.10 discoveryExpansion，ADR-0031）。
  *
- * 弱模型的路由常只 pin 动作工具 `query_database`，把同域发现工具饿掉、只能盲猜视图名。
- * tachu 在 tool-routing choke-point 消费此表：pin `query_database` 时把这些兄弟一并送入本轮模型可见工具集
+ * 弱模型的路由常只 pin 高层问数工具 `ask_business_data`，把同域发现工具饿掉、无法先理解业务域/本体。
+ * tachu 在 tool-routing choke-point 消费此表：pin `ask_business_data` 时把这些兄弟一并送入本轮模型可见工具集
  * （有向、单跳、dedup ∩ 已注册 \ excludeTools）。tachu 不理解任何 domain，领域名单只住本仓。
  *
- * 名单 = descriptor availableTools 去掉动作工具本身，须与
+ * 名单 = descriptor availableTools 去掉问数工具本身，须与
  * `descriptors/agents/1934000000000000003.yaml` 的 availableTools + 「推荐发现路径」保持一致。
  */
-const BIZ_ONTOLOGY_QUERY_TOOL = "mcp.biz-ontology.query_database";
+const BIZ_ONTOLOGY_ASK_BUSINESS_DATA_TOOL = "mcp.biz-ontology.ask_business_data";
 const BIZ_ONTOLOGY_DISCOVERY_SIBLINGS: readonly string[] = [
   "mcp.biz-ontology.list_databases",
   "mcp.biz-ontology.list_business_domains",
@@ -158,7 +158,7 @@ export function buildDefaultEngineConfig(providerId: string, defaultModel: strin
       toolActivation: {
         discoveryExpansion: {
           enabled: true,
-          siblings: { [BIZ_ONTOLOGY_QUERY_TOOL]: [...BIZ_ONTOLOGY_DISCOVERY_SIBLINGS] },
+          siblings: { [BIZ_ONTOLOGY_ASK_BUSINESS_DATA_TOOL]: [...BIZ_ONTOLOGY_DISCOVERY_SIBLINGS] },
         },
       },
       toolLoop: { failureRecoveryRetries: 1 },

@@ -19,6 +19,7 @@ import { assertUserSessionAgentId } from "../descriptor/engine-internal-guard";
 import { mergeTenantRules, mergeTenantSkills } from "../descriptor/merge-tenant-registry";
 import type { RunnableAgentResolver } from "../descriptor/runnable-agent-resolver";
 import { TenantDescriptorResolver } from "../descriptor/tenant-descriptor-resolver";
+import { assertNoDeprecatedBizOntologyToolRefs } from "../tools/biz-ontology-tool-guard";
 import { appendEngineUtcClockBlock } from "../tools/engine-utc";
 import type { SessionRepository } from "./repository/session.repository";
 import { hydrateSnapshotRules, type RuleRegistryResolveLike } from "./snapshot-rule-hydration";
@@ -148,6 +149,7 @@ async function buildSnapshots(params: {
     sanitizedDescriptor && Array.isArray(sanitizedDescriptor["availableTools"])
       ? (sanitizedDescriptor["availableTools"] as unknown[]).filter((x): x is string => typeof x === "string" && x.length > 0)
       : [];
+  assertNoDeprecatedBizOntologyToolRefs(requestedToolRefs, `agent descriptor ${params.agentId} availableTools`);
   const toolRefs = params.toolRegistry ? requestedToolRefs.filter((name) => params.toolRegistry?.resolve(name)) : requestedToolRefs;
   const ruleRefs =
     sanitizedDescriptor && Array.isArray(sanitizedDescriptor["ruleRefs"])

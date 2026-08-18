@@ -31,6 +31,10 @@ export interface ReasoningStep {
   args?: Record<string, unknown>;
   output?: unknown;
   durationMs?: number;
+  progress?: number;
+  progressStatus?: string;
+  progressText?: string;
+  progressUpdatedAt?: number;
   meta?: Record<string, unknown>;
   /** `undefined` = 进行中；START 后 / END 前的窗口期。 */
   ok?: boolean;
@@ -123,9 +127,13 @@ export interface PendingGrant {
 export interface ToolEvent {
   id: string;
   toolName: string;
-  phase: "started" | "completed";
+  phase: "started" | "progress" | "completed";
   startedAt: number;
   completedAt?: number;
+  progress?: number;
+  progressStatus?: string;
+  progressText?: string;
+  progressUpdatedAt?: number;
   resultPreview?: unknown;
   turnId?: string;
 }

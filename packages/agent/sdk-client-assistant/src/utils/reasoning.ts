@@ -33,6 +33,18 @@ function makeToolStepId(toolCallId: string): string {
   return `tool:${toolCallId}`;
 }
 
+function normalizeProgress(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (value >= 0 && value <= 1) return value;
+  return undefined;
+}
+
+function progressDisplayText(data: Record<string, unknown>): string | undefined {
+  const display = asRecord(data.display);
+  const text = typeof display?.text === "string" ? display.text.trim() : "";
+  return text.length > 0 ? text : undefined;
+}
+
 /**
  * Fold a `reasoning-step-v1` / `reasoning-delta-v1` event into the tree.
  *   - step START → append new step
@@ -188,6 +200,50 @@ export function reduceReasoningEvent(tree: ReasoningTree | undefined, event: Nor
               ...(durationMs !== null && durationMs !== undefined ? { durationMs } : {}),
               ...(hasOwn(data, "output") ? { output } : {}),
               ...(error ? { error } : {}),
+            }
+          : s,
+      ),
+    };
+  }
+
+  if (event.event === "tool-call-progress-v1") {
+    const toolCallId = typeof data.toolCallId === "string" ? data.toolCallId : "";
+    if (!toolCallId) {
+      return base;
+    }
+    const stepId = makeToolStepId(toolCallId);
+    const toolName = typeof data.toolName === "string" && data.toolName !== "" ? data.toolName : "unknown";
+    const now = Date.now();
+    const status = typeof data.status === "string" && data.status !== "" ? data.status : undefined;
+    const progress = normalizeProgress(data.progress);
+    const text = progressDisplayText(data);
+    const existing = base.steps.find((s) => s.stepId === stepId);
+    if (!existing) {
+      const next: ReasoningStep = {
+        kind: "tool-call",
+        label: `调用 ${toolName}`,
+        startTime: now,
+        stepId,
+        text: "",
+        toolCallId,
+        toolName,
+        ...(progress !== undefined ? { progress } : {}),
+        ...(status ? { progressStatus: status } : {}),
+        ...(text ? { progressText: text } : {}),
+        progressUpdatedAt: now,
+      };
+      return { steps: [...base.steps, next] };
+    }
+    return {
+      steps: base.steps.map((s) =>
+        s.stepId === stepId
+          ? {
+              ...s,
+              toolName: s.toolName ?? toolName,
+              ...(progress !== undefined ? { progress } : {}),
+              ...(status ? { progressStatus: status } : {}),
+              ...(text ? { progressText: text } : {}),
+              progressUpdatedAt: now,
             }
           : s,
       ),

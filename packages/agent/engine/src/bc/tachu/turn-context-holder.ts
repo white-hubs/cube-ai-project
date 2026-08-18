@@ -3,6 +3,15 @@ import type { AdapterCallContext } from "@tachu/core";
 import type { IntentRoutingBlock } from "../tool-activation";
 import type { CallIdentity } from "../tools/tool-context";
 
+export interface ToolProgressSinkEvent {
+  toolCallId: string;
+  toolName: string;
+  status: string;
+  progress?: number;
+  message?: string;
+  safeDisplayMessage?: string;
+}
+
 /**
  * Mutable per-turn state shared between {@link EngineFactory} and
  * {@link TurnAwareEmbeddingRuntime} / tool strategies.
@@ -16,6 +25,7 @@ export interface TurnContextHolder {
   callIdentity?: CallIdentity;
   embeddingModelCode?: string;
   intentRoutingBlock?: IntentRoutingBlock | null;
+  toolProgressSink?: (event: ToolProgressSinkEvent) => void;
 }
 
 export function createTurnContextHolder(): TurnContextHolder {

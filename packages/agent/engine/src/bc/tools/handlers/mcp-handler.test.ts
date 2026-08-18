@@ -96,4 +96,21 @@ describe('McpHandler', () => {
     );
     expect(bridge.calls).toHaveLength(1);
   });
+
+  test('biz-ontology 旧 query_database 工具 fail-closed，不调用 bridge', async () => {
+    const bridge = new RecordingBridge();
+    const handler = new McpHandler(bridge as never);
+
+    await expect(
+      handler.invoke(
+        {
+          serverId: 'biz-ontology',
+          toolName: 'query_database',
+          arguments: { connection: '风险管控', sql: 'SELECT * FROM ai_x' },
+        },
+        minimalCtx,
+      ),
+    ).rejects.toThrow('mcp.biz-ontology.ask_business_data');
+    expect(bridge.calls).toHaveLength(0);
+  });
 });

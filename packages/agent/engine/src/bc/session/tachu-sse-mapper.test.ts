@@ -152,6 +152,55 @@ describe("mapStreamChunkToSseEvents", () => {
     ]);
   });
 
+  test('{type:"progress"} → one tool.call.progress with safe telemetry projection', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(
+      state,
+      {
+        type: "progress",
+        payload: {
+          status: "mcp.query.running",
+          message: "SELECT * FROM ai_sm_risk_unit WHERE tenant = 1",
+          safeDisplayMessage: "正在查询业务数据",
+          progress: 42,
+          toolName: "mcp.biz-ontology.ask_business_data",
+          toolCallId: "tcall_biz_1",
+          providerId: "provider-1",
+          sql: "SELECT * FROM ai_sm_risk_unit",
+          args: { question: "x" },
+          rows: [{ id: 1 }],
+          api_key: "sk-secret",
+        },
+      } as StreamChunkPayload,
+      () => 1_700_000_000_777,
+    );
+
+    expect(events).toEqual([
+      {
+        sseEvent: "tool.call.progress",
+        payload: {
+          schema: "tool-call-progress-v1",
+          turnId: TURN_ID,
+          toolName: "mcp.biz-ontology.ask_business_data",
+          toolCallId: "tcall_biz_1",
+          status: "mcp.query.running",
+          display: { text: "正在查询业务数据" },
+          progress: 0.42,
+          meta: { status: "mcp.query.running", progress: 42, toolName: "mcp.biz-ontology.ask_business_data", toolCallId: "tcall_biz_1", providerId: "provider-1" },
+          time: 1_700_000_000_777,
+        },
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain("SELECT");
+    expect(JSON.stringify(events)).not.toContain("sk-secret");
+    expect(JSON.stringify(events)).not.toContain("rows");
+  });
+
   test('{type:"tool-call-start"} → one tool.call.started with parsed args (JSON) and default meta; records start time', () => {
     const state = createTachuSseMapperState({
       turnId: TURN_ID,
@@ -234,11 +283,11 @@ describe("mapStreamChunkToSseEvents", () => {
     const events = mapStreamChunkToSseEvents(state, {
       type: "tool-call-start",
       callId: "tcall_generic_1",
-      tool: "mcp.biz-ontology.query_database",
+      tool: "mcp.some-domain.custom_lookup",
       argumentsPreview: "{}",
     });
     expect(events[0]?.payload).toMatchObject({
-      toolName: "mcp.biz-ontology.query_database",
+      toolName: "mcp.some-domain.custom_lookup",
       meta: { execution: "LOCAL", consent: "ON_FIRST_USE", activity: "tool" },
     });
   });
@@ -312,6 +361,53 @@ describe("mapStreamChunkToSseEvents", () => {
         ok: true,
       },
     });
+  });
+
+  test('{type:"tool-call-end"} for mcp.*.ask_business_data redacts raw business rows from SSE output', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(state, {
+      type: "tool-call-end",
+      callId: "tcall_biz_1",
+      tool: "mcp.biz-ontology.ask_business_data",
+      success: true,
+      durationMs: 123,
+      output: {
+        status: "answered",
+        answer: {
+          summary: "查询完成，共返回 1 条风险管控结果。",
+          columns: [{ key: "unit_name", label: "单元名称" }],
+          rows: [{ id: 1, unit_name: "A区", tenant: 1, deleted: 0, sql: "SELECT * FROM ai_sm_risk_unit" }],
+        },
+      },
+    });
+
+    expect(events[0]).toEqual({
+      sseEvent: "tool.call.completed",
+      payload: {
+        schema: "tool-call-completed-v1",
+        turnId: TURN_ID,
+        toolCallId: "tcall_biz_1",
+        toolName: "mcp.biz-ontology.ask_business_data",
+        durationMs: 123,
+        ok: true,
+        output: {
+          redacted: true,
+          policy: "business-data-v1",
+          status: "answered",
+          summary: "查询完成，共返回 1 条风险管控结果。",
+          columnCount: 1,
+          rowCount: 1,
+        },
+      },
+    });
+    expect(JSON.stringify(events)).not.toContain("SELECT");
+    expect(JSON.stringify(events)).not.toContain("tenant");
+    expect(JSON.stringify(events)).not.toContain("deleted");
   });
 
   test('{type:"tool-call-end"} reuses the parentStepId captured by tool-call-start', () => {

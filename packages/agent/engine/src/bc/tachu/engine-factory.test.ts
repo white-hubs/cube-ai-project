@@ -150,6 +150,10 @@ async function drain(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]>
   return out;
 }
 
+async function delay(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 describe("EngineFactory", () => {
   test("uses 600s as the default task timeout for long tool-use turns", () => {
     const provider = createCaptureProvider();
@@ -1448,6 +1452,12 @@ describe("EngineFactory", () => {
           turnId: ctx.session.turnId,
           toolCallId: options?.toolCallId,
         });
+        await options?.onProgress?.({
+          progressToken: options.toolCallId ?? "missing-tool-call-id",
+          progress: 1,
+          total: 2,
+          message: "querying",
+        });
         return { results: [{ title: "hit", url: "https://example.test" }] };
       },
     } satisfies Pick<ToolService, "invoke">;
@@ -1511,6 +1521,16 @@ describe("EngineFactory", () => {
     );
 
     expect(chunks.some((c) => c.type === "done")).toBe(true);
+    const progressChunk = chunks.find((c) => c.type === "progress") as
+      | (StreamChunk & { payload?: Record<string, unknown> })
+      | undefined;
+    expect(progressChunk?.payload).toMatchObject({
+      message: "querying",
+      progress: 0.5,
+      status: "mcp.progress",
+      toolCallId: "call-web-1",
+      toolName: "mcp.web-search.search",
+    });
     expect(invocations).toHaveLength(1);
     expect(invocations[0]).toMatchObject({
       toolName: "mcp.web-search.search",
@@ -1521,6 +1541,124 @@ describe("EngineFactory", () => {
       turnId: "2054102360564695081",
       toolCallId: "call-web-1",
     });
+  });
+
+  test("tool-use emits safe local progress while waiting when MCP sends no progress notification", async () => {
+    const prevEnabled = process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_ENABLED"];
+    const prevInitial = process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_INITIAL_MS"];
+    const prevExtended = process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_EXTENDED_MS"];
+    process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_ENABLED"] = "1";
+    process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_INITIAL_MS"] = "1";
+    process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_EXTENDED_MS"] = "5";
+    try {
+      const searchDesc = ToolDescriptor.parse({
+        schemaVersion: 1,
+        kind: "TOOL",
+        name: "mcp.web-search.search",
+        displayName: "Web Search",
+        isPreset: false,
+        version: "1.0.0",
+        meta: {
+          execution: "REMOTE",
+          consent: "NEVER",
+          requiresPrincipal: "USER",
+          timeoutMs: 120_000,
+          idempotent: true,
+          sideEffects: ["read:web.search"],
+        },
+        inputSchema: {
+          type: "object",
+          required: ["query"],
+          properties: { query: { type: "string", description: "Search query" } },
+        },
+        outputSchema: {
+          type: "object",
+          properties: { results: { type: "array", description: "Search results" } },
+        },
+        requires: { principal: "USER", oauthScope: [], obo: null },
+        execute: "mcp:web-search:search",
+        handler: { kind: "mcp", config: {} },
+        category: "MCP",
+        tags: ["web", "search"],
+      });
+      const mockRegistry = {
+        listAll: () => [searchDesc],
+        resolve: (name: string) => (name === "mcp.web-search.search" ? searchDesc : undefined),
+      } as unknown as DescriptorRegistryService;
+
+      const toolService = {
+        invoke: async () => {
+          await delay(20);
+          return { results: [{ title: "hit", url: "https://example.test" }] };
+        },
+      } satisfies Pick<ToolService, "invoke">;
+
+      let toolCallIssued = false;
+      const provider: ProviderAdapter = {
+        id: "agentic-platform-llm-catalog",
+        name: "ToolCallingProvider",
+        async listAvailableModels() {
+          return [];
+        },
+        async chat(request: ChatRequest, _ctx: AdapterCallContext): Promise<ChatResponse> {
+          if (request.tools?.some((t) => t.name === "mcp.web-search.search") && !toolCallIssued) {
+            toolCallIssued = true;
+            return {
+              content: "",
+              finishReason: "tool_calls",
+              toolCalls: [{ id: "call-web-1", name: "mcp.web-search.search", arguments: { query: "cube ai" } }],
+              usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+            };
+          }
+          return {
+            content: "Search complete.",
+            finishReason: "stop",
+            usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+          };
+        },
+        async *chatStream(request: ChatRequest, ctx: AdapterCallContext) {
+          const r = await provider.chat(request, ctx);
+          if (typeof r.content === "string" && r.content.length > 0) {
+            yield { type: "text-delta", delta: r.content } as const;
+          }
+          for (const call of r.toolCalls ?? []) {
+            yield { type: "tool-call-complete", call } as const;
+          }
+          yield { type: "finish", finishReason: r.finishReason ?? "stop", usage: r.usage } as const;
+        },
+      };
+
+      const factory = testEngineFactory(provider, undefined, mockRegistry, toolService as ToolService);
+      const chunks = await drain(
+        factory.runStream({
+          sessionId: "2054102360564695080",
+          turnId: "2054102360564695081",
+          tenant: 42,
+          userId: "u-42",
+          scopes: ["web.search"],
+          prompt: "最新 cube ai 新闻是什么？",
+        }),
+      );
+
+      const progressChunks = chunks.filter((c) => c.type === "progress") as Array<StreamChunk & { payload?: Record<string, unknown> }>;
+      const statuses = progressChunks.map((c) => c.payload?.["status"]);
+      expect(statuses).toContain("tool.local.processing");
+      expect(statuses).toContain("tool.local.querying");
+      expect(progressChunks[0]?.payload).toMatchObject({
+        safeDisplayMessage: "正在处理",
+        toolCallId: "call-web-1",
+        toolName: "mcp.web-search.search",
+      });
+      expect(JSON.stringify(progressChunks)).not.toContain("cube ai");
+      expect(chunks.some((c) => c.type === "done")).toBe(true);
+    } finally {
+      if (prevEnabled === undefined) delete process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_ENABLED"];
+      else process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_ENABLED"] = prevEnabled;
+      if (prevInitial === undefined) delete process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_INITIAL_MS"];
+      else process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_INITIAL_MS"] = prevInitial;
+      if (prevExtended === undefined) delete process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_EXTENDED_MS"];
+      else process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_EXTENDED_MS"] = prevExtended;
+    }
   });
 
   test("tool-use resolves ToolService lazily via toolServiceProvider (no eager instance) so a slow/late DI binding never degrades to a stub", async () => {

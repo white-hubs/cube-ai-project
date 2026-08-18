@@ -114,9 +114,15 @@ function installFakeMcpHttpFetch(): {
   const requests: CapturedJsonRpc[] = [];
   const originalFetch = globalThis.fetch;
 
-  const sseResponse = (data: unknown) => {
-    const raw = typeof data === "string" ? data : JSON.stringify(data);
-    return new Response(`event: message\ndata: ${raw}\n\n`, {
+  const sseResponse = (data: unknown | unknown[]) => {
+    const items = Array.isArray(data) ? data : [data];
+    const body = items
+      .map((item) => {
+        const raw = typeof item === "string" ? item : JSON.stringify(item);
+        return `event: message\ndata: ${raw}\n\n`;
+      })
+      .join("");
+    return new Response(body, {
       status: 200,
       headers: { "content-type": "text/event-stream" },
     });
@@ -162,14 +168,80 @@ function installFakeMcpHttpFetch(): {
         });
       }
       if (msg.method === "tools/call") {
-        const params = msg.params as { arguments?: { keyword?: string } } | undefined;
-        return sseResponse({
+        const params = msg.params as { _meta?: { progressToken?: string | number }; arguments?: { keyword?: string } } | undefined;
+        const result = {
           jsonrpc: "2.0",
           id: msg.id,
           result: {
             entities: [{ name: `entity:${params?.arguments?.keyword ?? ""}` }],
           },
-        });
+        };
+        if (params?._meta?.progressToken !== undefined) {
+          if (params.arguments?.keyword === "foreign-token") {
+            return sseResponse([
+              {
+                jsonrpc: "2.0",
+                method: "notifications/progress",
+                params: {
+                  progressToken: "not-current-call",
+                  progress: 1,
+                  total: 1,
+                  message: "foreign",
+                },
+              },
+              result,
+            ]);
+          }
+          if (params.arguments?.keyword === "non-monotonic") {
+            return sseResponse([
+              {
+                jsonrpc: "2.0",
+                method: "notifications/progress",
+                params: {
+                  progressToken: params._meta.progressToken,
+                  progress: 2,
+                  total: 3,
+                  message: "step-2",
+                },
+              },
+              {
+                jsonrpc: "2.0",
+                method: "notifications/progress",
+                params: {
+                  progressToken: params._meta.progressToken,
+                  progress: 1,
+                  total: 3,
+                  message: "step-1-late",
+                },
+              },
+              {
+                jsonrpc: "2.0",
+                method: "notifications/progress",
+                params: {
+                  progressToken: params._meta.progressToken,
+                  progress: 3,
+                  total: 3,
+                  message: "step-3",
+                },
+              },
+              result,
+            ]);
+          }
+          return sseResponse([
+            {
+              jsonrpc: "2.0",
+              method: "notifications/progress",
+              params: {
+                progressToken: params._meta.progressToken,
+                progress: 1,
+                total: 2,
+                message: "querying",
+              },
+            },
+            result,
+          ]);
+        }
+        return sseResponse(result);
       }
     }
 
@@ -180,6 +252,112 @@ function installFakeMcpHttpFetch(): {
     url: "http://fake-mcp-http.test/mcp",
     requests,
     stop: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
+
+function installStreamingProgressHttpFetch(): {
+  url: string;
+  requests: CapturedJsonRpc[];
+  releaseResult: () => void;
+  stop: () => void;
+} {
+  const enc = new TextEncoder();
+  const requests: CapturedJsonRpc[] = [];
+  const originalFetch = globalThis.fetch;
+  const controllers = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  let releaseResult: (() => void) | null = null;
+
+  const sseChunk = (data: unknown) => enc.encode(`event: message\ndata: ${JSON.stringify(data)}\n\n`);
+
+  const sseResponse = (data: unknown) =>
+    new Response(`event: message\ndata: ${JSON.stringify(data)}\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const req = input instanceof Request ? input : new Request(String(input), init);
+    const url = new URL(req.url);
+    if (url.origin === "http://stream-mcp-http.test" && url.pathname === "/mcp" && req.method === "POST") {
+      const msg = (await req.json()) as CapturedJsonRpc;
+      requests.push(msg);
+      if (msg.method === "initialize") {
+        return sseResponse({
+          jsonrpc: "2.0",
+          id: msg.id,
+          result: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            serverInfo: { name: "fake-streaming-ontology", version: "1.0.0" },
+          },
+        });
+      }
+      if (msg.method === "notifications/initialized") {
+        return new Response("", { status: 202 });
+      }
+      if (msg.method === "tools/call") {
+        const params = msg.params as { _meta?: { progressToken?: string | number }; arguments?: { keyword?: string } } | undefined;
+        const stream = new ReadableStream<Uint8Array>({
+          start(c) {
+            controllers.add(c);
+            if (params?._meta?.progressToken !== undefined) {
+              c.enqueue(
+                sseChunk({
+                  jsonrpc: "2.0",
+                  method: "notifications/progress",
+                  params: {
+                    progressToken: params._meta.progressToken,
+                    progress: 1,
+                    total: 2,
+                    message: "querying",
+                  },
+                }),
+              );
+            }
+            releaseResult = () => {
+              c.enqueue(
+                sseChunk({
+                  jsonrpc: "2.0",
+                  id: msg.id,
+                  result: {
+                    entities: [{ name: `entity:${params?.arguments?.keyword ?? ""}` }],
+                  },
+                }),
+              );
+              // 故意不 close：真实 Streamable HTTP/SSE 可能保持响应流，host 必须在本次 id 的 result 到达后立即完成。
+            };
+          },
+          cancel() {
+            controllers.clear();
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+    }
+
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  return {
+    url: "http://stream-mcp-http.test/mcp",
+    requests,
+    releaseResult: () => {
+      releaseResult?.();
+    },
+    stop: () => {
+      for (const c of controllers) {
+        try {
+          c.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      controllers.clear();
       globalThis.fetch = originalFetch;
     },
   };
@@ -659,6 +837,173 @@ describe("McpBridgeService", () => {
       expect(toolCall.headers["tenant"]).toBe("42");
       expect(toolCall.headers["terminal"]).toBe("bimops-manage-web");
       expect(toolCall.headers["feign_inner_invoke"]).toBe("true");
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test("http tools/call → 注入标准 progressToken 并接收 notifications/progress", async () => {
+    const fake = installFakeMcpHttpFetch();
+    const bridge = new McpBridgeService();
+    const progressEvents: Array<{ progressToken: string | number; progress?: number; total?: number; message?: string }> = [];
+    try {
+      await bridge.init({
+        mcpServers: {
+          "biz-ontology": { type: "http", url: fake.url, enabled: true },
+        },
+      });
+
+      const out = await bridge.callTool(
+        "biz-ontology",
+        "search_ontology",
+        { keyword: "风险" },
+        undefined,
+        {
+          progressToken: "progress-call-1",
+          onProgress: (event) => {
+            progressEvents.push(event);
+          },
+        },
+      );
+
+      expect(out).toEqual({ entities: [{ name: "entity:风险" }] });
+      const toolCall = fake.requests.find((r) => r.method === "tools/call")!;
+      expect(toolCall.params).toMatchObject({
+        name: "search_ontology",
+        arguments: { keyword: "风险" },
+        _meta: { progressToken: "progress-call-1" },
+      });
+      expect(progressEvents).toEqual([
+        {
+          progressToken: "progress-call-1",
+          progress: 1,
+          total: 2,
+          message: "querying",
+        },
+      ]);
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test("http progress → 非当前 progressToken 被忽略，非单调递增进度被丢弃，完成后 token 状态清理", async () => {
+    const fake = installFakeMcpHttpFetch();
+    const bridge = new McpBridgeService();
+    const progressEvents: Array<{ progressToken: string | number; progress?: number; total?: number; message?: string }> = [];
+    try {
+      await bridge.init({
+        mcpServers: {
+          "biz-ontology": { type: "http", url: fake.url, enabled: true },
+        },
+      });
+
+      await expect(
+        bridge.callTool(
+          "biz-ontology",
+          "search_ontology",
+          { keyword: "foreign-token" },
+          undefined,
+          {
+            progressToken: "current-call",
+            onProgress: (event) => {
+              progressEvents.push(event);
+            },
+          },
+        ),
+      ).resolves.toEqual({ entities: [{ name: "entity:foreign-token" }] });
+      expect(progressEvents).toEqual([]);
+
+      await expect(
+        bridge.callTool(
+          "biz-ontology",
+          "search_ontology",
+          { keyword: "non-monotonic" },
+          undefined,
+          {
+            progressToken: "reused-token",
+            onProgress: (event) => {
+              progressEvents.push(event);
+            },
+          },
+        ),
+      ).resolves.toEqual({ entities: [{ name: "entity:non-monotonic" }] });
+      expect(progressEvents).toEqual([
+        { progressToken: "reused-token", progress: 2, total: 3, message: "step-2" },
+        { progressToken: "reused-token", progress: 3, total: 3, message: "step-3" },
+      ]);
+
+      progressEvents.length = 0;
+      await expect(
+        bridge.callTool(
+          "biz-ontology",
+          "search_ontology",
+          { keyword: "风险" },
+          undefined,
+          {
+            progressToken: "reused-token",
+            onProgress: (event) => {
+              progressEvents.push(event);
+            },
+          },
+        ),
+      ).resolves.toEqual({ entities: [{ name: "entity:风险" }] });
+      expect(progressEvents).toEqual([{ progressToken: "reused-token", progress: 1, total: 2, message: "querying" }]);
+    } finally {
+      await bridge.dispose();
+      fake.stop();
+    }
+  });
+
+  test("http tools/call → 流式解析 text/event-stream progress，不等待响应流关闭", async () => {
+    const fake = installStreamingProgressHttpFetch();
+    const bridge = new McpBridgeService();
+    const progressEvents: Array<{ progressToken: string | number; progress?: number; total?: number; message?: string }> = [];
+    let resolveProgress!: () => void;
+    const progressObserved = new Promise<void>((resolve) => {
+      resolveProgress = resolve;
+    });
+    let callSettled = false;
+    try {
+      await bridge.init({
+        mcpServers: {
+          "biz-ontology": { type: "http", url: fake.url, enabled: true },
+        },
+      });
+
+      const callPromise = bridge
+        .callTool(
+          "biz-ontology",
+          "search_ontology",
+          { keyword: "风险" },
+          undefined,
+          {
+            progressToken: "stream-progress-call-1",
+            onProgress: (event) => {
+              progressEvents.push(event);
+              resolveProgress();
+            },
+          },
+        )
+        .finally(() => {
+          callSettled = true;
+        });
+
+      await progressObserved;
+      expect(progressEvents).toEqual([
+        {
+          progressToken: "stream-progress-call-1",
+          progress: 1,
+          total: 2,
+          message: "querying",
+        },
+      ]);
+      expect(callSettled).toBe(false);
+
+      fake.releaseResult();
+      await expect(callPromise).resolves.toEqual({ entities: [{ name: "entity:风险" }] });
+      expect(callSettled).toBe(true);
     } finally {
       await bridge.dispose();
       fake.stop();

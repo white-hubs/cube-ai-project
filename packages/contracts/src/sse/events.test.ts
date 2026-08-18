@@ -13,6 +13,7 @@ import {
   SseEventIdSchema,
   SseEventSchema,
   ToolCallCompletedEventSchema,
+  ToolProgressEventSchema,
   ToolCallStartedEventSchema,
   TurnStartedEventSchema,
 } from "./events";
@@ -368,6 +369,35 @@ describe("ToolCallCompletedEventSchema", () => {
   });
 });
 
+describe("ToolProgressEventSchema", () => {
+  test("parses tool-call-progress-v1 with optional tool identifiers and normalized progress", () => {
+    const result = ToolProgressEventSchema.safeParse({
+      schema: "tool-call-progress-v1",
+      turnId: VALID_TURN_SFID,
+      toolCallId: "tc_01HZ8XYZ",
+      toolName: "mcp.biz-ontology.ask_business_data",
+      status: "running",
+      display: { text: "正在查询业务数据" },
+      progress: 0.42,
+      meta: { stage: "mcp-progress" },
+      time: Date.now(),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects progress outside 0..1", () => {
+    expect(
+      ToolProgressEventSchema.safeParse({
+        schema: "tool-call-progress-v1",
+        turnId: VALID_TURN_SFID,
+        status: "running",
+        progress: 42,
+        time: Date.now(),
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("UsageDeltaEventSchema", () => {
   test("parses usage-delta-v2 with structured attribution metadata", () => {
     const result = SseEventSchema.safeParse({
@@ -493,6 +523,20 @@ describe("SseEventSchema discriminated union", () => {
       turnId: VALID_TURN_SFID,
     });
     expect(deltaEvent.success).toBe(true);
+  });
+
+  test("routes tool-call-progress-v1 correctly", () => {
+    const result = SseEventSchema.safeParse({
+      schema: "tool-call-progress-v1",
+      turnId: VALID_TURN_SFID,
+      status: "projection.available",
+      progress: 1,
+      time: Date.now(),
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.schema).toBe("tool-call-progress-v1");
+    }
   });
 
   test("rejects missing schema field", () => {

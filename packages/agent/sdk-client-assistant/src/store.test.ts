@@ -458,6 +458,57 @@ describe("AssistantStore — send / streamEvents reducer", () => {
     store.dispose();
   });
 
+  test("tool-call-progress-v1 updates reasoning/tool timeline without writing assistant answer text", async () => {
+    const { port, pushEvent } = makeFakePort();
+    const store = createAssistantStore({ defaultAgentId: "a", engine: port });
+    await store.send("q");
+    await nextTick();
+    pushEvent("sess-1", {
+      data: {
+        args: { question: "风险等级有哪些？" },
+        toolCallId: "tc_biz",
+        toolName: "mcp.biz-ontology.ask_business_data",
+        turnId: "1001",
+      },
+      event: "tool-call-started-v1",
+    });
+    pushEvent("sess-1", {
+      data: {
+        display: { text: "正在查询并整理结果" },
+        message: "SELECT * FROM ai_sm_risk_unit",
+        progress: 0.5,
+        status: "querying",
+        toolCallId: "tc_biz",
+        toolName: "mcp.biz-ontology.ask_business_data",
+        turnId: "1001",
+      },
+      event: "tool-call-progress-v1",
+    });
+    await nextTick();
+
+    const s = snapshot(store);
+    const assistant = (s.messagesBySessionId["sess-1"]! as AssistantMessage[]).find((m) => m.role === "assistant");
+    expect(assistant?.content).toBe("");
+    expect(assistant?.reasoning?.steps[0]).toMatchObject({
+      progress: 0.5,
+      progressStatus: "querying",
+      progressText: "正在查询并整理结果",
+      toolCallId: "tc_biz",
+    });
+    expect(s.toolEventsBySessionId["sess-1"]?.[0]).toMatchObject({
+      id: "tc_biz",
+      phase: "progress",
+      progress: 0.5,
+      progressStatus: "querying",
+      progressText: "正在查询并整理结果",
+      toolName: "mcp.biz-ontology.ask_business_data",
+      turnId: "1001",
+    });
+    expect(JSON.stringify(s.messagesBySessionId["sess-1"])).not.toContain("SELECT");
+    expect(JSON.stringify(s.toolEventsBySessionId["sess-1"])).not.toContain("SELECT");
+    store.dispose();
+  });
+
   test("usage-delta-v2 updates current turn cumulative and replaces same attribution snapshot", async () => {
     const { port, pushEvent } = makeFakePort();
     const store = createAssistantStore({ defaultAgentId: "a", engine: port });

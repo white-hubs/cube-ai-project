@@ -32,6 +32,7 @@ import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydrati
 import { appendSkillDiscoveryHint } from "../skill-activation/skill-discovery-hint";
 import { type IntentRoutingBlock } from "../tool-activation";
 import type { CallIdentity, ToolHandlerCtx } from "../tools/tool-context";
+import { projectToolResultForModel } from "../tools/tool-result-visibility";
 import { ToolService } from "../tools/tool.service";
 import { assembleTachuRuntime, buildDefaultEngineConfig } from "./assemble-tachu-runtime";
 import { mapContractToolToTachu } from "./contract-tool-to-tachu";
@@ -42,7 +43,7 @@ import { findExplicitToolMentions } from "./explicit-tool-mention";
 import { applyHostGatingPolicyPreseed } from "./host-gating-policy";
 import { emitHostEngineEvent } from "./host-observability";
 import { resolveNonEmptyModel } from "./tachu.tokens";
-import type { TurnContextHolder } from "./turn-context-holder";
+import type { ToolProgressSinkEvent, TurnContextHolder } from "./turn-context-holder";
 
 const RUNTIME_SKILL_REFS_TOOL_NAME = "runtime.skill.refs";
 const RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME = "platform.knowledge.query";
@@ -290,6 +291,81 @@ function errorToToolError(error: unknown): { code: string; message: string; retr
   return { code, message, retryable };
 }
 
+class ToolProgressQueue<T> {
+  private readonly items: T[] = [];
+  private readonly waiters = new Set<() => void>();
+
+  push(item: T): void {
+    this.items.push(item);
+    const waiter = this.waiters.values().next().value;
+    if (waiter) waiter();
+  }
+
+  shift(): T | undefined {
+    return this.items.shift();
+  }
+
+  waitForItem(): { cancel: () => void; promise: Promise<void> } {
+    if (this.items.length > 0) return { cancel: () => {}, promise: Promise.resolve() };
+    let waiter: (() => void) | undefined;
+    const promise = new Promise<void>((resolve) => {
+      waiter = () => {
+        if (waiter) this.waiters.delete(waiter);
+        resolve();
+      };
+      this.waiters.add(waiter);
+    });
+    return {
+      cancel: () => {
+        if (waiter) this.waiters.delete(waiter);
+      },
+      promise,
+    };
+  }
+}
+
+function normalizeMcpProgress(progress: number | undefined, total: number | undefined): number | undefined {
+  if (progress === undefined || !Number.isFinite(progress)) return undefined;
+  if (total !== undefined && Number.isFinite(total) && total > 0) {
+    const ratio = progress / total;
+    return ratio >= 0 && ratio <= 1 ? ratio : undefined;
+  }
+  return progress;
+}
+
+function positiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : fallback;
+}
+
+function toolProgressFallbackDisabled(): boolean {
+  const raw = process.env["AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_ENABLED"]?.trim().toLowerCase();
+  return raw === "0" || raw === "false" || raw === "off" || raw === "no";
+}
+
+function resolveToolProgressFallbackSchedule(): Array<{ delayMs: number; status: string; safeDisplayMessage: string }> {
+  if (toolProgressFallbackDisabled()) return [];
+  const initialMs = positiveIntEnv("AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_INITIAL_MS", 5_000);
+  const extendedMs = positiveIntEnv("AGENTIC_ENGINE_TOOL_PROGRESS_FALLBACK_EXTENDED_MS", 15_000);
+  const out = [
+    {
+      delayMs: initialMs,
+      status: "tool.local.processing",
+      safeDisplayMessage: "正在处理",
+    },
+  ];
+  if (extendedMs > initialMs) {
+    out.push({
+      delayMs: extendedMs,
+      status: "tool.local.querying",
+      safeDisplayMessage: "正在查询并整理结果",
+    });
+  }
+  return out;
+}
+
 /**
  * EngineFactory —— `cube-agentic-engine` 一侧对 `@tachu/core.Engine` 的会话适配层。
  *
@@ -505,13 +581,56 @@ export class EngineFactory {
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
     // 出站 MCP 身份透传窄 carrier：随 per-turn holder 携带，不落进 ExecutionContext.principal。
     this.turnContext.callIdentity = arg.callIdentity;
+    const toolProgressQueue = new ToolProgressQueue<StreamChunk>();
+    this.turnContext.toolProgressSink = (event: ToolProgressSinkEvent) => {
+      toolProgressQueue.push(
+        this.withStreamEnvelope(
+          {
+            type: "progress",
+            phase: event.status,
+            message: event.status,
+            payload: {
+              status: event.status,
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              ...(event.progress !== undefined ? { progress: event.progress } : {}),
+              ...(event.message !== undefined ? { message: event.message } : {}),
+              ...(event.safeDisplayMessage !== undefined ? { safeDisplayMessage: event.safeDisplayMessage } : {}),
+            },
+          } as unknown as StreamChunkPayload,
+          ctx,
+        ),
+      );
+    };
     try {
-      yield* this.engine.runStream(input, ctx, scope);
+      const engineStream = this.engine.runStream(input, ctx, scope)[Symbol.asyncIterator]();
+      let engineNext = engineStream.next();
+      while (true) {
+        const queued = toolProgressQueue.shift();
+        if (queued) {
+          yield queued;
+          continue;
+        }
+        const progressWait = toolProgressQueue.waitForItem();
+        const winner = await Promise.race([
+          engineNext.then((result) => ({ kind: "engine" as const, result })),
+          progressWait.promise.then(() => ({ kind: "progress" as const })),
+        ]);
+        if (winner.kind === "engine") progressWait.cancel();
+        if (winner.kind === "progress") continue;
+        if (winner.result.done) break;
+        yield winner.result.value;
+        engineNext = engineStream.next();
+      }
+      for (let queued = toolProgressQueue.shift(); queued !== undefined; queued = toolProgressQueue.shift()) {
+        yield queued;
+      }
     } finally {
       this.turnContext.callContext = undefined;
       this.turnContext.callIdentity = undefined;
       this.turnContext.embeddingModelCode = undefined;
       this.turnContext.intentRoutingBlock = undefined;
+      this.turnContext.toolProgressSink = undefined;
     }
   }
 
@@ -679,9 +798,10 @@ export class EngineFactory {
     ];
     try {
       const controller = new AbortController();
-      const output = await toolService.invoke(run.toolName, run.input, this.toToolHandlerCtx(context, controller.signal), {
+      const rawOutput = await toolService.invoke(run.toolName, run.input, this.toToolHandlerCtx(context, controller.signal), {
         toolCallId: run.callId,
       });
+      const output = projectToolResultForModel(run.toolName, rawOutput);
       chunks.push(
         this.withStreamEnvelope(
           {
@@ -1245,8 +1365,56 @@ export class EngineFactory {
       const handlerCtx = this.toToolHandlerCtx(context, signal);
       const toolCallId = task.id.startsWith("tool-use:") ? task.id.slice("tool-use:".length) : task.id;
 
-      const output = await toolService.invoke(task.ref, task.input, handlerCtx, { toolCallId });
-      return { ok: true, output };
+      const fallbackTimers: Array<ReturnType<typeof setTimeout>> = [];
+      let completed = false;
+      let mcpProgressSeen = false;
+      const clearScheduledFallbackTimers = (): void => {
+        for (const timer of fallbackTimers) clearTimeout(timer);
+        fallbackTimers.length = 0;
+      };
+      const clearFallbackTimers = (): void => {
+        completed = true;
+        clearScheduledFallbackTimers();
+      };
+      const abortFallback = (): void => clearFallbackTimers();
+      if (this.turnContext.toolProgressSink && !signal.aborted) {
+        for (const step of resolveToolProgressFallbackSchedule()) {
+          const timer = setTimeout(() => {
+            if (completed || mcpProgressSeen || signal.aborted) return;
+            this.turnContext.toolProgressSink?.({
+              toolCallId,
+              toolName: task.ref,
+              status: step.status,
+              safeDisplayMessage: step.safeDisplayMessage,
+            });
+          }, step.delayMs);
+          fallbackTimers.push(timer);
+        }
+        signal.addEventListener("abort", abortFallback, { once: true });
+      }
+
+      try {
+        const rawOutput = await toolService.invoke(task.ref, task.input, handlerCtx, {
+          toolCallId,
+          onProgress: (event) => {
+            mcpProgressSeen = true;
+            clearScheduledFallbackTimers();
+            const progress = normalizeMcpProgress(event.progress, event.total);
+            this.turnContext.toolProgressSink?.({
+              toolCallId,
+              toolName: task.ref,
+              status: "mcp.progress",
+              ...(progress !== undefined ? { progress } : {}),
+              ...(event.message !== undefined ? { message: event.message } : {}),
+            });
+          },
+        });
+        const output = projectToolResultForModel(task.ref, rawOutput);
+        return { ok: true, output };
+      } finally {
+        clearFallbackTimers();
+        signal.removeEventListener("abort", abortFallback);
+      }
     };
   }
 

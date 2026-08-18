@@ -300,6 +300,39 @@ describe("@cube-ai/agent-sdk-client-assistant utils", () => {
     expect(t2.steps[1]?.endTime).toBeGreaterThanOrEqual(t2.steps[1]?.startTime ?? 0);
   });
 
+  test("reduceReasoningEvent: tool-call-progress-v1 updates tool step with safe display text only", () => {
+    const t0 = reduceReasoningEvent(undefined, {
+      data: {
+        args: { query: "alarm" },
+        toolCallId: "tc_1",
+        toolName: "platform.search",
+      },
+      event: "tool-call-started-v1",
+    });
+    const t1 = reduceReasoningEvent(t0, {
+      data: {
+        display: { text: "正在查询并整理结果" },
+        message: "SELECT * FROM ai_secret",
+        progress: 0.6,
+        status: "sql_executing",
+        toolCallId: "tc_1",
+        toolName: "platform.search",
+      },
+      event: "tool-call-progress-v1",
+    });
+
+    expect(t1.steps).toHaveLength(1);
+    expect(t1.steps[0]).toMatchObject({
+      kind: "tool-call",
+      progress: 0.6,
+      progressStatus: "sql_executing",
+      progressText: "正在查询并整理结果",
+      toolCallId: "tc_1",
+      toolName: "platform.search",
+    });
+    expect(JSON.stringify(t1)).not.toContain("SELECT");
+  });
+
   test("回归1：START 的 startTime 取客户端时钟；服务端 data.time 快 15s 也不带偏移", () => {
     const serverTime = Date.now() + 15_000; // 服务端时钟比客户端快 15s
     const before = Date.now();

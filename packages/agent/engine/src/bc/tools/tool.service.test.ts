@@ -443,6 +443,68 @@ describe("ToolService", () => {
     ]);
   });
 
+  test("MCP descriptor → ToolService 将 toolCallId/onProgress 透传给 McpBridge progress options", async () => {
+    const onProgress = () => {};
+    const calls: Array<{
+      serverId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      progress?: { progressToken?: string | number; onProgress?: unknown };
+    }> = [];
+    const svc = buildToolService(registry, {
+      mcpBridge: {
+        callTool: async (serverId, toolName, args, _callIdentity, progress) => {
+          calls.push({ serverId, toolName, args, progress });
+          return { ok: true };
+        },
+      },
+    });
+    registry.register(
+      makeDescriptor({
+        name: "mcp.biz-ontology.ask_business_data",
+        displayName: "Ask Business Data",
+        isPreset: false,
+        meta: {
+          execution: "REMOTE",
+          consent: "NEVER",
+          requiresPrincipal: "USER",
+          timeoutMs: 120000,
+          idempotent: true,
+          sideEffects: ["read:business.data"],
+        },
+        inputSchema: {
+          type: "object",
+          properties: { question: { type: "string" } },
+        },
+        outputSchema: {
+          type: "object",
+          properties: { ok: { type: "boolean" } },
+        },
+        requires: { principal: "USER", oauthScope: [], obo: null },
+        execute: "mcp:biz-ontology:ask_business_data",
+        handler: { kind: "mcp", config: {} },
+        category: "MCP",
+      }),
+    );
+
+    const out = await svc.invoke(
+      "mcp.biz-ontology.ask_business_data",
+      { question: "风险等级有哪些？" },
+      MOCK_CTX,
+      { toolCallId: "tcall_biz_1", onProgress },
+    );
+
+    expect(out).toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      serverId: "biz-ontology",
+      toolName: "ask_business_data",
+      args: { question: "风险等级有哪些？" },
+      progress: { progressToken: "tcall_biz_1" },
+    });
+    expect(calls[0]?.progress?.onProgress).toBe(onProgress);
+  });
+
   test("currentDate：{} 参数返回 { iso, epochMs }（UTC toISOString）", async () => {
     registry.register(
       makeDescriptor({

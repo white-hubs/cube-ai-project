@@ -251,6 +251,31 @@ export const ToolCallCompletedEventSchema = z.object({
 });
 export type ToolCallCompletedEvent = z.infer<typeof ToolCallCompletedEventSchema>;
 
+/**
+ * Tool/progress telemetry. This event is intentionally UI-safe and must not
+ * carry raw tool results, SQL, credentials, or model-visible hidden payloads.
+ *
+ * It can be emitted by engine-native progress chunks today and by MCP
+ * `notifications/progress` once the bridge transport forwards them into the
+ * same stream.
+ */
+export const ToolProgressEventSchema = z.object({
+  display: z
+    .object({
+      text: z.string().min(1),
+    })
+    .optional(),
+  meta: z.record(z.string(), z.unknown()).optional(),
+  progress: z.number().min(0).max(1).optional(),
+  schema: z.literal("tool-call-progress-v1"),
+  status: z.string(),
+  time: EpochMsSchema,
+  toolCallId: toolCallIdSchema.optional(),
+  toolName: z.string().optional(),
+  turnId: SfidSchema,
+});
+export type ToolProgressEvent = z.infer<typeof ToolProgressEventSchema>;
+
 // ── Grant events ──────────────────────────────────────────────────────────────
 
 export const GrantRequestEventSchema = z.object({
@@ -335,6 +360,7 @@ export const SseEventSchema = z.discriminatedUnion("schema", [
   ReasoningDeltaEventSchema,
   ToolCallStartedEventSchema,
   ToolCallCompletedEventSchema,
+  ToolProgressEventSchema,
   GrantRequestEventSchema,
   UsageDeltaV1EventSchema,
   UsageDeltaV2EventSchema,

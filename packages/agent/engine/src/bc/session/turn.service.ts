@@ -26,6 +26,8 @@ import { JobDataService } from "../jobs/job-data.service";
 import { EngineFactory, type AgentSnapshotShape } from "../tachu/engine-factory";
 import { computeIntentToolRouting, type IntentRoutingBlock } from "../tool-activation";
 import type { CallIdentity } from "../tools/tool-context";
+import { isBusinessDataTool } from "../tools/tool-result-visibility";
+import { guardFinalAnswerEngineOutput } from "./final-answer-visibility-guard";
 import type { SessionRepository } from "./repository/session.repository";
 import { SESSION_ADMIN_SCOPE } from "./session-owner";
 import { REDIS_CLIENT_TOKEN, SESSION_REPO_TOKEN, TURN_LOCK_SERVICE_TOKEN, TURN_REPO_TOKEN } from "./session.tokens";
@@ -413,6 +415,7 @@ export class TurnService {
     let finalOutput: EngineOutput | undefined;
     let errorEmittedByMapper = false;
     let errorPayload: { code: string; message: string; retryable: boolean } | undefined;
+    let sensitiveBusinessDataToolUsed = false;
     // 首个引擎事件的到达时刻（相对 phase.start）：把 host 预取 + tachu 的
     // 会话/安全/工具路由/技能激活(embedding) 等「首字前」开销收成一个可测数。
     let firstEngineChunkLogged = false;
@@ -449,8 +452,28 @@ export class TurnService {
             "turn.llm.phase.firstEngineChunk",
           );
         }
+        let chunkForSse = chunk;
+        if (chunk.type === "tool-call-end" && isBusinessDataTool(chunk.tool)) {
+          sensitiveBusinessDataToolUsed = true;
+        }
+        if (chunk.type === "done") {
+          const guarded = guardFinalAnswerEngineOutput(chunk.output, { sensitiveToolUsed: sensitiveBusinessDataToolUsed });
+          if (guarded.blocked) {
+            this.log.warn(
+              {
+                sessionId: arg.sessionId,
+                tenant: arg.tenant,
+                turnId: arg.turnId,
+                traceId: arg.turnId,
+                reasons: guarded.reasons,
+              },
+              "turn.llm.phase.finalAnswerVisibilityGuard.blocked",
+            );
+          }
+          chunkForSse = { ...chunk, output: guarded.output } as typeof chunk;
+        }
         // 1. 翻译并 forward
-        const sseEvents = mapStreamChunkToSseEvents(mapperState, chunk);
+        const sseEvents = mapStreamChunkToSseEvents(mapperState, chunkForSse);
         for (const ev of sseEvents) {
           await this.sseEmitter.emit(
             { tenant: arg.tenant, sessionId: arg.sessionId },
@@ -460,14 +483,14 @@ export class TurnService {
           );
         }
         // 2. 追踪关键状态
-        if (chunk.type === "done") {
-          finalOutput = chunk.output;
-        } else if (chunk.type === "error") {
+        if (chunkForSse.type === "done") {
+          finalOutput = chunkForSse.output;
+        } else if (chunkForSse.type === "error") {
           errorEmittedByMapper = true;
           errorPayload = {
-            code: chunk.error.code,
-            message: chunk.error.message,
-            retryable: chunk.error.retryable,
+            code: chunkForSse.error.code,
+            message: chunkForSse.error.message,
+            retryable: chunkForSse.error.retryable,
           };
         }
       }

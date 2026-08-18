@@ -118,15 +118,16 @@ describe("assembleTachuRuntime", () => {
 /**
  * 弱模型工具调用鲁棒性接线（tachu rc.4 姊妹机制，ADR-0031）。
  * 本仓只拥有「声明式配置」——展开/恢复的运行时逻辑住 tachu；这里守住领域取值：
- * 哪些工具是 biz-ontology 查库动作的发现兄弟、开关、恢复重试次数。
+ * 哪些工具是 biz-ontology 高层问数工具的发现兄弟、开关、恢复重试次数。
  * 名单须与 descriptors/agents/1934000000000000003.yaml 的 availableTools 保持一致。
  */
 describe("buildDefaultEngineConfig — weak-model tool-call robustness wiring", () => {
-  test("enables discoveryExpansion so pinning query_database also surfaces its 5 biz-ontology discovery siblings", () => {
+  test("enables discoveryExpansion so pinning ask_business_data also surfaces its 5 biz-ontology discovery siblings", () => {
     const config = buildDefaultEngineConfig("test-provider", "test-model");
     const expansion = config.runtime.toolActivation?.discoveryExpansion;
     expect(expansion?.enabled).toBe(true);
-    expect(expansion?.siblings?.["mcp.biz-ontology.query_database"]).toEqual([
+    expect(expansion?.siblings?.["mcp.biz-ontology.query_database"]).toBeUndefined();
+    expect(expansion?.siblings?.["mcp.biz-ontology.ask_business_data"]).toEqual([
       "mcp.biz-ontology.list_databases",
       "mcp.biz-ontology.list_business_domains",
       "mcp.biz-ontology.search_ontology",

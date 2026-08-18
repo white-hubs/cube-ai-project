@@ -7,6 +7,7 @@ import {
   type ReasoningDeltaEvent,
   type ReasoningStepEvent,
   type ToolCallCompletedEvent,
+  type ToolProgressEvent,
   type ToolCallStartedEvent,
   type TurnCompletedEvent,
   type TurnFailedEvent,
@@ -22,8 +23,9 @@ import {
  *  - 一次 chunk 调用产出 0~多个事件：例如 `done` 一次性产出（可选）message.delta 兜底
  *    + message.completed + usage.delta + turn.completed。
  *  - `state` 在调用间累加 `seqInTurn`、记录 `startTime` 以便算 `durationMs`。
- *  - 当前阶段未消费的 tachu chunk 类型（progress / plan-preview / artifact）返回空数组，
- *    由 TurnService 的循环按 no-op 处理。
+ *  - progress chunk 会映射为 `tool.call.progress`；其余暂未消费的
+ *    tachu chunk 类型（plan-preview / artifact）返回空数组，由 TurnService
+ *    的循环按 no-op 处理。
  *    这是显式向前兼容策略：tachu 未来新增 chunk 类型不会让本仓崩。
  */
 
@@ -82,6 +84,159 @@ function toolCallStartedMeta(toolName: string): {
     return { execution: "REMOTE", consent: "NEVER", activity };
   }
   return { execution: "LOCAL", consent: "ON_FIRST_USE", activity };
+}
+
+function isBusinessDataMcpTool(toolName: string): boolean {
+  return /^mcp\.[^.]+\.ask_business_data$/.test(toolName);
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Business-query MCP tools are allowed to return structured rows to the model,
+ * but SSE tool events are UI telemetry, not model context. Keep only a safe
+ * summary so the chat UI cannot accidentally render SQL/tool args/raw ids from
+ * a tool payload. The final user answer must be produced by the model from the
+ * governed tool result, and is still reconciled by the normal final-output path.
+ */
+function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknown> {
+  const parsed = parseJsonObject(output);
+  const answer = parsed && typeof parsed.answer === "object" && !Array.isArray(parsed.answer)
+    ? (parsed.answer as Record<string, unknown>)
+    : {};
+  const columns = Array.isArray(answer.columns) ? answer.columns : [];
+  const rows = Array.isArray(answer.rows) ? answer.rows : [];
+  const clarification = parsed && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
+    ? (parsed.clarification as Record<string, unknown>)
+    : {};
+  return {
+    redacted: true,
+    policy: "business-data-v1",
+    status: typeof parsed?.status === "string" ? parsed.status : "unknown",
+    summary: typeof answer.summary === "string"
+      ? answer.summary
+      : typeof clarification.question === "string"
+        ? clarification.question
+        : "业务问数工具已返回结果。",
+    columnCount: columns.length,
+    rowCount: rows.length,
+  };
+}
+
+function projectToolCallOutputForSse(toolName: string, output: unknown): unknown {
+  if (isBusinessDataMcpTool(toolName)) return summarizeBusinessDataToolOutput(output);
+  return output;
+}
+
+const PROGRESS_META_BLOCKED_KEYS = new Set([
+  "sql",
+  "query",
+  "args",
+  "arguments",
+  "toolArgs",
+  "token",
+  "apiKey",
+  "api_key",
+  "authorization",
+  "password",
+  "secret",
+  "rows",
+  "output",
+  "result",
+  "message",
+  "safeDisplayMessage",
+  "display",
+  "displayText",
+]);
+
+const PROGRESS_MESSAGE_FORBIDDEN_PATTERNS = [
+  /mcp:\/\//i,
+  /\bselect\b[\s\S]+\bfrom\b/i,
+  /\b(insert|update|delete|drop|alter|truncate)\b/i,
+  /\b(api[_-]?key|authorization|bearer|token|password|secret)\b/i,
+  /[{}]/,
+];
+
+function safeProgressMeta(input: unknown): Record<string, unknown> | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (PROGRESS_META_BLOCKED_KEYS.has(key)) continue;
+    if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = value;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function safeProgressDisplayText(status: string, candidates: unknown[]): string {
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const text = candidate.trim();
+    if (!text || text.length > 80) continue;
+    if (PROGRESS_MESSAGE_FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text))) continue;
+    return text;
+  }
+  if (status.includes("semantic") || status.includes("plan")) return "正在理解问题并匹配业务口径";
+  if (status.includes("query") || status.includes("sql")) return "正在查询并整理结果";
+  if (status.includes("format") || status.includes("answer")) return "正在整理业务答案";
+  return "正在处理";
+}
+
+function normalizeProgressValue(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (value >= 0 && value <= 1) return value;
+  if (value > 1 && value <= 100) return value / 100;
+  return undefined;
+}
+
+function mapProgressChunkToEvent(state: TachuSseMapperState, chunk: StreamChunkPayload, now: () => number): SseEventDescriptor[] {
+  const raw = chunk as StreamChunkPayload & {
+    payload?: unknown;
+    message?: unknown;
+    progress?: unknown;
+    percent?: unknown;
+    status?: unknown;
+    tool?: unknown;
+    toolName?: unknown;
+    callId?: unknown;
+    toolCallId?: unknown;
+  };
+  const payload = parseJsonObject(raw.payload) ?? {};
+  const status = String(payload.status ?? raw.status ?? "progress").trim() || "progress";
+  const payloadDisplay = parseJsonObject(payload.display);
+  const displayText = safeProgressDisplayText(status, [
+    payload.safeDisplayMessage,
+    payload.displayText,
+    payloadDisplay?.text,
+    payload.message,
+    raw.message,
+  ]);
+  const toolNameRaw = payload.toolName ?? raw.toolName ?? raw.tool;
+  const toolCallIdRaw = payload.toolCallId ?? raw.toolCallId ?? raw.callId;
+  const progress = normalizeProgressValue(payload.progress ?? payload.percent ?? raw.progress ?? raw.percent);
+  const meta = safeProgressMeta(payload);
+  const event: ToolProgressEvent = {
+    schema: "tool-call-progress-v1",
+    turnId: state.turnId,
+    status,
+    display: { text: displayText },
+    ...(progress !== undefined ? { progress } : {}),
+    ...(typeof toolNameRaw === "string" && toolNameRaw.trim() ? { toolName: toolNameRaw } : {}),
+    ...(typeof toolCallIdRaw === "string" && toolCallIdRaw.trim() ? { toolCallId: toolCallIdRaw } : {}),
+    ...(meta !== undefined ? { meta } : {}),
+    time: now(),
+  };
+  return [{ sseEvent: "tool.call.progress", payload: event }];
 }
 
 export interface TachuSseMapperState {
@@ -179,6 +334,7 @@ export type SseEventDescriptor =
   | { sseEvent: "usage.delta"; payload: UsageDeltaEvent }
   | { sseEvent: "tool.call.started"; payload: ToolCallStartedEvent }
   | { sseEvent: "tool.call.completed"; payload: ToolCallCompletedEvent }
+  | { sseEvent: "tool.call.progress"; payload: ToolProgressEvent }
   | { sseEvent: "message.completed"; payload: MessageCompletedEvent }
   | { sseEvent: "turn.completed"; payload: TurnCompletedEvent }
   | { sseEvent: "turn.failed"; payload: TurnFailedEvent }
@@ -550,6 +706,9 @@ export function mapStreamChunkToSseEvents(
       };
       return [{ sseEvent: "usage.delta", payload }];
     }
+    case "progress": {
+      return mapProgressChunkToEvent(state, chunk, now);
+    }
     case "tool-loop-step": {
       const events: SseEventDescriptor[] = [];
       closeActiveModelReasoning(state, events, now, { ok: true });
@@ -790,7 +949,7 @@ export function mapStreamChunkToSseEvents(
         toolName: chunk.tool,
         durationMs: chunk.durationMs,
         ok: chunk.success,
-        ...(Object.prototype.hasOwnProperty.call(chunk, "output") ? { output: chunk.output } : {}),
+        ...(Object.prototype.hasOwnProperty.call(chunk, "output") ? { output: projectToolCallOutputForSse(chunk.tool, chunk.output) } : {}),
         ...(chunk.success === false
           ? {
               error: {
@@ -805,7 +964,7 @@ export function mapStreamChunkToSseEvents(
       return [{ sseEvent: "tool.call.completed", payload }];
     }
     default: {
-      // 已知但暂未映射的类型：progress / plan-preview / artifact。
+      // 已知但暂未映射的类型：plan-preview / artifact。
       void now;
       return [];
     }

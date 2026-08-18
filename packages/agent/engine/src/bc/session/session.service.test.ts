@@ -195,6 +195,48 @@ describe("SessionService — business flows", () => {
     expect(input.agentSnapshotJson?.skills?.[0]?.content.instructions).toContain("concise");
   });
 
+  test("createSession rejects deprecated biz-ontology SQL tool refs in agent descriptors", async () => {
+    const sfid = new SfidService();
+    const repo: SessionRepository = {
+      findById: mock(async () => null),
+      insertWithConnection: mock(async (_c, _tenant, sid, input) => fakeRow(sid)),
+      updateStatus: mock(async () => {}),
+      updatePartial: mock(async () => {}),
+      updatePartialWithConnection: mock(async () => {}),
+      touchActivity: mock(async () => {}),
+      softDelete: mock(async () => {}),
+      softDeleteWithConnection: mock(async () => {}),
+      listByOwner: mock(async () => ({ items: [], hasMore: false })),
+    };
+    const pool: Pool = {
+      getConnection: mock(
+        async () =>
+          ({
+            beginTransaction: mock(async () => {}),
+            commit: mock(async () => {}),
+            rollback: mock(async () => {}),
+            release: mock(() => {}),
+          }) as unknown as PoolConnection,
+      ),
+    } as unknown as Pool;
+    const outbox: OutboxWriter = { append: mock(async () => {}) };
+    const descriptorLoader = {
+      getAgent: mock(async () => ({
+        kind: "agent",
+        name: "28147497671065600001",
+        instructions: "AGENT",
+        availableTools: ["mcp.biz-ontology.query_database"],
+      })),
+    };
+    const svc = new SessionService(sfid, repo, pool, outbox, descriptorLoader as never);
+
+    await expect(
+      svc.createSession(1, "u1", "U", {
+        agentId: "28147497671065600001",
+      }),
+    ).rejects.toThrow("mcp.biz-ontology.ask_business_data");
+  });
+
   test("createSession freezes runnable tenant agent version into DB input and snapshot", async () => {
     let capturedInput: CreateSessionInput | undefined;
     const sfid = new SfidService();

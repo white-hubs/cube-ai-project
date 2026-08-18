@@ -4,12 +4,18 @@
  * 权威来源：docs/detailed-design/07-tools/registration-lifecycle.md §7
  */
 import { Injectable } from "@dangao/bun-server";
+import pino from "pino";
 
 import { ToolDescriptor as ToolDescriptorZod, type ToolDescriptor } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import type { CallIdentity } from "./tool-context";
 import { augmentWebSearchMcpToolDescriptor } from "./web-search-mcp-descriptor";
+
+const log = pino({
+  name: "agentic.engine.mcp.bridge",
+  level: (process.env["AGENTIC_ENGINE_LOG_LEVEL"] ?? "info").toLowerCase(),
+});
 
 /**
  * MCP 出站认证传递方式（每 server 显式声明）：
@@ -92,8 +98,22 @@ interface JsonRpcReq {
 interface JsonRpcResp {
   jsonrpc: "2.0";
   id?: number | string | null;
+  method?: string;
+  params?: unknown;
   result?: unknown;
   error?: { code: number; message: string; data?: unknown };
+}
+
+export interface McpProgressEvent {
+  progressToken: string | number;
+  progress?: number;
+  total?: number;
+  message?: string;
+}
+
+export interface McpProgressOptions {
+  progressToken?: string | number;
+  onProgress?: (event: McpProgressEvent) => void | Promise<void>;
 }
 
 interface McpSession {
@@ -104,7 +124,12 @@ interface McpSession {
    * @param extraHeaders 逐调用注入的出站头（出站身份透传）；覆盖静态 `cfg.headers`。
    *   仅 HTTP 会话实现注入；stdio/sse 忽略（配置校验保证 `authPassthrough:'user'` 仅配 http）。
    */
-  toolsCall(name: string, args: Record<string, unknown>, extraHeaders?: Record<string, string>): Promise<unknown>;
+  toolsCall(
+    name: string,
+    args: Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
+    progress?: McpProgressOptions,
+  ): Promise<unknown>;
   dispose(): Promise<void>;
 }
 
@@ -126,6 +151,83 @@ async function writeStdin(proc: ReturnType<typeof Bun.spawn>, chunk: Uint8Array)
 }
 
 type PendingMap = Map<number | string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>;
+interface ProgressHandlerState {
+  onProgress: (event: McpProgressEvent) => void | Promise<void>;
+  lastProgress?: number;
+}
+type ProgressHandlerMap = Map<string | number, ProgressHandlerState>;
+
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function toolsCallParams(name: string, args: Record<string, unknown>, progress?: McpProgressOptions): Record<string, unknown> {
+  return {
+    name,
+    arguments: args,
+    ...(progress?.progressToken !== undefined ? { _meta: { progressToken: progress.progressToken } } : {}),
+  };
+}
+
+function dispatchProgressNotification(handlers: ProgressHandlerMap, msg: JsonRpcResp): boolean {
+  if (msg.method !== "notifications/progress") return false;
+  const params = objectRecord(msg.params);
+  const token = params?.["progressToken"];
+  if (typeof token !== "string" && typeof token !== "number") {
+    log.debug({ event: "ignored", reason: "invalid-progress-token", ns: "mcp.progress" }, "ignored MCP progress notification");
+    return true;
+  }
+  const state = handlers.get(token);
+  if (!state) {
+    log.debug({ event: "ignored", reason: "foreign-progress-token", progressToken: token, ns: "mcp.progress" }, "ignored MCP progress notification");
+    return true;
+  }
+  const rawProgress = params?.["progress"];
+  const rawTotal = params?.["total"];
+  const rawMessage = params?.["message"];
+  if (typeof rawProgress === "number" && Number.isFinite(rawProgress)) {
+    if (state.lastProgress !== undefined && rawProgress < state.lastProgress) {
+      log.debug(
+        {
+          event: "ignored",
+          reason: "non-monotonic-progress",
+          progressToken: token,
+          progress: rawProgress,
+          lastProgress: state.lastProgress,
+          ns: "mcp.progress",
+        },
+        "ignored MCP progress notification",
+      );
+      return true;
+    }
+    state.lastProgress = rawProgress;
+  }
+  void Promise.resolve(
+    state.onProgress({
+      progressToken: token,
+      ...(typeof rawProgress === "number" && Number.isFinite(rawProgress) ? { progress: rawProgress } : {}),
+      ...(typeof rawTotal === "number" && Number.isFinite(rawTotal) ? { total: rawTotal } : {}),
+      ...(typeof rawMessage === "string" ? { message: rawMessage } : {}),
+    }),
+  ).catch(() => {
+    /* progress callbacks must never break the pending JSON-RPC response */
+  });
+  return true;
+}
+
+async function withProgressHandler<T>(
+  handlers: ProgressHandlerMap,
+  progress: McpProgressOptions | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (progress?.progressToken === undefined || !progress.onProgress) return run();
+  handlers.set(progress.progressToken, { onProgress: progress.onProgress });
+  try {
+    return await run();
+  } finally {
+    handlers.delete(progress.progressToken);
+  }
+}
 
 /**
  * 注册一次 JSON-RPC 调用并返回"响应 Promise"——它在以下任一情况 settle：
@@ -198,6 +300,7 @@ function requestSignal(parent: AbortSignal, timeoutMs: number): { signal: AbortS
  */
 class McpStdioSession implements McpSession {
   private pending = new Map<number | string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private progressHandlers: ProgressHandlerMap = new Map();
   private nextId = 1;
   private buf = "";
   private proc: ReturnType<typeof Bun.spawn> | null = null;
@@ -268,6 +371,7 @@ class McpStdioSession implements McpSession {
           } catch {
             continue;
           }
+          if (dispatchProgressNotification(this.progressHandlers, msg)) continue;
           if (msg.id !== undefined && msg.id !== null && this.pending.has(msg.id)) {
             const p = this.pending.get(msg.id)!;
             this.pending.delete(msg.id);
@@ -307,12 +411,14 @@ class McpStdioSession implements McpSession {
     return result.tools ?? [];
   }
 
-  async toolsCall(name: string, args: Record<string, unknown>, _extraHeaders?: Record<string, string>): Promise<unknown> {
+  async toolsCall(
+    name: string,
+    args: Record<string, unknown>,
+    _extraHeaders?: Record<string, string>,
+    progress?: McpProgressOptions,
+  ): Promise<unknown> {
     // stdio 无 HTTP 头承载；出站身份透传仅 http 支持（配置校验已 fail-closed 拦截）。
-    const result = await this.rpc("tools/call", {
-      name,
-      arguments: args,
-    });
+    const result = await withProgressHandler(this.progressHandlers, progress, () => this.rpc("tools/call", toolsCallParams(name, args, progress)));
     return result;
   }
 
@@ -327,6 +433,7 @@ class McpStdioSession implements McpSession {
     }
     this.proc = null;
     this.pending.clear();
+    this.progressHandlers.clear();
   }
 }
 
@@ -339,6 +446,7 @@ class McpStdioSession implements McpSession {
  */
 class McpSseSession implements McpSession {
   private pending = new Map<number | string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private progressHandlers: ProgressHandlerMap = new Map();
   private endpointWaiters: Array<{ resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }> = [];
   private nextId = 1;
   private buf = "";
@@ -502,6 +610,7 @@ class McpSseSession implements McpSession {
   }
 
   private handleJsonRpcMessage(msg: JsonRpcResp): void {
+    if (dispatchProgressNotification(this.progressHandlers, msg)) return;
     if (msg.id === undefined || msg.id === null) return;
     const p = this.pending.get(msg.id);
     if (!p) return;
@@ -542,15 +651,10 @@ class McpSseSession implements McpSession {
       if (!resp.ok) {
         throw new Error(`MCP SSE POST failed: HTTP ${resp.status}`);
       }
-      const text = await resp.text().catch(() => "");
-      const trimmed = text.trim();
-      if (trimmed.startsWith("{")) {
-        try {
-          this.handleJsonRpcMessage(JSON.parse(trimmed) as JsonRpcResp);
-        } catch {
-          /* ignore malformed direct response */
-        }
-      }
+      await readJsonRpcResponseMessages(resp, (msg) => {
+        this.handleJsonRpcMessage(msg);
+        return payload.id !== undefined && msg.id === payload.id;
+      });
     } finally {
       clear();
     }
@@ -563,12 +667,14 @@ class McpSseSession implements McpSession {
     return result.tools ?? [];
   }
 
-  async toolsCall(name: string, args: Record<string, unknown>, _extraHeaders?: Record<string, string>): Promise<unknown> {
+  async toolsCall(
+    name: string,
+    args: Record<string, unknown>,
+    _extraHeaders?: Record<string, string>,
+    progress?: McpProgressOptions,
+  ): Promise<unknown> {
     // sse 出站身份透传未启用（配置校验保证 authPassthrough:'user' 仅配 http）。
-    return this.rpc("tools/call", {
-      name,
-      arguments: args,
-    });
+    return withProgressHandler(this.progressHandlers, progress, () => this.rpc("tools/call", toolsCallParams(name, args, progress)));
   }
 
   async dispose(): Promise<void> {
@@ -586,7 +692,37 @@ class McpSseSession implements McpSession {
     this.connected = false;
     this.reader = null;
     this.pending.clear();
+    this.progressHandlers.clear();
     this.endpointUrl = null;
+  }
+}
+
+function parseSseJsonRpcBlock(block: string): JsonRpcResp | null {
+  const dataLines: string[] = [];
+  for (const line of block.split("\n")) {
+    if (!line || line.startsWith(":")) continue;
+    const sep = line.indexOf(":");
+    const field = sep === -1 ? line : line.slice(0, sep);
+    let value = sep === -1 ? "" : line.slice(sep + 1);
+    if (value.startsWith(" ")) value = value.slice(1);
+    if (field === "data") dataLines.push(value);
+  }
+  const data = dataLines.join("\n");
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as JsonRpcResp;
+  } catch {
+    return null;
+  }
+}
+
+function parseDirectJsonRpcMessage(text: string): JsonRpcResp | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    return JSON.parse(trimmed) as JsonRpcResp;
+  } catch {
+    return null;
   }
 }
 
@@ -599,32 +735,66 @@ function parseSseJsonRpcMessages(text: string): JsonRpcResp[] {
     if (idx === -1) break;
     const block = buf.slice(0, idx);
     buf = buf.slice(idx + 2);
-    const dataLines: string[] = [];
-    for (const line of block.split("\n")) {
-      if (!line || line.startsWith(":")) continue;
-      const sep = line.indexOf(":");
-      const field = sep === -1 ? line : line.slice(0, sep);
-      let value = sep === -1 ? "" : line.slice(sep + 1);
-      if (value.startsWith(" ")) value = value.slice(1);
-      if (field === "data") dataLines.push(value);
-    }
-    const data = dataLines.join("\n");
-    if (!data) continue;
-    try {
-      out.push(JSON.parse(data) as JsonRpcResp);
-    } catch {
-      /* ignore malformed SSE payloads */
-    }
+    const msg = parseSseJsonRpcBlock(block);
+    if (msg) out.push(msg);
   }
-  const trimmed = buf.trim();
-  if (trimmed.startsWith("{")) {
-    try {
-      out.push(JSON.parse(trimmed) as JsonRpcResp);
-    } catch {
-      /* ignore malformed direct JSON */
-    }
-  }
+  const direct = parseDirectJsonRpcMessage(buf);
+  if (direct) out.push(direct);
   return out;
+}
+
+async function readJsonRpcResponseMessages(resp: Response, handle: (msg: JsonRpcResp) => boolean): Promise<void> {
+  const contentType = resp.headers.get("content-type")?.toLowerCase() ?? "";
+  const body = resp.body;
+  if (!contentType.includes("text/event-stream") || !body) {
+    const text = await resp.text().catch(() => "");
+    for (const msg of parseSseJsonRpcMessages(text)) {
+      if (handle(msg)) break;
+    }
+    return;
+  }
+
+  const reader = body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let stop = false;
+  try {
+    while (!stop) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true }).replace(/\r\n?/g, "\n");
+      while (true) {
+        const idx = buf.indexOf("\n\n");
+        if (idx === -1) break;
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const msg = parseSseJsonRpcBlock(block);
+        if (msg && handle(msg)) {
+          stop = true;
+          break;
+        }
+      }
+    }
+    if (!stop) {
+      const tail = dec.decode();
+      if (tail) buf += tail.replace(/\r\n?/g, "\n");
+      const sse = parseSseJsonRpcBlock(buf);
+      if (sse) {
+        handle(sse);
+      } else {
+        const direct = parseDirectJsonRpcMessage(buf);
+        if (direct) handle(direct);
+      }
+    }
+  } finally {
+    if (stop) {
+      try {
+        await reader.cancel();
+      } catch {
+        /* ignore stream cancel teardown */
+      }
+    }
+  }
 }
 
 function normalizeMcpHttpUrl(raw: string): string {
@@ -639,6 +809,7 @@ function normalizeMcpHttpUrl(raw: string): string {
  */
 class McpHttpSession implements McpSession {
   private pending = new Map<number | string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  private progressHandlers: ProgressHandlerMap = new Map();
   private nextId = 1;
   private abort = new AbortController();
   private endpointUrl: string | null = null;
@@ -684,6 +855,7 @@ class McpHttpSession implements McpSession {
   }
 
   private handleJsonRpcMessage(msg: JsonRpcResp): void {
+    if (dispatchProgressNotification(this.progressHandlers, msg)) return;
     if (msg.id === undefined || msg.id === null) return;
     const p = this.pending.get(msg.id);
     if (!p) return;
@@ -733,10 +905,10 @@ class McpHttpSession implements McpSession {
       if (!resp.ok) {
         throw new Error(`MCP HTTP POST failed: HTTP ${resp.status}`);
       }
-      const text = await resp.text().catch(() => "");
-      for (const msg of parseSseJsonRpcMessages(text)) {
+      await readJsonRpcResponseMessages(resp, (msg) => {
         this.handleJsonRpcMessage(msg);
-      }
+        return payload.id !== undefined && msg.id === payload.id;
+      });
     } finally {
       clear();
     }
@@ -749,16 +921,15 @@ class McpHttpSession implements McpSession {
     return result.tools ?? [];
   }
 
-  async toolsCall(name: string, args: Record<string, unknown>, extraHeaders?: Record<string, string>): Promise<unknown> {
+  async toolsCall(
+    name: string,
+    args: Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
+    progress?: McpProgressOptions,
+  ): Promise<unknown> {
     // 出站身份透传：extraHeaders 仅注入本次 tools/call POST；initialize 握手仍用静态头。
-    return this.rpc(
-      "tools/call",
-      {
-        name,
-        arguments: args,
-      },
-      mcpRpcTimeoutMs(),
-      extraHeaders,
+    return withProgressHandler(this.progressHandlers, progress, () =>
+      this.rpc("tools/call", toolsCallParams(name, args, progress), mcpRpcTimeoutMs(), extraHeaders),
     );
   }
 
@@ -772,6 +943,7 @@ class McpHttpSession implements McpSession {
     this.endpointUrl = null;
     this.sessionId = null;
     this.pending.clear();
+    this.progressHandlers.clear();
   }
 }
 
@@ -964,7 +1136,13 @@ export class McpBridgeService {
    * @param callIdentity 调用方用户身份（出站身份透传窄 carrier）；仅
    *   `authPassthrough: 'user'` 的 server 消费，其余忽略。
    */
-  async callTool(serverName: string, toolName: string, args: Record<string, unknown>, callIdentity?: CallIdentity): Promise<unknown> {
+  async callTool(
+    serverName: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    callIdentity?: CallIdentity,
+    progress?: McpProgressOptions,
+  ): Promise<unknown> {
     await this.init();
     const extraHeaders = this.resolvePassthroughHeaders(serverName, this.cfgOrThrow(serverName), callIdentity);
     let attempt = 0;
@@ -973,7 +1151,7 @@ export class McpBridgeService {
       attempt++;
       try {
         const sess = await this.sessionFor(serverName);
-        return await sess.toolsCall(toolName, args, extraHeaders);
+        return await sess.toolsCall(toolName, args, extraHeaders, progress);
       } catch (e) {
         lastErr = e;
         const s = this.sessions.get(serverName);

@@ -641,6 +641,7 @@ export class AssistantStore {
         return;
       }
       case "tool-call-started-v1":
+      case "tool-call-progress-v1":
       case "tool-call-completed-v1": {
         this.foldReasoning(sessionId, ev);
         this.appendToolEvent(sessionId, ev);
@@ -973,6 +974,52 @@ export class AssistantStore {
         toolEventsBySessionId: {
           ...this.state.toolEventsBySessionId,
           [sessionId]: [...list, next],
+        },
+      });
+      return;
+    }
+    if (ev.event === "tool-call-progress-v1") {
+      const progress = typeof data.progress === "number" && Number.isFinite(data.progress) && data.progress >= 0 && data.progress <= 1
+        ? data.progress
+        : undefined;
+      const status = typeof data.status === "string" && data.status !== "" ? data.status : undefined;
+      const display = data.display && typeof data.display === "object" && !Array.isArray(data.display) ? (data.display as Record<string, unknown>) : undefined;
+      const text = typeof display?.text === "string" && display.text.trim() ? display.text.trim() : undefined;
+      const idx = list.findIndex((t) => t.id === id);
+      if (idx < 0) {
+        const next: ToolEvent = {
+          id,
+          toolName,
+          phase: "progress",
+          startedAt: time,
+          progressUpdatedAt: time,
+          ...(progress !== undefined ? { progress } : {}),
+          ...(status ? { progressStatus: status } : {}),
+          ...(text ? { progressText: text } : {}),
+          ...(turnId ? { turnId } : {}),
+        };
+        this.setState({
+          toolEventsBySessionId: {
+            ...this.state.toolEventsBySessionId,
+            [sessionId]: [...list, next],
+          },
+        });
+        return;
+      }
+      const newList = list.slice();
+      newList[idx] = {
+        ...newList[idx]!,
+        phase: newList[idx]!.phase === "completed" ? "completed" : "progress",
+        progressUpdatedAt: time,
+        ...(progress !== undefined ? { progress } : {}),
+        ...(status ? { progressStatus: status } : {}),
+        ...(text ? { progressText: text } : {}),
+        ...(turnId && !newList[idx]!.turnId ? { turnId } : {}),
+      };
+      this.setState({
+        toolEventsBySessionId: {
+          ...this.state.toolEventsBySessionId,
+          [sessionId]: newList,
         },
       });
       return;
