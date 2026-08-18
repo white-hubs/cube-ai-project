@@ -88,7 +88,7 @@
 | BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` 已实现（同 connection、显式 relationship、1-hop、join 标识符防注入、分页只主实体）；仍需跨实体字段匹配触发点接入 `_plan` | join validator/SQL generator 单测通过；触发点接入待补 |
-| BQ-M06 | todo | 是 | LLM plan proposal：LLM 只输出 JSON plan，不输出 SQL，不看 raw rows，非法字段 fail-closed | proposal guard 测试通过 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` 已实现（entity/metric/dimension/filter 字段校验、禁 SQL/raw rows、非法字段 fail-closed）；仍需 LLM fallback 调用集成（prompt/schema） | proposal guard 单测通过；LLM 调用集成待补 |
 | BQ-M07 | todo | 是 | pending candidate：动态成功计划只进入 pending，不变 verified，不保存 SQL | candidate 写入与审核流测试通过 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
@@ -606,6 +606,11 @@ pnpm test:run -- --runInBand
     - 事实依据：实体 YAML `relationships` 已含 `type: many_to_one` 与 `join` 条件（如 `SmRiskUnit.yaml` → `ai_sm_risk_unit.sign_id = ai_sm_risk_warning_sign.id`）。
     - 测试：新增 `test_business_query_same_connection_join.py` 6 用例（合法/非法 join、注入防护）；全量后端 pytest 通过。
     - 遗留：跨实体字段匹配触发点尚未接入 `_plan`（何时生成 JOIN 仍待业务场景确认）。
+
+13. BQ-M06 LLM plan 草案校验（proposal guard）落地：
+    - `service.py` 新增 `validate_plan_proposal`：校验草案 entity/metric/dimension/filter 字段在本体存在、禁 SQL/raw_rows/raw_columns/rows、非法字段 fail-closed。
+    - 测试：新增 `test_business_query_plan_proposal.py` 5 用例（合法/非法字段/SQL 注入/非对象）；全量后端 pytest 通过。
+    - 遗留：LLM fallback 调用集成（prompt/schema）待补，`llm_fallback.enabled` 保持 false。
 
 ---
 
