@@ -650,6 +650,12 @@ pnpm test:run -- --runInBand
     - 事实：`config.yaml` 与 `config.yaml.template` 均为 `llm_fallback.enabled: false`（默认关闭，确定性 planner + 语义索引是主路径），但 `backend/config.py::_default_config()` 仍为 `enabled: True`，缺省配置下会与模板口径不一致。
     - 修复：`backend/config.py::_default_config()` 的 `llm_fallback.enabled` 改为 `False`，与模板/落地事实 #5 对齐，避免缺省配置错误开启 LLM fallback。
 
+21. BQ-M05 JOIN `allowed_for_join` schema 对齐：
+    - 事实：`service.py::validate_same_connection_join` 原读取 relationship 顶层 `allowed_for_join`，与 OntologyEditorPage 写入的 `relationships[].business_query.usage.allowed_for_join`、以及 `semantic_index.py`/`list_profile.py`/`multi_step_validator.py` 的读取位置不一致。
+    - 修复：`validate_same_connection_join` 改为读 `business_query.usage.allowed_for_join`；测试 fixture 对齐规范 schema，新增「未声明 allowed_for_join 时 fail-closed」负向测试（`test_business_query_join_plan.py`）。
+    - 测试：`test_business_query_join_plan.py` + `test_business_query_same_connection_join.py` 11 用例通过；后端全量 pytest 通过。
+    - 遗留（BQ-M05 仍未闭合项）：真实 JOIN 场景 eval + 浏览器验收；JOIN 计划对关联实体自然语言过滤（enum filter where 拼接）尚未接入。
+
 ---
 
 ## 2. 事实依据
