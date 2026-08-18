@@ -88,7 +88,7 @@
 | BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` 已实现（同 connection、显式 relationship、1-hop、join 标识符防注入、分页只主实体）；仍需跨实体字段匹配触发点接入 `_plan` | join validator/SQL generator 单测通过；触发点接入待补 |
-| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` 已实现（entity/metric/dimension/filter 字段校验、禁 SQL/raw rows、非法字段 fail-closed）；仍需 LLM fallback 调用集成（prompt/schema） | proposal guard 单测通过；LLM 调用集成待补 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal`（草案校验）+ `propose_business_query_plan`（scene=business_query_plan 调 LLM 生成 JSON 草案、失败返回澄清）已实现；仍需 SQL AST 二次校验、eval gate、人工确认链路 | proposal guard + llm_fallback 单测通过；SQL 二次校验/人工确认待补 |
 | BQ-M07 | todo | 是 | pending candidate：动态成功计划只进入 pending，不变 verified，不保存 SQL | candidate 写入与审核流测试通过 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
@@ -623,6 +623,12 @@ pnpm test:run -- --runInBand
     - 新增 `vector_repository.py`：`SemanticVectorRepository`(Protocol) + `InMemorySemanticVectorRepository`/`QdrantSemanticVectorRepository` 两实现 + `create_repository()` 工厂 + `SemanticDocument`/`SemanticHit` 文档类型。
     - `semantic_index.py` 800→449 行，re-export 保持测试向后兼容。
     - 全量后端 pytest 通过。
+
+16. BQ-M06 LLM fallback 调用落地（据文档 6.4/8.8.1/2221/2411）：
+    - 新增 `llm_fallback.py::propose_business_query_plan`：用 `scene=business_query_plan` 调 `LlmClient.chat` 生成 JSON plan 草案，经 `validate_plan_proposal` 校验，失败/超时/非法返回 None（调用方返回澄清）。
+    - 约束：只生成 entity/metrics/dimensions/filters 草案，不生成 SQL、不引用 raw rows。
+    - 测试：新增 `test_business_query_llm_fallback.py` 4 用例（合法/非法字段/SQL/上游异常）；全量后端 pytest 通过。
+    - 遗留：SQL AST 二次校验、eval gate、人工确认链路（BQ-M07）待补，`llm_fallback.enabled` 保持 false。
 
 ---
 
