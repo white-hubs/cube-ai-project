@@ -105,7 +105,7 @@
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
 | BQ-S02 | verified | 是，需回归 | content_summary 展示：`_semantic_content_summary` 返回 `asset_type_counts` 及 13 个 doc_count 字段，前端 `semanticIndexContentRows` 13 类标签渲染 | status/rebuild 返回与页面展示测试通过 |
 | BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已通过 normal（detail/lookup）/ambiguity（clarification）分类覆盖；resolver/multi_step_count/multi_step_list 待 G-14 资产落地 | eval 分类测试通过（list/clarification 已有覆盖） |
-| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）与 field/filter/group-by 命中率（`field_filter_groupby`，group-by + filter 维度）；仍需补 resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截 + group_by_mismatch + filter_mismatch；期望值由生成器推导 aggregate/topn 的 group-by 字段与 normal 的枚举过滤字段 |
+| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）与 field/filter/group-by 命中率（`field_filter_groupby`，field/filter/group-by 三项齐备）；仍需补 resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截 + field_mismatch + filter_mismatch + group_by_mismatch；期望值由生成器推导 normal 重要字段/枚举过滤字段与 aggregate/topn 的 group-by 字段 |
 | BQ-C01 | verified | 是，需回归 | MCP contract：`ask_business_data` 输入/输出支持分页，普通 content 无 diagnostics；2026-08-18 已补 `page_size/page_token` schema、stdio 转发、tools 薄封装安全 JSON、structured payload 安全 pagination | MCP contract 7 passed；structuredContent 安全；普通 content 只保留摘要文本 |
 | BQ-G01 | todo / blocked_real_env | 是 | 应用对话 guard 回归：pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 + 真实 Agent 对话验收 |
 
@@ -595,6 +595,11 @@ pnpm test:run -- --runInBand
     - BQ-E01 由 `todo` 校准为 `partial`：list/clarification 已通过 normal（detail/lookup）/ambiguity（clarification）分类覆盖，resolver/multi_step 分类待 G-14 资产落地。
     - filter 命中率：`eval_set.py` 生成器为 normal 用例增加按枚举值过滤 case（如「查询重大风险的XX」）并推导 `expected_filters`；`_assert_field_filter_groupby` 已支持 filter 覆盖断言（第 8 轮），缺则报 `filter_mismatch`。
     - 重新落盘 `_eval_set.yaml`（6 条含 expected_filters）；测试补 `filter_mismatch` 正例；全量后端 pytest 通过。
+
+11. eval 门阀 field 命中率补齐（5.5.15「field/filter/group-by 命中率」的 field 维度，至此三项齐备）：
+    - `eval_set.py` 生成器为 normal detail 用例推导 `expected_fields`（前 3 个重要字段）。
+    - `eval_runner.py` 的 `_assert_field_filter_groupby` 新增 field 覆盖断言（answer 展示字段覆盖 expected_fields，缺则报 `field_mismatch`）；`field_filter_groupby` 统计条件纳入 expected_fields。
+    - 重新落盘 `_eval_set.yaml`（5 条含 expected_fields）；测试补 `field_mismatch` 正例；全量后端 pytest 通过。
 
 ---
 
