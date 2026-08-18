@@ -87,7 +87,7 @@
 | BQ-M02 | verified | 是，需回归 | MultiStepPlanValidator 正反例完整 | validator 正反例测试通过 |
 | BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
-| BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` 已实现（同 connection、显式 relationship、1-hop、join 标识符防注入、分页只主实体）；仍需跨实体字段匹配触发点接入 `_plan` | join validator/SQL generator 单测通过；触发点接入待补 |
+| BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
 | BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal`（草案校验）+ `propose_business_query_plan`（scene=business_query_plan 调 LLM 生成 JSON 草案、失败返回澄清）已实现；仍需 SQL AST 二次校验、eval gate、人工确认链路 | proposal guard + llm_fallback 单测通过；SQL 二次校验/人工确认待补 |
 | BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL）；仍需运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入 + 审核流闭环待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
@@ -634,6 +634,11 @@ pnpm test:run -- --runInBand
     - 新增 `settings.py::save_pending_verified_query_candidate`：运行时验证成功的 plan 沉淀为 `_verified_queries.yaml` 的 `review.state=pending` 候选，不保存可执行 SQL。
     - 测试：新增 `test_business_query_pending_candidate.py` 3 用例（pending 状态、追加不覆盖、未知域）；全量后端 pytest 通过。
     - 遗留：运行时触发接入（LLM fallback 成功后调用）+ 人工 Accept/Edit/Dismiss 审核流闭环待补。
+
+18. BQ-M05 跨实体字段匹配触发点落地（据文档 8.9.1/8.7）：
+    - 新增 `service.py::_join_plan`：主实体字段无关键词命中、但同连接 relationship 的 target 字段命中时，生成 1-hop JOIN plan（provenance=same_connection_join）；`_plan` 接入该触发点。
+    - 测试：新增 `test_business_query_join_plan.py` 2 用例（关联实体字段触发 / 主实体字段跳过）；全量后端 pytest 通过。
+    - 遗留：真实 JOIN 场景 eval + 浏览器验收。
 
 ---
 
