@@ -85,8 +85,8 @@
 | BQ-R05 | implemented | 是 | resolver display projection 脱敏真实验收 | raw id 不进入用户答案；display_fields 受 display policy 约束 |
 | BQ-M01 | implemented | 是 | MultiStepPlan model 回归与序列化稳定 | model/serialization 测试通过 |
 | BQ-M02 | verified | 是，需回归 | MultiStepPlanValidator 正反例完整 | validator 正反例测试通过 |
-| BQ-M03 | verified | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
-| BQ-M04 | verified | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
+| BQ-M03 | implemented | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
+| BQ-M04 | implemented | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
 | BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（语义/关键词路由低置信或歧义时最多一次 LLM 兜底，未启用/失败/非法草案返回澄清）；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入测试通过；eval gate 待补 |
 | BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL），运行时触发已接入（LLM fallback 成功后 `_save_llm_fallback_pending_candidate` 调用）；仍需人工 Accept/Edit/Dismiss 审核流闭环 | candidate 写入单测通过；触发接入测试通过；审核流闭环待补 |
@@ -96,10 +96,10 @@
 | BQ-P04 | verified | 是，需回归 | Redis 不可用降级保持安全 | 降级测试通过 |
 | BQ-P05 | verified | 是，需真实验收 | 跨连接多步分页真实验收 | 下一页不重跑 resolver；context hash 不匹配失效 |
 | BQ-F01 | verified | 是，需回归 | API 类型扩展保持一致 | API 测试 + typecheck 通过 |
-| BQ-F02 | verified | 是，需真实验收 | 实体页 list_profile UI 浏览器真实交互 | 新增/编辑/保存/重载后配置一致 |
-| BQ-F03 | verified | 是，需真实验收 | relationship usage UI 浏览器真实交互 | 保存后 YAML 和 runtime/catalog 一致 |
-| BQ-F04 | verified | 是，需真实验收 | 业务域页 resolver UI 浏览器真实交互 | 表格编辑保存 `_resolvers.yaml`，无 YAML textarea 暴露 |
-| BQ-F05 | verified | 是，需真实验收 | 业务域页 multi-step UI 浏览器真实交互 | 表格/分步编辑保存 `_multi_step_queries.yaml`，无 YAML textarea 暴露 |
+| BQ-F02 | implemented | 是，需真实验收 | 实体页 list_profile UI 浏览器真实交互 | 新增/编辑/保存/重载后配置一致 |
+| BQ-F03 | implemented | 是，需真实验收 | relationship usage UI 浏览器真实交互 | 保存后 YAML 和 runtime/catalog 一致 |
+| BQ-F04 | implemented | 是，需真实验收 | 业务域页 resolver UI 浏览器真实交互 | 表格编辑保存 `_resolvers.yaml`，无 YAML textarea 暴露 |
+| BQ-F05 | implemented | 是，需真实验收 | 业务域页 multi-step UI 浏览器真实交互 | 表格/分步编辑保存 `_multi_step_queries.yaml`，无 YAML textarea 暴露 |
 | BQ-F06 | implemented | 是 | 问数验证页 timeline / event-stream contract 与真实联调 | SSE 事件白名单；SQL/raw rows 不进事件 |
 | BQ-F07 | implemented | 是 | semantic dirty 联动：`_domain_fingerprint` 覆盖 domain 目录全部 `*.yaml`（含 resolver/multi-step/list_profile/relationship 资产），保存资产后 fingerprint 自动变化使 `dirty=true`，无需显式标记 | Vue/API 测试 + 真实页面状态通过（浏览器交互待验） |
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
@@ -675,6 +675,10 @@ pnpm test:run -- --runInBand
 25. BQ-L03「formatter」口径澄清（待设计明确，不臆造）：
     - 事实：设计文档 5.5.18.3 的 `display_fields` 具体 schema 只含 `field/label/mask/enum_ref`；「formatter」仅出现在矩阵/正文列举（「label/mask/enum_ref/formatter 等配置」），无具体 schema、无合法值枚举、无投影示例；biz 前后端与 MCP 代码均无 formatter 字段。
     - 结论：`label/mask/enum_ref` 细粒度投影已落地并测试；「formatter」因设计未给 schema 无法落地，不臆造字段。如需落地须先在 5.5.18.3 定义 formatter 合法值与投影规则。
+
+26. BQ 状态口径修正（verified 标签不再虚高，两处矩阵对齐）：
+    - 事实：0.1.2 矩阵与 5.5.20 清单中，BQ-M03/M04、BQ-F02/F03/F04/F05 原标 `verified`，但其「是否必须整改」为「需真实验收」（浏览器真实交互/真实跨库多步），与 `verified`（=测试、review、文档均完成）语义矛盾，也与同表 `implemented`（=代码完成、未过全部门阀）语义不一致。
+    - 修复：两处矩阵的 BQ-M03/M04、BQ-F02/F03/F04/F05 统一由 `verified` 改为 `implemented`，与 BQ-R05/BQ-L02/BQ-L03/BQ-L04/BQ-F06/BQ-F07 等「代码完成、真实验收待补」条目一致。
 
 ---
 
@@ -2540,8 +2544,8 @@ Eval：
 | --- | --- | --- | --- | --- | --- |
 | BQ-M01 | MultiStepPlan model | `multi_step_plan.py` | 表达 step、input/output、filters、metrics、pagination、diagnostics | model/serialization 测试 | implemented |
 | BQ-M02 | MultiStepPlanValidator | `multi_step_validator.py` | 校验 resolver、relationship、list_profile、metrics/filter_fields、`${step}` 引用；缺配置 fail-closed；resolver 可来自已配置 resolver domain | validator 正反例测试 | verified |
-| BQ-M03 | BusinessQueryOrchestrator | `service.py`（当前内聚实现，后续可拆 `orchestrator.py`） | `ask_business_data` 入口消费已验证 multi-step template；单步不回归，多步走 steps | service 测试 | verified |
-| BQ-M04 | external_reference 消费 | `multi_step_validator.py`、`service.py` | 跨连接只多步，不 JOIN；缺 external_reference 不传中间变量 | validator + service 测试 | verified |
+| BQ-M03 | BusinessQueryOrchestrator | `service.py`（当前内聚实现，后续可拆 `orchestrator.py`） | `ask_business_data` 入口消费已验证 multi-step template；单步不回归，多步走 steps | service 测试 | implemented |
+| BQ-M04 | external_reference 消费 | `multi_step_validator.py`、`service.py` | 跨连接只多步，不 JOIN；缺 external_reference 不传中间变量 | validator + service 测试 | implemented |
 | BQ-M05 | 同连接 1-hop JOIN | SQLGenerator / validator | 仅同 connection、显式 relationship、1-hop；joined entity 安全约束；分页排序只主实体字段 | join validator 测试 | todo |
 | BQ-M06 | LLM plan proposal | `llm_fallback.py` 或等价模块 | LLM 只输出 JSON plan proposal；不输出 SQL；不看 raw rows；非法字段拒绝 | proposal guard 测试 | todo |
 | BQ-M07 | pending candidate 沉淀 | asset writer | 动态成功计划只进入 pending candidate，不 verified；不保存 SQL | candidate 写入测试 | todo |
@@ -2561,10 +2565,10 @@ Eval：
 | ID | 功能 | 涉及文件 | 实现要求 | 测试门阀 | 当前状态 |
 | --- | --- | --- | --- | --- | --- |
 | BQ-F01 | API 类型扩展 | `frontend/src/api/index.ts` | `BusinessQueryDomainAssetKind` 增加 resolvers/multi_step_queries；chat/debug payload 增加 page/page_size/page_token；请求响应类型对齐 | API 测试 + typecheck | verified |
-| BQ-F02 | 实体页 list_profile UI | `OntologyEditorPage.vue` | 表格编辑 enabled/page/default_sort/display_fields/filter_fields/value_match/mask/enum_ref；写入 `entity.business_query.list_profile` | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | verified |
-| BQ-F03 | relationship usage UI | `OntologyEditorPage.vue` | 编辑 allowed_for_filter/display/join/resolver；跨库文案改 platform service 多步编排；写入 `relationships[].business_query.usage` | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | verified |
-| BQ-F04 | 业务域页 resolver UI | `BusinessDomainPage.vue` | 表格编辑 `_resolvers.yaml`，不暴露 YAML；支持 key/entity/exact_fields/fuzzy_fields/output_fields/display_fields/mask/max_candidates | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | verified |
-| BQ-F05 | 业务域页 multi-step UI | `BusinessDomainPage.vue` | 表格/分步编辑 `_multi_step_queries.yaml`；支持 question_patterns、resolver step、business_query step、filters、aggregate/list、review_state；内部生成 YAML | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | verified |
+| BQ-F02 | 实体页 list_profile UI | `OntologyEditorPage.vue` | 表格编辑 enabled/page/default_sort/display_fields/filter_fields/value_match/mask/enum_ref；写入 `entity.business_query.list_profile` | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
+| BQ-F03 | relationship usage UI | `OntologyEditorPage.vue` | 编辑 allowed_for_filter/display/join/resolver；跨库文案改 platform service 多步编排；写入 `relationships[].business_query.usage` | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
+| BQ-F04 | 业务域页 resolver UI | `BusinessDomainPage.vue` | 表格编辑 `_resolvers.yaml`，不暴露 YAML；支持 key/entity/exact_fields/fuzzy_fields/output_fields/display_fields/mask/max_candidates | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
+| BQ-F05 | 业务域页 multi-step UI | `BusinessDomainPage.vue` | 表格/分步编辑 `_multi_step_queries.yaml`；支持 question_patterns、resolver step、business_query step、filters、aggregate/list、review_state；内部生成 YAML | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
 | BQ-F06 | 问数验证页 timeline | `BusinessQueryChatPage.vue`、`chat_service.py` | 页面走 event-stream；safe diagnostics 白名单透出 multi_step/pagination；SQL/raw rows 不进入事件 | Vue 测试 + chat_service 测试 | implemented |
 | BQ-F07 | semantic dirty 联动 | BusinessDomain/OntologyEditor | 保存 list/resolver/multi-step/relationship 后标记 semantic dirty | Vue/API 测试 | todo |
 
