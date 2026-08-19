@@ -741,6 +741,12 @@ pnpm test:run -- --runInBand
     - 测试：生成器产出 resolver/multi_step case、runner 校验 resolver_hit/step_order 指标；后端全量 pytest 通过。
     - 遗留：真实 resolver/multi-step 资产（G-14 业务口径值）+ 真库/真连接才能产出真实命中率与 step order 数值。
 
+38. eval 跨域 case 配额修正 + 门阀加深（评审项）：
+    - 事实：默认 50 条 base 配额把跨域 case 挤掉（add() 在 len>=target 直接 return）；生成器只扫 selected_domain，跨域模板在别的域生成不到；resolver_hit 不核对 resolver key、resolved/needs_clarification 都算命中；step_order 允许空时间线。
+    - 修复：跨域 case 用 force=True 不受 base target 配额限制；扫描全部候选域；entity_resolve 时间线带 resolver key + candidate_count；resolver_hit 校验 key 匹配 + candidate_count 与状态一致（resolved=1 / needs_clarification>1）；step_order 要求时间线非空。
+    - 测试：默认 50 配额仍产出跨域 case；真实 ask_business_data 时间线带 resolver key/candidate_count；后端全量 pytest 通过。
+    - 遗留（不变）：真实资产 + 真库 E2E + 50 条人工 eval。
+
 ---
 
 ## 2. 事实依据
