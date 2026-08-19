@@ -88,8 +88,8 @@
 | BQ-M03 | implemented | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | implemented | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
-| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（语义/关键词路由低置信或歧义时最多一次 LLM 兜底，未启用/失败/非法草案返回澄清）；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入测试通过；eval gate 待补 |
-| BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending、不保存 SQL），运行时触发已接入（LLM fallback 成功后 `_save_llm_fallback_pending_candidate` 调用）；Accept/Edit/Dismiss 基础机制已由 BusinessDomainPage review_state 下拉 + 表格化编辑提供（Accept 写 verified_by=manual + verified_at 时间戳）；仍需补 EvalPage 专属审核工作流 + 真实浏览器验收 | candidate 写入/触发接入测试通过；审核基础机制（含 verified_at）存在；EvalPage 审核流/真实验收待补 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（确定性 planner 完全无 plan、resolved=None 时最多一次 LLM 兜底，弱匹配仍走确定性 plan 不触发 LLM；未启用/失败/非法草案返回澄清）；`_plan_from_proposal` 消费 metrics[].aggregation 与 filters；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入 + aggregation/filters 测试通过；eval gate 待补 |
+| BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending_manual_review、不保存 SQL），运行时触发已接入（LLM fallback 成功后 `_save_llm_fallback_pending_candidate` 调用，沉淀失败留痕日志）；Accept/Edit/Dismiss 基础机制已由 BusinessDomainPage review_state 下拉 + 表格化编辑提供（Accept 写 verified_by=manual + verified_at 时间戳）；仍需补 EvalPage 专属审核工作流 + 真实浏览器验收 | candidate 写入/触发接入测试通过；审核基础机制（含 verified_at）存在；EvalPage 审核流/真实验收待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
 | BQ-P03 | verified | 是，需回归 | PAGE_TOKEN_EXPIRED 保持安全响应 | 过期测试通过 |
@@ -632,7 +632,7 @@ pnpm test:run -- --runInBand
     - 遗留：LLM fallback 独立 eval gate、人工确认链路（BQ-M07 审核流）待补，`llm_fallback.enabled` 保持 false。
 
 17. BQ-M07 pending candidate 写入与运行时触发落地（据文档 8.11/5.5.16）：
-    - 新增 `settings.py::save_pending_verified_query_candidate`：运行时验证成功的 plan 沉淀为 `_verified_queries.yaml` 的 `review.state=pending` 候选，不保存可执行 SQL。
+    - 新增 `settings.py::save_pending_verified_query_candidate`：运行时验证成功的 plan 沉淀为 `_verified_queries.yaml` 的 `review.state=pending_manual_review` 候选，不保存可执行 SQL。
     - 运行时触发：`service.py::_save_llm_fallback_pending_candidate` 在 LLM fallback 计划（provenance=llm_proposal）执行成功后调用，只存 semantic plan（metrics/dimensions/filters），候选写入失败不影响已成功返回的结果。
     - 测试：`test_business_query_pending_candidate.py` 3 用例 + `test_business_query_service.py` 端到端断言 pending 候选已沉淀且不含 SQL；全量后端 pytest 通过。
     - 审核能力事实：BusinessDomainPage verified-queries 表格已支持 review_state 下拉（pending_manual_review/verified/rejected）与表格化 Edit，Accept 时写 `verified_by=manual` 与 `verified_at`（当前 ISO 时间，回填保留已审时间）；即 Accept/Edit/Dismiss 基础机制已存在。剩余：EvalPage 专属审核工作流、真实浏览器验收。
@@ -2557,9 +2557,9 @@ Eval：
 | BQ-M02 | MultiStepPlanValidator | `multi_step_validator.py` | 校验 resolver、relationship、list_profile、metrics/filter_fields、`${step}` 引用；缺配置 fail-closed；resolver 可来自已配置 resolver domain | validator 正反例测试 | verified |
 | BQ-M03 | BusinessQueryOrchestrator | `service.py`（当前内聚实现，后续可拆 `orchestrator.py`） | `ask_business_data` 入口消费已验证 multi-step template；单步不回归，多步走 steps | service 测试 | implemented |
 | BQ-M04 | external_reference 消费 | `multi_step_validator.py`、`service.py` | 跨连接只多步，不 JOIN；缺 external_reference 不传中间变量 | validator + service 测试 | implemented |
-| BQ-M05 | 同连接 1-hop JOIN | SQLGenerator / validator | 仅同 connection、显式 relationship、1-hop；joined entity 安全约束；分页排序只主实体字段 | join validator 测试 | todo |
-| BQ-M06 | LLM plan proposal | `llm_fallback.py` 或等价模块 | LLM 只输出 JSON plan proposal；不输出 SQL；不看 raw rows；非法字段拒绝 | proposal guard 测试 | todo |
-| BQ-M07 | pending candidate 沉淀 | asset writer | 动态成功计划只进入 pending candidate，不 verified；不保存 SQL | candidate 写入测试 | todo |
+| BQ-M05 | 同连接 1-hop JOIN | SQLGenerator / validator | 仅同 connection、显式 relationship、1-hop；joined entity 安全约束；分页排序只主实体字段 | join validator 测试 | implemented |
+| BQ-M06 | LLM plan proposal | `llm_fallback.py` 或等价模块 | LLM 只输出 JSON plan proposal；不输出 SQL；不看 raw rows；非法字段拒绝 | proposal guard 测试 | implemented |
+| BQ-M07 | pending candidate 沉淀 | asset writer | 动态成功计划只进入 pending candidate，不 verified；不保存 SQL | candidate 写入测试 | implemented |
 
 ##### 5.5.20.5 Pagination / page token
 
@@ -2581,7 +2581,7 @@ Eval：
 | BQ-F04 | 业务域页 resolver UI | `BusinessDomainPage.vue` | 表格编辑 `_resolvers.yaml`，不暴露 YAML；支持 key/entity/exact_fields/fuzzy_fields/output_fields/display_fields/mask/max_candidates | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
 | BQ-F05 | 业务域页 multi-step UI | `BusinessDomainPage.vue` | 表格/分步编辑 `_multi_step_queries.yaml`；支持 question_patterns、resolver step、business_query step、filters、aggregate/list、review_state；内部生成 YAML | Vue 源码契约测试 + typecheck；仍需浏览器真实交互 | implemented |
 | BQ-F06 | 问数验证页 timeline | `BusinessQueryChatPage.vue`、`chat_service.py` | 页面走 event-stream；safe diagnostics 白名单透出 multi_step/pagination；SQL/raw rows 不进入事件 | Vue 测试 + chat_service 测试 | implemented |
-| BQ-F07 | semantic dirty 联动 | BusinessDomain/OntologyEditor | 保存 list/resolver/multi-step/relationship 后标记 semantic dirty | Vue/API 测试 | todo |
+| BQ-F07 | semantic dirty 联动 | BusinessDomain/OntologyEditor | 保存 list/resolver/multi-step/relationship 后标记 semantic dirty | Vue/API 测试 | implemented |
 
 ##### 5.5.20.7 Semantic index / eval / MCP / guard
 
