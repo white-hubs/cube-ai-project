@@ -752,6 +752,11 @@ pnpm test:run -- --runInBand
     - 修复：跨域 case 追加到独立 `forced_cases` 列表，不参与 `cases[:target]` 切片，最终 `cases[:target] + forced_cases`；逐条 question_patterns 生成 case；resolver_hit 把 0 命中（not_found/candidate_count=0）与 1/多命中并列视为合法；0 命中失败返回带 diagnostics.multi_step 时间线。
     - 测试：0 命中 resolver 通过 resolver_hit；后端全量 pytest 通过。
 
+40. eval 多实体填满切片测试 + multi_step 路由豁免（评审项）：
+    - 事实：缺「填满 50 仍含跨域」用例（现有测试单实体 base 未满）；0 命中问法会同时生成 multi_step case，multi_step_list 不豁免路由，failed（无 plan）会报 domain/entity_routing_mismatch。
+    - 修复：新增多实体（6 个）填满 50 后断言跨域 case 仍在（forced_cases 不参与切片）；multi_step_count/multi_step_list 加入 domain/entity/signals 豁免（0 命中 failed、多命中澄清均无 plan）。
+    - 测试：多实体填满切片用例；后端全量 pytest 通过。
+
 ---
 
 ## 2. 事实依据
