@@ -75,7 +75,7 @@
 | BQ-A05 | verified | 是，需回归 | catalog loader 类型化；loader 不执行 SQL | loader 单测通过 |
 | BQ-L01 | verified | 是，需回归 | `list_profile` 读取模型保持稳定 | 读取有效配置测试通过 |
 | BQ-L02 | implemented | 是 | `list_profile` 保存校验需要真实页面保存验收 | 后端校验 + 前端保存 + 浏览器真实保存通过 |
-| BQ-L03 | implemented | 是 | display_fields 投影补齐 label/mask/enum/formatter 细粒度验收 | 投影单测覆盖 mask、enum、hide_fields、formatter；真实展示一致 |
+| BQ-L03 | implemented | 是 | display_fields 投影补齐 label/mask/enum 细粒度验收；formatter 无设计 schema（5.5.18.3 仅定义 label/mask/enum_ref），待设计明确 | 投影单测覆盖 mask、enum、hide_fields；真实展示一致（formatter 待 schema） |
 | BQ-L04 | implemented | 是 | filter_fields 受控过滤需完整回归；未声明过滤意图 fail-closed | enum/context/contains/min_keyword_length/未声明过滤阻断测试通过 |
 | BQ-L05 | verified | 是，需回归 | relationship usage 页面配置与 runtime/catalog 保持一致 | 前端源码契约、保存、validator 回归通过 |
 | BQ-R01 | verified | 是，需回归 | resolver catalog 加载稳定 | catalog 单测通过 |
@@ -690,6 +690,11 @@ pnpm test:run -- --runInBand
     - 事实：`_join_plan` 原先生成 JOIN 时不带过滤条件，`build_same_connection_join_select` 的 `filters` 参数被闲置，与「JOIN 也支持受控过滤」的合同不符。
     - 修复：`_join_plan` 从目标实体抽取自然语言枚举过滤（`_enum_filters`）转为 `RuntimeFilter`，并以 target 视图限定列名（`target_view.field`）避免两表同名列歧义；`_runtime_filter_clause`/`_build_runtime_where` 增加可选 `qualifier` 参数（默认空，向后兼容）；`QueryPlan.filters` 一并写入供 diagnostics 展示。
     - 测试：`test_business_query_join_plan.py` 新增「关联实体枚举过滤 + 视图限定」用例；后端全量 pytest 通过。
+
+29. JOIN 主实体排序 + eval raw id/code 后缀门阀（评审第 2/1 项）：
+    - JOIN：合同「分页排序只主实体字段」原先只有 LIMIT 无 ORDER BY。现 `_join_plan` 读主实体 `list_profile.default_sort`（`_list_profile_order_pairs`），`build_same_connection_join_select` 以 `entity_view` 限定生成 ORDER BY；新增 ORDER BY 测试。
+    - eval：`_assert_safety` 的 raw 字段匹配由精确集合（id/tenant/tenant_id/deleted）改为后缀匹配（含 `*_id`/`*_code`），补齐列表安全投影门阀的 raw id/code 泄漏维度；新增 unit_id/unit_code 泄漏测试。
+    - BQ-L03 两处矩阵门阀文案去掉「覆盖 formatter」虚标，改为「formatter 无设计 schema、待明确」。
 
 ---
 
@@ -2535,7 +2540,7 @@ Eval：
 | --- | --- | --- | --- | --- | --- |
 | BQ-L01 | `list_profile` 读取模型 | `backend/services/business_query/list_profile.py` 或等价模块 | 从实体 YAML 读取 enabled/page/default_sort/display_fields/filter_fields | 单测读取有效配置 | verified |
 | BQ-L02 | `list_profile` 保存校验 | `backend/services/ontology_manager.py` 或实体保存链路、`OntologyEditorPage.vue` | 字段必须存在；敏感字段必须 mask；operators 合法；default_sort 主实体字段；`stable_sort:none` 合法 | 后端保存校验测试；前端保存测试 | implemented |
-| BQ-L03 | display_fields 投影 | `service.py` / projector | 多步列表查询已按 `list_profile.display_fields` fail-closed 投影；全局 hide_fields 优先；label/mask/formatter 细粒度投影仍需补齐 | 投影单测：mask、enum、hide_fields | implemented |
+| BQ-L03 | display_fields 投影 | `service.py` / projector | 多步列表查询已按 `list_profile.display_fields` fail-closed 投影；全局 hide_fields 优先；label/mask/enum 细粒度投影已落地；formatter 无设计 schema 待明确 | 投影单测：mask、enum、hide_fields | implemented |
 | BQ-L04 | filter_fields 受控过滤 | `service.py` | 普通单实体列表只消费 `filter_fields` 声明的 enum/context/contains；用户问题命中未声明枚举/字段值过滤意图时 fail-closed；contains 仅字段显式声明；min_keyword_length 生效 | `test_business_query_service.py::test_single_entity_list_profile_filters_only_declared_fields`、`test_single_entity_list_profile_rejects_undeclared_filter_intent`、context 缺失阻断测试 | implemented |
 | BQ-L05 | relationship usage | `OntologyEditorPage.vue`、relationship catalog | relationship 增加 `business_query.usage`；跨连接文案改为 platform service 多步编排，不再说 Agent 接力 | 前端源码契约测试；文案 grep；typecheck | verified |
 
