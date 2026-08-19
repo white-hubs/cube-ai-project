@@ -104,8 +104,8 @@
 | BQ-F07 | implemented | 是 | semantic dirty 联动：`_domain_fingerprint` 覆盖 domain 目录全部 `*.yaml`（含 resolver/multi-step/list_profile/relationship 资产），保存资产后 fingerprint 自动变化使 `dirty=true`，无需显式标记 | Vue/API 测试 + 真实页面状态通过（浏览器交互待验） |
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
 | BQ-S02 | verified | 是，需回归 | content_summary 展示：`_semantic_content_summary` 返回 `asset_type_counts` 及 13 个 doc_count 字段，前端 `semanticIndexContentRows` 13 类标签渲染 | status/rebuild 返回与页面展示测试通过 |
-| BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已拆分为独立分类（不再复用 normal/ambiguity 桶）；resolver/multi_step_count/multi_step_list 待 G-14 资产落地 | eval 分类测试通过（list/clarification 独立分类已覆盖） |
-| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）、field/filter/group-by 命中率（`field_filter_groupby`）、列表安全投影（raw id/code 后缀匹配 + 未翻译枚举 code `enum_code_leak`）；仍需补 resolver 命中率、跨域 step order（G-14 资产） | eval runner 测试覆盖非问数误召回拦截 + field_mismatch + filter_mismatch + group_by_mismatch + raw_field_leak + enum_code_leak |
+| BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已拆分为独立分类（不再复用 normal/ambiguity 桶）；resolver/multi_step_count/multi_step_list 已落地（有 `_multi_step_queries.yaml` 资产即生成对应 case，离线 fixture 可测）；真实资产（G-14 业务口径值）落地后才有真实跨域 case | eval 分类测试通过（list/clarification 独立 + resolver/multi_step_* 生成） |
+| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截、field/filter/group-by 命中率、列表安全投影（raw id/code + enum_code_leak）、resolver 命中率（`resolver_hit`）、跨域 step order（`step_order`）；真实跨域命中率/step order 数值需真实资产 + 真库 | eval runner 测试覆盖非问数 + field/filter/groupby + raw_field/enum_code + resolver_hit + step_order |
 | BQ-C01 | verified | 是，需回归 | MCP contract：`ask_business_data` 输入/输出支持分页，普通 content 无 diagnostics；2026-08-18 已补 `page_size/page_token` schema、stdio 转发、tools 薄封装安全 JSON、structured payload 安全 pagination | MCP contract 7 passed；structuredContent 安全；普通 content 只保留摘要文本 |
 | BQ-G01 | todo / blocked_real_env | 是 | 应用对话 guard 回归：pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 + 真实 Agent 对话验收 |
 
@@ -734,6 +734,12 @@ pnpm test:run -- --runInBand
     - 事实：`filters: []`（空数组）被当成空白名单，导致枚举过滤全挡掉，与页面文案「未声明，运行时不做枚举过滤白名单」相反；`_join_plan` 在白名单之前返回，关联实体 `_enum_filters(question, target)` 不传 allowed_fields，命中 verified 但仍走 JOIN 时声明无效。
     - 修复：空数组与缺 key 均视为「未声明」→ 不约束（只有非空声明才设白名单）；`_join_plan` 增加 `allowed_fields` 并传给关联实体 `_enum_filters`，`_plan` 在 `_join_plan` 之前算好白名单传入。
     - 测试：空数组不约束/非空约束、JOIN 白名单约束关联实体枚举过滤；后端全量 pytest 通过。
+
+37. eval 跨域分类 + resolver_hit / step_order 门阀落地（BQ-E01/E02，离线 fixture 可测）：
+    - `eval_set.py`：有 `_multi_step_queries.yaml` 资产时生成 `resolver` / `multi_step_count` / `multi_step_list` 分类 case；case 携带 `expected_step_order`（step id 顺序）与 `expected_resolver_key`。
+    - `eval_runner.py`：新增 `resolver_hit`（entity_resolve 步骤 status=resolved/needs_clarification）与 `step_order`（时间线 step_id 顺序是期望顺序前缀）门阀；resolver 分类加入 routing/signals 豁免（多命中澄清无 plan）。
+    - 测试：生成器产出 resolver/multi_step case、runner 校验 resolver_hit/step_order 指标；后端全量 pytest 通过。
+    - 遗留：真实 resolver/multi-step 资产（G-14 业务口径值）+ 真库/真连接才能产出真实命中率与 step order 数值。
 
 ---
 
@@ -2633,8 +2639,8 @@ Eval：
 | --- | --- | --- | --- | --- | --- |
 | BQ-S01 | semantic documents 扩展 | `semantic_index.py` | 纳入 resolver、relationship、multi_step_template、list_profile | semantic index 测试 | todo |
 | BQ-S02 | content_summary 展示 | `semantic_index.py`、BusinessDomainPage | status/rebuild 展示新增 asset_type_counts | 测试 + 页面断言 | todo |
-| BQ-E01 | eval 分类扩展 | `eval_set.py`、`eval_runner.py` | list/resolver/multi_step_count/multi_step_list/clarification 分类 | eval 测试 | partial（list/clarification 已独立；resolver/multi_step_* 待 G-14） |
-| BQ-E02 | eval 门阀指标 | eval runner | resolver 命中率、澄清正确率、跨域 step order、列表安全投影 | eval runner 测试 | partial（列表安全投影/非问数/field-filter-groupby 已落地；resolver 命中率/step order 待 G-14） |
+| BQ-E01 | eval 分类扩展 | `eval_set.py`、`eval_runner.py` | list/resolver/multi_step_count/multi_step_list/clarification 分类 | eval 测试 | implemented（list/clarification/resolver/multi_step_* 已落地；真实资产数值待 G-14） |
+| BQ-E02 | eval 门阀指标 | eval runner | resolver 命中率、澄清正确率、跨域 step order、列表安全投影 | eval runner 测试 | implemented（resolver_hit/step_order/列表安全投影/非问数/field-filter-groupby 已落地；真实数值待 G-14） |
 | BQ-C01 | MCP contract 更新 | `mcp/server_stdio.py`、`mcp/tools.py`、`mcp/tool_response.py`、MCP contract tests | `ask_business_data` input/output 支持分页；普通 content 无 diagnostics；safe structuredContent 允许透出 `pagination.page_size/has_more/next_page_token/error_code`，不透出 SQL/routing_trace/raw rows | `python3 -m py_compile mcp/server_stdio.py mcp/tools.py mcp/tool_response.py backend/tests/test_business_query_mcp_contract.py`；`pytest -p no:cacheprovider -q backend/tests/test_business_query_mcp_contract.py` | verified |
 | BQ-G01 | 应用对话 guard 回归 | cube/ghcloud-new | 新 pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 | todo |
 
