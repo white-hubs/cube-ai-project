@@ -88,7 +88,7 @@
 | BQ-M03 | implemented | 是，需真实验收 | Orchestrator 消费 multi-step template，单步不回归 | service 测试 + 真实多步问数通过 |
 | BQ-M04 | implemented | 是，需真实验收 | external_reference 跨连接只多步，不 JOIN | 缺关系 fail-closed；跨连接不 JOIN；真实跨库通过 |
 | BQ-M05 | partial | 是 | 同连接 1-hop JOIN：`validate_same_connection_join` + `build_same_connection_join_select` + `_join_plan`（主实体字段无命中但关联实体字段命中时触发，接入 `_plan`）已实现；仍需真实 JOIN 场景 eval + 浏览器验收 | join validator/generator/trigger 单测通过；真实 JOIN 场景待验 |
-| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（确定性 planner 完全无 plan、resolved=None 时最多一次 LLM 兜底，弱匹配仍走确定性 plan 不触发 LLM；未启用/失败/非法草案返回澄清）；`_plan_from_proposal` 消费 metrics[].aggregation 与 filters；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入 + aggregation/filters 测试通过；eval gate 待补 |
+| BQ-M06 | partial | 是 | LLM plan proposal：`validate_plan_proposal` + `propose_business_query_plan` 已实现，并接入主路径 `_llm_fallback_resolved`（确定性 planner 完全无 plan、resolved=None 时最多一次 LLM 兜底，弱匹配仍走确定性 plan 不触发 LLM；未启用/失败/非法草案返回澄清）；`_plan_from_proposal` 消费 metrics[].aggregation 与 filters；`validate_plan_proposal` 校验 filter operator 白名单（=/eq/in/contains/like，in 要求数组）；SQL 安全校验已由 `sql_executor`（check_sql 只读 / enforce_constraints 租户软删除 AST / ban_other_connection_views）覆盖；仍需 LLM fallback 的独立 eval gate | proposal guard + llm_fallback 单测通过；主路径接入 + aggregation/filters + operator 白名单测试通过；eval gate 待补 |
 | BQ-M07 | partial | 是 | pending candidate：`save_pending_verified_query_candidate` 已实现（运行时 plan → review.state=pending_manual_review、不保存 SQL），运行时触发已接入（LLM fallback 成功后 `_save_llm_fallback_pending_candidate` 调用，沉淀失败留痕日志）；Accept/Edit/Dismiss 基础机制已由 BusinessDomainPage review_state 下拉 + 表格化编辑提供（Accept 写 verified_by=manual + verified_at 时间戳）；仍需补 EvalPage 专属审核工作流 + 真实浏览器验收 | candidate 写入/触发接入测试通过；审核基础机制（含 verified_at）存在；EvalPage 审核流/真实验收待补 |
 | BQ-P01 | implemented | 是 | 请求/响应 contract 与 MCP contract 全对齐 | service/router/frontend/MCP contract 测试通过 |
 | BQ-P02 | implemented | 是 | Redis page session 需要真实 Redis 集成测试 | Redis adapter 真实连接、TTL、opaque token 测试通过 |
@@ -105,7 +105,7 @@
 | BQ-S01 | verified | 是，需回归 | semantic documents 扩展：`build_semantic_documents` 已构建 13 种 kind（含 resolver、relationship、multi_step_template、list_profile、verified_query、metric、dimension 等）入索引 | `test_business_query_semantic_index.py` 覆盖语义资产入索引与 repository 状态 |
 | BQ-S02 | verified | 是，需回归 | content_summary 展示：`_semantic_content_summary` 返回 `asset_type_counts` 及 13 个 doc_count 字段，前端 `semanticIndexContentRows` 13 类标签渲染 | status/rebuild 返回与页面展示测试通过 |
 | BQ-E01 | partial | 是 | eval 分类扩展：list/clarification 已拆分为独立分类（不再复用 normal/ambiguity 桶）；resolver/multi_step_count/multi_step_list 待 G-14 资产落地 | eval 分类测试通过（list/clarification 独立分类已覆盖） |
-| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）与 field/filter/group-by 命中率（`field_filter_groupby`，field/filter/group-by 三项齐备）；仍需补 resolver 命中率、跨域 step order、列表安全投影 | eval runner 测试覆盖非问数误召回拦截 + field_mismatch + filter_mismatch + group_by_mismatch；期望值由生成器推导 normal 重要字段/枚举过滤字段与 aggregate/topn 的 group-by 字段 |
+| BQ-E02 | partial | 是 | eval 门阀指标：已补非问数误召回拦截（`non_business_query_rejection`，=100%）、field/filter/group-by 命中率（`field_filter_groupby`）、列表安全投影（raw id/code 后缀匹配 + 未翻译枚举 code `enum_code_leak`）；仍需补 resolver 命中率、跨域 step order（G-14 资产） | eval runner 测试覆盖非问数误召回拦截 + field_mismatch + filter_mismatch + group_by_mismatch + raw_field_leak + enum_code_leak |
 | BQ-C01 | verified | 是，需回归 | MCP contract：`ask_business_data` 输入/输出支持分页，普通 content 无 diagnostics；2026-08-18 已补 `page_size/page_token` schema、stdio 转发、tools 薄封装安全 JSON、structured payload 安全 pagination | MCP contract 7 passed；structuredContent 安全；普通 content 只保留摘要文本 |
 | BQ-G01 | todo / blocked_real_env | 是 | 应用对话 guard 回归：pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 + 真实 Agent 对话验收 |
 
@@ -714,6 +714,16 @@ pnpm test:run -- --runInBand
     - 修复：拆为 `_query_helpers.py`（713 行，配置/域/实体/YAML/SQL/display/enum/list_profile 运行时助手 + Executor）、`join.py`（334 行，JOIN + LLM fallback plan + pending 候选）、`multi_step_runtime.py`（502 行，多步执行 + page token）、`projection.py`（193 行，投影/解析/澄清/摘要）；service.py 收敛为 858 行（入口 + semantic index + 公开函数），re-export 全部移动的 name 保持 `service.X` 向后兼容。
     - 两处有意替换（行为不变）：`_query_helpers._get_config()` 用函数内延迟 import 保留测试对 `bq.get_config` 的 monkeypatch 隔离；`join._llm_fallback_resolved` 对 `DomainPlanMatch` 用 TYPE_CHECKING + 延迟 import 打破 service→join→service 环。
     - 验证：后端全量 pytest 913 passed；import 检查通过；99 个 `service.X` re-export 全部可解析。
+
+33. filter operator 校验（评审项）：
+    - 事实：`validate_plan_proposal` 原先只校验 filter 的 field，不校验 operator；`_plan_from_proposal` 遇到非 =/eq/contains/like 就 continue，但 value 为 list 时任意 operator 都会进入并被 `_runtime_filter_clause` 当 IN 静默消费。
+    - 修复：`plan_proposal.py` 新增 `_ALLOWED_FILTER_OPERATORS = {=, eq, in, contains, like}`，非法 operator fail-closed；`operator=in` 要求 value 为数组；`_plan_from_proposal` 改为严格白名单（in 且非 list 也 skip）。
+    - 测试：非法 operator 拒绝、in 无数组拒绝、in 数组通过、`_plan_from_proposal` 跳过非法 operator 不生成 where；全量后端 pytest 通过。
+
+34. G-12 SQL 预览 filters 口径修正（评审项）：
+    - 事实：前端 verified 行的 `filters` 是 `string[]`（字段名声明），而 `preview_business_query_sql` 原按 `{field,operator,value}` 对象解析，导致页面的 filters 被 continue、预览不带 WHERE；`_save_llm_fallback_pending_candidate` 也存了 `{field,operator,value}` 对象，与 verified query 口径不一致。
+    - 修复：统一 `plan.filters` 为「可用过滤字段名」声明（string[]）：`preview_business_query_sql` 只透出声明、不生成 WHERE（声明无值，运行时 WHERE 由 `_enum_filters` 生成），兼容旧 dict 格式取 field 名；`_save_llm_fallback_pending_candidate` 改存 `[f.field for f in plan.filters]`。
+    - 测试：preview 用 `filters: ["inherent_risk_level"]` 断言 `filters` 透出且 SQL 无 WHERE；全量后端 pytest 通过。
 
 ---
 
@@ -2613,8 +2623,8 @@ Eval：
 | --- | --- | --- | --- | --- | --- |
 | BQ-S01 | semantic documents 扩展 | `semantic_index.py` | 纳入 resolver、relationship、multi_step_template、list_profile | semantic index 测试 | todo |
 | BQ-S02 | content_summary 展示 | `semantic_index.py`、BusinessDomainPage | status/rebuild 展示新增 asset_type_counts | 测试 + 页面断言 | todo |
-| BQ-E01 | eval 分类扩展 | `eval_set.py`、`eval_runner.py` | list/resolver/multi_step_count/multi_step_list/clarification 分类 | eval 测试 | todo |
-| BQ-E02 | eval 门阀指标 | eval runner | resolver 命中率、澄清正确率、跨域 step order、列表安全投影 | eval runner 测试 | todo |
+| BQ-E01 | eval 分类扩展 | `eval_set.py`、`eval_runner.py` | list/resolver/multi_step_count/multi_step_list/clarification 分类 | eval 测试 | partial（list/clarification 已独立；resolver/multi_step_* 待 G-14） |
+| BQ-E02 | eval 门阀指标 | eval runner | resolver 命中率、澄清正确率、跨域 step order、列表安全投影 | eval runner 测试 | partial（列表安全投影/非问数/field-filter-groupby 已落地；resolver 命中率/step order 待 G-14） |
 | BQ-C01 | MCP contract 更新 | `mcp/server_stdio.py`、`mcp/tools.py`、`mcp/tool_response.py`、MCP contract tests | `ask_business_data` input/output 支持分页；普通 content 无 diagnostics；safe structuredContent 允许透出 `pagination.page_size/has_more/next_page_token/error_code`，不透出 SQL/routing_trace/raw rows | `python3 -m py_compile mcp/server_stdio.py mcp/tools.py mcp/tool_response.py backend/tests/test_business_query_mcp_contract.py`；`pytest -p no:cacheprovider -q backend/tests/test_business_query_mcp_contract.py` | verified |
 | BQ-G01 | 应用对话 guard 回归 | cube/ghcloud-new | 新 pagination/timeline 字段不泄漏 SQL/raw id/tool args | cube/ghcloud 测试 | todo |
 
