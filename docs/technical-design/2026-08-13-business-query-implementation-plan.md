@@ -704,6 +704,11 @@ pnpm test:run -- --runInBand
     - 测试：preview 聚合 SQL + 派生聚合表达式单测；前端源码契约断言预览入口；后端全量 pytest、前端 typecheck + 116 tests 通过。
     - 遗留：SQL 预览真实浏览器交互测试（G-12 仍 partial）。
 
+31. eval 列表安全投影门阀补「枚举翻译」维度（BQ-E02）：
+    - 事实：`_assert_safety` 已拦 raw 字段名（id/*_id/*_code/tenant/deleted），但未拦「原始枚举 code 值」（如 MAJOR）泄漏到用户可见结果。
+    - 修复：`eval_set._case` 为每个 case 派生 `forbidden_enum_codes`（实体枚举字段的原始 code）；`eval_runner._assert_safety` 检查这些 code 不得出现在结果，违者报 `enum_code_leak`。
+    - 测试：新增未翻译枚举 code 泄漏用例；后端全量 pytest 通过。
+
 ---
 
 ## 2. 事实依据
