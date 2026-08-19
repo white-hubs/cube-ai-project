@@ -709,6 +709,12 @@ pnpm test:run -- --runInBand
     - 修复：`eval_set._case` 为每个 case 派生 `forbidden_enum_codes`（实体枚举字段的原始 code）；`eval_runner._assert_safety` 检查这些 code 不得出现在结果，违者报 `enum_code_leak`。
     - 测试：新增未翻译枚举 code 泄漏用例；后端全量 pytest 通过。
 
+32. service.py 再次拆分（维护性，行为不变）：
+    - 事实：service.py 已 2338 行，超出可维护规模（原评审项「一个 service.py 写的代码太多」）。
+    - 修复：拆为 `_query_helpers.py`（713 行，配置/域/实体/YAML/SQL/display/enum/list_profile 运行时助手 + Executor）、`join.py`（334 行，JOIN + LLM fallback plan + pending 候选）、`multi_step_runtime.py`（502 行，多步执行 + page token）、`projection.py`（193 行，投影/解析/澄清/摘要）；service.py 收敛为 858 行（入口 + semantic index + 公开函数），re-export 全部移动的 name 保持 `service.X` 向后兼容。
+    - 两处有意替换（行为不变）：`_query_helpers._get_config()` 用函数内延迟 import 保留测试对 `bq.get_config` 的 monkeypatch 隔离；`join._llm_fallback_resolved` 对 `DomainPlanMatch` 用 TYPE_CHECKING + 延迟 import 打破 service→join→service 环。
+    - 验证：后端全量 pytest 913 passed；import 检查通过；99 个 `service.X` re-export 全部可解析。
+
 ---
 
 ## 2. 事实依据
