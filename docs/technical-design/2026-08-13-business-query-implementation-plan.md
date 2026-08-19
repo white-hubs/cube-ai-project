@@ -730,6 +730,11 @@ pnpm test:run -- --runInBand
     - 修复：`_enum_filters` 增加 `allowed_fields` 白名单，`_plan` 命中 verified query 时把 `plan.filters` 转白名单传入（未声明字段命中也不过滤）；settings 校验 `plan.filters` 字段名必须存在于实体；前端预览对话框展示「声明过滤字段」（类型补 filters）。
     - 测试：enum 白名单约束、settings 未知 filter 字段拒绝、前端预览过滤字段断言；后端全量 pytest、前端 typecheck + 116 tests 通过。
 
+36. plan.filters 空数组语义 + JOIN 白名单（评审项）：
+    - 事实：`filters: []`（空数组）被当成空白名单，导致枚举过滤全挡掉，与页面文案「未声明，运行时不做枚举过滤白名单」相反；`_join_plan` 在白名单之前返回，关联实体 `_enum_filters(question, target)` 不传 allowed_fields，命中 verified 但仍走 JOIN 时声明无效。
+    - 修复：空数组与缺 key 均视为「未声明」→ 不约束（只有非空声明才设白名单）；`_join_plan` 增加 `allowed_fields` 并传给关联实体 `_enum_filters`，`_plan` 在 `_join_plan` 之前算好白名单传入。
+    - 测试：空数组不约束/非空约束、JOIN 白名单约束关联实体枚举过滤；后端全量 pytest 通过。
+
 ---
 
 ## 2. 事实依据
