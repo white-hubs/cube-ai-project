@@ -747,6 +747,11 @@ pnpm test:run -- --runInBand
     - 测试：默认 50 配额仍产出跨域 case；真实 ask_business_data 时间线带 resolver key/candidate_count；后端全量 pytest 通过。
     - 遗留（不变）：真实资产 + 真库 E2E + 50 条人工 eval。
 
+39. eval 跨域 case 切片裁切 + 0 命中修正（评审项）：
+    - 事实：force 追加在末尾，末尾 `cases[:target]` 切片在多实体域会把跨域 case 裁掉；每个模板只取第一条问法、不区分 0/1/多命中；0 命中（not_found）过不了 resolver_hit。
+    - 修复：跨域 case 追加到独立 `forced_cases` 列表，不参与 `cases[:target]` 切片，最终 `cases[:target] + forced_cases`；逐条 question_patterns 生成 case；resolver_hit 把 0 命中（not_found/candidate_count=0）与 1/多命中并列视为合法；0 命中失败返回带 diagnostics.multi_step 时间线。
+    - 测试：0 命中 resolver 通过 resolver_hit；后端全量 pytest 通过。
+
 ---
 
 ## 2. 事实依据
