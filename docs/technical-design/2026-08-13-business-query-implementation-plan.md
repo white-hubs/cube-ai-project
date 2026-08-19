@@ -725,6 +725,11 @@ pnpm test:run -- --runInBand
     - 修复：统一 `plan.filters` 为「可用过滤字段名」声明（string[]）：`preview_business_query_sql` 只透出声明、不生成 WHERE（声明无值，运行时 WHERE 由 `_enum_filters` 生成），兼容旧 dict 格式取 field 名；`_save_llm_fallback_pending_candidate` 改存 `[f.field for f in plan.filters]`。
     - 测试：preview 用 `filters: ["inherent_risk_level"]` 断言 `filters` 透出且 SQL 无 WHERE；全量后端 pytest 通过。
 
+35. plan.filters 白名单真正约束运行时 + 预览展示过滤字段（评审项）：
+    - 事实：`plan.filters` 声明原先不约束运行时——`_enum_filters` 扫实体全部枚举字段、不看 verified plan.filters；settings 也不校验字段名存在；前端预览对话框只塞 res.data.sql，过滤字段不可见。
+    - 修复：`_enum_filters` 增加 `allowed_fields` 白名单，`_plan` 命中 verified query 时把 `plan.filters` 转白名单传入（未声明字段命中也不过滤）；settings 校验 `plan.filters` 字段名必须存在于实体；前端预览对话框展示「声明过滤字段」（类型补 filters）。
+    - 测试：enum 白名单约束、settings 未知 filter 字段拒绝、前端预览过滤字段断言；后端全量 pytest、前端 typecheck + 116 tests 通过。
+
 ---
 
 ## 2. 事实依据
