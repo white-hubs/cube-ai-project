@@ -29,6 +29,7 @@ import { FlowListHandler } from "./handlers/flow-list-handler";
 import { HttpHandler } from "./handlers/http-handler";
 import { KnowledgeHandler } from "./handlers/knowledge-handler";
 import { LlmHandler } from "./handlers/llm-handler";
+import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { McpHandler } from "./handlers/mcp-handler";
 import { MemoryHandler } from "./handlers/memory-handler";
 import { OpenApiHandler } from "./handlers/openapi-handler";
@@ -182,6 +183,7 @@ function buildToolService(
   const { vectorIndex, embedding } = makeVectorFake();
   const { memory } = makeMemoryFake();
 
+  const mcpBridge = (opts?.mcpBridge ?? new McpBridgeService()) as McpBridgeService;
   return new ToolService(
     registry,
     new HttpHandler(),
@@ -190,7 +192,8 @@ function buildToolService(
     new VectorHandler(vectorIndex, embedding),
     new MemoryHandler(memory, vectorIndex, embedding),
     new OpenApiHandler(),
-    new McpHandler((opts?.mcpBridge ?? new McpBridgeService()) as McpBridgeService),
+    new McpHandler(mcpBridge),
+    new AskBusinessDataProgram(mcpBridge),
     new LlmHandler(new NoopLLMProviderAdapter()),
     new FlowHandler(flowPort),
     new FlowListHandler(flowCatalogPort),
@@ -489,8 +492,8 @@ describe("ToolService", () => {
 
     const out = await svc.invoke(
       "mcp.biz-ontology.ask_business_data",
-      { question: "风险等级有哪些？" },
-      MOCK_CTX,
+      { question: "风险等级有哪些？", conversation_id: "model-invented", page_token: "tok" },
+      { ...MOCK_CTX, userPrompt: "风险等级有哪些？" },
       { toolCallId: "tcall_biz_1", onProgress },
     );
 
@@ -499,7 +502,11 @@ describe("ToolService", () => {
     expect(calls[0]).toMatchObject({
       serverId: "biz-ontology",
       toolName: "ask_business_data",
-      args: { question: "风险等级有哪些？" },
+      args: {
+        question: "风险等级有哪些？",
+        conversation_id: MOCK_CTX.session.id,
+        context: { user_id: "123" },
+      },
       progress: { progressToken: "tcall_biz_1" },
     });
     expect(calls[0]?.progress?.onProgress).toBe(onProgress);

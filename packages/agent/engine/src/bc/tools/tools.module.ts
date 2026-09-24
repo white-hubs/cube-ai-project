@@ -25,6 +25,7 @@ import { SessionRecallHandler, SESSION_TRANSCRIPT_READER_TOKEN } from "./handler
 import { ShellHandler } from "./handlers/shell-handler";
 import { SqlHandler } from "./handlers/sql-handler";
 import { VectorHandler } from "./handlers/vector-handler";
+import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { McpBridgeService } from "./mcp-bridge.service";
 import { McpToolRegistrationWorker } from "./mcp-tool-registration.worker";
 import { ToolService } from "./tool.service";
@@ -46,6 +47,7 @@ import { ToolService } from "./tool.service";
     McpBridgeService,
     McpToolRegistrationWorker,
     McpHandler,
+    AskBusinessDataProgram,
     LlmHandler,
     FlowHandler,
     FlowListHandler,

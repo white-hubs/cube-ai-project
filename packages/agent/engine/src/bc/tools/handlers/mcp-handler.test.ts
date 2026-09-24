@@ -97,6 +97,24 @@ describe('McpHandler', () => {
     expect(bridge.calls).toHaveLength(1);
   });
 
+  test("biz-ontology ask_business_data 不走通用转发", async () => {
+    let called = false;
+    const bridge = {
+      callTool: async () => {
+        called = true;
+        return { ok: true };
+      },
+    };
+    const handler = new McpHandler(bridge as never);
+    await expect(
+      handler.invoke(
+        { serverId: "biz-ontology", toolName: "ask_business_data", arguments: { question: "今年报警数量" } },
+        {} as never,
+      ),
+    ).rejects.toThrow("generic MCP forwarder");
+    expect(called).toBe(false);
+  });
+
   test('biz-ontology 旧 query_database 工具 fail-closed，不调用 bridge', async () => {
     const bridge = new RecordingBridge();
     const handler = new McpHandler(bridge as never);

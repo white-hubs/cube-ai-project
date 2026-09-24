@@ -27,6 +27,12 @@ export class McpHandler implements ToolHandler<McpHandlerInput, unknown> {
       throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "McpHandler requires serverId and toolName");
     }
     assertMcpToolIsNotDeprecatedBizOntologyTool(input.serverId, input.toolName);
+    if (input.serverId === "biz-ontology" && input.toolName === "ask_business_data") {
+      throw AgenticEngineError.fromCode(
+        "INVALID_ARGUMENT_SCHEMA_VIOLATION",
+        "ask_business_data is handled by the business-query program, not the generic MCP forwarder",
+      );
+    }
     // ctx.callIdentity 仅在 authPassthrough:'user' 的 server 上被 bridge 消费（否则忽略）。
     const progressToken = options?.toolCallId;
     const first = await this.bridge.callTool(input.serverId, input.toolName, input.arguments, ctx.callIdentity, {

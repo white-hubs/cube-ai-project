@@ -29,6 +29,7 @@ import { FlowListHandler } from "./handlers/flow-list-handler";
 import { HttpHandler } from "./handlers/http-handler";
 import { KnowledgeHandler } from "./handlers/knowledge-handler";
 import { LlmHandler } from "./handlers/llm-handler";
+import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { McpHandler } from "./handlers/mcp-handler";
 import { MemoryHandler } from "./handlers/memory-handler";
 import { OpenApiHandler } from "./handlers/openapi-handler";
@@ -135,6 +136,7 @@ export class ToolService {
     memoryHandler: MemoryHandler,
     openApiHandler: OpenApiHandler,
     mcpHandler: McpHandler,
+    private readonly askBusinessData: AskBusinessDataProgram,
     llmHandler: LlmHandler,
     flowHandler: FlowHandler,
     flowListHandler: FlowListHandler,
@@ -233,6 +235,14 @@ export class ToolService {
     }
 
     await this.runSafetyReview(descriptor, input, ctx);
+
+    if (descriptor.execute === "mcp:biz-ontology:ask_business_data") {
+      const toolCallId = options?.toolCallId;
+      return this.askBusinessData.invoke(input, ctx, {
+        ...(toolCallId ? { progressToken: toolCallId } : {}),
+        ...(options?.onProgress ? { onProgress: options.onProgress } : {}),
+      });
+    }
 
     const kind = this.inferHandlerKind(descriptor);
     if (!kind) {

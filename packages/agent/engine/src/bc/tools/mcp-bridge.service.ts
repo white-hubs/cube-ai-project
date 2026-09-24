@@ -10,6 +10,7 @@ import { ToolDescriptor as ToolDescriptorZod, type ToolDescriptor } from "@cube-
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
 import type { CallIdentity } from "./tool-context";
+import { BIZ_ONTOLOGY_SERVER_ID, normalizeBizOntologyServerConfig } from "./biz-ontology-address";
 import { augmentWebSearchMcpToolDescriptor } from "./web-search-mcp-descriptor";
 
 const log = pino({
@@ -50,6 +51,8 @@ export interface McpServerConfig {
   /** Required MCP servers affect readiness when discovery fails; default false. */
   required?: boolean;
   enabled: boolean;
+  /** 程序内部标记：问数工具名固定，不从 tools/list 学习。配置文件不要写这个字段。 */
+  fixedBizOntologyTools?: boolean;
 }
 
 export interface McpServersConfig {
@@ -63,6 +66,61 @@ const MCP_SERVER_IDS_CONSENT_NEVER = new Set<string>(["web-search"]);
  * 工具 consent 档解析优先级：config 显式 `consent` > 内置名单 > 'ON_FIRST_USE'。
  * 只读类 MCP 设为 'NEVER' 可避免无人审批导致的 consent 等待超时（默认 60s）。
  */
+function applyBizOntologyAddress(config: McpServersConfig): McpServersConfig {
+  const current = config.mcpServers[BIZ_ONTOLOGY_SERVER_ID];
+  if (!current) return config;
+  const normalized = normalizeBizOntologyServerConfig(current);
+  if (normalized === current) return config;
+  const servers = { ...config.mcpServers };
+  if (normalized === null) {
+    delete servers[BIZ_ONTOLOGY_SERVER_ID];
+  } else {
+    servers[BIZ_ONTOLOGY_SERVER_ID] = normalized;
+  }
+  return { mcpServers: servers };
+}
+
+function fixedBizOntologyToolDescriptors(srv: McpServerConfig): ToolDescriptor[] {
+  const consent = defaultConsentForMcpServer(BIZ_ONTOLOGY_SERVER_ID, srv);
+  const specs: Array<{ name: string; description: string; properties: Record<string, unknown>; required: string[] }> = [
+    {
+      name: "ask_business_data",
+      description: "业务问数。question 只能整句删掉用户原话里用标点分开的片段，不能改写片段里的任何字。程序对不上就用用户原话。折线图在拿到结果后再画。同一轮只调用一次。会话和分页由程序处理。",
+      properties: { question: { type: "string", description: "用户原话，或从中整句删掉无关片段后的句子" } },
+      required: ["question"],
+    },
+  ];
+  const out: ToolDescriptor[] = [];
+  for (const spec of specs) {
+    const parsed = ToolDescriptorZod.safeParse({
+      schemaVersion: 1,
+      kind: "TOOL",
+      name: `mcp.${BIZ_ONTOLOGY_SERVER_ID}.${spec.name}`,
+      displayName: spec.name,
+      description: spec.description,
+      isPreset: false,
+      version: "1.0.0",
+      meta: {
+        execution: "REMOTE",
+        consent,
+        requiresPrincipal: "USER",
+        timeoutMs: 120_000,
+        idempotent: false,
+        sideEffects: [],
+      },
+      inputSchema: { type: "object", properties: spec.properties, required: spec.required },
+      outputSchema: { type: "object", properties: {} },
+      requires: { principal: "USER", oauthScope: [], obo: null },
+      execute: `mcp:${BIZ_ONTOLOGY_SERVER_ID}:${spec.name}`,
+      handler: { kind: "mcp", config: {} },
+      tags: ["mcp", BIZ_ONTOLOGY_SERVER_ID],
+      category: "MCP",
+    });
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 function defaultConsentForMcpServer(serverName: string, cfg?: McpServerConfig): "NEVER" | "ON_FIRST_USE" {
   if (cfg?.consent) return cfg.consent;
   return MCP_SERVER_IDS_CONSENT_NEVER.has(serverName) ? "NEVER" : "ON_FIRST_USE";
@@ -957,7 +1015,7 @@ export class McpBridgeService {
    */
   async init(config?: McpServersConfig): Promise<void> {
     if (config) {
-      this.config = config;
+      this.config = applyBizOntologyAddress(config);
       return;
     }
     if (this.config) return;
@@ -968,11 +1026,11 @@ export class McpBridgeService {
     }
     try {
       if (raw.trim().startsWith("{")) {
-        this.config = JSON.parse(raw) as McpServersConfig;
+        this.config = applyBizOntologyAddress(JSON.parse(raw) as McpServersConfig);
         return;
       }
       const text = await Bun.file(raw.trim()).text();
-      this.config = JSON.parse(text) as McpServersConfig;
+      this.config = applyBizOntologyAddress(JSON.parse(text) as McpServersConfig);
     } catch {
       this.config = null;
     }
@@ -1032,6 +1090,9 @@ export class McpBridgeService {
   async listToolsForServer(serverName: string): Promise<ToolDescriptor[]> {
     await this.init();
     const srv = this.cfgOrThrow(serverName);
+    if (srv.fixedBizOntologyTools && serverName === BIZ_ONTOLOGY_SERVER_ID) {
+      return fixedBizOntologyToolDescriptors(srv);
+    }
     if (srv.type !== "stdio" && srv.type !== "sse" && srv.type !== "http") return [];
     const sess = await this.sessionFor(serverName);
     const tools = await sess.toolsList();

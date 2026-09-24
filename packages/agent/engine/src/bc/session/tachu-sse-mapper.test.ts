@@ -410,6 +410,54 @@ describe("mapStreamChunkToSseEvents", () => {
     expect(JSON.stringify(events)).not.toContain("deleted");
   });
 
+  test('{type:"tool-call-end"} exposes only safe clarification labels for the chat UI', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(state, {
+      type: "tool-call-end",
+      callId: "tcall_biz_clarify",
+      tool: "mcp.biz-ontology.ask_business_data",
+      success: true,
+      durationMs: 100,
+      output: {
+        structuredContent: {
+          status: "needs_clarification",
+          clarification: {
+            question: "请选择报警率口径",
+            question_id: "q-internal",
+            options: [
+              { id: "timeout_alarm_rate", label: "超时报警率", source: "exact_evidence" },
+              { option_id: "all_alarm_rate", label: "全部报警率", asset_id: "metric-secret" },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(events[0]).toMatchObject({
+      sseEvent: "tool.call.completed",
+      payload: {
+        output: {
+          redacted: true,
+          policy: "business-data-v1",
+          status: "needs_clarification",
+          summary: "请选择报警率口径",
+          clarification: {
+            question: "请选择报警率口径",
+            options: [{ label: "超时报警率" }, { label: "全部报警率" }],
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(events)).not.toContain("q-internal");
+    expect(JSON.stringify(events)).not.toContain("timeout_alarm_rate");
+    expect(JSON.stringify(events)).not.toContain("metric-secret");
+  });
+
   test('{type:"tool-call-end"} reuses the parentStepId captured by tool-call-start', () => {
     const state = createTachuSseMapperState({
       turnId: TURN_ID,

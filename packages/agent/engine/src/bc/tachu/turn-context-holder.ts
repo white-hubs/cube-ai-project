@@ -1,6 +1,7 @@
 import type { AdapterCallContext } from "@tachu/core";
 
 import type { IntentRoutingBlock } from "../tool-activation";
+import type { AskBusinessDataStepGate } from "../tools/biz-ontology-address";
 import type { CallIdentity } from "../tools/tool-context";
 
 export interface ToolProgressSinkEvent {
@@ -23,6 +24,9 @@ export interface TurnContextHolder {
    * 供 {@link EngineFactory.toToolHandlerCtx} 读取，**不进** ExecutionContext.principal。
    */
   callIdentity?: CallIdentity;
+  /** 本轮用户原话，供问数专用程序核对拼接。 */
+  userPrompt?: string;
+  askStepGate?: AskBusinessDataStepGate;
   embeddingModelCode?: string;
   intentRoutingBlock?: IntentRoutingBlock | null;
   toolProgressSink?: (event: ToolProgressSinkEvent) => void;

@@ -31,6 +31,7 @@ import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session
 import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
 import { appendSkillDiscoveryHint } from "../skill-activation/skill-discovery-hint";
 import { type IntentRoutingBlock } from "../tool-activation";
+import { AskBusinessDataStepGate } from "../tools/biz-ontology-address";
 import type { CallIdentity, ToolHandlerCtx } from "../tools/tool-context";
 import { projectToolResultForModel } from "../tools/tool-result-visibility";
 import { ToolService } from "../tools/tool.service";
@@ -585,6 +586,8 @@ export class EngineFactory {
     this.turnContext.callContext = adapterCallContextFromExecution(ctx);
     // 出站 MCP 身份透传窄 carrier：随 per-turn holder 携带，不落进 ExecutionContext.principal。
     this.turnContext.callIdentity = arg.callIdentity;
+    this.turnContext.userPrompt = arg.prompt;
+    this.turnContext.askStepGate = new AskBusinessDataStepGate();
     const toolProgressQueue = new ToolProgressQueue<StreamChunk>();
     this.turnContext.toolProgressSink = (event: ToolProgressSinkEvent) => {
       toolProgressQueue.push(
@@ -632,6 +635,8 @@ export class EngineFactory {
     } finally {
       this.turnContext.callContext = undefined;
       this.turnContext.callIdentity = undefined;
+      this.turnContext.userPrompt = undefined;
+      this.turnContext.askStepGate = undefined;
       this.turnContext.embeddingModelCode = undefined;
       this.turnContext.intentRoutingBlock = undefined;
       this.turnContext.toolProgressSink = undefined;
@@ -1442,6 +1447,8 @@ export class EngineFactory {
       ...(runtimeRefs !== undefined ? { turn: { runtimeRefs } } : {}),
       // 出站 MCP 身份透传：从 per-turn holder 读取（不来自 principal），仅本轮有效。
       ...(this.turnContext.callIdentity !== undefined ? { callIdentity: this.turnContext.callIdentity } : {}),
+      ...(this.turnContext.userPrompt !== undefined ? { userPrompt: this.turnContext.userPrompt } : {}),
+      ...(this.turnContext.askStepGate !== undefined ? { askStepGate: this.turnContext.askStepGate } : {}),
     };
   }
 

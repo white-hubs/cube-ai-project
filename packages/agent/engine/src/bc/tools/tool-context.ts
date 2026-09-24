@@ -2,6 +2,8 @@ import type { AdapterCallContext } from "@tachu/core";
 
 import type { RuntimeRefs } from "@cube-ai/contracts";
 
+import type { AskBusinessDataStepGate } from "./biz-ontology-address";
+
 /**
  * CallIdentity — 出站 MCP 身份透传的窄 carrier：调用方用户的原始入站身份三元组。
  *
@@ -43,6 +45,10 @@ export interface ToolHandlerCtx {
    * 缺省表示本轮无用户令牌可透传（fail-closed：透传 server 将拒绝调用）。
    */
   callIdentity?: CallIdentity;
+  /** 本轮用户原话。只有问数专用程序读取。 */
+  userPrompt?: string;
+  /** 同一模型步的问数调用计数。缺省时按单次调用处理。 */
+  askStepGate?: AskBusinessDataStepGate;
 }
 
 /** 映射为 `@tachu/core` Port 所需的 AdapterCallContext（Provider / Vector / Memory）。 */

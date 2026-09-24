@@ -122,18 +122,12 @@ describe("assembleTachuRuntime", () => {
  * 名单须与 descriptors/agents/1934000000000000003.yaml 的 availableTools 保持一致。
  */
 describe("buildDefaultEngineConfig — weak-model tool-call robustness wiring", () => {
-  test("enables discoveryExpansion so pinning ask_business_data also surfaces its 5 biz-ontology discovery siblings", () => {
+  test("does not surface biz-ontology discovery tools when ask_business_data is pinned", () => {
     const config = buildDefaultEngineConfig("test-provider", "test-model");
     const expansion = config.runtime.toolActivation?.discoveryExpansion;
     expect(expansion?.enabled).toBe(true);
     expect(expansion?.siblings?.["mcp.biz-ontology.query_database"]).toBeUndefined();
-    expect(expansion?.siblings?.["mcp.biz-ontology.ask_business_data"]).toEqual([
-      "mcp.biz-ontology.list_databases",
-      "mcp.biz-ontology.list_business_domains",
-      "mcp.biz-ontology.search_ontology",
-      "mcp.biz-ontology.search_by_domain",
-      "mcp.biz-ontology.read_ontology",
-    ]);
+    expect(expansion?.siblings?.["mcp.biz-ontology.ask_business_data"]).toEqual([]);
   });
 
   test("explicitly sets failureRecoveryRetries=1 so a first tool failure forces one recovery step instead of giving up", () => {

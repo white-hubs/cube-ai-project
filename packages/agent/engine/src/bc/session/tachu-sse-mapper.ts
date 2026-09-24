@@ -101,6 +101,32 @@ function parseJsonObject(value: unknown): Record<string, unknown> | null {
   }
 }
 
+function businessDataPayload(output: unknown): Record<string, unknown> | null {
+  const envelope = parseJsonObject(output);
+  if (!envelope) return null;
+  return parseJsonObject(envelope.structuredContent) ?? envelope;
+}
+
+function safeClarificationText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || /mcp:\/\/|\bselect\b[\s\S]+\bfrom\b|\b(api[_-]?key|authorization|bearer|token|password|secret)\b/i.test(text)) {
+    return null;
+  }
+  return text.slice(0, maxLength);
+}
+
+function safeClarificationOptions(value: unknown): Array<{ label: string }> {
+  if (!Array.isArray(value)) return [];
+  const labels = new Set<string>();
+  for (const item of value.slice(0, 12)) {
+    const record = parseJsonObject(item);
+    const label = safeClarificationText(record?.label, 120);
+    if (label) labels.add(label);
+  }
+  return [...labels].map((label) => ({ label }));
+}
+
 /**
  * Business-query MCP tools are allowed to return structured rows to the model,
  * but SSE tool events are UI telemetry, not model context. Keep only a safe
@@ -109,7 +135,7 @@ function parseJsonObject(value: unknown): Record<string, unknown> | null {
  * governed tool result, and is still reconciled by the normal final-output path.
  */
 function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknown> {
-  const parsed = parseJsonObject(output);
+  const parsed = businessDataPayload(output);
   const answer = parsed && typeof parsed.answer === "object" && !Array.isArray(parsed.answer)
     ? (parsed.answer as Record<string, unknown>)
     : {};
@@ -118,18 +144,27 @@ function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknow
   const clarification = parsed && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
     ? (parsed.clarification as Record<string, unknown>)
     : {};
-  return {
+  const clarificationQuestion = safeClarificationText(clarification.question, 320);
+  const clarificationOptions = safeClarificationOptions(clarification.options);
+  const projected: Record<string, unknown> = {
     redacted: true,
     policy: "business-data-v1",
     status: typeof parsed?.status === "string" ? parsed.status : "unknown",
     summary: typeof answer.summary === "string"
       ? answer.summary
-      : typeof clarification.question === "string"
-        ? clarification.question
+      : clarificationQuestion
+        ? clarificationQuestion
         : "业务问数工具已返回结果。",
     columnCount: columns.length,
     rowCount: rows.length,
   };
+  if (parsed?.status === "needs_clarification" && clarificationQuestion && clarificationOptions.length > 0) {
+    projected.clarification = {
+      question: clarificationQuestion,
+      options: clarificationOptions,
+    };
+  }
+  return projected;
 }
 
 function projectToolCallOutputForSse(toolName: string, output: unknown): unknown {

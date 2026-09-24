@@ -9,16 +9,9 @@
       "enabled": true
     },
     "biz-ontology": {
-      "type": "http",
-      "url": "http://your-mcp-host:7168/mcp/",
-      "name": "biz-ontology",
-      "consent": "NEVER",
-      "required": false,
-      "authPassthrough": "user",
-      "headers": {
-        "feign_inner_invoke": "true"
-      },
-      "enabled": true
+      "host": "your-mcp-host",
+      "port": 7168,
+      "path": "/mcp/"
     }
   }
 }
