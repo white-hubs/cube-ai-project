@@ -127,7 +127,7 @@
     "no-this-before-super": "error",
     "no-throw-literal": "warn",
     "no-unassigned-vars": "error",
-    "no-underscore-dangle": ["error",{"allow":["_l1Set"]}],
+    "no-underscore-dangle": ["error",{"allow":["_l1Set","_meta"]}],
     "no-unexpected-multiline": "error",
     "no-unmodified-loop-condition": "error",
     "no-unneeded-ternary": "error",

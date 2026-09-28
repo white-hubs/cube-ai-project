@@ -1,4 +1,4 @@
-import type { SafetyModule, VectorIndexAdapter, ProviderAdapter, AdapterCallContext } from "@tachu/core";
+import type { SafetyModule, VectorIndexAdapter, AdapterCallContext } from "@tachu/core";
 /**
  * ToolService 单测 — 鉴权 / 安全 / LONG_RUNNING / 路由。
  */
@@ -88,23 +88,6 @@ function makeVectorFake(): { vectorIndex: VectorIndexAdapter; embedding: TurnAwa
       turnId: MOCK_CTX.session.turnId,
     },
     tenant: MOCK_CTX.auth.tenant,
-  };
-  const provider: ProviderAdapter = {
-    id: "test",
-    name: "Test",
-    async listAvailableModels() {
-      return [];
-    },
-    async chat() {
-      return { content: "ok", usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } };
-    },
-    async *chatStream() {
-      yield { type: "text-delta", delta: "ok" } as const;
-      yield { type: "finish", finishReason: "stop" } as const;
-    },
-    async embed() {
-      return { embeddings: [[1, 0, 0]] };
-    },
   };
   const embedding = new TurnAwareEmbeddingRuntime({
     embeddingPort: {

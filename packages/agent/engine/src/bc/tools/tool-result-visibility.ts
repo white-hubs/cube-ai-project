@@ -101,8 +101,3 @@ export function projectToolResultForModel(toolName: string, output: unknown): un
   const source = isBusinessDataTool(toolName) ? structuredContentOf(output) : output;
   return sanitizeValue(source);
 }
-
-export const __toolResultVisibilityForTest = {
-  sanitizeValue,
-  structuredContentOf,
-};

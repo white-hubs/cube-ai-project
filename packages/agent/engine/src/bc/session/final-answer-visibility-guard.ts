@@ -62,8 +62,3 @@ export function guardFinalAnswerEngineOutput(output: EngineOutput, options: { se
     reasons,
   };
 }
-
-export const __finalAnswerVisibilityGuardForTest = {
-  SAFE_BLOCKED_ANSWER,
-  engineOutputText,
-};
