@@ -2,10 +2,7 @@ import { AgenticEngineError } from "../../infra/errors/agentic-error";
 
 export const BIZ_ONTOLOGY_ASK_BUSINESS_DATA_TOOL = "mcp.biz-ontology.ask_business_data";
 
-const DEPRECATED_BIZ_ONTOLOGY_TOOL_REFS = new Set([
-  "mcp.biz-ontology.query_database",
-  "mcp.biz-ontology.resolve_business_query",
-]);
+const DEPRECATED_BIZ_ONTOLOGY_TOOL_REFS = new Set(["mcp.biz-ontology.query_database", "mcp.biz-ontology.resolve_business_query"]);
 
 const DEPRECATED_BIZ_ONTOLOGY_LOCAL_TOOL_NAMES = new Set(["query_database", "resolve_business_query"]);
 

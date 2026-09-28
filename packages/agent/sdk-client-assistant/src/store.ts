@@ -979,11 +979,15 @@ export class AssistantStore {
       return;
     }
     if (ev.event === "tool-call-progress-v1") {
-      const progress = typeof data.progress === "number" && Number.isFinite(data.progress) && data.progress >= 0 && data.progress <= 1
-        ? data.progress
-        : undefined;
+      const progress =
+        typeof data.progress === "number" && Number.isFinite(data.progress) && data.progress >= 0 && data.progress <= 1
+          ? data.progress
+          : undefined;
       const status = typeof data.status === "string" && data.status !== "" ? data.status : undefined;
-      const display = data.display && typeof data.display === "object" && !Array.isArray(data.display) ? (data.display as Record<string, unknown>) : undefined;
+      const display =
+        data.display && typeof data.display === "object" && !Array.isArray(data.display)
+          ? (data.display as Record<string, unknown>)
+          : undefined;
       const text = typeof display?.text === "string" && display.text.trim() ? display.text.trim() : undefined;
       const idx = list.findIndex((t) => t.id === id);
       if (idx < 0) {

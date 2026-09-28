@@ -53,15 +53,18 @@ export function normalizeBizOntologyServerConfig(config: {
   required?: boolean;
   enabled: boolean;
   fixedBizOntologyTools?: boolean;
-}): {
-  type: "http";
-  url: string;
-  name: string;
-  consent: "NEVER";
-  authPassthrough: "user";
-  enabled: true;
-  fixedBizOntologyTools: true;
-} | typeof config | null {
+}):
+  | {
+      type: "http";
+      url: string;
+      name: string;
+      consent: "NEVER";
+      authPassthrough: "user";
+      enabled: true;
+      fixedBizOntologyTools: true;
+    }
+  | typeof config
+  | null {
   if (config.host == null && config.port == null && config.path == null) return config;
   const url = bizOntologyUrlFromAddress(config);
   if (!url) return null;

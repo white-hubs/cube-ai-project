@@ -711,14 +711,22 @@ describe("EngineFactory", () => {
 
     const injected = provider.capturedMessages
       .flatMap((msgs) => msgs)
-      .find(
-        (m) => m.role === "system" && typeof m.content === "string" && m.content.includes("预取接地事实"),
-      );
+      .find((m) => m.role === "system" && typeof m.content === "string" && m.content.includes("预取接地事实"));
     expect(injected).toBeDefined();
     const content = (injected as { content: string }).content;
     expect(content).toContain("GROUNDING-INDEX-MARKER");
     // 预取结果经同一投影器后，SQL/租户/软删除/审计字段不得进入 Agent Context。
-    for (const leaked of ["SELECT", "ai_sm_risk_unit", '"sql"', '"tenant"', '"tenant_id"', '"deleted"', '"session_id"', '"round_num"', '"raw_rows"']) {
+    for (const leaked of [
+      "SELECT",
+      "ai_sm_risk_unit",
+      '"sql"',
+      '"tenant"',
+      '"tenant_id"',
+      '"deleted"',
+      '"session_id"',
+      '"round_num"',
+      '"raw_rows"',
+    ]) {
       expect(content).not.toContain(leaked);
     }
   });
@@ -1606,9 +1614,7 @@ describe("EngineFactory", () => {
     );
 
     expect(chunks.some((c) => c.type === "done")).toBe(true);
-    const progressChunk = chunks.find((c) => c.type === "progress") as
-      | (StreamChunk & { payload?: Record<string, unknown> })
-      | undefined;
+    const progressChunk = chunks.find((c) => c.type === "progress") as (StreamChunk & { payload?: Record<string, unknown> }) | undefined;
     expect(progressChunk?.payload).toMatchObject({
       message: "querying",
       progress: 0.5,

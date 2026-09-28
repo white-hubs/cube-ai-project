@@ -9,8 +9,8 @@ import pino from "pino";
 import { ToolDescriptor as ToolDescriptorZod, type ToolDescriptor } from "@cube-ai/contracts";
 
 import { AgenticEngineError } from "../../infra/errors/agentic-error";
-import type { CallIdentity } from "./tool-context";
 import { BIZ_ONTOLOGY_SERVER_ID, normalizeBizOntologyServerConfig } from "./biz-ontology-address";
+import type { CallIdentity } from "./tool-context";
 import { augmentWebSearchMcpToolDescriptor } from "./web-search-mcp-descriptor";
 
 const log = pino({
@@ -85,7 +85,8 @@ function fixedBizOntologyToolDescriptors(srv: McpServerConfig): ToolDescriptor[]
   const specs: Array<{ name: string; description: string; properties: Record<string, unknown>; required: string[] }> = [
     {
       name: "ask_business_data",
-      description: "业务问数。question 只能整句删掉用户原话里用标点分开的片段，不能改写片段里的任何字。程序对不上就用用户原话。折线图在拿到结果后再画。同一轮只调用一次。会话和分页由程序处理。",
+      description:
+        "业务问数。question 只能整句删掉用户原话里用标点分开的片段，不能改写片段里的任何字。程序对不上就用用户原话。折线图在拿到结果后再画。同一轮只调用一次。会话和分页由程序处理。",
       properties: { question: { type: "string", description: "用户原话，或从中整句删掉无关片段后的句子" } },
       required: ["question"],
     },
@@ -237,7 +238,10 @@ function dispatchProgressNotification(handlers: ProgressHandlerMap, msg: JsonRpc
   }
   const state = handlers.get(token);
   if (!state) {
-    log.debug({ event: "ignored", reason: "foreign-progress-token", progressToken: token, ns: "mcp.progress" }, "ignored MCP progress notification");
+    log.debug(
+      { event: "ignored", reason: "foreign-progress-token", progressToken: token, ns: "mcp.progress" },
+      "ignored MCP progress notification",
+    );
     return true;
   }
   const rawProgress = params?.["progress"];
@@ -476,7 +480,9 @@ class McpStdioSession implements McpSession {
     progress?: McpProgressOptions,
   ): Promise<unknown> {
     // stdio 无 HTTP 头承载；出站身份透传仅 http 支持（配置校验已 fail-closed 拦截）。
-    const result = await withProgressHandler(this.progressHandlers, progress, () => this.rpc("tools/call", toolsCallParams(name, args, progress)));
+    const result = await withProgressHandler(this.progressHandlers, progress, () =>
+      this.rpc("tools/call", toolsCallParams(name, args, progress)),
+    );
     return result;
   }
 

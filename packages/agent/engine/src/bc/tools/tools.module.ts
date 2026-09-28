@@ -9,6 +9,7 @@ import { DescriptorModule } from "../descriptor/descriptor.module";
 import { JobsModule } from "../jobs/jobs.module";
 import { createEngineMysqlPool } from "../session/mysql-pool";
 import { TachuRuntimeModule } from "../tachu/tachu-runtime.module";
+import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { ClockHandler } from "./handlers/clock-handler";
 import { DescriptorOpsHandler } from "./handlers/descriptor-ops-handler";
 import { FlowHandler } from "./handlers/flow-handler";
@@ -25,7 +26,6 @@ import { SessionRecallHandler, SESSION_TRANSCRIPT_READER_TOKEN } from "./handler
 import { ShellHandler } from "./handlers/shell-handler";
 import { SqlHandler } from "./handlers/sql-handler";
 import { VectorHandler } from "./handlers/vector-handler";
-import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { McpBridgeService } from "./mcp-bridge.service";
 import { McpToolRegistrationWorker } from "./mcp-tool-registration.worker";
 import { ToolService } from "./tool.service";

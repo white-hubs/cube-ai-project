@@ -22,6 +22,7 @@ import type { DescriptorManagementService } from "../descriptor/descriptor-manag
 import { DescriptorRegistryService } from "../descriptor/descriptor-registry.service";
 import type { ToolEffectiveVersionSource } from "../descriptor/tool-effective-version.provider";
 import type { SchedulerService } from "../jobs/scheduler.service";
+import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { ClockHandler } from "./handlers/clock-handler";
 import { DescriptorOpsHandler } from "./handlers/descriptor-ops-handler";
 import { FlowHandler } from "./handlers/flow-handler";
@@ -29,7 +30,6 @@ import { FlowListHandler } from "./handlers/flow-list-handler";
 import { HttpHandler } from "./handlers/http-handler";
 import { KnowledgeHandler } from "./handlers/knowledge-handler";
 import { LlmHandler } from "./handlers/llm-handler";
-import { AskBusinessDataProgram } from "./biz-ontology-ask";
 import { McpHandler } from "./handlers/mcp-handler";
 import { MemoryHandler } from "./handlers/memory-handler";
 import { OpenApiHandler } from "./handlers/openapi-handler";

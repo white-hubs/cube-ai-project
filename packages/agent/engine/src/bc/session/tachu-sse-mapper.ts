@@ -136,25 +136,22 @@ function safeClarificationOptions(value: unknown): Array<{ label: string }> {
  */
 function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknown> {
   const parsed = businessDataPayload(output);
-  const answer = parsed && typeof parsed.answer === "object" && !Array.isArray(parsed.answer)
-    ? (parsed.answer as Record<string, unknown>)
-    : {};
+  const answer =
+    parsed && typeof parsed.answer === "object" && !Array.isArray(parsed.answer) ? (parsed.answer as Record<string, unknown>) : {};
   const columns = Array.isArray(answer.columns) ? answer.columns : [];
   const rows = Array.isArray(answer.rows) ? answer.rows : [];
-  const clarification = parsed && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
-    ? (parsed.clarification as Record<string, unknown>)
-    : {};
+  const clarification =
+    parsed && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
+      ? (parsed.clarification as Record<string, unknown>)
+      : {};
   const clarificationQuestion = safeClarificationText(clarification.question, 320);
   const clarificationOptions = safeClarificationOptions(clarification.options);
   const projected: Record<string, unknown> = {
     redacted: true,
     policy: "business-data-v1",
     status: typeof parsed?.status === "string" ? parsed.status : "unknown",
-    summary: typeof answer.summary === "string"
-      ? answer.summary
-      : clarificationQuestion
-        ? clarificationQuestion
-        : "业务问数工具已返回结果。",
+    summary:
+      typeof answer.summary === "string" ? answer.summary : clarificationQuestion ? clarificationQuestion : "业务问数工具已返回结果。",
     columnCount: columns.length,
     rowCount: rows.length,
   };

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
 import type { EngineOutput } from "@tachu/core";
+import { describe, expect, test } from "bun:test";
 
 import { guardFinalAnswerEngineOutput } from "./final-answer-visibility-guard";
 
@@ -14,7 +14,7 @@ function output(content: string): EngineOutput {
 
 describe("final-answer-visibility-guard", () => {
   test("blocks SQL/MCP leakage after sensitive business-data tool use", () => {
-    const guarded = guardFinalAnswerEngineOutput(output('SQL 是 SELECT * FROM ai_risk WHERE tenant_id = 1，工具 mcp://x'), {
+    const guarded = guardFinalAnswerEngineOutput(output("SQL 是 SELECT * FROM ai_risk WHERE tenant_id = 1，工具 mcp://x"), {
       sensitiveToolUsed: true,
     });
 

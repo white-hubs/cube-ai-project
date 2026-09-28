@@ -854,18 +854,12 @@ describe("McpBridgeService", () => {
         },
       });
 
-      const out = await bridge.callTool(
-        "biz-ontology",
-        "search_ontology",
-        { keyword: "风险" },
-        undefined,
-        {
-          progressToken: "progress-call-1",
-          onProgress: (event) => {
-            progressEvents.push(event);
-          },
+      const out = await bridge.callTool("biz-ontology", "search_ontology", { keyword: "风险" }, undefined, {
+        progressToken: "progress-call-1",
+        onProgress: (event) => {
+          progressEvents.push(event);
         },
-      );
+      });
 
       expect(out).toEqual({ entities: [{ name: "entity:风险" }] });
       const toolCall = fake.requests.find((r) => r.method === "tools/call")!;
@@ -900,34 +894,22 @@ describe("McpBridgeService", () => {
       });
 
       await expect(
-        bridge.callTool(
-          "biz-ontology",
-          "search_ontology",
-          { keyword: "foreign-token" },
-          undefined,
-          {
-            progressToken: "current-call",
-            onProgress: (event) => {
-              progressEvents.push(event);
-            },
+        bridge.callTool("biz-ontology", "search_ontology", { keyword: "foreign-token" }, undefined, {
+          progressToken: "current-call",
+          onProgress: (event) => {
+            progressEvents.push(event);
           },
-        ),
+        }),
       ).resolves.toEqual({ entities: [{ name: "entity:foreign-token" }] });
       expect(progressEvents).toEqual([]);
 
       await expect(
-        bridge.callTool(
-          "biz-ontology",
-          "search_ontology",
-          { keyword: "non-monotonic" },
-          undefined,
-          {
-            progressToken: "reused-token",
-            onProgress: (event) => {
-              progressEvents.push(event);
-            },
+        bridge.callTool("biz-ontology", "search_ontology", { keyword: "non-monotonic" }, undefined, {
+          progressToken: "reused-token",
+          onProgress: (event) => {
+            progressEvents.push(event);
           },
-        ),
+        }),
       ).resolves.toEqual({ entities: [{ name: "entity:non-monotonic" }] });
       expect(progressEvents).toEqual([
         { progressToken: "reused-token", progress: 2, total: 3, message: "step-2" },
@@ -936,18 +918,12 @@ describe("McpBridgeService", () => {
 
       progressEvents.length = 0;
       await expect(
-        bridge.callTool(
-          "biz-ontology",
-          "search_ontology",
-          { keyword: "风险" },
-          undefined,
-          {
-            progressToken: "reused-token",
-            onProgress: (event) => {
-              progressEvents.push(event);
-            },
+        bridge.callTool("biz-ontology", "search_ontology", { keyword: "风险" }, undefined, {
+          progressToken: "reused-token",
+          onProgress: (event) => {
+            progressEvents.push(event);
           },
-        ),
+        }),
       ).resolves.toEqual({ entities: [{ name: "entity:风险" }] });
       expect(progressEvents).toEqual([{ progressToken: "reused-token", progress: 1, total: 2, message: "querying" }]);
     } finally {
@@ -973,19 +949,13 @@ describe("McpBridgeService", () => {
       });
 
       const callPromise = bridge
-        .callTool(
-          "biz-ontology",
-          "search_ontology",
-          { keyword: "风险" },
-          undefined,
-          {
-            progressToken: "stream-progress-call-1",
-            onProgress: (event) => {
-              progressEvents.push(event);
-              resolveProgress();
-            },
+        .callTool("biz-ontology", "search_ontology", { keyword: "风险" }, undefined, {
+          progressToken: "stream-progress-call-1",
+          onProgress: (event) => {
+            progressEvents.push(event);
+            resolveProgress();
           },
-        )
+        })
         .finally(() => {
           callSettled = true;
         });

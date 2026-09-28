@@ -3,8 +3,9 @@
  *
  * 权威来源：docs/technical-design/prompts/phase-1/P1-08-tools.md §6.3
  */
-import type { HandlerKindValue } from '@cube-ai/contracts';
-import type { ToolHandlerCtx } from '../tool-context';
+import type { HandlerKindValue } from "@cube-ai/contracts";
+
+import type { ToolHandlerCtx } from "../tool-context";
 
 export interface ToolHandlerProgressEvent {
   progressToken: string | number;

@@ -26,9 +26,7 @@ describe("askQuestionFromModel", () => {
 
   test("keeps a deletion of a whole punctuated clause", () => {
     const prompt = "今年8月我想看每天的报警数量，用折线图呈现给我";
-    expect(askQuestionFromModel("今年8月我想看每天的报警数量", prompt)).toBe(
-      "今年8月我想看每天的报警数量",
-    );
+    expect(askQuestionFromModel("今年8月我想看每天的报警数量", prompt)).toBe("今年8月我想看每天的报警数量");
   });
 
   test("rejects a metric name the user did not say", () => {
@@ -53,9 +51,7 @@ describe("AskBusinessDataStepGate", () => {
 
 describe("biz ontology address", () => {
   test("builds the url from host, port and path and ignores a configured url", () => {
-    expect(bizOntologyUrlFromAddress({ host: "192.168.4.228", port: 7168, path: "/mcp" })).toBe(
-      "http://192.168.4.228:7168/mcp/",
-    );
+    expect(bizOntologyUrlFromAddress({ host: "192.168.4.228", port: 7168, path: "/mcp" })).toBe("http://192.168.4.228:7168/mcp/");
     const normalized = normalizeBizOntologyServerConfig({
       host: "192.168.4.228",
       port: 7168,
@@ -91,9 +87,7 @@ describe("biz ontology address", () => {
       },
     });
     const tools = await bridge.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "mcp.biz-ontology.ask_business_data",
-    ]);
+    expect(tools.map((tool) => tool.name)).toEqual(["mcp.biz-ontology.ask_business_data"]);
     expect(tools.find((tool) => tool.name.endsWith("ask_business_data"))?.inputSchema).toMatchObject({
       required: ["question"],
     });
