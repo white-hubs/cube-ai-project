@@ -33,6 +33,11 @@ describe("askQuestionFromModel", () => {
     expect(askQuestionFromModel("今年报警数量", "今年报警总数多少？")).toBe("今年报警总数多少？");
   });
 
+  test("preserves an alphanumeric business name when the model inserts whitespace", () => {
+    const prompt = "今年超级管理员3处理的报警中有多少条超时的？";
+    expect(askQuestionFromModel("今年超级管理员 3 处理的报警中有多少条超时的？", prompt)).toBe(prompt);
+  });
+
   test("falls back to the user text when the model sends an empty question", () => {
     expect(askQuestionFromModel("  ", PROMPT)).toBe(PROMPT);
     expect(askQuestionFromModel("", "")).toBeNull();
@@ -46,6 +51,14 @@ describe("AskBusinessDataStepGate", () => {
     expect(first).toBe(false);
     expect(second).toBe(false);
     expect(await gate.enter("c")).toBe(true);
+    expect(await gate.enter("d")).toBe(false);
+  });
+
+  test("rejects later calls after a host prefetch seals the gate", async () => {
+    const gate = new AskBusinessDataStepGate();
+    expect(await gate.enter("prefetch")).toBe(true);
+    gate.seal();
+    expect(await gate.enter("model-retry")).toBe(false);
   });
 });
 
@@ -103,6 +116,26 @@ describe("stampAskArguments", () => {
     expect(stampAskArguments("今年报警数量", ctx)).toEqual({
       question: "今年报警数量",
       conversation_id: "sess-7",
+      context: { user_id: "42" },
+    });
+  });
+
+  test("stamps a trusted clarification choice for the current conversation", () => {
+    const ctx = {
+      auth: { tenant: 7, user: { userId: "42", scopes: [] } },
+      session: { id: "sess-7", turnId: "turn-8" },
+      clarificationChoice: { label: "超时报警率", optionId: "timeout-rate", questionId: "question-7", slot: "metric" },
+    } as ToolHandlerCtx;
+    expect(stampAskArguments("超时报警率", ctx)).toEqual({
+      question: "超时报警率",
+      conversation_id: "sess-7",
+      clarification_choice: {
+        label: "超时报警率",
+        option_id: "timeout-rate",
+        asset_id: "timeout-rate",
+        question_id: "question-7",
+        slot: "metric",
+      },
       context: { user_id: "42" },
     });
   });

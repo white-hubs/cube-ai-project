@@ -116,15 +116,21 @@ function safeClarificationText(value: unknown, maxLength: number): string | null
   return text.slice(0, maxLength);
 }
 
-function safeClarificationOptions(value: unknown): Array<{ label: string }> {
+function safeClarificationOptions(value: unknown): Array<{ label: string; optionId?: string }> {
   if (!Array.isArray(value)) return [];
-  const labels = new Set<string>();
+  const options: Array<{ label: string; optionId?: string }> = [];
+  const seen = new Set<string>();
   for (const item of value.slice(0, 12)) {
     const record = parseJsonObject(item);
     const label = safeClarificationText(record?.label, 120);
-    if (label) labels.add(label);
+    const optionId = safeClarificationText(record?.option_id ?? record?.id ?? record?.value, 200);
+    const key = `${optionId ?? ""}\u0000${label ?? ""}`;
+    if (label && !seen.has(key)) {
+      seen.add(key);
+      options.push({ label, ...(optionId ? { optionId } : {}) });
+    }
   }
-  return [...labels].map((label) => ({ label }));
+  return options;
 }
 
 /**
@@ -137,11 +143,13 @@ function safeClarificationOptions(value: unknown): Array<{ label: string }> {
 function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknown> {
   const parsed = businessDataPayload(output);
   const answer =
-    parsed && typeof parsed.answer === "object" && !Array.isArray(parsed.answer) ? (parsed.answer as Record<string, unknown>) : {};
+    parsed && parsed.answer !== null && typeof parsed.answer === "object" && !Array.isArray(parsed.answer)
+      ? (parsed.answer as Record<string, unknown>)
+      : {};
   const columns = Array.isArray(answer.columns) ? answer.columns : [];
   const rows = Array.isArray(answer.rows) ? answer.rows : [];
   const clarification =
-    parsed && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
+    parsed && parsed.clarification !== null && typeof parsed.clarification === "object" && !Array.isArray(parsed.clarification)
       ? (parsed.clarification as Record<string, unknown>)
       : {};
   const clarificationQuestion = safeClarificationText(clarification.question, 320);
@@ -156,9 +164,13 @@ function summarizeBusinessDataToolOutput(output: unknown): Record<string, unknow
     rowCount: rows.length,
   };
   if (parsed?.status === "needs_clarification" && clarificationQuestion && clarificationOptions.length > 0) {
+    const questionId = safeClarificationText(clarification.question_id, 200);
+    const slot = safeClarificationText(clarification.slot, 80);
     projected.clarification = {
       question: clarificationQuestion,
       options: clarificationOptions,
+      ...(questionId ? { questionId } : {}),
+      ...(slot ? { slot } : {}),
     };
   }
   return projected;

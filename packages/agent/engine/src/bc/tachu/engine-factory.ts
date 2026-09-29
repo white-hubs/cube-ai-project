@@ -16,7 +16,7 @@ import {
 } from "@tachu/core";
 
 import { RuntimeRefsSchema, DEFAULT_USER_SESSION_SKILL_REFS } from "@cube-ai/contracts";
-import type { GroundingPrefetchEntry, LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
+import type { BusinessQueryClarificationChoice, GroundingPrefetchEntry, LlmProviderPort, RuntimeRefs } from "@cube-ai/contracts";
 import type { ImageAttachment, MessageContentV1 } from "@cube-ai/contracts";
 
 import { MemoryProjectionRelayService } from "../../infra/memory-projection/memory-projection-relay.service";
@@ -31,7 +31,7 @@ import { snapshotSkillsToDescriptors, type SnapshotSkillEntry } from "../session
 import type { SkillRegistryResolveLike } from "../session/snapshot-skill-hydration";
 import { appendSkillDiscoveryHint } from "../skill-activation/skill-discovery-hint";
 import { type IntentRoutingBlock } from "../tool-activation";
-import { AskBusinessDataStepGate } from "../tools/biz-ontology-address";
+import { ASK_BUSINESS_DATA_TOOL, AskBusinessDataStepGate, BIZ_ONTOLOGY_SERVER_ID } from "../tools/biz-ontology-address";
 import type { CallIdentity, ToolHandlerCtx } from "../tools/tool-context";
 import { projectToolResultForModel } from "../tools/tool-result-visibility";
 import { ToolService } from "../tools/tool.service";
@@ -48,6 +48,7 @@ import type { ToolProgressSinkEvent, TurnContextHolder } from "./turn-context-ho
 
 const RUNTIME_SKILL_REFS_TOOL_NAME = "runtime.skill.refs";
 const RUNTIME_KNOWLEDGE_QUERY_TOOL_NAME = "platform.knowledge.query";
+const BUSINESS_DATA_TOOL_NAME = `mcp.${BIZ_ONTOLOGY_SERVER_ID}.${ASK_BUSINESS_DATA_TOOL}`;
 /** Session-default skills dropped from Active Skills when the user @-pins skills this turn. */
 const DEFERRABLE_SESSION_SKILL_NAMES = new Set<string>(DEFAULT_USER_SESSION_SKILL_REFS);
 
@@ -282,6 +283,16 @@ function formatGroundingPrefetchContext(tool: string, output: unknown): string {
   return [`## 预取接地事实（来自 ${tool}，本轮已代为查询，请据此选用真实标识符，勿臆造）`, body].join("\n");
 }
 
+function formatClarificationResumeContext(output: unknown): string {
+  const body = renderPrefetchOutput(BUSINESS_DATA_TOOL_NAME, output);
+  if (!body) return "";
+  return [
+    "## Clarification Resume Result",
+    "The host has already applied the user's selected clarification to the pending business query. Answer from this result and do not call the business-query tool again for this selection.",
+    body,
+  ].join("\n");
+}
+
 /** Join multiple prefetch context blocks; undefined when nothing to inject. */
 function mergePrefetchContext(...parts: Array<string | undefined>): string | undefined {
   const kept = parts.filter((p): p is string => typeof p === "string" && p.trim().length > 0);
@@ -443,6 +454,8 @@ export interface TurnRunStreamInput {
   explicitRuleNames?: readonly string[];
   /** User-selected references scoped to this turn only. */
   runtimeRefs?: RuntimeRefs;
+  /** Browser-safe choice for resuming the current business-query clarification. */
+  clarificationChoice?: BusinessQueryClarificationChoice;
   /** turn body 里前端传的 modelCode，优先级最高（高于 snapshot 与 env）。 */
   turnModelCode?: string;
   /** 建会话时冻结的 agent snapshot；缺失时退化到全局默认 prompt + 默认 model。 */
@@ -587,29 +600,44 @@ export class EngineFactory {
     // 出站 MCP 身份透传窄 carrier：随 per-turn holder 携带，不落进 ExecutionContext.principal。
     this.turnContext.callIdentity = arg.callIdentity;
     this.turnContext.userPrompt = arg.prompt;
+    this.turnContext.clarificationChoice = arg.clarificationChoice;
     this.turnContext.askStepGate = new AskBusinessDataStepGate();
     const toolProgressQueue = new ToolProgressQueue<StreamChunk>();
-    this.turnContext.toolProgressSink = (event: ToolProgressSinkEvent) => {
-      toolProgressQueue.push(
-        this.withStreamEnvelope(
-          {
-            type: "progress",
-            phase: event.status,
-            message: event.status,
-            payload: {
-              status: event.status,
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              ...(event.progress !== undefined ? { progress: event.progress } : {}),
-              ...(event.message !== undefined ? { message: event.message } : {}),
-              ...(event.safeDisplayMessage !== undefined ? { safeDisplayMessage: event.safeDisplayMessage } : {}),
-            },
-          } as unknown as StreamChunkPayload,
-          ctx,
-        ),
-      );
-    };
     try {
+      if (arg.clarificationChoice !== undefined) {
+        const clarificationResume = await this.prefetchBusinessClarification(arg, ctx);
+        for (const chunk of clarificationResume.chunks) yield chunk;
+        if (!clarificationResume.success) {
+          throw new Error(clarificationResume.error?.message ?? "Business-query clarification resume failed");
+        }
+        this.turnContext.askStepGate.seal();
+        const resumeContext = formatClarificationResumeContext(clarificationResume.output);
+        if (resumeContext) {
+          scope.systemInstruction = [scope.systemInstruction?.trim(), resumeContext]
+            .filter((part): part is string => typeof part === "string" && part.length > 0)
+            .join("\n\n");
+        }
+      }
+      this.turnContext.toolProgressSink = (event: ToolProgressSinkEvent) => {
+        toolProgressQueue.push(
+          this.withStreamEnvelope(
+            {
+              type: "progress",
+              phase: event.status,
+              message: event.status,
+              payload: {
+                status: event.status,
+                toolCallId: event.toolCallId,
+                toolName: event.toolName,
+                ...(event.progress !== undefined ? { progress: event.progress } : {}),
+                ...(event.message !== undefined ? { message: event.message } : {}),
+                ...(event.safeDisplayMessage !== undefined ? { safeDisplayMessage: event.safeDisplayMessage } : {}),
+              },
+            } as unknown as StreamChunkPayload,
+            ctx,
+          ),
+        );
+      };
       const engineStream = this.engine.runStream(input, ctx, scope)[Symbol.asyncIterator]();
       let engineNext = engineStream.next();
       while (true) {
@@ -636,6 +664,7 @@ export class EngineFactory {
       this.turnContext.callContext = undefined;
       this.turnContext.callIdentity = undefined;
       this.turnContext.userPrompt = undefined;
+      this.turnContext.clarificationChoice = undefined;
       this.turnContext.askStepGate = undefined;
       this.turnContext.embeddingModelCode = undefined;
       this.turnContext.intentRoutingBlock = undefined;
@@ -842,6 +871,32 @@ export class EngineFactory {
       );
       return { chunks, error: toolError, durationMs: Date.now() - startedAt, success: false };
     }
+  }
+
+  private async prefetchBusinessClarification(
+    arg: TurnRunStreamInput,
+    context: ExecutionContext,
+  ): Promise<{
+    chunks: StreamChunk[];
+    output?: unknown;
+    error?: ReturnType<typeof errorToToolError>;
+    durationMs: number;
+    success: boolean;
+  }> {
+    const choice = arg.clarificationChoice;
+    if (choice === undefined) {
+      return { chunks: [], durationMs: 0, success: false };
+    }
+    const callId = arg.nextStreamId?.() ?? `business-query-clarification:${arg.turnId}`;
+    return this.runContextPrefetch(
+      {
+        toolName: BUSINESS_DATA_TOOL_NAME,
+        input: { question: choice.optionId ? arg.prompt : choice.label },
+        callId,
+        argumentsPreview: JSON.stringify({ question: choice.optionId ? arg.prompt : choice.label }),
+      },
+      context,
+    );
   }
 
   private async prefetchRuntimeKnowledge(
@@ -1448,6 +1503,7 @@ export class EngineFactory {
       // 出站 MCP 身份透传：从 per-turn holder 读取（不来自 principal），仅本轮有效。
       ...(this.turnContext.callIdentity !== undefined ? { callIdentity: this.turnContext.callIdentity } : {}),
       ...(this.turnContext.userPrompt !== undefined ? { userPrompt: this.turnContext.userPrompt } : {}),
+      ...(this.turnContext.clarificationChoice !== undefined ? { clarificationChoice: this.turnContext.clarificationChoice } : {}),
       ...(this.turnContext.askStepGate !== undefined ? { askStepGate: this.turnContext.askStepGate } : {}),
     };
   }

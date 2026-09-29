@@ -12,6 +12,7 @@ import {
   TurnStartedEventSchema,
   TurnFailedEventSchema,
   IntentRoutingEventSchema,
+  type BusinessQueryClarificationChoice,
   type ImageAttachment,
   type MessageContentV1,
 } from "@cube-ai/contracts";
@@ -85,6 +86,7 @@ export interface StartTurnOptions {
   userId?: string;
   scopes?: readonly string[];
   runtimeRefs?: RuntimeRefs;
+  clarificationChoice?: BusinessQueryClarificationChoice;
   content?: MessageContentV1;
   attachments?: ImageAttachment[];
   /**
@@ -207,6 +209,7 @@ export class TurnService {
           sessionId,
           turnId,
           ...(options.runtimeRefs !== undefined ? { runtimeRefs: options.runtimeRefs } : {}),
+          ...(options.clarificationChoice !== undefined ? { clarificationChoice: options.clarificationChoice } : {}),
         },
         userMessageId,
         userPromptText: prompt,
@@ -276,6 +279,7 @@ export class TurnService {
       scopes: options.scopes,
       ...(options.callIdentity !== undefined ? { callIdentity: options.callIdentity } : {}),
       ...(options.runtimeRefs !== undefined ? { runtimeRefs: options.runtimeRefs } : {}),
+      ...(options.clarificationChoice !== undefined ? { clarificationChoice: options.clarificationChoice } : {}),
     }).catch((err: unknown) => {
       this.log.error(
         {
@@ -322,6 +326,7 @@ export class TurnService {
     scopes?: readonly string[];
     callIdentity?: CallIdentity;
     runtimeRefs?: RuntimeRefs;
+    clarificationChoice?: BusinessQueryClarificationChoice;
   }): Promise<void> {
     const assistantMessageId = this.sfid.next();
     const startTime = Date.now();
@@ -432,6 +437,7 @@ export class TurnService {
         ...(arg.content !== undefined ? { content: arg.content } : {}),
         ...(arg.attachments !== undefined ? { attachments: arg.attachments } : {}),
         ...(arg.runtimeRefs !== undefined ? { runtimeRefs: arg.runtimeRefs } : {}),
+        ...(arg.clarificationChoice !== undefined ? { clarificationChoice: arg.clarificationChoice } : {}),
         ...(resolvedModel !== undefined ? { turnModelCode: resolvedModel } : {}),
         ...(arg.skillEmbeddingModelCode !== undefined ? { skillEmbeddingModelCode: arg.skillEmbeddingModelCode } : {}),
         ...(agentSnapshot !== null ? { agentSnapshot } : {}),

@@ -93,11 +93,47 @@ function structuredContentOf(output: unknown): unknown {
   return record;
 }
 
+function safeConfirmationToken(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const token = value.trim();
+  if (!token || token.length > maxLength || sanitizeString(token) !== token) return undefined;
+  return token;
+}
+
+/** Preserve only server-owned clarification capabilities; ordinary raw IDs stay blocked. */
+function restoreBusinessClarificationTokens(source: unknown, projected: unknown): unknown {
+  if (!isPlainRecord(source) || !isPlainRecord(projected)) return projected;
+  const rawClarification = isPlainRecord(source.clarification) ? source.clarification : null;
+  const safeClarification = isPlainRecord(projected.clarification) ? projected.clarification : null;
+  if (!rawClarification || !safeClarification || source.status !== "needs_clarification") return projected;
+
+  const questionId = safeConfirmationToken(rawClarification.question_id, 200);
+  const slot = safeConfirmationToken(rawClarification.slot, 80);
+  const rawOptions = Array.isArray(rawClarification.options) ? rawClarification.options.slice(0, 12) : [];
+  const safeOptions = Array.isArray(safeClarification.options) ? safeClarification.options : [];
+  const options = safeOptions.map((safeOption, index) => {
+    if (!isPlainRecord(safeOption)) return safeOption;
+    const rawOption = isPlainRecord(rawOptions[index]) ? rawOptions[index] : null;
+    const optionId = rawOption ? safeConfirmationToken(rawOption.option_id ?? rawOption.id ?? rawOption.value, 200) : undefined;
+    return { ...safeOption, ...(optionId ? { option_id: optionId } : {}) };
+  });
+  return {
+    ...projected,
+    clarification: {
+      ...safeClarification,
+      options,
+      ...(questionId ? { question_id: questionId } : {}),
+      ...(slot ? { slot } : {}),
+    },
+  };
+}
+
 export function isBusinessDataTool(toolName: string): boolean {
   return BUSINESS_DATA_TOOL_PATTERN.test(toolName);
 }
 
 export function projectToolResultForModel(toolName: string, output: unknown): unknown {
   const source = isBusinessDataTool(toolName) ? structuredContentOf(output) : output;
-  return sanitizeValue(source);
+  const projected = sanitizeValue(source);
+  return isBusinessDataTool(toolName) ? restoreBusinessClarificationTokens(source, projected) : projected;
 }

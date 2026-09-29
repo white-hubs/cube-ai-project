@@ -60,6 +60,41 @@ describe("RuntimeRefsSchema", () => {
 });
 
 describe("StartTurnRequestSchema", () => {
+  test("accepts a safe business-query clarification choice", () => {
+    const parsed = StartTurnRequestSchema.safeParse({
+      content: {
+        schema: "message-content-v1",
+        blocks: [{ type: "text", text: "我选择超时报警率" }],
+      },
+      clarificationChoice: {
+        label: "超时报警率",
+        optionId: "timeout_alarm_rate",
+        questionId: "question-1",
+        slot: "metric",
+      },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.clarificationChoice).toEqual({
+        label: "超时报警率",
+        optionId: "timeout_alarm_rate",
+        questionId: "question-1",
+        slot: "metric",
+      });
+    }
+  });
+
+  test("rejects an empty business-query clarification label", () => {
+    const parsed = StartTurnRequestSchema.safeParse({
+      content: {
+        schema: "message-content-v1",
+        blocks: [{ type: "text", text: "继续" }],
+      },
+      clarificationChoice: { label: "   " },
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   test("accepts text plus image_ref with matching attachment", () => {
     const parsed = StartTurnRequestSchema.safeParse({
       content: {

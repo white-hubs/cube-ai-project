@@ -1,6 +1,6 @@
 import type { AdapterCallContext } from "@tachu/core";
 
-import type { RuntimeRefs } from "@cube-ai/contracts";
+import type { BusinessQueryClarificationChoice, RuntimeRefs } from "@cube-ai/contracts";
 
 import type { AskBusinessDataStepGate } from "./biz-ontology-address";
 
@@ -47,6 +47,8 @@ export interface ToolHandlerCtx {
   callIdentity?: CallIdentity;
   /** 本轮用户原话。只有问数专用程序读取。 */
   userPrompt?: string;
+  /** Trusted host input; model-supplied tool arguments cannot override it. */
+  clarificationChoice?: BusinessQueryClarificationChoice;
   /** 同一模型步的问数调用计数。缺省时按单次调用处理。 */
   askStepGate?: AskBusinessDataStepGate;
 }

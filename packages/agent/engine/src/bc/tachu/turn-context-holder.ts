@@ -1,5 +1,7 @@
 import type { AdapterCallContext } from "@tachu/core";
 
+import type { BusinessQueryClarificationChoice } from "@cube-ai/contracts";
+
 import type { IntentRoutingBlock } from "../tool-activation";
 import type { AskBusinessDataStepGate } from "../tools/biz-ontology-address";
 import type { CallIdentity } from "../tools/tool-context";
@@ -26,6 +28,8 @@ export interface TurnContextHolder {
   callIdentity?: CallIdentity;
   /** 本轮用户原话，供问数专用程序核对拼接。 */
   userPrompt?: string;
+  /** Browser-safe selection resolved against the current server-side pending card. */
+  clarificationChoice?: BusinessQueryClarificationChoice;
   askStepGate?: AskBusinessDataStepGate;
   embeddingModelCode?: string;
   intentRoutingBlock?: IntentRoutingBlock | null;

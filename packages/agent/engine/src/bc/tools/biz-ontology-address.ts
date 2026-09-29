@@ -7,9 +7,16 @@ export const ASK_BUSINESS_DATA_TOOL = "ask_business_data";
 export class AskBusinessDataStepGate {
   private ids: string[] = [];
   private opened: Promise<number> | null = null;
+  private sealed = false;
 
-  /** 同一同步突发里的调用共享一次计数。大于 1 则全部拒绝；下一步重新计数。 */
+  /** Prevent any later model tool-loop step from repeating a host-prefetched call. */
+  seal(): void {
+    this.sealed = true;
+  }
+
+  /** 同一同步突发里的调用共享一次计数；成功放行一次后，本轮永久关闭。 */
   enter(id: string): Promise<boolean> {
+    if (this.sealed) return Promise.resolve(false);
     this.ids.push(id);
     if (this.opened === null) {
       const batch = this.ids;
@@ -17,6 +24,7 @@ export class AskBusinessDataStepGate {
         const size = batch.length;
         this.ids = [];
         this.opened = null;
+        if (size === 1) this.sealed = true;
         return size;
       });
     }
@@ -37,23 +45,27 @@ export function bizOntologyUrlFromAddress(raw: { host?: unknown; port?: unknown;
 }
 
 /** 仅当 biz-ontology 写了 host/port/path 时改写。只有 url 的旧测试配置保持原样。 */
-export function normalizeBizOntologyServerConfig(config: {
-  host?: unknown;
-  port?: unknown;
-  path?: unknown;
-  type?: "stdio" | "sse" | "http";
-  command?: string;
-  args?: string[];
-  url?: string;
-  env?: Record<string, string>;
-  headers?: Record<string, string>;
-  name?: string;
-  consent?: "NEVER" | "ON_FIRST_USE";
-  authPassthrough?: "none" | "user";
-  required?: boolean;
-  enabled: boolean;
-  fixedBizOntologyTools?: boolean;
-}):
+export function normalizeBizOntologyServerConfig<
+  T extends {
+    host?: unknown;
+    port?: unknown;
+    path?: unknown;
+    type?: "stdio" | "sse" | "http";
+    command?: string;
+    args?: string[];
+    url?: string;
+    env?: Record<string, string>;
+    headers?: Record<string, string>;
+    name?: string;
+    consent?: "NEVER" | "ON_FIRST_USE";
+    authPassthrough?: "none" | "user";
+    required?: boolean;
+    enabled: boolean;
+    fixedBizOntologyTools?: boolean;
+  },
+>(
+  config: T,
+):
   | {
       type: "http";
       url: string;
@@ -63,7 +75,7 @@ export function normalizeBizOntologyServerConfig(config: {
       enabled: true;
       fixedBizOntologyTools: true;
     }
-  | typeof config
+  | T
   | null {
   if (config.host == null && config.port == null && config.path == null) return config;
   const url = bizOntologyUrlFromAddress(config);
@@ -80,7 +92,7 @@ export function normalizeBizOntologyServerConfig(config: {
 }
 
 function compact(text: string): string {
-  return text.normalize("NFKC").replace(/\s+/g, "");
+  return text.trim();
 }
 
 function clauses(text: string): string[] {

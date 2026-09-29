@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createSessionSseStreamResponse, parseLastEventIdHeader, DrainService, SessionSseEmitter } from "@cube-ai/bun-server-ext-sse";
 import {
   CreateSessionRequestSchema,
+  BusinessQueryClarificationChoiceSchema,
   ImageAttachmentSchema,
   MessageContentV1Schema,
   RuntimeRefsSchema,
@@ -37,6 +38,7 @@ const SendMessageBodySchema = z.object({
   providerCode: z.string().optional(),
   providerId: z.string().optional(),
   runtimeRefs: RuntimeRefsSchema.optional(),
+  clarificationChoice: BusinessQueryClarificationChoiceSchema.optional(),
 });
 
 const ListSessionMessagesQuerySchema = z.object({
@@ -81,6 +83,12 @@ function extractPromptFromBlocks(blocks: unknown[]): string {
     })
     .filter((t) => t.length > 0);
   return texts.join("\n").trim();
+}
+
+function clarificationChoiceFromUiReply(prompt: string): { label: string } | undefined {
+  const match = /^对于“[\s\S]{1,640}”，我选择“([^”]{1,120})”。$/.exec(prompt.trim());
+  const label = match?.[1]?.trim();
+  return label ? { label } : undefined;
 }
 
 function countImageRefs(blocks: unknown[]): number {
@@ -345,6 +353,10 @@ export class SessionController {
     }
     const subject = readSubject(ctx);
     const callIdentity = readCallIdentity(ctx, subject.tenant);
+    // New clients send the structured field. The exact UI reply format keeps
+    // older published SDKs functional until they are upgraded; the platform
+    // still validates the label against this conversation's pending card.
+    const clarificationChoice = parsed.data.clarificationChoice ?? clarificationChoiceFromUiReply(prompt);
     const turnId = await this.turnService.startTurn(sessionId, subject.tenant, prompt, {
       content,
       attachments,
@@ -356,6 +368,7 @@ export class SessionController {
       scopes: subject.user.scopes,
       ...(callIdentity !== undefined ? { callIdentity } : {}),
       ...(parsed.data.runtimeRefs !== undefined ? { runtimeRefs: parsed.data.runtimeRefs } : {}),
+      ...(clarificationChoice !== undefined ? { clarificationChoice } : {}),
     });
     return { turnId };
   }

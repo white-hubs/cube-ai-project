@@ -638,6 +638,52 @@ describe("EngineFactory", () => {
     ).toBe(true);
   });
 
+  test("runStream deterministically resumes a selected business-query clarification before the model", async () => {
+    const provider = createCaptureProvider();
+    const invocations: Array<{ toolName: string; input: unknown; choice: unknown }> = [];
+    const toolService = {
+      invoke: async (toolName, input, ctx) => {
+        invocations.push({ toolName, input, choice: ctx.clarificationChoice });
+        return {
+          structuredContent: {
+            status: "answered",
+            answer: { summary: "已按超时报警率继续查询", columns: [], rows: [] },
+            diagnostics: { asset_id: "must-not-reach-model" },
+          },
+        };
+      },
+    } satisfies Pick<ToolService, "invoke">;
+    const factory = testEngineFactory(provider, undefined, undefined, toolService as ToolService);
+
+    const chunks = await drain(
+      factory.runStream({
+        sessionId: "SESSION-CLARIFICATION-1",
+        turnId: "TURN-CLARIFICATION-1",
+        tenant: 58197260,
+        userId: "user-1",
+        prompt: "对于“请选择报警率口径”，我选择“超时报警率”。",
+        clarificationChoice: { label: "超时报警率", optionId: "timeout_alarm_rate", questionId: "q-1", slot: "metric" },
+        agentSnapshot: { agent: { content: { prompt: "BASE-PROMPT" } } },
+      }),
+    );
+
+    expect(invocations).toEqual([
+      {
+        toolName: "mcp.biz-ontology.ask_business_data",
+        input: { question: "对于“请选择报警率口径”，我选择“超时报警率”。" },
+        choice: { label: "超时报警率", optionId: "timeout_alarm_rate", questionId: "q-1", slot: "metric" },
+      },
+    ]);
+    expect(chunks.some((chunk) => chunk.type === "tool-call-start" && chunk.tool === "mcp.biz-ontology.ask_business_data")).toBe(true);
+    expect(chunks.some((chunk) => chunk.type === "tool-call-end" && chunk.success === true)).toBe(true);
+    const systemMessage = provider.capturedMessages
+      .flatMap((messages) => messages)
+      .find((message) => message.role === "system" && String(message.content).includes("Clarification Resume Result"));
+    expect(systemMessage).toBeDefined();
+    expect(String(systemMessage?.content)).toContain("已按超时报警率继续查询");
+    expect(String(systemMessage?.content)).not.toContain("must-not-reach-model");
+  });
+
   test("runStream injects prefetch context through the shared projector (no raw SQL/tenant leak)", async () => {
     const provider = createCaptureProvider();
     const groundingDesc = ToolDescriptor.parse({

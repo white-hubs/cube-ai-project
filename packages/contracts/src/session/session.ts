@@ -153,6 +153,15 @@ export const ImageAttachmentSchema = z.object({
 });
 export type ImageAttachment = z.infer<typeof ImageAttachmentSchema>;
 
+/** Browser-safe selection from a business-query clarification card. */
+export const BusinessQueryClarificationChoiceSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  optionId: z.string().trim().min(1).max(200).optional(),
+  questionId: z.string().trim().min(1).max(200).optional(),
+  slot: z.string().trim().min(1).max(80).optional(),
+});
+export type BusinessQueryClarificationChoice = z.infer<typeof BusinessQueryClarificationChoiceSchema>;
+
 const BaseStartTurnRequestSchema = z.object({
   content: MessageContentV1Schema,
   attachments: z.array(ImageAttachmentSchema).max(4).default([]),
@@ -162,6 +171,7 @@ const BaseStartTurnRequestSchema = z.object({
   providerCode: z.string().max(128).optional(),
   providerId: z.string().max(128).optional(),
   runtimeRefs: RuntimeRefsSchema.optional(),
+  clarificationChoice: BusinessQueryClarificationChoiceSchema.optional(),
 });
 
 export const StartTurnRequestSchema = BaseStartTurnRequestSchema.superRefine((value, ctx) => {

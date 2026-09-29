@@ -384,6 +384,7 @@ describe("mapStreamChunkToSseEvents", () => {
       durationMs: 123,
       output: {
         status: "answered",
+        clarification: null,
         answer: {
           summary: "查询完成，共返回 1 条风险管控结果。",
           columns: [{ key: "unit_name", label: "单元名称" }],
@@ -414,9 +415,16 @@ describe("mapStreamChunkToSseEvents", () => {
     expect(JSON.stringify(events)).not.toContain("SELECT");
     expect(JSON.stringify(events)).not.toContain("tenant");
     expect(JSON.stringify(events)).not.toContain("deleted");
+
+    const terminalEvents = mapStreamChunkToSseEvents(state, {
+      type: "done",
+      output: makeEngineOutput({ content: "查询完成，共返回 1 条风险管控结果。" }),
+    });
+    expect(terminalEvents.some((event) => event.sseEvent === "turn.completed")).toBe(true);
+    expect(terminalEvents.some((event) => event.sseEvent === "turn.failed")).toBe(false);
   });
 
-  test('{type:"tool-call-end"} exposes only safe clarification labels for the chat UI', () => {
+  test('{type:"tool-call-end"} exposes safe clarification labels and opaque confirmation tokens for the chat UI', () => {
     const state = createTachuSseMapperState({
       turnId: TURN_ID,
       messageId: MESSAGE_ID,
@@ -432,6 +440,7 @@ describe("mapStreamChunkToSseEvents", () => {
       output: {
         structuredContent: {
           status: "needs_clarification",
+          answer: null,
           clarification: {
             question: "请选择报警率口径",
             question_id: "q-internal",
@@ -454,14 +463,51 @@ describe("mapStreamChunkToSseEvents", () => {
           summary: "请选择报警率口径",
           clarification: {
             question: "请选择报警率口径",
-            options: [{ label: "超时报警率" }, { label: "全部报警率" }],
+            questionId: "q-internal",
+            options: [
+              { label: "超时报警率", optionId: "timeout_alarm_rate" },
+              { label: "全部报警率", optionId: "all_alarm_rate" },
+            ],
           },
         },
       },
     });
-    expect(JSON.stringify(events)).not.toContain("q-internal");
-    expect(JSON.stringify(events)).not.toContain("timeout_alarm_rate");
+    expect(JSON.stringify(events)).toContain("q-internal");
+    expect(JSON.stringify(events)).toContain("timeout_alarm_rate");
     expect(JSON.stringify(events)).not.toContain("metric-secret");
+  });
+
+  test('{type:"tool-call-end"} preserves failed status when answer and clarification are null', () => {
+    const state = createTachuSseMapperState({
+      turnId: TURN_ID,
+      messageId: MESSAGE_ID,
+      startTime: 1_700_000_000_000,
+      nextSfid: makeStubNextSfid(),
+    });
+    const events = mapStreamChunkToSseEvents(state, {
+      type: "tool-call-end",
+      callId: "tcall_biz_empty",
+      tool: "mcp.biz-ontology.ask_business_data",
+      success: true,
+      durationMs: 100,
+      output: JSON.stringify({ status: "failed", answer: null, clarification: null }),
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      sseEvent: "tool.call.completed",
+      payload: {
+        output: {
+          redacted: true,
+          policy: "business-data-v1",
+          status: "failed",
+          summary: "业务问数工具已返回结果。",
+          columnCount: 0,
+          rowCount: 0,
+        },
+      },
+    });
+    expect(JSON.stringify(events)).not.toContain('"clarification"');
   });
 
   test('{type:"tool-call-end"} reuses the parentStepId captured by tool-call-start', () => {

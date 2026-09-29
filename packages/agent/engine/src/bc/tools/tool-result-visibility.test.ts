@@ -55,4 +55,36 @@ describe("tool-result-visibility", () => {
       rows: [{ name: "safe" }],
     });
   });
+
+  test("keeps only opaque clarification confirmation tokens", () => {
+    const projected = projectToolResultForModel("mcp.biz-ontology.ask_business_data", {
+      structuredContent: {
+        status: "needs_clarification",
+        clarification: {
+          question: "请选择处理人",
+          question_id: "question-1",
+          slot: "dimension_value",
+          options: [
+            { id: "name-abc123", label: "超级管理员3", asset_id: "handler-secret" },
+            { option_id: "graph-option-2", label: "超级管理员2" },
+          ],
+        },
+        diagnostics: { tenant_id: "hidden" },
+      },
+    });
+
+    expect(projected).toMatchObject({
+      status: "needs_clarification",
+      clarification: {
+        question_id: "question-1",
+        slot: "dimension_value",
+        options: [
+          { option_id: "name-abc123", label: "超级管理员3" },
+          { option_id: "graph-option-2", label: "超级管理员2" },
+        ],
+      },
+    });
+    expect(JSON.stringify(projected)).not.toContain("handler-secret");
+    expect(JSON.stringify(projected)).not.toContain("tenant_id");
+  });
 });

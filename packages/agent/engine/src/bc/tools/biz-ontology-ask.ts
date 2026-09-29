@@ -10,9 +10,19 @@ import { McpBridgeService } from "./mcp-bridge.service";
 import type { ToolHandlerCtx } from "./tool-context";
 
 export function stampAskArguments(question: string, ctx: ToolHandlerCtx): Record<string, unknown> {
+  const choice = ctx.clarificationChoice;
+  const clarificationChoice = choice
+    ? {
+        label: choice.label,
+        ...(choice.optionId ? { option_id: choice.optionId, asset_id: choice.optionId } : {}),
+        ...(choice.questionId ? { question_id: choice.questionId } : {}),
+        ...(choice.slot ? { slot: choice.slot } : {}),
+      }
+    : undefined;
   return {
     question,
     conversation_id: ctx.session.id,
+    ...(clarificationChoice !== undefined ? { clarification_choice: clarificationChoice } : {}),
     context: {
       user_id: ctx.auth.user?.userId ?? "",
     },
@@ -30,7 +40,10 @@ export class AskBusinessDataProgram {
       throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "这一步只能调用一次问数。请把问数片段拼成一句后再调用。");
     }
     const raw = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
-    const question = askQuestionFromModel(raw.question, ctx.userPrompt);
+    const question =
+      ctx.clarificationChoice && !ctx.clarificationChoice.optionId
+        ? ctx.clarificationChoice.label
+        : askQuestionFromModel(raw.question, ctx.userPrompt);
     if (!question) {
       throw AgenticEngineError.fromCode("INVALID_ARGUMENT_SCHEMA_VIOLATION", "问数问题不能为空。");
     }

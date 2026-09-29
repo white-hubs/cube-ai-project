@@ -81,6 +81,76 @@ describe("SessionController — REST wiring", () => {
     );
   });
 
+  test("POST /sessions/:id/messages forwards a structured clarification choice", async () => {
+    const turnSvc = { startTurn: mock(async () => "1820345678901234999") } as unknown as TurnService;
+    const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
+    const ctx = baseCtx({
+      getParam: mock((key: string) => (key === "sessionId" ? "1820345678901234567" : undefined)),
+      getBody: mock(async () => ({
+        content: {
+          schema: "message-content-v1",
+          blocks: [{ type: "text", text: "对于“请选择报警率口径”，我选择“超时报警率”。" }],
+        },
+        clarificationChoice: { label: "超时报警率" },
+      })),
+    });
+
+    await contextStore.run(ctx as Context, async () => ctl.startTurn());
+
+    expect(turnSvc.startTurn).toHaveBeenCalledWith(
+      "1820345678901234567",
+      42,
+      "对于“请选择报警率口径”，我选择“超时报警率”。",
+      expect.objectContaining({ clarificationChoice: { label: "超时报警率" } }),
+    );
+  });
+
+  test("POST /sessions/:id/messages recognizes the exact clarification reply emitted by older UI SDKs", async () => {
+    const turnSvc = { startTurn: mock(async () => "1820345678901234999") } as unknown as TurnService;
+    const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
+    const ctx = baseCtx({
+      getParam: mock((key: string) => (key === "sessionId" ? "1820345678901234567" : undefined)),
+      getBody: mock(async () => ({
+        content: {
+          schema: "message-content-v1",
+          blocks: [{ type: "text", text: "对于“请选择报警率口径”，我选择“全部报警率”。" }],
+        },
+      })),
+    });
+
+    await contextStore.run(ctx as Context, async () => ctl.startTurn());
+
+    expect(turnSvc.startTurn).toHaveBeenCalledWith(
+      "1820345678901234567",
+      42,
+      "对于“请选择报警率口径”，我选择“全部报警率”。",
+      expect.objectContaining({ clarificationChoice: { label: "全部报警率" } }),
+    );
+  });
+
+  test("POST /sessions/:id/messages recognizes a UI reply whose clarification question contains quotes", async () => {
+    const turnSvc = { startTurn: mock(async () => "1820345678901234999") } as unknown as TurnService;
+    const ctl = new SessionController({} as SessionService, turnSvc, {} as never, {} as never);
+    const ctx = baseCtx({
+      getParam: mock((key: string) => (key === "sessionId" ? "1820345678901234567" : undefined)),
+      getBody: mock(async () => ({
+        content: {
+          schema: "message-content-v1",
+          blocks: [{ type: "text", text: "对于““报警数量”有多个统计口径”，我选择“报警事件记录与监控”。" }],
+        },
+      })),
+    });
+
+    await contextStore.run(ctx as Context, async () => ctl.startTurn());
+
+    expect(turnSvc.startTurn).toHaveBeenCalledWith(
+      "1820345678901234567",
+      42,
+      "对于““报警数量”有多个统计口径”，我选择“报警事件记录与监控”。",
+      expect.objectContaining({ clarificationChoice: { label: "报警事件记录与监控" } }),
+    );
+  });
+
   test("POST /sessions/:id/messages accepts image-only content with attachments", async () => {
     const turnSvc = {
       startTurn: mock(async () => "1820345678901234999"),
