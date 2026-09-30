@@ -18,7 +18,7 @@ import type {
   TurnStatus,
 } from "@cube-ai/agent-sdk-client-assistant";
 import { groupSessionsByDate } from "@cube-ai/agent-sdk-client-assistant";
-import type { RuntimeRefs } from "@cube-ai/contracts";
+import type { BusinessQueryClarificationChoice, RuntimeRefs } from "@cube-ai/contracts";
 
 import { useAssistant } from "./provide-assistant";
 
@@ -68,6 +68,7 @@ export interface UseAssistantMessagesReturn {
       providerCode?: string;
       providerId?: string;
       runtimeRefs?: RuntimeRefs;
+      clarificationChoice?: BusinessQueryClarificationChoice;
     },
   ) => Promise<{ turnId: string }>;
   cancel: () => Promise<void>;

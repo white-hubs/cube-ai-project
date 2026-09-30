@@ -311,6 +311,15 @@ describe("AssistantStore — send / streamEvents reducer", () => {
     store.dispose();
   });
 
+  test("send forwards a business-query clarification choice to engine.startTurn", async () => {
+    const { port, calls } = makeFakePort();
+    const store = createAssistantStore({ defaultAgentId: "agent-1", engine: port });
+    await store.send("我选择超时报警率", { clarificationChoice: { label: "超时报警率" } });
+    const body = calls.startTurn[0]?.body as { clarificationChoice?: unknown };
+    expect(body.clarificationChoice).toEqual({ label: "超时报警率" });
+    store.dispose();
+  });
+
   test("message-delta-v1 累加内容 + 把 placeholder id 替换为 serverMessageId", async () => {
     const { port, pushEvent } = makeFakePort();
     const store = createAssistantStore({ defaultAgentId: "a", engine: port });

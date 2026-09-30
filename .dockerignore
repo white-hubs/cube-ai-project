@@ -9,6 +9,11 @@ dist/*
 !packages/agent/engine/CUBE.md
 .env
 .env.*
+**/.env
+**/.env.*
 deploy/docker-compose/.env
+config/mcp-servers.json
+.tmp/
+.tmp-*.sqlite*
 .DS_Store
 **/.DS_Store

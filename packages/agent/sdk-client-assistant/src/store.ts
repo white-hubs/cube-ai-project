@@ -96,11 +96,12 @@ export interface AssistantState {
 
 export type StoreListener = (state: Readonly<AssistantState>) => void;
 
-interface SendOptions {
+export interface SendOptions {
   modelCode?: string;
   providerCode?: string;
   providerId?: string;
   runtimeRefs?: RuntimeRefs;
+  clarificationChoice?: StartTurnBody["clarificationChoice"];
   /** Image attachments (ADR-0008 §D4); requires prior `FilesApi.upload`. */
   attachments?: ImageAttachment[];
 }
@@ -470,6 +471,7 @@ export class AssistantStore {
         ...(opts.providerCode !== undefined ? { providerCode: opts.providerCode } : {}),
         ...(opts.providerId !== undefined ? { providerId: opts.providerId } : {}),
         ...(opts.runtimeRefs !== undefined ? { runtimeRefs: opts.runtimeRefs } : {}),
+        ...(opts.clarificationChoice !== undefined ? { clarificationChoice: opts.clarificationChoice } : {}),
       });
       turnId = res.turnId;
     } catch (e) {
